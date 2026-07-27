@@ -26,26 +26,26 @@ Each process exports metrics for the traffic that it handles:
 
 Refer to [provider configuration](./providers.md) for the provider reload lifecycle these metrics describe.
 
-| Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                  |
-|--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `coder_ai_gateway_interceptions_total`                             | counter   | `client`, `initiator_id`, `method`, `model`, `provider`, `route`, `status` | Intercepted requests.                                                                                    |
-| `coder_ai_gateway_interceptions_inflight`                          | gauge     | `model`, `provider`, `route`                                               | Intercepted requests currently being processed.                                                          |
-| `coder_ai_gateway_interceptions_duration_seconds`                  | histogram | `model`, `provider`                                                        | Total intercepted request duration, including upstream processing.                                       |
-| `coder_ai_gateway_passthrough_total`                               | counter   | `method`, `provider`, `route`                                              | Requests passed through to an upstream provider without interception.                                    |
-| `coder_ai_gateway_prompts_total`                                   | counter   | `client`, `initiator_id`, `model`, `provider`                              | Prompts issued by users.                                                                                 |
-| `coder_ai_gateway_tokens_total`                                    | counter   | `client`, `initiator_id`, `model`, `provider`, `type`                      | Tokens used by intercepted requests.                                                                     |
-| `coder_ai_gateway_injected_tool_invocations_total`                 | counter   | `model`, `name`, `provider`, `server`                                      | Invocations of MCP tools injected by AI Gateway.                                                         |
-| `coder_ai_gateway_non_injected_tool_selections_total`              | counter   | `model`, `name`, `provider`                                                | Tools selected by a model for the client to invoke.                                                      |
-| `coder_ai_gateway_circuit_breaker_state`                           | gauge     | `endpoint`, `model`, `provider`                                            | Current circuit-breaker state: `0` for closed, `0.5` for half-open, and `1` for open.                    |
-| `coder_ai_gateway_circuit_breaker_trips_total`                     | counter   | `endpoint`, `model`, `provider`                                            | Times a circuit breaker transitioned to the open state.                                                  |
-| `coder_ai_gateway_circuit_breaker_rejects_total`                   | counter   | `endpoint`, `model`, `provider`                                            | Requests rejected because a circuit breaker was open.                                                    |
-| `coder_ai_gateway_key_pool_state`                                  | gauge     | `provider`, `state`                                                        | Provider keys in each state: `valid`, `temporary`, or `permanent`.                                       |
-| `coder_ai_gateway_key_pool_state_transitions_total`                | counter   | `provider`, `reason`                                                       | Provider key state transitions during failover.                                                          |
-| `coder_ai_gateway_key_pool_exhaustions_total`                      | counter   | `outcome`, `provider`                                                      | Times a provider key pool had no usable key.                                                             |
-| `coder_ai_gateway_key_pool_failover_attempts`                      | histogram | `provider`                                                                 | Keys attempted before a request succeeded or exhausted the provider key pool.                            |
-| `coder_ai_gateway_provider_info`                                   | gauge     | `provider_name`, `provider_type`, `status`                                 | Build status of each provider in the Gateway provider pool. Value is always `1`; `status` carries state. |
-| `coder_ai_gateway_providers_last_reload_timestamp_seconds`         | gauge     |                                                                            | Unix timestamp of the last attempt to rebuild the Gateway provider pool.                                 |
-| `coder_ai_gateway_providers_last_reload_success_timestamp_seconds` | gauge     |                                                                            | Unix timestamp of the last successful rebuild of the Gateway provider pool.                              |
+| Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
+|--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_interceptions_total`                             | counter   | `client`, `initiator_id`, `method`, `model`, `provider`, `route`, `status` | Intercepted requests.                                                                                                                              |
+| `coder_ai_gateway_interceptions_inflight`                          | gauge     | `model`, `provider`, `route`                                               | Intercepted requests currently being processed.                                                                                                    |
+| `coder_ai_gateway_interceptions_duration_seconds`                  | histogram | `model`, `provider`                                                        | Total intercepted request duration, including upstream processing.                                                                                 |
+| `coder_ai_gateway_passthrough_total`                               | counter   | `method`, `provider`, `route`                                              | Requests passed through to an upstream provider without interception.                                                                              |
+| `coder_ai_gateway_prompts_total`                                   | counter   | `client`, `initiator_id`, `model`, `provider`                              | Prompts issued by users.                                                                                                                           |
+| `coder_ai_gateway_tokens_total`                                    | counter   | `client`, `initiator_id`, `model`, `provider`, `type`                      | Tokens used by intercepted requests.                                                                                                               |
+| `coder_ai_gateway_injected_tool_invocations_total`                 | counter   | `model`, `name`, `provider`, `server`                                      | Invocations of MCP tools injected by AI Gateway.                                                                                                   |
+| `coder_ai_gateway_non_injected_tool_selections_total`              | counter   | `model`, `name`, `provider`                                                | Tools selected by a model for the client to invoke.                                                                                                |
+| `coder_ai_gateway_circuit_breaker_state`                           | gauge     | `endpoint`, `model`, `provider`                                            | Current circuit-breaker state: `0` for closed, `0.5` for half-open, and `1` for open.                                                              |
+| `coder_ai_gateway_circuit_breaker_trips_total`                     | counter   | `endpoint`, `model`, `provider`                                            | Times a circuit breaker transitioned to the open state.                                                                                            |
+| `coder_ai_gateway_circuit_breaker_rejects_total`                   | counter   | `endpoint`, `model`, `provider`                                            | Requests rejected because a circuit breaker was open.                                                                                              |
+| `coder_ai_gateway_key_pool_state`                                  | gauge     | `provider`, `state`                                                        | Provider keys in each state: `valid`, `temporary`, or `permanent`.                                                                                 |
+| `coder_ai_gateway_key_pool_state_transitions_total`                | counter   | `provider`, `reason`                                                       | Provider key state transitions during failover.                                                                                                    |
+| `coder_ai_gateway_key_pool_exhaustions_total`                      | counter   | `outcome`, `provider`                                                      | Times a provider key pool had no usable key.                                                                                                       |
+| `coder_ai_gateway_key_pool_failover_attempts`                      | histogram | `provider`                                                                 | Keys attempted before a request succeeded or exhausted the provider key pool.                                                                      |
+| `coder_ai_gateway_provider_info`                                   | gauge     | `provider_name`, `provider_type`, `status`                                 | Build status of each configured provider, including disabled and errored ones. Value is always `1`; `status` is `enabled`, `disabled`, or `error`. |
+| `coder_ai_gateway_providers_last_reload_timestamp_seconds`         | gauge     |                                                                            | Unix timestamp of the last attempt to rebuild the Gateway provider pool.                                                                           |
+| `coder_ai_gateway_providers_last_reload_success_timestamp_seconds` | gauge     |                                                                            | Unix timestamp of the last successful rebuild of the Gateway provider pool.                                                                        |
 
 Histograms also emit the standard `_bucket`, `_sum`, and `_count` series.
 
@@ -53,15 +53,15 @@ Histograms also emit the standard `_bucket`, `_sum`, and `_count` series.
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                  |
-|--------------------------------------------------------------------------|---------|--------------------------------------------|------------------------------------------------------------------------------------------|
-| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type`                                     | CONNECT sessions established, classified as `mitm` or `tunneled`.                        |
-| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled by AI Gateway Proxy.                                               |
-| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | MITM requests currently being processed.                                                 |
-| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                      |
-| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Routing status of each configured provider. Value is always `1`; `status` carries state. |
-| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Unix timestamp of the last attempt to rebuild the proxy routing snapshot.                |
-| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Unix timestamp of the last successful rebuild of the proxy routing snapshot.             |
+| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                         |
+|--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type`                                     | CONNECT sessions established, classified as `mitm` or `tunneled`.                                               |
+| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled by AI Gateway Proxy.                                                                      |
+| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | MITM requests currently being processed.                                                                        |
+| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                             |
+| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Routing status of each configured provider. Value is always `1`; `status` is `enabled`, `disabled`, or `error`. |
+| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Unix timestamp of the last attempt to rebuild the proxy routing snapshot.                                       |
+| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Unix timestamp of the last successful rebuild of the proxy routing snapshot.                                    |
 
 Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for these metrics alongside the other metrics that Coder components export.
 
@@ -111,7 +111,7 @@ Use the `coder_ai_gateway_proxy_*` metrics when you alert on AI Gateway Proxy.
 
 ### Metrics listener
 
-Enable the standalone metrics listener with `CODER_PROMETHEUS_ENABLE=true` and set its bind address with `CODER_PROMETHEUS_ADDRESS`.
+Enable the standalone metrics listener with `CODER_PROMETHEUS_ENABLE=true` or `--prometheus-enable`, and set its bind address with `CODER_PROMETHEUS_ADDRESS` or `--prometheus-address`.
 The command default is `127.0.0.1:2112`.
 The listener is unauthenticated, so expose it only to your monitoring network.
 
@@ -145,8 +145,8 @@ A standalone AI Gateway exposes health endpoints on its data-plane listener:
 | `/readyz`  | The control connection to `coderd` is active and provider configuration has been initialized. |
 
 `/readyz` returns HTTP 503 until provider configuration is initialized and whenever the control connection to `coderd` is unavailable.
-`/healthz` continues to return HTTP 200 control-plane connection breaks and Gateway will attempt to reconnect.
-Health and readiness requests bypass AI Gateway middleware and do not create trace spans.
+`/healthz` only reports if the HTTP listener is up, it returns HTTP 200 even when the control connection is down.
+Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
 
 The standalone Helm chart enables a `/healthz` liveness probe and a `/readyz` readiness probe by default.
 The startup probe is disabled by default.
@@ -166,7 +166,7 @@ The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, standalon
 Standalone replicas send interception records to `coderd`, which writes the structured logs to the Coder server log output.
 Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
 
-## Exporting Data
+## Export data
 
 AI Gateway interception data can be exported for external analysis, compliance reporting, or integration with log aggregation systems.
 
@@ -208,15 +208,15 @@ Available query filters:
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 
-See the [API documentation](../../reference/api/aigateway.md) for full details.
+Refer to the [API documentation](../../reference/api/aigateway.md) for full details.
 
-## Data Retention
+## Data retention
 
 AI Gateway data is retained for **60 days by default**. Configure the retention
 period to balance storage costs with your organization's compliance and analysis
 needs.
 
-For configuration options and details, see [Data Retention](./setup.md#data-retention)
+For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
 in the AI Gateway setup guide.
 
 ## Tracing
@@ -227,7 +227,8 @@ Standalone spans are emitted independently by every replica with the service nam
 
 ### Enable tracing
 
-AI Gateway exports spans over OTLP/gRPC to a configured trace receiver.
+AI Gateway exports spans over OTLP/gRPC by default.
+The `CODER_TRACE_DATADOG` and `CODER_TRACE_HONEYCOMB_API_KEY` options select other exporters.
 
 The embedded and standalone Gateways share the same tracing options.
 Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded Gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
@@ -241,7 +242,6 @@ export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4317
 ```
 
 In both deployment modes, each request to the Gateway's LLM API endpoint creates an HTTP request span, including requests that are passed through or rejected instead of intercepted.
-Standalone health and readiness requests do not create spans.
 
 ### Traced operations
 
@@ -282,5 +282,5 @@ export CODER_TRACE_ENABLE=true
 export CODER_TRACE_LOGS=true
 ```
 
-For the embedded Gateway, you can also start Coder with `coder server --trace --trace-logs`.
-For standalone replicas, configure both variables on every process that should capture logs.
+You can also pass `--trace` and `--trace-logs` instead of the environment variables, both to `coder server` and to `coder ai-gateway start`.
+For standalone replicas, configure tracing on every process that should capture logs.
