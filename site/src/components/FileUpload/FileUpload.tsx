@@ -89,6 +89,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				data-testid="file-upload"
 				ref={inputRef}
 				className="hidden"
+				disabled={isUploading}
 				accept={extensions?.map((ext) => `.${ext}`).join(",")}
 				onChange={(event) => {
 					const file = event.currentTarget.files?.[0];

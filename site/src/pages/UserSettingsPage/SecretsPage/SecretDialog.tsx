@@ -27,11 +27,11 @@ import { FileUpload } from "#/components/FileUpload/FileUpload";
 import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
+import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
-import { DividerWithText } from "./DividerWithText";
 import {
 	buildCreateUserSecretRequest,
 	buildUpdateUserSecretRequest,
@@ -274,7 +274,13 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 									<ImportSecretsError error={importError} />
 								)}
 							</div>
-							<DividerWithText>or add individually</DividerWithText>
+							<div className="flex items-center">
+								<Separator />
+								<span className="whitespace-nowrap px-3 text-xs text-content-secondary">
+									or add individually
+								</span>
+								<Separator />
+							</div>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
 								showRequiredLabels
@@ -552,8 +558,6 @@ type ImportSecretsErrorProps = {
 	error: unknown;
 };
 
-// ImportSecretsError lists per-entry validation failures by field path
-// (e.g. secrets[1].env_name), and falls back to ErrorAlert otherwise.
 const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
 	const validations = getImportSecretValidations(error);
 	if (validations.length === 0) {

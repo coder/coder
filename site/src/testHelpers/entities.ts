@@ -619,24 +619,23 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+export const MockImportedUserSecret: TypesGen.UserSecret = {
+	id: "imported-database-url",
+	name: "DATABASE_URL",
+	description: "",
+	env_name: "DATABASE_URL",
+	file_path: "",
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+};
+
 export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	MockImportedUserSecret,
 	{
-		id: "imported-database-url",
-		name: "DATABASE_URL",
-		description: "Imported from a secrets file.",
-		env_name: "DATABASE_URL",
-		file_path: "",
-		created_at: "2026-05-04T00:00:00Z",
-		updated_at: "2026-05-04T00:00:00Z",
-	},
-	{
+		...MockImportedUserSecret,
 		id: "imported-api-token",
 		name: "API_TOKEN",
-		description: "Imported from a secrets file.",
 		env_name: "API_TOKEN",
-		file_path: "",
-		created_at: "2026-05-04T00:00:00Z",
-		updated_at: "2026-05-04T00:00:00Z",
 	},
 ];
 

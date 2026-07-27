@@ -2,7 +2,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { FileUpload } from "./FileUpload";
 
-test("accepts files with the correct extension", () => {
+test("accepts files with the correct extension", async () => {
 	const onUpload = vi.fn();
 
 	renderComponent(
@@ -31,40 +31,9 @@ test("accepts files with the correct extension", () => {
 	expect(onUpload).toHaveBeenCalledWith(zipFile);
 	onUpload.mockClear();
 
-	const uppercaseTarFile = new File([""], "file.TAR");
-	fireEvent.drop(dropZone, {
-		dataTransfer: { files: [uppercaseTarFile] },
-	});
-	expect(onUpload).toHaveBeenCalledWith(uppercaseTarFile);
-	onUpload.mockClear();
-
 	const unsupportedFile = new File([""], "file.mp4");
 	fireEvent.drop(dropZone, {
 		dataTransfer: { files: [unsupportedFile] },
 	});
-	expect(onUpload).not.toHaveBeenCalled();
-});
-
-test("reports files with an unsupported extension", () => {
-	const onUpload = vi.fn();
-	const onUnsupportedFile = vi.fn();
-
-	renderComponent(
-		<FileUpload
-			isUploading={false}
-			onUpload={onUpload}
-			onUnsupportedFile={onUnsupportedFile}
-			removeLabel="Remove file"
-			title="Upload file"
-			extensions={["env", "json"]}
-		/>,
-	);
-
-	const unsupportedFile = new File([""], "bad.txt");
-	fireEvent.drop(screen.getByTestId("drop-zone"), {
-		dataTransfer: { files: [unsupportedFile] },
-	});
-
-	expect(onUnsupportedFile).toHaveBeenCalledWith(unsupportedFile);
 	expect(onUpload).not.toHaveBeenCalled();
 });

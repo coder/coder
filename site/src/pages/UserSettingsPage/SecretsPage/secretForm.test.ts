@@ -1,5 +1,5 @@
 import type { UserSecret } from "#/api/typesGenerated";
-import { mockApiError } from "#/testHelpers/entities";
+import { MockImportedUserSecret, mockApiError } from "#/testHelpers/entities";
 import {
 	buildCreateUserSecretRequest,
 	buildImportSuccessMessage,
@@ -30,35 +30,31 @@ const existingSecrets: UserSecret[] = [
 	},
 ];
 
-const makeSecret = (overrides?: Partial<UserSecret>): UserSecret => ({
-	id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-	name: "my-secret",
-	description: "",
-	env_name: "MY_SECRET",
-	file_path: "",
-	created_at: "2026-05-04T00:00:00Z",
-	updated_at: "2026-05-04T00:00:00Z",
-	...overrides,
-});
-
 describe("buildImportSuccessMessage", () => {
 	it("reports a single secret imported successfully", () => {
-		expect(buildImportSuccessMessage([makeSecret()])).toBe(
+		expect(buildImportSuccessMessage([MockImportedUserSecret])).toBe(
 			"Imported 1 secret successfully.",
 		);
 	});
 
 	it("reports multiple secrets imported successfully", () => {
-		expect(buildImportSuccessMessage([makeSecret(), makeSecret()])).toBe(
-			"Imported 2 secrets successfully.",
-		);
+		expect(
+			buildImportSuccessMessage([
+				MockImportedUserSecret,
+				{ ...MockImportedUserSecret, id: "second-secret" },
+			]),
+		).toBe("Imported 2 secrets successfully.");
 	});
 
 	it("reports one secret imported without an env name", () => {
 		expect(
 			buildImportSuccessMessage([
-				makeSecret({ env_name: "GOOD_VAR" }),
-				makeSecret({ env_name: "" }),
+				MockImportedUserSecret,
+				{
+					...MockImportedUserSecret,
+					id: "without-env-name",
+					env_name: "",
+				},
 			]),
 		).toBe(
 			"Imported 2 secrets. " +
@@ -70,9 +66,13 @@ describe("buildImportSuccessMessage", () => {
 	it("reports multiple secrets imported without env names", () => {
 		expect(
 			buildImportSuccessMessage([
-				makeSecret({ env_name: "" }),
-				makeSecret({ env_name: "" }),
-				makeSecret({ env_name: "GOOD_VAR" }),
+				{ ...MockImportedUserSecret, env_name: "" },
+				{
+					...MockImportedUserSecret,
+					id: "second-without-env-name",
+					env_name: "",
+				},
+				MockImportedUserSecret,
 			]),
 		).toBe(
 			"Imported 3 secrets. " +
