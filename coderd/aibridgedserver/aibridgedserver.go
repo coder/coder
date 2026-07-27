@@ -121,8 +121,6 @@ type Server struct {
 	// derive the window over which user AI spend is aggregated.
 	budgetPeriod codersdk.AIBudgetPeriod
 	clock        quartz.Clock
-	// notifEnqueuer enqueues notifications. It is never nil; NewServer defaults
-	// it to a no-op enqueuer.
 	notifEnqueuer notifications.Enqueuer
 }
 
