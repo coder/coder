@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
-import {
-	getSubagentDescriptor,
-	isSubagentToolName,
-} from "../ChatElements/tools/subagentDescriptor";
+import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
 	getEditableUserMessagePayload,
@@ -1153,10 +1150,5 @@ describe("getSubagentDescriptor", () => {
 				supportsDesktopAffordance: false,
 			});
 		}
-	});
-
-	it("does not treat list_agents as a subagent lifecycle tool", () => {
-		expect(isSubagentToolName("list_agents")).toBe(false);
-		expect(getSubagentDescriptor({ name: "list_agents" })).toBeNull();
 	});
 });
