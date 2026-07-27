@@ -24,6 +24,10 @@ coder secret
 
      $ echo -n "$NEW_SECRET_VALUE" | coder secret update api-key --description "Rotated API key" --env API_KEY --file "~/.api-key"
 
+  - Import secrets from a file:
+
+     $ coder secret import ./secrets.env
+
   - List your secrets:
 
      $ coder secret list
@@ -43,5 +47,6 @@ coder secret
 |-------------------------------------------|-----------------------------------|
 | [<code>create</code>](./secret_create.md) | Create a secret                   |
 | [<code>update</code>](./secret_update.md) | Update a secret                   |
+| [<code>import</code>](./secret_import.md) | Import secrets from a file        |
 | [<code>list</code>](./secret_list.md)     | List secrets, or show one by name |
 | [<code>delete</code>](./secret_delete.md) | Delete a secret                   |

@@ -3,10 +3,13 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize/english"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -30,6 +33,10 @@ func (r *RootCmd) secrets() *serpent.Command {
 				Command:     "echo -n \"$NEW_SECRET_VALUE\" | coder secret update api-key --description \"Rotated API key\" --env API_KEY --file \"~/.api-key\"",
 			},
 			Example{
+				Description: "Import secrets from a file",
+				Command:     "coder secret import ./secrets.env",
+			},
+			Example{
 				Description: "List your secrets",
 				Command:     "coder secret list",
 			},
@@ -48,6 +55,7 @@ func (r *RootCmd) secrets() *serpent.Command {
 		Children: []*serpent.Command{
 			r.secretCreate(),
 			r.secretUpdate(),
+			r.secretImport(),
 			r.secretList(),
 			r.secretDelete(),
 		},
@@ -212,6 +220,138 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 	}
 
 	return cmd
+}
+
+var secretsFileFormats = []string{
+	string(codersdk.SecretsFileFormatEnv),
+	string(codersdk.SecretsFileFormatJSON),
+	string(codersdk.SecretsFileFormatYAML),
+}
+
+func (r *RootCmd) secretImport() *serpent.Command {
+	var inputFormat string
+
+	cmd := &serpent.Command{
+		Use:   "import <file>",
+		Short: "Import secrets from a file",
+		Long: strings.Join([]string{
+			"Every key in the file becomes a secret that is injected as an environment variable of the same name.",
+			"The import is all or nothing, and existing secrets are never overwritten.",
+			"Pass - to read the file from stdin.",
+		}, " "),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Options: serpent.OptionSet{
+			{
+				Name:        "input-format",
+				Flag:        "input-format",
+				Description: "Format of the secrets file. Inferred from the file extension when unset, and required when reading from stdin.",
+				Value:       serpent.EnumOf(&inputFormat, secretsFileFormats...),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			path := inv.Args[0]
+			// serpent.EnumOf matches case-insensitively but keeps the input
+			// verbatim, and the parser only accepts lowercase formats.
+			format := codersdk.SecretsFileFormat(strings.ToLower(inputFormat))
+			if format == "" {
+				format, err = secretsFileFormatFromPath(path)
+				if err != nil {
+					return err
+				}
+			}
+
+			content, err := readSecretsFile(inv, path)
+			if err != nil {
+				return err
+			}
+			// Parse before sending so that a file picked by mistake, such as a
+			// private key, never leaves the machine.
+			if _, err := codersdk.ParseSecretsFile(format, string(content)); err != nil {
+				return xerrors.Errorf("parse %q: %w", path, err)
+			}
+
+			secrets, err := client.ImportUserSecrets(inv.Context(), codersdk.Me, codersdk.ImportUserSecretsRequest{
+				Format:  format,
+				Content: string(content),
+			})
+			if err != nil {
+				return xerrors.Errorf("import secrets from %q: %w", path, err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Imported %s.\n", english.Plural(len(secrets), "secret", ""))
+			warnSecretsWithoutEnvName(inv.Stderr, secrets)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// secretsFileFormatFromPath infers the format from the file extension.
+// Extensions that do not map to a format, such as ".env.local", require
+// --input-format.
+func secretsFileFormatFromPath(path string) (codersdk.SecretsFileFormat, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".env":
+		return codersdk.SecretsFileFormatEnv, nil
+	case ".json":
+		return codersdk.SecretsFileFormatJSON, nil
+	case ".yaml", ".yml":
+		return codersdk.SecretsFileFormatYAML, nil
+	default:
+		return "", xerrors.Errorf("cannot infer the secrets file format from %q, set --input-format to one of: %s", path, strings.Join(secretsFileFormats, ", "))
+	}
+}
+
+// readSecretsFile reads the file at path, or stdin when path is "-". It never
+// reads more than one byte past the limit the server accepts.
+func readSecretsFile(inv *serpent.Invocation, path string) ([]byte, error) {
+	reader := inv.Stdin
+	if path != "-" {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, xerrors.Errorf("open secrets file: %w", err)
+		}
+		defer file.Close()
+		reader = file
+	}
+
+	content, err := io.ReadAll(io.LimitReader(reader, codersdk.MaxSecretsFileBytes+1))
+	if err != nil {
+		return nil, xerrors.Errorf("read secrets file: %w", err)
+	}
+	if len(content) > codersdk.MaxSecretsFileBytes {
+		return nil, xerrors.Errorf("secrets file exceeds the maximum allowed size of %d bytes", codersdk.MaxSecretsFileBytes)
+	}
+	return content, nil
+}
+
+// warnSecretsWithoutEnvName reports imported secrets whose key is not a valid
+// environment variable name. They are stored with an empty env name and are
+// never injected into workspaces until one is set.
+func warnSecretsWithoutEnvName(w io.Writer, secrets []codersdk.UserSecret) {
+	names := make([]string, 0, len(secrets))
+	for _, secret := range secrets {
+		if secret.EnvName == "" {
+			names = append(names, secret.Name)
+		}
+	}
+	if len(names) == 0 {
+		return
+	}
+
+	cliui.Warn(w,
+		fmt.Sprintf("%s imported without an environment variable name: %s",
+			english.Plural(len(names), "secret", ""), strings.Join(names, ", ")),
+		"Set one with `coder secret update <name> --env <ENV_NAME>` to inject them into workspaces.",
+	)
 }
 
 func secretValue(inv *serpent.Invocation, value string) (string, bool, error) {

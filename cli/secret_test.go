@@ -3,6 +3,8 @@ package cli_test
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -589,5 +591,168 @@ func TestSecretDelete(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
+func TestSecretImport(t *testing.T) {
+	t.Parallel()
+
+	writeSecretsFile := func(t *testing.T, name, content string) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), name)
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+
+	t.Run("InfersFormatFromExtension", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			file    string
+			content string
+		}{
+			{name: "Env", file: "secrets.env", content: "ALPHA=a\nBETA=b\n"},
+			{name: "JSON", file: "secrets.json", content: `{"ALPHA":"a","BETA":"b"}`},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, nil)
+				_ = coderdtest.CreateFirstUser(t, client)
+
+				inv, root := clitest.New(t, "secret", "import", writeSecretsFile(t, tt.file, tt.content))
+				output := clitest.Capture(inv)
+				clitest.SetupConfig(t, client, root)
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				require.NoError(t, inv.WithContext(ctx).Run())
+				require.Contains(t, output.Stdout(), "Imported 2 secrets.")
+				require.NotContains(t, output.Stderr(), "without an environment variable name")
+
+				secret, err := client.UserSecretByName(ctx, codersdk.Me, "ALPHA")
+				require.NoError(t, err)
+				require.Equal(t, "ALPHA", secret.EnvName)
+			})
+		}
+	})
+
+	// The flag wins over the extension, and its value is matched
+	// case-insensitively.
+	t.Run("InputFormatOverridesExtension", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		path := writeSecretsFile(t, "secrets.json", "ALPHA=a\n")
+		inv, root := clitest.New(t, "secret", "import", path, "--input-format", "ENV")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		require.Contains(t, output.Stdout(), "Imported 1 secret.")
+
+		_, err := client.UserSecretByName(ctx, codersdk.Me, "ALPHA")
+		require.NoError(t, err)
+	})
+
+	t.Run("Stdin", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "secret", "import", "-", "--input-format", "env")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("ALPHA=a\n")
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		require.Contains(t, output.Stdout(), "Imported 1 secret.")
+
+		_, err := client.UserSecretByName(ctx, codersdk.Me, "ALPHA")
+		require.NoError(t, err)
+	})
+
+	t.Run("UnknownExtension", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		path := writeSecretsFile(t, "secrets.txt", "ALPHA=a\n")
+		inv, root := clitest.New(t, "secret", "import", path)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "set --input-format to one of: env, json, yaml")
+	})
+
+	t.Run("RejectsMalformedFileBeforeSending", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		path := writeSecretsFile(t, "secrets.env", "ALPHA=a\nNOEQUALS\n")
+		inv, root := clitest.New(t, "secret", "import", path)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "line 2: expected KEY=VALUE")
+		// The request wrapper is absent, so the file was never uploaded.
+		require.NotContains(t, err.Error(), "import secrets from")
+	})
+
+	t.Run("CreatesNothingWhenAnEntryIsInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// An empty value parses but fails server-side validation, which
+		// rejects the whole batch.
+		path := writeSecretsFile(t, "secrets.env", "ALPHA=a\nBETA=\n")
+		inv, root := clitest.New(t, "secret", "import", path)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "import secrets from")
+
+		secrets, err := client.UserSecrets(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Empty(t, secrets)
+	})
+
+	t.Run("WarnsAboutKeysWithoutEnvNames", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// PATH is reserved and MY-TOKEN is not a valid identifier, so both are
+		// imported without an env name.
+		require.Error(t, codersdk.UserSecretEnvNameValid("PATH"))
+		path := writeSecretsFile(t, "secrets.env", "ALPHA=a\nPATH=b\nMY-TOKEN=c\n")
+		inv, root := clitest.New(t, "secret", "import", path)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		require.Contains(t, output.Stdout(), "Imported 3 secrets.")
+		require.Contains(t, output.Stderr(), "2 secrets imported without an environment variable name: PATH, MY-TOKEN")
+
+		secret, err := client.UserSecretByName(ctx, codersdk.Me, "PATH")
+		require.NoError(t, err)
+		require.Empty(t, secret.EnvName)
 	})
 }
