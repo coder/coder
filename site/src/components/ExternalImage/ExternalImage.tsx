@@ -1,4 +1,4 @@
-import { useTheme } from "@emotion/react";
+import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
 export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
@@ -6,13 +6,13 @@ export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
 	alt = "",
 	...props
 }) => {
-	const theme = useTheme();
+	const { externalImages } = useAppearance();
 
 	return (
 		<img
 			alt={alt}
 			style={{
-				...getExternalImageStylesFromUrl(theme.externalImages, props.src),
+				...getExternalImageStylesFromUrl(externalImages, props.src),
 				...style,
 			}}
 			{...props}
