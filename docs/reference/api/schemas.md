@@ -7477,15 +7477,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `hard_limit`  | integer                                      | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
-|`soft_limit`|integer|false||Soft limit and HardLimit are optional thresholds that accompany Limit for features whose license carries them. For these features, Limit carries the purchased allocation, SoftLimit is the advisory warning threshold, and HardLimit is the enforcement ceiling.
-Only certain features set these fields: - FeatureAgentRuntimeHours|
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                          |
+|---------------|----------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                      |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                      |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                      |
+| `hard_limit`  | integer                                      | false    |              | Hard limit is the enforcement ceiling that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds. |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                      |
+|`soft_limit`|integer|false||Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation.
+Only certain features set this field: - FeatureAgentRuntimeHours|
 |`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
 These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
 Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgentRuntimeHours|

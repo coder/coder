@@ -5012,15 +5012,19 @@ export interface Feature {
 	readonly enabled: boolean;
 	readonly limit?: number;
 	/**
-	 * SoftLimit and HardLimit are optional thresholds that accompany Limit
-	 * for features whose license carries them. For these features, Limit
-	 * carries the purchased allocation, SoftLimit is the advisory warning
-	 * threshold, and HardLimit is the enforcement ceiling.
+	 * SoftLimit is the advisory warning threshold that accompanies Limit for
+	 * features whose license carries it. For these features, Limit carries
+	 * the purchased allocation.
 	 *
-	 * Only certain features set these fields:
+	 * Only certain features set this field:
 	 * - FeatureAgentRuntimeHours
 	 */
 	readonly soft_limit?: number;
+	/**
+	 * HardLimit is the enforcement ceiling that accompanies Limit for
+	 * features whose license carries it. See SoftLimit for the set of
+	 * features that use these thresholds.
+	 */
 	readonly hard_limit?: number;
 	readonly actual?: number;
 	/**

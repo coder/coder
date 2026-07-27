@@ -394,6 +394,12 @@ func TestEntitlements(t *testing.T) {
 			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
 			require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
 		}
+		// Agent runtime hours is enabled by `all` and not granted by this
+		// license, which is exactly the state the warning suppression covers.
+		require.NotContains(t, entitlements.Warnings, fmt.Sprintf(
+			"%s is enabled but your license is not entitled to this feature.",
+			codersdk.FeatureAgentRuntimeHours.Humanize(),
+		))
 	})
 	t.Run("TooManyUsers", func(t *testing.T) {
 		t.Parallel()
@@ -2465,6 +2471,22 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		require.Nil(t, feature.Limit)
 	})
 
+	// The rollout guarantee for old deployments is that none of the three
+	// claim names is itself a feature name, so an old server ignores them as
+	// unknown claims. Pin the invariant so a future feature registration
+	// cannot break it silently.
+	t.Run("ClaimNamesAreNotFeatureNames", func(t *testing.T) {
+		t.Parallel()
+
+		for _, claim := range []string{
+			license.ClaimAgentRuntimeHoursAllocation,
+			license.ClaimAgentRuntimeHoursLimitSoft,
+			license.ClaimAgentRuntimeHoursLimitHard,
+		} {
+			require.NotContains(t, codersdk.FeatureNamesMap, codersdk.FeatureName(claim))
+		}
+	})
+
 	// Ensures licenses carrying claims for features this server version does
 	// not know about do not break entitlement computation. This is exactly
 	// what old deployments see when a license carries the agent runtime hour
@@ -2556,27 +2578,36 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 0,
 				license.ClaimAgentRuntimeHoursLimitHard:  0,
 			},
+			expectedErr: license.ErrAgentRuntimeHoursLimitsWithZeroAllocation,
+		},
+		{
+			name: "ZeroAllocationWithPositiveHard",
+			features: license.Features{
+				license.ClaimAgentRuntimeHoursAllocation: 0,
+				license.ClaimAgentRuntimeHoursLimitHard:  1000,
+			},
+			expectedErr: license.ErrAgentRuntimeHoursLimitsWithZeroAllocation,
 		},
 		{
 			name: "SoftWithoutAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursLimitSoft: 80,
 			},
-			expectedErr: license.ErrMissingAgentRuntimeAllocation,
+			expectedErr: license.ErrMissingAgentRuntimeHoursAllocation,
 		},
 		{
 			name: "HardWithoutAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursLimitHard: 120,
 			},
-			expectedErr: license.ErrMissingAgentRuntimeAllocation,
+			expectedErr: license.ErrMissingAgentRuntimeHoursAllocation,
 		},
 		{
 			name: "NegativeAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: -1,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeAllocation,
+			expectedErr: license.ErrInvalidAgentRuntimeHoursAllocation,
 		},
 		{
 			name: "NegativeSoft",
@@ -2584,7 +2615,7 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitSoft:  -1,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeSoftLimit,
+			expectedErr: license.ErrInvalidAgentRuntimeHoursSoftLimit,
 		},
 		{
 			name: "SoftEqualsAllocation",
@@ -2592,7 +2623,7 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitSoft:  100,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeSoftLimit,
+			expectedErr: license.ErrInvalidAgentRuntimeHoursSoftLimit,
 		},
 		{
 			name: "SoftAboveAllocation",
@@ -2600,7 +2631,7 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitSoft:  150,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeSoftLimit,
+			expectedErr: license.ErrInvalidAgentRuntimeHoursSoftLimit,
 		},
 		{
 			name: "SoftWithZeroAllocation",
@@ -2608,7 +2639,7 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 0,
 				license.ClaimAgentRuntimeHoursLimitSoft:  0,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeSoftLimit,
+			expectedErr: license.ErrAgentRuntimeHoursLimitsWithZeroAllocation,
 		},
 		{
 			name: "HardBelowAllocation",
@@ -2616,7 +2647,7 @@ func TestAgentRuntimeHoursClaimValidation(t *testing.T) {
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitHard:  99,
 			},
-			expectedErr: license.ErrInvalidAgentRuntimeHardLimit,
+			expectedErr: license.ErrInvalidAgentRuntimeHoursHardLimit,
 		},
 	}
 

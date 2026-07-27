@@ -18413,13 +18413,14 @@
 					"$ref": "#/definitions/codersdk.Entitlement"
 				},
 				"hard_limit": {
+					"description": "HardLimit is the enforcement ceiling that accompanies Limit for\nfeatures whose license carries it. See SoftLimit for the set of\nfeatures that use these thresholds.",
 					"type": "integer"
 				},
 				"limit": {
 					"type": "integer"
 				},
 				"soft_limit": {
-					"description": "SoftLimit and HardLimit are optional thresholds that accompany Limit\nfor features whose license carries them. For these features, Limit\ncarries the purchased allocation, SoftLimit is the advisory warning\nthreshold, and HardLimit is the enforcement ceiling.\n\nOnly certain features set these fields:\n- FeatureAgentRuntimeHours",
+					"description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
 					"type": "integer"
 				},
 				"usage_period": {

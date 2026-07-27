@@ -199,11 +199,11 @@ const (
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
-	// AgentRuntimeHours is a usage period feature. It is never a license
-	// claim itself; it is populated from the agent_runtime_hours_allocation,
-	// agent_runtime_hours_limit_soft and agent_runtime_hours_limit_hard
-	// claims. Refer to enterprise/coderd/license/license.go for the license
-	// format.
+	// FeatureAgentRuntimeHours is a usage period feature. It is never a
+	// license claim itself; it is populated from the
+	// agent_runtime_hours_allocation, agent_runtime_hours_limit_soft and
+	// agent_runtime_hours_limit_hard claims. Refer to
+	// enterprise/coderd/license/license.go for the license format.
 	FeatureAgentRuntimeHours FeatureName = "agent_runtime_hours"
 )
 
@@ -381,14 +381,16 @@ type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
-	// SoftLimit and HardLimit are optional thresholds that accompany Limit
-	// for features whose license carries them. For these features, Limit
-	// carries the purchased allocation, SoftLimit is the advisory warning
-	// threshold, and HardLimit is the enforcement ceiling.
+	// SoftLimit is the advisory warning threshold that accompanies Limit for
+	// features whose license carries it. For these features, Limit carries
+	// the purchased allocation.
 	//
-	// Only certain features set these fields:
+	// Only certain features set this field:
 	// - FeatureAgentRuntimeHours
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// HardLimit is the enforcement ceiling that accompanies Limit for
+	// features whose license carries it. See SoftLimit for the set of
+	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
 	Actual    *int64 `json:"actual,omitempty"`
 
