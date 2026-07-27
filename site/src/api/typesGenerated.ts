@@ -1961,109 +1961,6 @@ export interface ChatCost {
 
 // From codersdk/chats.go
 /**
- * ChatCostChatBreakdown contains per-root-chat cost aggregation.
- */
-export interface ChatCostChatBreakdown {
-	readonly root_chat_id: string;
-	readonly chat_title: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostModelBreakdown contains per-model cost aggregation.
- */
-export interface ChatCostModelBreakdown {
-	readonly model_config_id: string;
-	readonly display_name: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummary is the response from the chat cost summary endpoint.
- */
-export interface ChatCostSummary {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-	readonly by_model: readonly ChatCostModelBreakdown[];
-	readonly by_chat: readonly ChatCostChatBreakdown[];
-	readonly usage_limit?: ChatUsageLimitStatus;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
- */
-export interface ChatCostSummaryOptions {
-	readonly StartDate: string;
-	readonly EndDate: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUserRollup contains per-user cost aggregation for admin views.
- */
-export interface ChatCostUserRollup {
-	readonly user_id: string;
-	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly chat_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
- */
-export interface ChatCostUsersOptions extends Pagination {
-	readonly StartDate: string;
-	readonly EndDate: string;
-	readonly Username: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersResponse is the response from the admin chat cost users endpoint.
- */
-export interface ChatCostUsersResponse {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly count: number;
-	readonly users: readonly ChatCostUserRollup[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatDebugLoggingAdminSettings describes the runtime admin setting
  * that allows users to opt into chat debug logging.
  */
@@ -3339,31 +3236,6 @@ export interface ChatUnsupportedProvider {
 
 // From codersdk/chats.go
 /**
- * ChatUsageLimitConfig is the deployment-wide default usage limit config.
- */
-export interface ChatUsageLimitConfig {
-	/**
-	 * Nil in the API means no default limit is set. The DB stores 0 when
-	 * limiting is disabled.
-	 */
-	readonly spend_limit_micros: number | null;
-	readonly period: ChatUsageLimitPeriod;
-	readonly updated_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitConfigResponse is returned from the admin config endpoint
- * and includes the config plus a count of models without pricing.
- */
-export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
-	readonly unpriced_model_count: number;
-	readonly overrides: readonly ChatUsageLimitOverride[];
-	readonly group_overrides: readonly ChatUsageLimitGroupOverride[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatUsageLimitExceededResponse is the 409 response body returned when a
  * chat operation exceeds the caller's usage limit. The structured fields let
  * frontends render user-friendly spend, limit, and reset information without
@@ -3373,39 +3245,6 @@ export interface ChatUsageLimitExceededResponse extends Response {
 	readonly spent_micros: number;
 	readonly limit_micros: number;
 	readonly resets_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
- */
-export interface ChatUsageLimitGroupOverride {
-	readonly group_id: string;
-	readonly group_name: string;
-	readonly group_display_name: string;
-	readonly group_avatar_url: string;
-	readonly member_count: number;
-	/**
-	 * Nil in the API means no group override is set. Persisted override rows
-	 * store positive values.
-	 */
-	readonly spend_limit_micros: number | null;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitOverride is a per-user override of the deployment default.
- */
-export interface ChatUsageLimitOverride {
-	readonly user_id: string;
-	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
-	/**
-	 * Nil in the API means no user override is set. Persisted override rows
-	 * store positive values.
-	 */
-	readonly spend_limit_micros: number | null;
 }
 
 // From codersdk/chats.go
@@ -9371,22 +9210,6 @@ export interface UpdateChatSystemPromptRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
- */
-export interface UpdateChatUsageLimitGroupOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatUsageLimitOverrideRequest is kept as a compatibility alias.
- */
-export interface UpdateChatUsageLimitOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatWorkspaceTTLRequest is the request to update the chat
  * workspace TTL setting.
  */
@@ -9848,24 +9671,6 @@ export interface UploadChatFileResponse {
  */
 export interface UploadResponse {
 	readonly hash: string;
-}
-
-// From codersdk/chats.go
-/**
- * UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
- * a group-level spend limit override.
- */
-export interface UpsertChatUsageLimitGroupOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
- * UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
- * per-user usage limit override.
- */
-export interface UpsertChatUsageLimitOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
 // From codersdk/aibridge.go

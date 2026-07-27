@@ -40,7 +40,7 @@ export const EmptyConversationPrompt: Story = {
 	},
 };
 
-/** Usage-limit failures replace the idle prompt with the analytics CTA. */
+/** Usage-limit failures replace the idle prompt with a usage-limit alert. */
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
@@ -55,16 +55,12 @@ export const UsageLimitExceeded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
 	},
 };
 
 /**
  * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View usage" CTA (which links to Coder's analytics, not the provider's
- * billing page).
+ * usage-limit alert, because the quota belongs to the provider account.
  */
 export const ProviderQuotaExceeded: Story = {
 	args: {

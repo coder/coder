@@ -20,7 +20,6 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 				{ path: "/ai/settings/models", useStoryElement: true },
 				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
 				{ path: "/ai/settings/templates", useStoryElement: true },
-				{ path: "/ai/settings/spend", useStoryElement: true },
 				{ path: "/ai/settings/instructions", useStoryElement: true },
 				{ path: "/ai/settings/lifecycle", useStoryElement: true },
 			],
@@ -38,15 +37,6 @@ export const ModelsActive: Story = {
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/models" },
 			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
-		}),
-	},
-};
-
-export const SpendActive: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/spend" },
-			routing: [{ path: "/ai/settings/spend", useStoryElement: true }],
 		}),
 	},
 };

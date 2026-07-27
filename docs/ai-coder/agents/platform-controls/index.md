@@ -114,15 +114,6 @@ This setting is available under **Agents** > **Settings** >
 days. When disabled, workspaces follow their template's autostop rules (or
 none, if the template does not define any).
 
-### Spend management
-
-Administrators can set spend limits to cap LLM usage per user within a rolling
-time period, with per-user and per-group overrides. The cost tracking dashboard
-provides visibility into per-user spending, token consumption, and per-model
-breakdowns.
-
-See [Spend Management](./usage-insights.md) for details.
-
 ### Git providers
 
 Coder Agents leverages your existing
@@ -159,7 +150,7 @@ For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-d
 ## Where we are headed
 
 The controls above cover providers, models, system prompts, templates, MCP
-servers, usage limits, and data retention. We are continuing to invest in platform controls
+servers, and data retention. We are continuing to invest in platform controls
 based on what we hear from customers deploying agents in regulated and
 enterprise environments.
 

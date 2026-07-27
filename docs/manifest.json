@@ -1073,12 +1073,6 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Spend Management",
-									"description": "Set spend limits and track AI costs for Coder Agents with admin-only controls.",
-									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["beta"]
-								},
-								{
 									"title": "Git Providers",
 									"description": "Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.",
 									"path": "./ai-coder/agents/platform-controls/git-providers.md",

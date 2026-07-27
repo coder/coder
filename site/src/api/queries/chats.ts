@@ -10,7 +10,6 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -1939,20 +1938,6 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-type ChatCostDateParams = {
-	start_date?: string;
-	end_date?: string;
-};
-
-export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
-	[...chatsKey, "costSummary", user, params] as const;
-
-export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
-	queryKey: chatCostSummaryKey(user, params),
-	queryFn: () => API.experimental.getChatCostSummary(user, params),
-	staleTime: 60_000,
-});
-
 export const chatCostKey = (chatId: string) =>
 	[...chatsKey, chatId, "cost"] as const;
 
@@ -1966,34 +1951,6 @@ export const chatCost = (chatId: string) => ({
 	staleTime: ASSISTANT_MESSAGE_PRICING_STALE_MS,
 });
 
-interface PaginatedChatCostUsersPayload {
-	username: string;
-	start_date: string;
-	end_date: string;
-}
-
-export function paginatedChatCostUsers(
-	payload: PaginatedChatCostUsersPayload,
-): UsePaginatedQueryOptions<
-	TypesGen.ChatCostUsersResponse,
-	PaginatedChatCostUsersPayload
-> {
-	return {
-		queryPayload: () => payload,
-		queryKey: ({ payload, pageNumber }) =>
-			[...chatsKey, "costUsers", payload, pageNumber] as const,
-		queryFn: ({ payload, limit, offset }) =>
-			API.experimental.getChatCostUsers({
-				start_date: payload.start_date,
-				end_date: payload.end_date,
-				username: payload.username || undefined,
-				limit,
-				offset,
-			}),
-		staleTime: 60_000,
-	};
-}
-
 export const chatUsageLimitStatusKey = [
 	...chatsKey,
 	"usageLimitStatus",
@@ -2003,80 +1960,6 @@ export const chatUsageLimitStatus = () => ({
 	queryKey: chatUsageLimitStatusKey,
 	queryFn: () => API.experimental.getChatUsageLimitStatus(),
 	refetchInterval: 60_000,
-});
-
-const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
-
-export const chatUsageLimitConfig = () => ({
-	queryKey: chatUsageLimitConfigKey,
-	queryFn: () => API.experimental.getChatUsageLimitConfig(),
-});
-
-export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
-		API.experimental.updateChatUsageLimitConfig(req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-type UpsertChatUsageLimitOverrideMutationArgs = {
-	userID: string;
-	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
-};
-
-export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
-	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
-		API.experimental.upsertChatUsageLimitOverride(userID, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
-	mutationFn: (userID: string) =>
-		API.experimental.deleteChatUsageLimitOverride(userID),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-type UpsertChatUsageLimitGroupOverrideMutationArgs = {
-	groupID: string;
-	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
-};
-
-export const upsertChatUsageLimitGroupOverride = (
-	queryClient: QueryClient,
-) => ({
-	mutationFn: ({
-		groupID,
-		req,
-	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
-		API.experimental.upsertChatUsageLimitGroupOverride(groupID, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-export const deleteChatUsageLimitGroupOverride = (
-	queryClient: QueryClient,
-) => ({
-	mutationFn: (groupID: string) =>
-		API.experimental.deleteChatUsageLimitGroupOverride(groupID),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
 });
 
 // ── MCP Server Configs ───────────────────────────────────────

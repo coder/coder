@@ -2,14 +2,13 @@ import dayjs from "dayjs";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
 import { chatUsageLimitStatus } from "#/api/queries/chats";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
 import { workspaces } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
@@ -25,7 +24,6 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
 import {
 	clampPercentage,
 	getSeverity,
@@ -50,6 +48,25 @@ type UsageSectionData = {
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US");
+
+const getUsageLimitPeriodLabel = (
+	period: TypesGen.ChatUsageLimitPeriod | undefined,
+): string => {
+	if (!period) {
+		return "";
+	}
+
+	switch (period) {
+		case "day":
+			return "Daily";
+		case "week":
+			return "Weekly";
+		case "month":
+			return "Monthly";
+		default:
+			return "";
+	}
+};
 
 export const UsageIndicator: FC = () => {
 	const { data: chatUsage, isError: isChatUsageError } = useQuery(
@@ -167,12 +184,6 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 						<UsageSection section={section} />
 					</Fragment>
 				))}
-
-				<DropdownMenuSeparator />
-
-				<DropdownMenuItem asChild>
-					<Link to="/agents/analytics">View usage</Link>
-				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

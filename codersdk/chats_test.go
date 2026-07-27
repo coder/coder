@@ -573,21 +573,6 @@ func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
-func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	original := codersdk.ChatCostSummary{
-		TotalCostMicros: 123,
-	}
-	raw, err := json.Marshal(original)
-	require.NoError(t, err)
-
-	var decoded codersdk.ChatCostSummary
-	err = json.Unmarshal(raw, &decoded)
-	require.NoError(t, err)
-	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
-}
-
 // TestChat_JSONRoundTrip verifies that every field of codersdk.Chat
 // survives a JSON marshal/unmarshal cycle. This catches omitempty
 // silently eating zero-ish values, struct tag typos, and similar
