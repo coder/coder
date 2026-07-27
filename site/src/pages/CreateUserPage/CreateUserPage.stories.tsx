@@ -40,6 +40,33 @@ export const ShowsSuccessNotificationOnSubmit: Story = {
 	},
 };
 
+export const ShowsServiceAccountSuccessNotificationOnSubmit: Story = {
+	parameters: {
+		queries: [
+			{ key: authMethodsQueryKey, data: MockAuthMethodsPasswordOnly },
+			{ key: rolesQueryKey, data: [] },
+		],
+		features: ["service_accounts"],
+	},
+	beforeEach: () => {
+		spyOn(API, "createUser").mockResolvedValue(MockUserMember);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const body = within(document.body);
+
+		await user.type(await canvas.findByLabelText("Username"), "someuser");
+		await user.click(canvas.getByTestId("login-type-input"));
+		await user.click(
+			await body.findByRole("option", { name: /service account/i }),
+		);
+		await user.click(canvas.getByRole("button", { name: /save/i }));
+
+		await body.findByText('Service account "someuser" created successfully.');
+	},
+};
+
 export const ShowsErrorWhenUserCreationFails: Story = {
 	beforeEach: () => {
 		spyOn(API, "createUser").mockRejectedValue(
