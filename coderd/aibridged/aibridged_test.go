@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1022,7 +1021,6 @@ func TestReady(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { srv.Close() })
 
-		time.Sleep(testutil.IntervalFast)
 		testutil.RequireReceive(t.Context(), t, dialerCalled)
 		require.False(t, srv.Ready(), "expected not ready before first connection")
 	})
