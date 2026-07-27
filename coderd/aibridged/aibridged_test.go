@@ -1008,7 +1008,7 @@ func TestReady(t *testing.T) {
 		pool := mock.NewMockPooler(ctrl)
 		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
-		dialerCalled := make(chan struct{})
+		dialerCalled := make(chan struct{}, 1)
 		blockDialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
 			select {
 			case dialerCalled <- struct{}{}:
