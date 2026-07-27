@@ -17341,7 +17341,8 @@ const docTemplate = `{
                 "missing_key",
                 "provider_disabled",
                 "content_filter",
-                "hook_dispatch_failed"
+                "hook_dispatch_failed",
+                "hook_denied"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -17355,7 +17356,8 @@ const docTemplate = `{
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
                 "ChatErrorKindContentFilter",
-                "ChatErrorKindHookDispatchFailed"
+                "ChatErrorKindHookDispatchFailed",
+                "ChatErrorKindHookDenied"
             ]
         },
         "codersdk.ChatFileMetadata": {

@@ -75,7 +75,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 			model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", codersdk.CreateChatRequest{
 				OrganizationID: user.OrganizationID,
 				ModelConfigID:  &model.ID,
 				Content: []codersdk.ChatInputPart{{
@@ -83,10 +83,14 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 					Text: "blocked prompt",
 				}},
 			})
-			sdkErr := coderdtest.SDKError(t, err)
-			require.Equal(t, test.wantStatus, sdkErr.StatusCode())
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, test.wantStatus, res.StatusCode)
+			var response codersdk.ChatHookDeniedResponse
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&response))
 			if test.wantMessage != "" {
-				require.Equal(t, test.wantMessage, sdkErr.Message)
+				require.Equal(t, test.wantMessage, response.Message)
+				require.Equal(t, codersdk.ChatErrorKindHookDenied, response.Kind)
 			}
 			request := testutil.RequireReceive(ctx, t, requests)
 			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)

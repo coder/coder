@@ -2460,6 +2460,7 @@ export type ChatErrorKind =
 	| "config"
 	| "content_filter"
 	| "generic"
+	| "hook_denied"
 	| "hook_dispatch_failed"
 	| "missing_key"
 	| "overloaded"
@@ -2474,6 +2475,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"config",
 	"content_filter",
 	"generic",
+	"hook_denied",
 	"hook_dispatch_failed",
 	"missing_key",
 	"overloaded",
@@ -2589,6 +2591,16 @@ export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 // From codersdk/chats.go
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatHookDeniedResponse is the error body returned when a lifecycle hook
+ * denies a synchronous chat operation. Kind lets clients classify the denial
+ * without parsing message text.
+ */
+export interface ChatHookDeniedResponse extends Response {
+	readonly kind: ChatErrorKind;
 }
 
 // From codersdk/chats.go
