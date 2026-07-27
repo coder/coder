@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
-import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
+import {
+	getSubagentDescriptor,
+	isSubagentToolName,
+} from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
 	getEditableUserMessagePayload,
@@ -1152,29 +1155,8 @@ describe("getSubagentDescriptor", () => {
 		}
 	});
 
-	it("renders list_agents with a fixed generic affordance", () => {
-		const descriptor = getSubagentDescriptor({
-			name: "list_agents",
-			args: {},
-			result: {
-				agents: [
-					{ chat_id: "agent-1", type: "explore", status: "completed" },
-					{ chat_id: "agent-2", type: "computer_use", status: "running" },
-				],
-				total: 2,
-				returned: 2,
-				offset: 0,
-				has_more: false,
-			},
-		});
-
-		// The list result has no single top-level type, so the descriptor
-		// must not derive a variant from per-agent types.
-		expect(descriptor).toMatchObject({
-			action: "list",
-			variant: "general",
-			iconKind: "bot",
-			supportsDesktopAffordance: false,
-		});
+	it("does not treat list_agents as a subagent lifecycle tool", () => {
+		expect(isSubagentToolName("list_agents")).toBe(false);
+		expect(getSubagentDescriptor({ name: "list_agents" })).toBeNull();
 	});
 });
