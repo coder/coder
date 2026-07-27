@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
@@ -41,7 +40,6 @@ const fuzzyFinder = new uFuzzy({
 });
 
 const IconsPage: FC = () => {
-	const theme = useTheme();
 	const { externalImages } = useAppearance();
 	const [searchInputText, setSearchInputText] = useState("");
 	const searchText = searchInputText.trim();
