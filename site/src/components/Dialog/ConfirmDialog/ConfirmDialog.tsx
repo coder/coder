@@ -89,7 +89,9 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
-				{...(!description ? { "aria-describedby": undefined } : {})}
+				// Radix defaults aria-describedby to a descriptionId that dangles
+				// (and warns) without a DialogDescription, so opt out when absent.
+				{...(!description && { "aria-describedby": undefined })}
 			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
