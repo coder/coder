@@ -194,6 +194,23 @@ want to store a trailing newline:
 echo -n "$API_KEY" | coder secret create api-key --env API_KEY
 ```
 
+### Import multiple secrets from a file
+
+Use `coder secret import <file>` to create a secret for every key in a dotenv,
+JSON, or YAML file. The format is inferred from the file extension. Pass `-`
+to read from non-interactive stdin, which requires `--input-format`:
+
+```sh
+coder secret import ./secrets.env
+
+coder secret import - --input-format yaml < ./secrets.yaml
+```
+
+The import is all or nothing and never overwrites existing secrets. Keys that
+are valid environment variable names are injected under the same name; other
+keys are imported without an environment variable target. For details, see
+[`coder secret import`](../reference/cli/secret_import.md).
+
 ## Update a secret
 
 Use `coder secret update` to update a secret value, description, environment
