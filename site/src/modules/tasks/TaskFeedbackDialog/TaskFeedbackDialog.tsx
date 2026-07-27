@@ -19,7 +19,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 
@@ -28,13 +27,16 @@ type TaskFeedbackFormValues = {
 	comment: string;
 };
 
-type TaskFeedbackDialogProps = DialogProps & {
+type TaskFeedbackDialogProps = {
+	open: boolean;
 	taskId: string;
+	onOpenChange?: (open: boolean) => void;
 };
 
 export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 	taskId,
-	...dialogProps
+	open,
+	onOpenChange,
 }) => {
 	const {
 		mutate: createFeedback,
@@ -66,7 +68,7 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 	const isRateSelected = Boolean(formik.values.rate);
 
 	return (
-		<Dialog {...dialogProps}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Task feedback</DialogTitle>

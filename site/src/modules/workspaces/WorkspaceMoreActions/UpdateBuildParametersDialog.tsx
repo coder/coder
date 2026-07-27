@@ -12,7 +12,6 @@ import type {
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -21,7 +20,8 @@ import {
 	useValidationSchemaForRichParameters,
 } from "#/utils/richParameters";
 
-type UpdateBuildParametersDialogProps = DialogProps & {
+type UpdateBuildParametersDialogProps = {
+	open: boolean;
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 	missedParameters: TemplateVersionParameter[];
@@ -29,7 +29,7 @@ type UpdateBuildParametersDialogProps = DialogProps & {
 
 export const UpdateBuildParametersDialog: FC<
 	UpdateBuildParametersDialogProps
-> = ({ missedParameters, onUpdate, ...dialogProps }) => {
+> = ({ missedParameters, onUpdate, open, onClose }) => {
 	const form = useFormik({
 		initialValues: {
 			rich_parameter_values: getInitialRichParameterValues(missedParameters),
@@ -47,7 +47,8 @@ export const UpdateBuildParametersDialog: FC<
 
 	return (
 		<Dialog
-			{...dialogProps}
+			open={open}
+			onClose={onClose}
 			scroll="body"
 			aria-labelledby="update-build-parameters-title"
 			maxWidth="xs"
@@ -100,7 +101,7 @@ export const UpdateBuildParametersDialog: FC<
 					variant="outline"
 					className="w-full"
 					type="button"
-					onClick={dialogProps.onClose}
+					onClick={onClose}
 				>
 					Cancel
 				</Button>

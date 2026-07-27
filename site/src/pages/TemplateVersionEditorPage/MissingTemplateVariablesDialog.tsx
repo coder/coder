@@ -9,12 +9,12 @@ import type {
 	VariableValue,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
 
-type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
+type MissingTemplateVariablesDialogProps = {
+	open: boolean;
 	onClose: () => void;
 	onSubmit: (values: VariableValue[]) => void;
 	missingVariables?: TemplateVersionVariable[];
@@ -22,7 +22,7 @@ type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
 
 export const MissingTemplateVariablesDialog: FC<
 	MissingTemplateVariablesDialogProps
-> = ({ missingVariables, onSubmit, ...dialogProps }) => {
+> = ({ missingVariables, onSubmit, open, onClose }) => {
 	const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
 	// Pre-fill the form with the default values when missing variables are loaded
@@ -37,7 +37,8 @@ export const MissingTemplateVariablesDialog: FC<
 
 	return (
 		<Dialog
-			{...dialogProps}
+			open={open}
+			onClose={onClose}
 			scroll="body"
 			aria-labelledby="update-build-parameters-title"
 			maxWidth="xs"
@@ -95,7 +96,7 @@ export const MissingTemplateVariablesDialog: FC<
 					variant="outline"
 					className="w-full"
 					type="button"
-					onClick={dialogProps.onClose}
+					onClick={onClose}
 				>
 					Cancel
 				</Button>

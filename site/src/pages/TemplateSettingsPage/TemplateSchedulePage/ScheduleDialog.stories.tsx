@@ -8,8 +8,16 @@ const meta: Meta<typeof ScheduleDialog> = {
 	args: {
 		onConfirm: action("onConfirm"),
 		onClose: action("onClose"),
+		updateDormantWorkspaces: action("updateDormantWorkspaces"),
+		updateInactiveWorkspaces: action("updateInactiveWorkspaces"),
 		open: true,
 		title: "Workspace Scheduling",
+		inactiveWorkspacesToGoDormant: 0,
+		inactiveWorkspacesToGoDormantInWeek: 0,
+		dormantWorkspacesToBeDeleted: 0,
+		dormantWorkspacesToBeDeletedInWeek: 0,
+		dormantValueChanged: false,
+		deletionValueChanged: false,
 	},
 };
 

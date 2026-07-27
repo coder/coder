@@ -5,8 +5,7 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badges/Badges";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
 import {
 	HelpPopover,
@@ -21,7 +20,8 @@ import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 
-type PublishTemplateVersionDialogProps = DialogProps & {
+type PublishTemplateVersionDialogProps = {
+	open: boolean;
 	defaultName: string;
 	isPublishing: boolean;
 	publishingError?: unknown;
@@ -32,12 +32,12 @@ type PublishTemplateVersionDialogProps = DialogProps & {
 export const PublishTemplateVersionDialog: FC<
 	PublishTemplateVersionDialogProps
 > = ({
+	open,
 	onConfirm,
 	isPublishing,
 	onClose,
 	defaultName,
 	publishingError,
-	...dialogProps
 }) => {
 	const form = useFormik({
 		initialValues: {
@@ -60,7 +60,7 @@ export const PublishTemplateVersionDialog: FC<
 
 	return (
 		<ConfirmDialog
-			{...dialogProps}
+			open={open}
 			confirmLoading={isPublishing}
 			onClose={handleClose}
 			onConfirm={async () => {
