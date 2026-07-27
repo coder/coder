@@ -1,4 +1,4 @@
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
@@ -36,15 +36,19 @@ const TemplateBuilderPage: FC = () => {
 		!builderDisabled && !isLoading && permissions.createTemplates;
 
 	// Report wizard_entry once the builder is ready and accessible.
-	useEffect(() => {
-		if (!wizardReady) {
-			return;
-		}
+	const reportEntry = useCallback(() => {
 		sessionMutation.mutate({
 			session_id: sessionId,
 			event_type: "wizard_entry",
 		});
-	}, [wizardReady, sessionMutation.mutate, sessionId]);
+	}, [sessionMutation.mutate, sessionId]);
+
+	useEffect(() => {
+		if (!wizardReady) {
+			return;
+		}
+		reportEntry();
+	}, [wizardReady, reportEntry]);
 
 	const basesQuery = useQuery({
 		...templateBuilderBases(),
