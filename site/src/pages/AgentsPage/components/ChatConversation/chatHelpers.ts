@@ -46,8 +46,7 @@ export const extractContextUsageFromMessage = (
 export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 ): AgentContextUsage | null => {
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const message = messages[index];
+	for (const message of messages.toReversed()) {
 		const isCompactionSummary = message.content?.some(
 			(part) =>
 				(part.type === "tool-call" || part.type === "tool-result") &&
@@ -65,16 +64,10 @@ export const getLatestContextUsage = (
 	return null;
 };
 
-type ChatWithHierarchyMetadata = TypesGen.Chat & {
-	readonly parent_chat_id?: string;
-};
-
 export const getParentChatID = (
 	chat: TypesGen.Chat | undefined,
 ): string | undefined => {
-	return asNonEmptyString(
-		(chat as ChatWithHierarchyMetadata | undefined)?.parent_chat_id,
-	);
+	return asNonEmptyString(chat?.parent_chat_id);
 };
 
 export const resolveModelFromChatConfig = (

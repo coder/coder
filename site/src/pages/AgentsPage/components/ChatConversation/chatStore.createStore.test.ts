@@ -279,7 +279,6 @@ describe("setRetryState / clearRetryState", () => {
 			error: "rate limited",
 			kind: "rate_limit",
 			provider: "anthropic",
-			delayMs: 3000,
 			retryingAt: "2025-01-01T00:00:30.000Z",
 		});
 		expect(store.getSnapshot().retryState).toEqual({
@@ -287,7 +286,6 @@ describe("setRetryState / clearRetryState", () => {
 			error: "rate limited",
 			kind: "rate_limit",
 			provider: "anthropic",
-			delayMs: 3000,
 			retryingAt: "2025-01-01T00:00:30.000Z",
 		});
 
@@ -589,7 +587,6 @@ describe("resetTransientState", () => {
 			error: "rate limit",
 			kind: "rate_limit",
 			provider: "anthropic",
-			delayMs: 5000,
 			retryingAt: "2025-01-01T00:01:00.000Z",
 		});
 		store.setReconnectState({

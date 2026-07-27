@@ -1923,19 +1923,19 @@ type ChatCostUsersOptions struct {
 
 // ChatCostSummary is the response from the chat cost summary endpoint.
 type ChatCostSummary struct {
-	StartDate                time.Time                `json:"start_date" format:"date-time"`
-	EndDate                  time.Time                `json:"end_date" format:"date-time"`
-	TotalCostMicros          int64                    `json:"total_cost_micros"`
-	PricedMessageCount       int64                    `json:"priced_message_count"`
-	UnpricedMessageCount     int64                    `json:"unpriced_message_count"`
-	TotalInputTokens         int64                    `json:"total_input_tokens"`
-	TotalOutputTokens        int64                    `json:"total_output_tokens"`
-	TotalCacheReadTokens     int64                    `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64                    `json:"total_runtime_ms"`
-	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
-	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
-	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
+	StartDate                        time.Time                `json:"start_date" format:"date-time"`
+	EndDate                          time.Time                `json:"end_date" format:"date-time"`
+	TotalCostMicros                  int64                    `json:"total_cost_micros"`
+	PricedMessageCount               int64                    `json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64                    `json:"unpriced_messages_having_usage_count"`
+	TotalInputTokens                 int64                    `json:"total_input_tokens"`
+	TotalOutputTokens                int64                    `json:"total_output_tokens"`
+	TotalCacheReadTokens             int64                    `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens         int64                    `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs                   int64                    `json:"total_runtime_ms"`
+	ByModel                          []ChatCostModelBreakdown `json:"by_model"`
+	ByChat                           []ChatCostChatBreakdown  `json:"by_chat"`
+	UsageLimit                       *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
 }
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
@@ -1964,6 +1964,17 @@ type ChatCostChatBreakdown struct {
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
+}
+
+// ChatCost is the cumulative cost for a selected chat's subtree: the
+// chat itself plus every descendant (subagent) chat it spawned. A root
+// chat therefore reports its whole tree, while a subagent reports only
+// its own spend plus any nested subagents.
+type ChatCost struct {
+	ChatID                           uuid.UUID `json:"chat_id" format:"uuid"`
+	TotalCostMicros                  int64     `json:"total_cost_micros"`
+	PricedMessageCount               int64     `json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64     `json:"unpriced_messages_having_usage_count"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
@@ -2539,6 +2550,20 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	}
 	var summary ChatCostSummary
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
+}
+
+// GetChatCost returns the cumulative cost for a single chat.
+func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
+	if err != nil {
+		return ChatCost{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCost{}, ReadBodyAsError(res)
+	}
+	var cost ChatCost
+	return cost, json.NewDecoder(res.Body).Decode(&cost)
 }
 
 // GetChatCostUsers returns a per-user cost rollup for the deployment

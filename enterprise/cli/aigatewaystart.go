@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -143,8 +144,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			registry.MustRegister(collectors.NewGoCollector())
 			registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-			metrics := aibridge.NewMetrics(registry)
-			providerMetrics := aibridged.NewMetrics(registry)
+			gatewayRegisterer := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, registry)
+			metrics := aibridge.NewMetrics(gatewayRegisterer)
+			providerMetrics := aibridged.NewMetrics(gatewayRegisterer)
 
 			tracerProvider, _, closeTracing := agpl.ConfigureTraceProviderWithService(signalCtx, logger, vals, "coder-ai-gateway")
 			// The tracer is shared by the gateway's HTTP middleware, pool, and
@@ -172,7 +174,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create request pool: %w", err)
 			}
-			registry.MustRegister(keypool.NewStateCollector(pool.KeyPools))
+			gatewayRegisterer.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 			return runStandaloneGateway(signalCtx, standaloneGatewayParams{
 				bridgeConfig: vals.AI.BridgeConfig,

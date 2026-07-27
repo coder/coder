@@ -415,7 +415,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			(b): b is TypesGen.ChatFilePart => b.type === "file",
 		);
 		const files = fileBlocks.map((block, i) => {
-			const mt = block.media_type ?? "application/octet-stream";
+			const mt = block.media_type;
 			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
