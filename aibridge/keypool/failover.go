@@ -94,7 +94,7 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 			// Transport-level error, not a key issue.
 			return resp, rtErr
 		}
-		// MarkKeyOnStatus returns true on key-specific failures (e.g. 401/403/429).
+		// MarkKeyOnStatus returns true on key-specific failures (e.g. 401/429).
 		if MarkKeyOnStatus(req.Context(), key, resp, t.config.Logger, t.config.ProviderName) {
 			// Drain and retry with the next key.
 			_, _ = io.Copy(io.Discard, resp.Body)

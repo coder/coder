@@ -183,18 +183,18 @@ a maximum of **5 keys**.
 ### Failover behavior
 
 Every request starts with the first key in the list. If a key is rate-limited
-or returns an authentication error, AI Gateway automatically retries the request
-with the next available key.
-
-> [!WARNING]
-> A key that fails with an authentication error (`401 Unauthorized` or
-> `403 Forbidden`) is permanently disabled and will not be used again until the
-> server is restarted or the provider configuration is reloaded.
+(`429 Too Many Requests`) or fails authentication (`401 Unauthorized`), AI
+Gateway puts that key on a temporary cooldown and retries the request with the
+next available key. Keys recover automatically when the cooldown elapses, so
+failover stays transparent to end users. Any other response, including a
+`403 Forbidden`, is returned to the caller unchanged.
 
 If all keys in the pool are exhausted, AI Gateway returns:
 
-- `429 Too Many Requests` when at least one key is rate-limited, with a `Retry-After` header set to the shortest cooldown across all keys.
-- `502 Bad Gateway` when every key has failed permanently.
+- `429 Too Many Requests` when at least one key is rate-limited, with a `Retry-After`
+header set to the shortest cooldown across all keys.
+- `502 Bad Gateway` when every key is in an authentication-failure cooldown.
+The keys still recover automatically once their cooldowns elapse, so no `Retry-After` is sent.
 
 ## Bring Your Own Key
 
