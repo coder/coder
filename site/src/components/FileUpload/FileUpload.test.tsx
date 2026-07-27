@@ -31,6 +31,13 @@ test("accepts files with the correct extension", async () => {
 	expect(onUpload).toHaveBeenCalledWith(zipFile);
 	onUpload.mockClear();
 
+	const uppercaseTarFile = new File([""], "file.TAR");
+	fireEvent.drop(dropZone, {
+		dataTransfer: { files: [uppercaseTarFile] },
+	});
+	expect(onUpload).toHaveBeenCalledWith(uppercaseTarFile);
+	onUpload.mockClear();
+
 	const unsupportedFile = new File([""], "file.mp4");
 	fireEvent.drop(dropZone, {
 		dataTransfer: { files: [unsupportedFile] },

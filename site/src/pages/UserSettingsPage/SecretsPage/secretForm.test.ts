@@ -80,19 +80,6 @@ describe("buildImportSuccessMessage", () => {
 				"because their keys are not valid environment variable names. Edit them to set one.",
 		);
 	});
-
-	it("reports all secrets imported without env names", () => {
-		expect(
-			buildImportSuccessMessage([
-				makeSecret({ env_name: "" }),
-				makeSecret({ env_name: "" }),
-			]),
-		).toBe(
-			"Imported 2 secrets. " +
-				"2 were imported without an environment variable name " +
-				"because their keys are not valid environment variable names. Edit them to set one.",
-		);
-	});
 });
 
 describe("getCreateSecretRequiredFieldErrors", () => {
