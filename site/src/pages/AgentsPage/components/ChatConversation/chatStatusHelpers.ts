@@ -50,6 +50,8 @@ export const getErrorTitle = (
 			return "Response blocked";
 		case "hook_dispatch_failed":
 			return "Lifecycle hook failed";
+		case "hook_denied":
+			return "Blocked by policy";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}

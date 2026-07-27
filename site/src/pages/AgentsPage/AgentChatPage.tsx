@@ -117,6 +117,7 @@ import {
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
+	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "./utils/usageLimitMessage";
@@ -1368,10 +1369,13 @@ const AgentChatPage: FC = () => {
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
 			const detail = error.response?.data?.detail?.trim() || undefined;
-			const reason: ChatDetailError = {
-				kind: isChatHookDispatchFailedResponse(error.response?.data)
+			const kind = isChatHookDeniedResponse(error.response?.data)
+				? "hook_denied"
+				: isChatHookDispatchFailedResponse(error.response?.data)
 					? "hook_dispatch_failed"
-					: "generic",
+					: "generic";
+			const reason: ChatDetailError = {
+				kind,
 				message: getErrorMessage(error, "An unexpected error occurred."),
 				...(detail ? { detail } : {}),
 			};
