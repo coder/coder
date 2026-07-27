@@ -1,6 +1,8 @@
 package chatd
 
 import (
+	"encoding/json"
+
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
@@ -8,10 +10,12 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
-// partitionAmbiguousToolCalls separates the calls whose input is ambiguous
-// from the rest, returning synthetic error results for them. Callers reject
-// before pre_tool_use so a hook consumer is never asked to authorize bytes
-// whose meaning depends on which reader resolves them.
+// partitionAmbiguousToolCalls separates the calls a consumer must not be asked
+// to decide from the rest, returning synthetic error results for them. Callers
+// reject before pre_tool_use so a hook consumer is never asked to authorize
+// bytes whose meaning depends on which reader resolves them, and so input that
+// cannot be carried in a hook payload fails as a retryable tool error instead
+// of a dispatch failure.
 func partitionAmbiguousToolCalls(
 	prepared generationPrepared,
 	toolCalls []fantasy.ToolCallContent,
@@ -21,6 +25,10 @@ func partitionAmbiguousToolCalls(
 		rejected []fantasy.ToolResultContent
 	)
 	for _, toolCall := range toolCalls {
+		if !json.Valid([]byte(toolCall.Input)) {
+			rejected = append(rejected, malformedToolResult(toolCall))
+			continue
+		}
 		if err := validateBuiltinToolInput(prepared, toolCall.ToolName, []byte(toolCall.Input)); err != nil {
 			rejected = append(rejected, ambiguousToolResult(toolCall, err))
 			continue
@@ -65,6 +73,20 @@ func validateBuiltinToolInput(prepared generationPrepared, toolName string, inpu
 		return toolschema.ValidateUnambiguous(info.Parameters, input)
 	}
 	return nil
+}
+
+// malformedToolResult reports input the tool decoder would reject anyway. It
+// is produced here because a hook payload carries the input as JSON, so
+// invalid bytes would otherwise surface as a dispatch failure and end the
+// turn instead of letting the model correct the call.
+func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultContent {
+	return fantasy.ToolResultContent{
+		ToolCallID: toolCall.ToolCallID,
+		ToolName:   toolCall.ToolName,
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New("This tool call was not executed because its input is not valid JSON. Retry with a well-formed JSON object matching the tool schema."),
+		},
+	}
 }
 
 func ambiguousToolResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
