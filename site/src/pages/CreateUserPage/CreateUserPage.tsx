@@ -46,13 +46,16 @@ const CreateUserPage: FC = () => {
 							},
 						},
 					);
+					const accountLabel = user.service_account
+						? "Service account"
+						: "User";
 					toast.promise(mutation, {
-						loading: `Creating user "${user.username}"...`,
-						success: `User "${user.username}" created successfully.`,
+						loading: `Creating ${accountLabel.toLowerCase()} "${user.username}"...`,
+						success: `${accountLabel} "${user.username}" created successfully.`,
 						error: (e) => ({
 							message: getErrorMessage(
 								e,
-								`Failed to create user "${user.username}".`,
+								`Failed to create ${accountLabel.toLowerCase()} "${user.username}".`,
 							),
 							description: getErrorDetail(e),
 						}),
