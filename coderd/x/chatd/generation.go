@@ -821,11 +821,16 @@ func (s *taskStarter) executeLocalTools(
 	// and let it run.
 	preflight := chathooks.PreToolUseExecutionResult{Allowed: decision.localToolCalls}
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
+		unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
 		var preflightErr error
-		preflight, preflightErr = s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), decision.localToolCalls)
+		preflight, preflightErr = s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 		if preflightErr != nil {
 			return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, preflightErr)
 		}
+		if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+			return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+		}
+		preflight.Denied = append(preflight.Denied, ambiguous...)
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
