@@ -76,13 +76,9 @@ export const MissingTemplateVariablesDialog: FC<
 											variable={variable}
 											key={variable.name}
 											onChange={async (value) => {
-												setVariableValues((prev) => {
-													prev[index] = {
-														name: variable.name,
-														value,
-													};
-													return [...prev];
-												});
+												setVariableValues((prev) =>
+													prev.with(index, { name: variable.name, value }),
+												);
 											}}
 										/>
 									);

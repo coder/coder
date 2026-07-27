@@ -52,7 +52,8 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				}
 			}}
 		>
-			{/* Live preview of the banner at the top of the viewport. */}
+			{/* Mirrors the real banner's fixed position so edits preview in place.
+				   z-[60] sits one step above the Dialog primitive's z-50 overlay. */}
 			<div className="fixed top-0 left-0 right-0 z-[60]">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
@@ -60,7 +61,11 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				/>
 			</div>
 
-			<DialogContent className="max-w-[500px]" data-testid="dialog">
+			<DialogContent
+				className="max-w-[500px]"
+				data-testid="dialog"
+				aria-describedby={undefined}
+			>
 				<DialogHeader>
 					<DialogTitle>Announcement banner</DialogTitle>
 				</DialogHeader>

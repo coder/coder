@@ -1,14 +1,13 @@
 import type { FC, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
+	DialogActions,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { Spinner } from "#/components/Spinner/Spinner";
 
 type ConfirmDialogType = "delete" | "info" | "success";
 
@@ -44,12 +43,15 @@ export interface ConfirmDialogProps {
 	readonly confirmText?: ReactNode;
 	readonly confirmLoading?: boolean;
 	readonly disabled?: boolean;
+	/**
+	 * Reused as the confirm handler when omitted, so a `delete` dialog with no
+	 * `onConfirm` shows a destructive confirm button that only closes the dialog
+	 * and deletes nothing.
+	 */
 	readonly onConfirm?: () => void;
 	readonly type?: ConfirmDialogType;
 	/**
-	 * When undefined:
-	 *   - cancel is hidden for "info" and "success" dialogs
-	 *   - cancel is shown for "delete" dialogs
+	 * Defaults to shown for "delete", hidden for "info"/"success".
 	 */
 	readonly hideCancel?: boolean;
 }
@@ -101,26 +103,15 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 				</DialogHeader>
 
 				<DialogFooter>
-					{!shouldHideCancel && (
-						<Button
-							type="button"
-							variant="outline"
-							disabled={confirmLoading}
-							onClick={onClose}
-						>
-							{cancelText}
-						</Button>
-					)}
-					<Button
-						type="button"
-						variant={type === "delete" ? "destructive" : undefined}
-						disabled={confirmLoading || disabled}
-						onClick={handleConfirm}
-						data-testid="confirm-button"
-					>
-						<Spinner loading={confirmLoading} />
-						{resolvedConfirmText}
-					</Button>
+					<DialogActions
+						cancelText={cancelText}
+						onCancel={shouldHideCancel ? undefined : onClose}
+						confirmText={resolvedConfirmText}
+						confirmLoading={confirmLoading}
+						confirmDisabled={disabled}
+						confirmVariant={type === "delete" ? "destructive" : undefined}
+						onConfirm={handleConfirm}
+					/>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -72,7 +72,11 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 				}
 			}}
 		>
-			<DialogContent variant="destructive" data-testid="dialog">
+			<DialogContent
+				variant="destructive"
+				data-testid="dialog"
+				aria-describedby={undefined}
+			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
 				</DialogHeader>

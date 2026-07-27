@@ -12,7 +12,7 @@ import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 const warnBoxClassName =
-	"mt-6 flex gap-2 rounded-lg border border-solid border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
+	"mt-6 flex gap-2 rounded-lg border border-solid border-border-destructive bg-surface-red p-3 leading-snug text-content-destructive";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
@@ -153,7 +153,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 											setOrphanWorkspace(checked === true);
 										}}
 										data-testid="orphan-checkbox"
-										className="mt-0.5 border-content-warning hover:enabled:border-content-warning data-[state=checked]:bg-content-warning data-[state=checked]:border-content-warning data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-content-warning hover:data-[state=checked]:border-content-warning"
+										className="mt-0.5 border-content-destructive hover:enabled:border-content-destructive data-[state=checked]:bg-content-destructive data-[state=checked]:border-content-destructive data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-content-destructive hover:data-[state=checked]:border-content-destructive"
 									/>
 									<span>
 										<span className="block text-sm font-semibold">
