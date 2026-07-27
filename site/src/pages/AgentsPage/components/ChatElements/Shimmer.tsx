@@ -1,3 +1,4 @@
+import { isPixel } from "@coder/pixel-storybook";
 import type { MotionProps } from "motion/react";
 import { MotionConfig, motion } from "motion/react";
 import type { ElementType, JSX } from "react";
@@ -36,6 +37,23 @@ const ShimmerComponent = ({
 	duration = 2,
 	spread = 2,
 }: TextShimmerProps) => {
+	// Pixel screenshots are taken once the DOM stops mutating. The shimmer
+	// rewrites inline styles on every frame, so a capture never sees a settled
+	// DOM and the resulting baseline is nondeterministic. Render static text
+	// instead while a capture is in progress.
+	if (isPixel()) {
+		return (
+			<Component
+				className={cn(
+					"relative inline-block text-content-secondary",
+					className,
+				)}
+			>
+				{children}
+			</Component>
+		);
+	}
+
 	const MotionComponent = getMotionComponent(
 		Component as keyof JSX.IntrinsicElements,
 	);
