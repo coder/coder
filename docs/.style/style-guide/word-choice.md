@@ -216,7 +216,27 @@ Two rationales apply:
 - [Set workspace autostart](./autostart.md)
 ```
 
-*Enforced by `Coder.LearnMore` (planned).*
+### Sequenced tutorials: What's next?
+
+A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
+Place it above **Learn more**, and write it as a short sentence with the link.
+
+**What's next?** is distinct from **Learn more**: it carries the reader along a defined sequence, while **Learn more** stays optional.
+It also avoids the "steps" mobility metaphor, so the ban on **Next steps** still holds.
+
+**Do**:
+
+```markdown
+## What's next?
+
+Now that you added a language, [install your own command-line tools](./install-command-line-tools.md).
+
+## Learn more
+
+- [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
+```
+
+*Enforced by `Coder.LearnMore` (planned). The planned rule flags Next steps, not What's next?.*
 
 ## Tutorial, not walkthrough
 

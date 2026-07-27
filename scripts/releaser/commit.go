@@ -1,4 +1,4 @@
-package v2
+package main
 
 import (
 	"regexp"
@@ -12,56 +12,23 @@ type commitEntry struct {
 	SHA       string
 	FullSHA   string
 	Title     string
+	PRCount   int // 0 if no PR number found
 	Timestamp int64
 }
+
+var prNumRe = regexp.MustCompile(`\(#(\d+)\)`)
 
 // cherryPickPRRe matches cherry-pick bot titles like
 // "chore: foo bar (cherry-pick #42) (#43)".
 var cherryPickPRRe = regexp.MustCompile(`\(cherry-pick #(\d+)\)\s*\(#\d+\)$`)
 
-// humanizedAreas maps conventional commit scopes to human-readable area
-// names. Order matters: more specific prefixes must come first so that
-// the first partial match wins.
-var humanizedAreas = []struct {
-	Prefix string
-	Area   string
-}{
-	{"agent/agentssh", "Agent SSH"},
-	{"coderd/database", "Database"},
-	{"enterprise/audit", "Auditing"},
-	{"enterprise/cli", "CLI"},
-	{"enterprise/coderd", "Server"},
-	{"enterprise/dbcrypt", "Database"},
-	{"enterprise/derpmesh", "Networking"},
-	{"enterprise/provisionerd", "Provisioner"},
-	{"enterprise/tailnet", "Networking"},
-	{"enterprise/wsproxy", "Workspace Proxy"},
-	{"agent", "Agent"},
-	{"cli", "CLI"},
-	{"coderd", "Server"},
-	{"codersdk", "SDK"},
-	{"docs", "Documentation"},
-	{"enterprise", "Enterprise"},
-	{"examples", "Examples"},
-	{"helm", "Helm"},
-	{"install.sh", "Installer"},
-	{"provisionersdk", "SDK"},
-	{"provisionerd", "Provisioner"},
-	{"provisioner", "Provisioner"},
-	{"pty", "CLI"},
-	{"scaletest", "Scale Testing"},
-	{"site", "Dashboard"},
-	{"support", "Support"},
-	{"tailnet", "Networking"},
-}
-
 // commitLog returns non-merge commits in the given range, filtering
 // out left-side commits (already in the base) and deduplicating
 // cherry-picks using git's --cherry-mark.
-func commitLog(exec CommandExecutor, commitRange string) ([]commitEntry, error) {
+func commitLog(commitRange string) ([]commitEntry, error) {
 	// Use --left-right --cherry-mark to identify equivalent
 	// (cherry-picked) commits and left-side-only commits.
-	out, err := gitOutput(exec, "log", "--no-merges", "--left-right", "--cherry-mark",
+	out, err := gitOutput("log", "--no-merges", "--left-right", "--cherry-mark",
 		"--pretty=format:%m %ct %h %H %s", commitRange)
 	if err != nil {
 		return nil, err
@@ -106,17 +73,21 @@ func commitLog(exec CommandExecutor, commitRange string) ([]commitEntry, error) 
 		}
 
 		// Normalize cherry-pick bot titles:
-		// "chore: foo (cherry-pick #42) (#43)" -> "chore: foo (#42)"
+		// "chore: foo (cherry-pick #42) (#43)" → "chore: foo (#42)"
 		if m := cherryPickPRRe.FindStringSubmatch(title); m != nil {
 			title = title[:cherryPickPRRe.FindStringIndex(title)[0]] + "(#" + m[1] + ")"
 		}
 
-		entries = append(entries, commitEntry{
+		e := commitEntry{
 			SHA:       shortSHA,
 			FullSHA:   fullSHA,
 			Title:     title,
 			Timestamp: ts,
-		})
+		}
+		if m := prNumRe.FindStringSubmatch(e.Title); m != nil {
+			e.PRCount, _ = strconv.Atoi(m[1])
+		}
+		entries = append(entries, e)
 	}
 
 	// Sort by conventional commit prefix, then by timestamp
@@ -142,13 +113,49 @@ func commitSortPrefix(title string) string {
 	return title[:idx]
 }
 
+// humanizedAreas maps conventional commit scopes to human-readable area
+// names. Order matters: more specific prefixes must come first so that
+// the first partial match wins.
+var humanizedAreas = []struct {
+	Prefix string
+	Area   string
+}{
+	{"agent/agentssh", "Agent SSH"},
+	{"coderd/database", "Database"},
+	{"enterprise/audit", "Auditing"},
+	{"enterprise/cli", "CLI"},
+	{"enterprise/coderd", "Server"},
+	{"enterprise/dbcrypt", "Database"},
+	{"enterprise/derpmesh", "Networking"},
+	{"enterprise/provisionerd", "Provisioner"},
+	{"enterprise/tailnet", "Networking"},
+	{"enterprise/wsproxy", "Workspace Proxy"},
+	{"agent", "Agent"},
+	{"cli", "CLI"},
+	{"coderd", "Server"},
+	{"codersdk", "SDK"},
+	{"docs", "Documentation"},
+	{"enterprise", "Enterprise"},
+	{"examples", "Examples"},
+	{"helm", "Helm"},
+	{"install.sh", "Installer"},
+	{"provisionersdk", "SDK"},
+	{"provisionerd", "Provisioner"},
+	{"provisioner", "Provisioner"},
+	{"pty", "CLI"},
+	{"scaletest", "Scale Testing"},
+	{"site", "Dashboard"},
+	{"support", "Support"},
+	{"tailnet", "Networking"},
+}
+
 // conventionalPrefixRe extracts prefix, scope, and rest from a
-// conventional commit title. Does NOT match breaking "!" suffix;
+// conventional commit title. Does NOT match breaking "!" suffix —
 // those titles are left as-is (matching bash behavior).
 var conventionalPrefixRe = regexp.MustCompile(`^([a-z]+)(\((.+)\))?:\s*(.*)$`)
 
 // humanizeTitle converts a conventional commit title to a
-// human-readable form, e.g. "feat(site): add bar" -> "Dashboard: Add bar".
+// human-readable form, e.g. "feat(site): add bar" → "Dashboard: Add bar".
 func humanizeTitle(title string) string {
 	m := conventionalPrefixRe.FindStringSubmatch(title)
 	if m == nil {
@@ -172,7 +179,7 @@ func humanizeTitle(title string) string {
 			return ha.Area + ": " + rest
 		}
 	}
-	// Scope not found in map; return as-is.
+	// Scope not found in map — return as-is.
 	return title
 }
 

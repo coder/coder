@@ -50,3 +50,11 @@ export const ZeroBudget: Story = {
 		await expect(canvasElement).toHaveTextContent("$5 / $0 USD");
 	},
 };
+
+// Zero budget with no spend: shown as-is in the normal color.
+export const ZeroBudgetNoSpend: Story = {
+	args: { currentSpend: 0, spendLimit: 0 },
+	play: async ({ canvasElement }) => {
+		await expect(canvasElement).toHaveTextContent("$0 / $0 USD");
+	},
+};

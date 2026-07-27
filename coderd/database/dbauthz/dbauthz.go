@@ -837,6 +837,28 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// subjectExternalAuthCoordinator is used to check whether a user has configured
+	// external auth providers or not when an admin is creating a workspace for
+	// another user.
+	subjectExternalAuthCoordinator = rbac.Subject{
+		Type:         rbac.SubjectTypeExternalAuthCoordinator,
+		FriendlyName: "External Auth Coordinator",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "external-auth-coordinator"},
+				DisplayName: "External Auth Coordinator",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// policy.ActionUpdatePersonal allows us to refresh tokens.
+					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -983,6 +1005,12 @@ func AsAIProviderMetadataReader(ctx context.Context) context.Context {
 // handling the /scim/v2 routes and provisioning users via SCIM.
 func AsSCIMProvisioner(ctx context.Context) context.Context {
 	return As(ctx, subjectSCIM)
+}
+
+// AsExternalAuthCoordinator returns a context with an actor that has permission to
+// read and refresh any user's external auth links.
+func AsExternalAuthCoordinator(ctx context.Context) context.Context {
+	return As(ctx, subjectExternalAuthCoordinator)
 }
 
 var AsRemoveActor = rbac.Subject{

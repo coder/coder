@@ -1,4 +1,4 @@
-package v1
+package main
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 //nolint:revive // Long function is fine for a sequential release flow.
-func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, gpgConfigured, dryRun bool) error {
+func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, dryRun bool) error {
 	w := inv.Stderr
 
 	// --- Release landscape ---
@@ -767,7 +767,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if err := confirm(inv, "Create tag?"); err != nil {
 			return xerrors.New("cannot proceed without a tag")
 		}
-		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String(), gpgConfigured); err != nil {
+		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String()); err != nil {
 			return xerrors.Errorf("creating tag: %w", err)
 		}
 		successf(w, "Tag %s created.", newVersion)
