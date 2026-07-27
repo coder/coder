@@ -296,6 +296,17 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
+		// AnyOrgOwner objects have no verified semantics under partial
+		// evaluation: Filter's prepared path can deny objects that a full
+		// evaluation allows (authz_internal_test.go skips the full-vs-partial
+		// equivalence assertion for them). Authorize them per-object with a full
+		// evaluation instead of grouping them into the batched Filter path.
+		if obj.AnyOrgOwner {
+			err := api.Authorizer.Authorize(ctx, auth, policy.Action(v.Action), obj)
+			response[k] = err == nil
+			continue
+		}
+
 		group := checkGroup{action: policy.Action(v.Action), objectType: obj.Type}
 		groups[group] = append(groups[group], authorizeCheck{key: k, object: obj})
 	}

@@ -184,4 +184,44 @@ func TestCheckPermissions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, memberExpected, map[string]bool(memberResp))
 	})
+
+	// A member may create a workspace in an org it belongs to, so an
+	// any_org=true check is allowed. Repeating it past the batching threshold
+	// must not change the answer: AnyOrgOwner objects have no verified partial-
+	// evaluation semantics, so they must stay on the per-object path rather than
+	// being grouped into rbac.Filter's prepared query, which denies them.
+	t.Run("CheckAuthorization/AnyOrg", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		check := codersdk.AuthorizationCheck{
+			Object: codersdk.AuthorizationObject{
+				ResourceType: codersdk.ResourceWorkspace,
+				OwnerID:      "me",
+				AnyOrgOwner:  true,
+			},
+			Action: "create",
+		}
+
+		// Below the threshold: a single check is evaluated in full and allowed.
+		single, err := memberClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
+			Checks: map[string]codersdk.AuthorizationCheck{"create-any-org": check},
+		})
+		require.NoError(t, err)
+		require.True(t, single["create-any-org"], "single any_org check should be allowed")
+
+		// The same check repeated past the threshold must stay allowed.
+		grouped := make(map[string]codersdk.AuthorizationCheck)
+		expected := make(map[string]bool)
+		for i := 0; i < 55; i++ {
+			key := fmt.Sprintf("create-any-org-%d", i)
+			grouped[key] = check
+			expected[key] = true
+		}
+		resp, err := memberClient.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: grouped})
+		require.NoError(t, err)
+		require.Equal(t, expected, map[string]bool(resp))
+	})
 }
