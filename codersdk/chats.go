@@ -1742,6 +1742,7 @@ const (
 	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
 	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
 	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1759,6 +1760,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindProviderDisabled,
 	ChatErrorKindContentFilter,
 	ChatErrorKindHookDispatchFailed,
+	ChatErrorKindHookDenied,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the
@@ -2038,6 +2040,14 @@ type ChatUsageLimitExceededResponse struct {
 // lifecycle hook dispatch fails during a synchronous chat operation.
 // Kind lets clients classify the failure without parsing message text.
 type ChatHookDispatchFailedResponse struct {
+	Response
+	Kind ChatErrorKind `json:"kind"`
+}
+
+// ChatHookDeniedResponse is the error body returned when a lifecycle hook
+// denies a synchronous chat operation. Kind lets clients classify the denial
+// without parsing message text.
+type ChatHookDeniedResponse struct {
 	Response
 	Kind ChatErrorKind `json:"kind"`
 }

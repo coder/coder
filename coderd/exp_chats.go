@@ -132,7 +132,10 @@ func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, de
 		if message == "" {
 			message = deniedFallback
 		}
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.ChatHookDeniedResponse{
+			Response: codersdk.Response{Message: message},
+			Kind:     codersdk.ChatErrorKindHookDenied,
+		})
 		return true
 	}
 	if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {

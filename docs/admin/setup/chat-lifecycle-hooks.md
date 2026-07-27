@@ -141,7 +141,9 @@ Coder dispatches `pre_tool_use` once per tool call, after the model finishes pro
 
 Two consequences follow:
 
-- Clients stream the model's proposed tool input while the dispatch is in flight, then converge on the stored input once the message is committed. A rewritten call briefly displays the original input.
+- Clients stream the model's proposed tool input while the dispatch is in flight, then converge on the stored input once the message is committed.
+  A rewritten call keeps displaying the original input until the whole batch is admitted, and the row spinner remains after the live **Thinking** indicator clears.
+  Coder dispatches a batch sequentially, so that window is bounded by `CODER_CHAT_HOOK_TIMEOUT` multiplied by the number of tool calls in the step, not by a single timeout.
 - A tool call that is already in chat history was admitted before it was stored, so Coder executes it with the stored input instead of dispatching a second decision. If a consumer's policy changes between those two points, the change applies to later calls, not to calls already admitted. A call stored before hooks were configured is likewise not admitted retroactively, the same way an earlier prompt isn't.
 
 The per-chat debug endpoint records what the model proposed, including tool input that a consumer replaced. It reports provider behavior and is not part of the chat transcript.

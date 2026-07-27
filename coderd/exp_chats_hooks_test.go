@@ -34,6 +34,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 		response    string
 		wantStatus  int
 		wantMessage string
+		wantKind    codersdk.ChatErrorKind
 	}{
 		{
 			name:        "deny",
@@ -41,11 +42,13 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 			response:    `{"permission":{"decision":"deny"},"user_message":"blocked by policy"}`,
 			wantStatus:  http.StatusForbidden,
 			wantMessage: "blocked by policy",
+			wantKind:    codersdk.ChatErrorKindHookDenied,
 		},
 		{
 			name:       "dispatch failure",
 			statusCode: http.StatusInternalServerError,
 			wantStatus: http.StatusBadGateway,
+			wantKind:   codersdk.ChatErrorKindHookDispatchFailed,
 		},
 	}
 	for _, test := range tests {
@@ -75,7 +78,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 			model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", codersdk.CreateChatRequest{
 				OrganizationID: user.OrganizationID,
 				ModelConfigID:  &model.ID,
 				Content: []codersdk.ChatInputPart{{
@@ -83,10 +86,18 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 					Text: "blocked prompt",
 				}},
 			})
-			sdkErr := coderdtest.SDKError(t, err)
-			require.Equal(t, test.wantStatus, sdkErr.StatusCode())
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, test.wantStatus, res.StatusCode)
+			// Both outcomes share this wire shape, differing only in kind.
+			var response struct {
+				codersdk.Response
+				Kind codersdk.ChatErrorKind `json:"kind"`
+			}
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&response))
+			require.Equal(t, test.wantKind, response.Kind)
 			if test.wantMessage != "" {
-				require.Equal(t, test.wantMessage, sdkErr.Message)
+				require.Equal(t, test.wantMessage, response.Message)
 			}
 			request := testutil.RequireReceive(ctx, t, requests)
 			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
