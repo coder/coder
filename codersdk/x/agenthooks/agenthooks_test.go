@@ -72,7 +72,9 @@ func TestVerifyRejectsAlgorithmConfusion(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = agenthooks.Verify("Bearer "+token, testSecret)
-	require.Error(t, err)
+	var algErr *jose.ErrUnexpectedSignatureAlgorithm
+	require.ErrorAs(t, err, &algErr)
+	require.Equal(t, jose.HS512, algErr.Got)
 }
 
 func TestVerifyTimeBounds(t *testing.T) {
@@ -80,20 +82,26 @@ func TestVerifyTimeBounds(t *testing.T) {
 
 	now := time.Now()
 	tests := []struct {
-		name   string
-		update func(*agenthooks.Claims)
+		name    string
+		update  func(*agenthooks.Claims)
+		wantErr string
 	}{
 		{
 			name: "expired",
 			update: func(claims *agenthooks.Claims) {
+				claims.IssuedAt = now.Add(-2 * time.Minute).Unix()
+				claims.NotBefore = now.Add(-2 * time.Minute).Unix()
 				claims.Expires = now.Add(-time.Minute).Unix()
 			},
+			wantErr: "token has expired",
 		},
 		{
 			name: "not before",
 			update: func(claims *agenthooks.Claims) {
 				claims.NotBefore = now.Add(time.Minute).Unix()
+				claims.Expires = now.Add(2 * time.Minute).Unix()
 			},
+			wantErr: "token is not valid yet",
 		},
 	}
 	for _, test := range tests {
@@ -106,7 +114,7 @@ func TestVerifyTimeBounds(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = agenthooks.Verify("Bearer "+token, testSecret)
-			require.Error(t, err)
+			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
 }
@@ -118,15 +126,14 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 		name    string
 		event   agenthooks.EventType
 		data    any
-		install func(*testing.T, *agenthooks.Hooks, *bool)
+		install func(*testing.T, *agenthooks.Hooks)
 	}{
 		{
 			name:  "session start",
 			event: agenthooks.EventSessionStart,
 			data:  agenthooks.SessionStartData{Source: "startup"},
-			install: func(t *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(t *testing.T, h *agenthooks.Hooks) {
 				h.SessionStart = func(_ context.Context, _ agenthooks.Meta, data agenthooks.SessionStartData) (agenthooks.Response, error) {
-					*called = true
 					assert.Equal(t, "startup", data.Source)
 					return agenthooks.Response{UserMessage: "session start"}, nil
 				}
@@ -136,9 +143,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "user prompt submit",
 			event: agenthooks.EventUserPromptSubmit,
 			data:  agenthooks.UserPromptSubmitData{Prompt: "hello"},
-			install: func(t *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(t *testing.T, h *agenthooks.Hooks) {
 				h.UserPromptSubmit = func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
-					*called = true
 					assert.Equal(t, "hello", data.Prompt)
 					return agenthooks.Response{UserMessage: "user prompt submit"}, nil
 				}
@@ -152,9 +158,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 				ToolName:  "execute",
 				ToolInput: json.RawMessage(`{"command":"pwd"}`),
 			},
-			install: func(t *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(t *testing.T, h *agenthooks.Hooks) {
 				h.PreToolUse = func(_ context.Context, _ agenthooks.Meta, data agenthooks.PreToolUseData) (agenthooks.Response, error) {
-					*called = true
 					assert.Equal(t, "execute", data.ToolName)
 					return agenthooks.Response{UserMessage: "pre tool use"}, nil
 				}
@@ -168,9 +173,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 				ToolName:     "execute",
 				ToolResponse: json.RawMessage(`{"output":"ok"}`),
 			},
-			install: func(t *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(t *testing.T, h *agenthooks.Hooks) {
 				h.PostToolUse = func(_ context.Context, _ agenthooks.Meta, data agenthooks.PostToolUseData) (agenthooks.Response, error) {
-					*called = true
 					assert.Equal(t, "execute", data.ToolName)
 					return agenthooks.Response{UserMessage: "post tool use"}, nil
 				}
@@ -180,9 +184,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "pre compact",
 			event: agenthooks.EventPreCompact,
 			data:  agenthooks.PreCompactData{},
-			install: func(_ *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(_ *testing.T, h *agenthooks.Hooks) {
 				h.PreCompact = func(context.Context, agenthooks.Meta, agenthooks.PreCompactData) (agenthooks.Response, error) {
-					*called = true
 					return agenthooks.Response{UserMessage: "pre compact"}, nil
 				}
 			},
@@ -191,9 +194,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "post compact",
 			event: agenthooks.EventPostCompact,
 			data:  agenthooks.PostCompactData{},
-			install: func(_ *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(_ *testing.T, h *agenthooks.Hooks) {
 				h.PostCompact = func(context.Context, agenthooks.Meta, agenthooks.PostCompactData) (agenthooks.Response, error) {
-					*called = true
 					return agenthooks.Response{UserMessage: "post compact"}, nil
 				}
 			},
@@ -202,9 +204,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "stop",
 			event: agenthooks.EventStop,
 			data:  agenthooks.StopData{},
-			install: func(_ *testing.T, h *agenthooks.Hooks, called *bool) {
+			install: func(_ *testing.T, h *agenthooks.Hooks) {
 				h.Stop = func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
-					*called = true
 					return agenthooks.Response{UserMessage: "stop"}, nil
 				}
 			},
@@ -214,9 +215,8 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			called := false
 			var h agenthooks.Hooks
-			test.install(t, &h, &called)
+			test.install(t, &h)
 			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, h))
 			t.Cleanup(server.Close)
 
@@ -226,7 +226,6 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			var got agenthooks.Response
 			require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
 			require.Equal(t, test.name, got.UserMessage)
-			require.True(t, called)
 		})
 	}
 }
