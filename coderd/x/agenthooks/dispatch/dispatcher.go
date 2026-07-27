@@ -231,7 +231,7 @@ func (d *Dispatcher) finish(
 			slog.F("dispatch_id", dispatchID),
 			slog.F("event", event.Type),
 			slog.F("result", outcome.result),
-			slog.Error(outcome.err),
+			slog.F("error", outcome.err.Error()),
 		)
 	} else {
 		d.logger.Debug(context.WithoutCancel(ctx), "chat hook dispatched",
