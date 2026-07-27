@@ -231,9 +231,9 @@ type userLimitSelection struct {
 // For example, a deployment holding a 200-seat non-addon license and a
 // 100-seat AI Governance license:
 //
-//	active | capable | 200-seat pair | 100-seat pair | selected
-//	   250 |      90 | over          | satisfied     | addon:     90/100
-//	   180 |     150 | satisfied     | over          | non-addon: 180/200
+//	active | capable | 200-seat license | 100-seat addon license | selected
+//	   250 |      90 | over             | satisfied              | addon:     90/100
+//	   180 |     150 | satisfied        | over                   | non-addon: 180/200
 //
 // Neither license's limit is ever paired with the other's count: 90
 // capable users against the 200-seat limit, or 180 active users against
