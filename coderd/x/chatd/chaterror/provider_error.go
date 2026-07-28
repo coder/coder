@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -54,33 +55,45 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // used by many providers and the nested `{"error":{"message":...}}`
 // envelope. When the extracted message is itself an SDK-formatted transport
 // error wrapper, the clean inner provider message is returned. Non-JSON
-// bodies (e.g. aibridge's plain-text budget errors) fall back to the first
-// line of the body unless it looks like markup.
+// text/plain bodies (e.g. aibridge's budget errors) fall back to the first
+// line of the body.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
-	body := providerErrorResponseBody(responseDump)
+	headers, body := splitResponseDump(responseDump)
 	if msg := unwrapTransportErrorMessage(jsonErrorMessage(body)); msg != "" {
 		return msg
 	}
-	return plainTextErrorMessage(body)
+	return unwrapTransportErrorMessage(plainTextErrorMessage(headers, body))
 }
 
 // plainTextErrorMessage returns the first line of a plain-text error body,
-// trimmed and capped. Markup bodies (HTML error pages from proxies and load
-// balancers) are skipped because the result is user-facing.
-func plainTextErrorMessage(body []byte) string {
-	const maxLen = 512
-	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
-	line = strings.TrimSpace(line)
-	if line == "" || strings.HasPrefix(line, "<") {
+// trimmed. It applies only when the dumped response declares a text/plain
+// Content-Type (keeping proxy/LB HTML and other opaque bodies out of the
+// user-facing detail) and the body is not valid JSON (valid JSON without an
+// extractable message must not leak raw JSON).
+func plainTextErrorMessage(headers, body []byte) string {
+	if !headersDeclareTextPlain(headers) || json.Valid(body) {
 		return ""
 	}
-	if len(line) > maxLen {
-		line = line[:maxLen]
+	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
+	return strings.TrimSpace(line)
+}
+
+// headersDeclareTextPlain reports whether a dumped HTTP header block
+// declares Content-Type text/plain, tolerating media-type parameters such
+// as charset.
+func headersDeclareTextPlain(headers []byte) bool {
+	for line := range strings.Lines(string(headers)) {
+		name, value, ok := strings.Cut(line, ":")
+		if !ok || !strings.EqualFold(strings.TrimSpace(name), "Content-Type") {
+			continue
+		}
+		mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
+		return err == nil && mediaType == "text/plain"
 	}
-	return line
+	return false
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an
@@ -136,14 +149,22 @@ func jsonErrorMessage(body []byte) string {
 	return strings.TrimSpace(env.Message)
 }
 
-func providerErrorResponseBody(responseDump []byte) []byte {
-	if _, body, ok := bytes.Cut(responseDump, []byte("\r\n\r\n")); ok {
-		return body
+// splitResponseDump separates a dumped HTTP response into its header block
+// and body. Non-dump payloads (e.g. fantasy's Google adapter stores a raw
+// message in ResponseBody) are returned whole as the body with no headers,
+// so a blank line inside a raw message is never mistaken for the
+// header/body separator.
+func splitResponseDump(responseDump []byte) (headers, body []byte) {
+	if !bytes.HasPrefix(responseDump, []byte("HTTP/")) {
+		return nil, responseDump
 	}
-	if _, body, ok := bytes.Cut(responseDump, []byte("\n\n")); ok {
-		return body
+	if h, b, ok := bytes.Cut(responseDump, []byte("\r\n\r\n")); ok {
+		return h, b
 	}
-	return responseDump
+	if h, b, ok := bytes.Cut(responseDump, []byte("\n\n")); ok {
+		return h, b
+	}
+	return nil, responseDump
 }
 
 func retryAfterFromHeaders(headers map[string]string) time.Duration {

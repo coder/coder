@@ -1427,6 +1427,7 @@ func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 
+	// The Message fallback applies only when the body yields nothing.
 	classified := chaterror.Classify(testProviderError(
 		"  image exceeds 5 MB maximum  ",
 		400,
@@ -1461,31 +1462,17 @@ func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
 		classified.Detail)
 }
 
-func TestClassify_UsesPlainTextBodyForDetail(t *testing.T) {
-	t.Parallel()
-
-	// A non-JSON body is still the provider's actual response, so prefer
-	// it over the SDK-constructed Message.
-	classified := chaterror.Classify(testProviderError(
-		`POST "https://example.com/api": 400 Bad Request`,
-		400,
-		nil,
-		testProviderResponseDump("upstream rejected the request\n"),
-	))
-
-	require.Equal(t, "upstream rejected the request", classified.Detail)
-}
-
 func TestClassify_SkipsHTMLBodyForDetail(t *testing.T) {
 	t.Parallel()
 
-	// Proxies and load balancers return HTML error pages; those are not
-	// user-facing details, so fall back to the provider message.
+	// Proxies and load balancers return HTML error pages with a text/html
+	// Content-Type; the text/plain gate keeps them out of the user-facing
+	// detail, so fall back to the provider message.
 	classified := chaterror.Classify(testProviderError(
 		"upstream failed",
 		502,
 		nil,
-		testProviderResponseDump("<html><body>502 Bad Gateway</body></html>"),
+		testPlainDump("text/html", "<html><body>502 Bad Gateway</body></html>"),
 	))
 
 	require.Equal(t, "upstream failed", classified.Detail)
@@ -1498,7 +1485,7 @@ func TestClassify_SkipsWhitespaceOnlyBodyForDetail(t *testing.T) {
 		"upstream failed",
 		400,
 		nil,
-		testProviderResponseDump("  \n\t\n"),
+		testPlainDump("text/plain", "  \n\t\n"),
 	))
 
 	require.Equal(t, "upstream failed", classified.Detail)
@@ -1511,36 +1498,59 @@ func TestClassify_PlainTextBodyUsesFirstLineOnly(t *testing.T) {
 		"",
 		400,
 		nil,
-		testProviderResponseDump("first line of the error\nsecond line\nthird line\n"),
+		testPlainDump("text/plain", "first line of the error\nsecond line\nthird line\n"),
 	))
 
 	require.Equal(t, "first line of the error", classified.Detail)
 }
 
-func TestClassify_PrefersJSONEnvelopeOverPlainTextFallback(t *testing.T) {
+func TestClassify_JSONBodyWithoutMessageFallsBackToMessage(t *testing.T) {
 	t.Parallel()
 
+	// Valid JSON without an extractable message must not leak raw JSON
+	// into the user-facing detail, even when served as text/plain.
 	classified := chaterror.Classify(testProviderError(
-		"",
+		"upstream failed",
 		400,
 		nil,
-		testProviderResponseDump(`{"error":{"message":"nested wins"}}`),
+		testPlainDump("text/plain", `{"type":"error"}`),
 	))
 
-	require.Equal(t, "nested wins", classified.Detail)
+	require.Equal(t, "upstream failed", classified.Detail)
 }
 
-func TestClassify_CapsPlainTextBodyFallback(t *testing.T) {
+func TestClassify_PlainTextQuotaBodyOn503(t *testing.T) {
 	t.Parallel()
 
+	// A plain-text body feeds the same pattern matching as a JSON message,
+	// so "quota" beats the 503 timeout signal. This is intended: it
+	// mirrors the behavior for JSON bodies carrying the same text.
 	classified := chaterror.Classify(testProviderError(
 		"",
-		400,
+		503,
 		nil,
-		testProviderResponseDump(strings.Repeat("y", 2048)),
+		testPlainDump("text/plain", "quota exceeded for this key\n"),
 	))
 
-	require.LessOrEqual(t, len(classified.Detail), 512)
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+}
+
+func TestClassify_GoogleRawMessageWithBlankLine(t *testing.T) {
+	t.Parallel()
+
+	// Fantasy's Google adapter stores a raw message (not an HTTP dump) in
+	// ResponseBody. A blank line inside it must not be mistaken for a
+	// header/body separator; detail falls back to the full trimmed
+	// Message, not a mangled second paragraph.
+	classified := chaterror.Classify(testProviderError(
+		"google: model overloaded",
+		500,
+		nil,
+		[]byte("model overloaded\n\nplease try again later"),
+	))
+
+	require.Equal(t, "google: model overloaded", classified.Detail)
 }
 
 func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
@@ -1611,6 +1621,12 @@ func testProviderError(
 		ResponseHeaders: headers,
 		ResponseBody:    body,
 	}
+}
+
+func testPlainDump(contentType, body string) []byte {
+	return []byte("HTTP/1.1 400 Bad Request\r\n" +
+		"Content-Type: " + contentType + "\r\n" +
+		"\r\n" + body)
 }
 
 func testProviderResponseDump(body string) []byte {
