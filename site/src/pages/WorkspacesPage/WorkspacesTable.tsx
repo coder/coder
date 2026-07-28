@@ -1,5 +1,6 @@
 import {
 	BanIcon,
+	CircleAlertIcon,
 	CloudIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -815,7 +816,14 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 				label={`${link.label} has an invalid URL`}
 				onClick={() => {}}
 			>
-				<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
 			</BaseIconLink>
 		);
 	}
