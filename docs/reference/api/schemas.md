@@ -2825,7 +2825,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2921,7 +2920,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "result_delta": "string",
   "result_reset": true,
-  "signature": "string",
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -2967,7 +2965,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -3092,7 +3089,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3175,7 +3171,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3405,7 +3400,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3571,7 +3565,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3652,7 +3645,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3721,7 +3713,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3839,7 +3830,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "result_delta": "string",
     "result_reset": true,
-    "signature": "string",
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -4541,7 +4531,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4623,7 +4612,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -5129,6 +5117,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "name": "string",
@@ -5138,13 +5127,14 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.CreateUserSkillRequest
 
@@ -7122,7 +7112,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -13860,6 +13849,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "value": "string"
@@ -13868,12 +13858,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.UpdateUserSkillRequest
 
@@ -14559,6 +14550,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -14569,15 +14561,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|---------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description` | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`     | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`    | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_path`   | string  | false    |              |                                                                                                                                                                                                                                      |
+| `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
 
 ## codersdk.UserSkill
 

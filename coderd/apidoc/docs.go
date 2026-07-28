@@ -17946,9 +17946,6 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
-                "signature": {
-                    "type": "string"
-                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -19333,6 +19330,9 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"
@@ -26119,6 +26119,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "env_name": {
                     "type": "string"
                 },
@@ -26726,6 +26729,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"

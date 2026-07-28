@@ -29790,7 +29790,8 @@ INSERT INTO user_secrets (
     value,
     value_key_id,
     env_name,
-    file_path
+    file_path,
+    enabled
 ) VALUES (
     $1,
     $2,
@@ -29799,8 +29800,9 @@ INSERT INTO user_secrets (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+    $8,
+    $9
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type CreateUserSecretParams struct {
@@ -29812,6 +29814,7 @@ type CreateUserSecretParams struct {
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	EnvName     string         `db:"env_name" json:"env_name"`
 	FilePath    string         `db:"file_path" json:"file_path"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
@@ -29824,6 +29827,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		arg.ValueKeyID,
 		arg.EnvName,
 		arg.FilePath,
+		arg.Enabled,
 	)
 	var i UserSecret
 	err := row.Scan(
@@ -29837,6 +29841,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -29844,7 +29849,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type DeleteUserSecretByUserIDAndNameParams struct {
@@ -29866,12 +29871,13 @@ func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg De
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByID = `-- name: GetUserSecretByID :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE id = $1
 `
@@ -29890,12 +29896,13 @@ func (q *sqlQuerier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserS
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
@@ -29919,6 +29926,7 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -30019,7 +30027,7 @@ func (q *sqlQuerier) GetUserSecretsTelemetrySummary(ctx context.Context) (GetUse
 const listUserSecrets = `-- name: ListUserSecrets :many
 SELECT
     id, user_id, name, description,
-    env_name, file_path,
+    env_name, file_path, enabled,
     created_at, updated_at
 FROM user_secrets
 WHERE user_id = $1
@@ -30033,6 +30041,7 @@ type ListUserSecretsRow struct {
 	Description string    `db:"description" json:"description"`
 	EnvName     string    `db:"env_name" json:"env_name"`
 	FilePath    string    `db:"file_path" json:"file_path"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -30055,6 +30064,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 			&i.Description,
 			&i.EnvName,
 			&i.FilePath,
+			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -30072,7 +30082,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 }
 
 const listUserSecretsWithValues = `-- name: ListUserSecretsWithValues :many
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1
 ORDER BY name ASC
@@ -30101,6 +30111,7 @@ func (q *sqlQuerier) ListUserSecretsWithValues(ctx context.Context, userID uuid.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ValueKeyID,
+			&i.Enabled,
 		); err != nil {
 			return nil, err
 		}
@@ -30123,9 +30134,10 @@ SET
     description = CASE WHEN $4::bool THEN $5 ELSE description END,
     env_name    = CASE WHEN $6::bool THEN $7 ELSE env_name END,
     file_path   = CASE WHEN $8::bool THEN $9 ELSE file_path END,
+    enabled     = CASE WHEN $10::bool THEN $11 ELSE enabled END,
     updated_at  = CURRENT_TIMESTAMP
-WHERE user_id = $10 AND name = $11
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+WHERE user_id = $12 AND name = $13
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type UpdateUserSecretByUserIDAndNameParams struct {
@@ -30138,6 +30150,8 @@ type UpdateUserSecretByUserIDAndNameParams struct {
 	EnvName           string         `db:"env_name" json:"env_name"`
 	UpdateFilePath    bool           `db:"update_file_path" json:"update_file_path"`
 	FilePath          string         `db:"file_path" json:"file_path"`
+	UpdateEnabled     bool           `db:"update_enabled" json:"update_enabled"`
+	Enabled           bool           `db:"enabled" json:"enabled"`
 	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
 	Name              string         `db:"name" json:"name"`
 }
@@ -30153,6 +30167,8 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		arg.EnvName,
 		arg.UpdateFilePath,
 		arg.FilePath,
+		arg.UpdateEnabled,
+		arg.Enabled,
 		arg.UserID,
 		arg.Name,
 	)
@@ -30168,6 +30184,7 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
