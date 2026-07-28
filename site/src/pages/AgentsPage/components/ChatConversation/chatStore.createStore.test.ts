@@ -6,8 +6,6 @@ import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory. `created_at` is derived from `id` so the two
- *  agree unless a test deliberately makes them disagree. */
 const makeMessage = (
 	id: number,
 	role: string,
@@ -98,21 +96,17 @@ describe("replaceMessages", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// upsertDurableMessages
-// ---------------------------------------------------------------------------
-
 describe("upsertDurableMessages", () => {
 	it("orders merged messages by id rather than by arrival", () => {
 		const store = createChatStore();
-		// A batch shares one created_at, so the merge order is all that
-		// distinguishes these once the later ids are already present.
 		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
-		const withSharedCreatedAt = (id: number, role: string) =>
-			({
-				...makeMessage(id, role, `message-${id}`),
-				created_at: sharedCreatedAt,
-			}) as TypesGen.ChatMessage;
+		const withSharedCreatedAt = (
+			id: number,
+			role: string,
+		): TypesGen.ChatMessage => ({
+			...makeMessage(id, role, `message-${id}`),
+			created_at: sharedCreatedAt,
+		});
 
 		store.replaceMessages([
 			withSharedCreatedAt(3, "assistant"),
