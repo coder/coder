@@ -122,6 +122,7 @@ Experimental: this endpoint is subject to change.
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -218,6 +219,7 @@ Status Code **200**
 | `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
+| `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`              | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
@@ -397,6 +399,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -490,6 +493,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -740,6 +744,7 @@ Experimental: this endpoint is subject to change.
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -887,6 +892,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -980,6 +986,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -1164,6 +1171,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -1257,6 +1265,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -1271,6 +1280,48 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                 | Description | Schema                                   |
 |--------|---------------------------------------------------------|-------------|------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat cost
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/cost \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/cost`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "priced_message_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_messages_having_usage_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatCost](schemas.md#codersdkchatcost) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1439,6 +1490,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -1532,6 +1584,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2283,6 +2336,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2376,6 +2430,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2883,6 +2938,7 @@ Experimental: this endpoint is subject to change.
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2976,6 +3032,7 @@ Experimental: this endpoint is subject to change.
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [

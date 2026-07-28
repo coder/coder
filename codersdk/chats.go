@@ -105,27 +105,30 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID       `json:"owner_id" format:"uuid"`
-	OwnerUsername       string          `json:"owner_username,omitempty"`
-	OwnerName           string          `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string         `json:"last_reasoning_effort,omitempty"`
-	Title               string          `json:"title"`
-	Status              ChatStatus      `json:"status"`
-	PlanMode            ChatPlanMode    `json:"plan_mode,omitempty"`
-	LastError           *ChatError      `json:"last_error,omitempty"`
-	LastTurnSummary     *string         `json:"last_turn_summary"`
-	DiffStatus          *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt           time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
-	Archived            bool            `json:"archived"`
+	ID                  uuid.UUID    `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
+	OwnerUsername       string       `json:"owner_username,omitempty"`
+	OwnerName           string       `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
+	Title               string       `json:"title"`
+	Status              ChatStatus   `json:"status"`
+	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
+	LastError           *ChatError   `json:"last_error,omitempty"`
+	LastTurnSummary     *string      `json:"last_turn_summary"`
+	// Summary is the persisted whole-chat summary, generated in the background.
+	// It is nil until the first summary has been produced.
+	Summary    *string         `json:"summary"`
+	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
+	Archived   bool            `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -1860,13 +1863,17 @@ func NewDynamicTool[T any](
 type ChatWatchEventKind string
 
 const (
-	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
-	ChatWatchEventKindSummaryChange    ChatWatchEventKind = "summary_change"
-	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+	ChatWatchEventKindStatusChange  ChatWatchEventKind = "status_change"
+	ChatWatchEventKindSummaryChange ChatWatchEventKind = "summary_change"
+	// ChatWatchEventKindChatSummaryChange carries the persisted whole-chat
+	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
+	// the frontend updates one field without disturbing the other.
+	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
+	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn
@@ -1916,19 +1923,19 @@ type ChatCostUsersOptions struct {
 
 // ChatCostSummary is the response from the chat cost summary endpoint.
 type ChatCostSummary struct {
-	StartDate                time.Time                `json:"start_date" format:"date-time"`
-	EndDate                  time.Time                `json:"end_date" format:"date-time"`
-	TotalCostMicros          int64                    `json:"total_cost_micros"`
-	PricedMessageCount       int64                    `json:"priced_message_count"`
-	UnpricedMessageCount     int64                    `json:"unpriced_message_count"`
-	TotalInputTokens         int64                    `json:"total_input_tokens"`
-	TotalOutputTokens        int64                    `json:"total_output_tokens"`
-	TotalCacheReadTokens     int64                    `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64                    `json:"total_runtime_ms"`
-	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
-	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
-	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
+	StartDate                        time.Time                `json:"start_date" format:"date-time"`
+	EndDate                          time.Time                `json:"end_date" format:"date-time"`
+	TotalCostMicros                  int64                    `json:"total_cost_micros"`
+	PricedMessageCount               int64                    `json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64                    `json:"unpriced_messages_having_usage_count"`
+	TotalInputTokens                 int64                    `json:"total_input_tokens"`
+	TotalOutputTokens                int64                    `json:"total_output_tokens"`
+	TotalCacheReadTokens             int64                    `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens         int64                    `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs                   int64                    `json:"total_runtime_ms"`
+	ByModel                          []ChatCostModelBreakdown `json:"by_model"`
+	ByChat                           []ChatCostChatBreakdown  `json:"by_chat"`
+	UsageLimit                       *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
 }
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
@@ -1957,6 +1964,17 @@ type ChatCostChatBreakdown struct {
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
+}
+
+// ChatCost is the cumulative cost for a selected chat's subtree: the
+// chat itself plus every descendant (subagent) chat it spawned. A root
+// chat therefore reports its whole tree, while a subagent reports only
+// its own spend plus any nested subagents.
+type ChatCost struct {
+	ChatID                           uuid.UUID `json:"chat_id" format:"uuid"`
+	TotalCostMicros                  int64     `json:"total_cost_micros"`
+	PricedMessageCount               int64     `json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64     `json:"unpriced_messages_having_usage_count"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
@@ -2532,6 +2550,20 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	}
 	var summary ChatCostSummary
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
+}
+
+// GetChatCost returns the cumulative cost for a single chat.
+func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
+	if err != nil {
+		return ChatCost{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCost{}, ReadBodyAsError(res)
+	}
+	var cost ChatCost
+	return cost, json.NewDecoder(res.Body).Decode(&cost)
 }
 
 // GetChatCostUsers returns a per-user cost rollup for the deployment

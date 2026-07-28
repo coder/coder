@@ -1832,12 +1832,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
-};
-
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -3243,7 +3237,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,
@@ -5522,6 +5516,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		output_tokens: 4321,
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
+	},
+	network_calls: {
+		total: 23,
+		blocked: 2,
 	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",

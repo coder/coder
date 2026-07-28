@@ -1,9 +1,14 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatModelConfig } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 
@@ -11,6 +16,8 @@ type ModelRowProps = {
 	model: ChatModelConfig;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
+	hasProvider: boolean;
+	providerEnabled: boolean;
 	onClick: () => void;
 };
 
@@ -25,10 +32,15 @@ export const ModelRow: FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
+	hasProvider,
+	providerEnabled,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
+	// Models whose provider is missing or disabled cannot be used, so the
+	// status column reflects that regardless of the persisted enabled flag.
+	const isEffectivelyEnabled = model.enabled && hasProvider && providerEnabled;
 
 	return (
 		<TableRow {...clickableProps}>
@@ -58,12 +70,31 @@ export const ModelRow: FC<ModelRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell className="min-w-0">
-				<span
-					className="block truncate text-sm font-medium leading-6 text-content-secondary"
-					title={providerLabel}
-				>
-					{providerLabel || "N/A"}
-				</span>
+				{hasProvider ? (
+					<span
+						className="block truncate text-sm font-medium leading-6 text-content-secondary"
+						title={providerLabel}
+					>
+						{providerLabel}
+					</span>
+				) : (
+					<div className="flex items-center gap-1">
+						<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+							Unset
+						</span>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon
+									aria-label="Provider status"
+									className="size-3 text-content-secondary"
+								/>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-[240px]">
+								The provider connected to this model has been deleted.
+							</TooltipContent>
+						</Tooltip>
+					</div>
+				)}
 			</TableCell>
 			<TableCell className="min-w-0">
 				<span className="block truncate text-sm font-medium leading-6 text-content-secondary">
@@ -72,7 +103,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			</TableCell>
 			<TableCell>
 				<Badge variant="default">
-					{model.enabled ? "Enabled" : "Disabled"}
+					{isEffectivelyEnabled ? "Enabled" : "Disabled"}
 				</Badge>
 			</TableCell>
 			<TableCell className="w-10 text-center">

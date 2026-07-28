@@ -2164,6 +2164,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2257,6 +2258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2298,6 +2300,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2513,6 +2516,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
 | `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+
+## codersdk.ChatCost
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "priced_message_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_messages_having_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                                   | Type    | Required | Restrictions | Description |
+|----------------------------------------|---------|----------|--------------|-------------|
+| `chat_id`                              | string  | false    |              |             |
+| `priced_message_count`                 | integer | false    |              |             |
+| `total_cost_micros`                    | integer | false    |              |             |
+| `unpriced_messages_having_usage_count` | integer | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -4042,6 +4065,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -4078,9 +4102,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ClusterConfig
 
@@ -7218,9 +7242,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai-gateway-cost-control`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7726,6 +7750,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
 
+## codersdk.GroupAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
+| `group_id`             | string  | false    |              |                                                                                                            |
+| `period_end`           | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                      |
+| `period_start`         | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                    |
+| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+
 ## codersdk.GroupMemberAISpend
 
 ```json
@@ -7742,12 +7788,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                         |
-|----------------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
-| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                   |
-| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
-| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                     |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+|----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
+| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
 
 ## codersdk.GroupMembersAISpend
 
@@ -7907,6 +7953,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |----------------------|---------|----------|--------------|-------------|
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
+
+## codersdk.ImportUserSecretsRequest
+
+```json
+{
+  "content": "string",
+  "format": "env"
+}
+```
+
+### Properties
+
+| Name      | Type                                                     | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------|----------|--------------|-------------|
+| `content` | string                                                   | true     |              |             |
+| `format`  | [codersdk.SecretsFileFormat](#codersdksecretsfileformat) | true     |              |             |
 
 ## codersdk.InboxNotification
 
@@ -11370,6 +11432,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
 
+## codersdk.SecretsFileFormat
+
+```json
+"env"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `env`, `json`, `yaml` |
+
 ## codersdk.ServerSentEvent
 
 ```json
@@ -12559,6 +12635,52 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name      | Type                                                                      | Required | Restrictions | Description |
 |-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
 | `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderSessionEventType
+
+```json
+"wizard_entry"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                             |
+|--------------------------------------|
+| `compose_completion`, `wizard_entry` |
+
+## codersdk.TemplateBuilderSessionRequest
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "success": true
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                               | false    |              |             |
+| `duration_seconds` | number                                                                               | false    |              |             |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
+| `module_ids`       | array of string                                                                      | false    |              |             |
+| `session_id`       | string                                                                               | true     |              |             |
+| `success`          | boolean                                                                              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                             |
+|--------------|--------------------------------------|
+| `event_type` | `compose_completion`, `wizard_entry` |
 
 ## codersdk.TemplateBuilderVariableType
 
@@ -14110,15 +14232,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                          |
-|------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                    |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to. Null when no budget applies.                             |
-| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                  |
-| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                |
-| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                              |
-| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited). |
-| `user_id`              | string                                                       | false    |              |                                                                                                                      |
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                                    |
+|------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                              |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership. |
+| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                                                                            |
+| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                          |
+| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                        |
+| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited).                                                           |
+| `user_id`              | string                                                       | false    |              |                                                                                                                                                                                |
 
 ## codersdk.UserActivity
 

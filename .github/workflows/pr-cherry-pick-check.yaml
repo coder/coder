@@ -9,11 +9,12 @@ on:
     branches:
       - "release/*"
 
-permissions:
-  pull-requests: write
+permissions: {}
 
 jobs:
   check-cherry-pick:
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner

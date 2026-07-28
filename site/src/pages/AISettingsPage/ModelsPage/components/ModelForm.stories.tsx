@@ -139,11 +139,11 @@ export const AddHidesDisabledProviders: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
-		// Option names include the provider icon alt text, so match loosely.
-		const optionNames = screen
-			.getAllByRole("option")
-			.map((option) => option.textContent?.trim());
-		await expect(optionNames).toEqual(["OpenAI", "Anthropic"]);
+		// Exact accessible-name matches guard the aria-hidden icon fix: a
+		// regressed icon would turn an option's name into "OpenAI OpenAI".
+		await screen.findByRole("option", { name: "OpenAI" });
+		await screen.findByRole("option", { name: "Anthropic" });
+		await expect(screen.getAllByRole("option")).toHaveLength(2);
 		await expect(
 			screen.queryByRole("option", { name: /Secondary/ }),
 		).not.toBeInTheDocument();
@@ -277,6 +277,24 @@ export const EditUpdateDisabledUntilDirty: Story = {
 		await userEvent.clear(displayName);
 		await userEvent.type(displayName, mockGPT5.display_name);
 		await expect(save).toBeDisabled();
+	},
+};
+
+// Changing only the provider dropdown does not dirty the formik state
+// (providerKeyOverride lives outside form.values), so a naive form.dirty
+// gate leaves the save button disabled. `canSubmit` OR's in
+// `hasProviderChange` to fix this. Stripping that clause flips this story
+// red.
+export const EditUpdateEnabledOnProviderChange: Story = {
+	args: {
+		editingModel: mockGPT5,
+		selectedProviderState: MockAnthropicProviderState,
+		onDeleteModel: fn(async () => undefined),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const save = canvas.getByRole("button", { name: /^update model$/i });
+		await expect(save).toBeEnabled();
 	},
 };
 

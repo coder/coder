@@ -22,19 +22,35 @@ The following tools require wildcard access URL:
 
 ## Configuration
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path. Set this to a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+Set it to a wildcard hostname that resolves to Coder.
+The value must contain exactly one `*` at the beginning of the hostname.
+Coder replaces `*` with the generated application name, which stays within a single DNS label.
 
-```sh
-export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
-coder server
+Coder supports the wildcard as a full label or with a suffix in the first label:
+
+| Pattern              | Example generated application hostname           | Required DNS and TLS wildcard |
+|----------------------|--------------------------------------------------|-------------------------------|
+| `*.apps.example.com` | `8080--main--myworkspace--john.apps.example.com` | `*.apps.example.com`          |
+| `*-apps.example.com` | `8080--main--myworkspace--john-apps.example.com` | `*.example.com`               |
+
+For example, use the suffix pattern to keep the Coder dashboard and application hostnames at the same DNS level:
+
+```dotenv
+CODER_ACCESS_URL=https://apps.example.com
+CODER_WILDCARD_ACCESS_URL=*-apps.example.com
 ```
+
+This configuration serves the dashboard from `https://apps.example.com` and a workspace application from a hostname such as `https://8080--main--myworkspace--john-apps.example.com`.
 
 ### TLS Certificate Setup
 
 Wildcard access URLs require a TLS certificate that covers the wildcard domain. You have several options:
 
 > [!TIP]
-> You can use a single certificate for both the access URL and wildcard access URL. The certificate CN or SANs must match the wildcard domain, such as `*.coder.example.com`.
+> You can use a single certificate for both the access URL and wildcard access URL.
+> For `*.apps.example.com`, the certificate must include `apps.example.com` and `*.apps.example.com`.
+> For `*-apps.example.com` with an access URL of `apps.example.com`, a certificate for `*.example.com` covers both hostnames.
 
 #### Direct TLS Configuration
 
@@ -81,6 +97,15 @@ Or alternatively, using a CNAME record:
 ```txt
 *.coder.example.com    CNAME    coder.example.com
 ```
+
+For a suffix pattern such as `*-apps.example.com`, DNS and TLS wildcards must cover the entire first label:
+
+```txt
+*.example.com    A    <your-coder-server-ip>
+```
+
+DNS providers and certificate authorities don't interpret `*-apps.example.com` as a wildcard record or certificate name.
+Configure `*.example.com` instead, and ensure routing that wildcard to Coder doesn't conflict with other services under `example.com`.
 
 ### Workspace Proxies
 

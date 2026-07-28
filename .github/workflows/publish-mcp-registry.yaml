@@ -15,6 +15,8 @@ on:
         default: false
         type: boolean
 
+permissions: {}
+
 jobs:
   publish-mcp:
     runs-on: ubuntu-latest

@@ -1461,6 +1461,81 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateAIBudgetWarningUser",
+			id:   notifications.TemplateAIBudgetWarningUser,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"threshold":            "85",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIBudgetLimitReachedUser",
+			id:   notifications.TemplateAIBudgetLimitReachedUser,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"threshold":            "100",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIBudgetWarningAdmin",
+			id:   notifications.TemplateAIBudgetWarningAdmin,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"username":             "alice",
+					"threshold":            "85",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"limit_source":         "group",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIBudgetLimitReachedAdmin",
+			id:   notifications.TemplateAIBudgetLimitReachedAdmin,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"username":             "alice",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"limit_source":         "user_override",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

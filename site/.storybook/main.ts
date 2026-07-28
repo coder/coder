@@ -2,7 +2,6 @@ export default {
 	stories: ["../src/**/*.stories.tsx"],
 
 	addons: [
-		"@chromatic-com/storybook",
 		"@storybook/addon-a11y",
 		"@storybook/addon-docs",
 		"@storybook/addon-links",

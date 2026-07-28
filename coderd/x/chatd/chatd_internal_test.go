@@ -14,6 +14,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -85,6 +86,251 @@ func newTestMCPAgentTool(name string, configID uuid.UUID) fantasy.AgentTool {
 
 func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
+}
+
+func TestUpdateChatSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrimsAndPublishes", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		caller := rbac.Subject{
+			ID:    chat.OwnerID.String(),
+			Type:  rbac.SubjectTypeUser,
+			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		}
+		//nolint:gocritic // Verify updateChatSummary preserves its caller's actor.
+		ctx := dbauthz.As(context.Background(), caller)
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "trimmed summary", Valid: true},
+		}).DoAndReturn(func(ctx context.Context, _ database.UpdateChatSummaryParams) (int64, error) {
+			actor, ok := dbauthz.ActorFromContext(ctx)
+			require.True(t, ok, "summary writes must preserve the caller's actor")
+			require.Equal(t, caller, actor)
+			return 1, nil
+		})
+
+		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, " \n trimmed summary\t ")
+
+		events := ps.watchEvents(t)
+		require.Len(t, events, 1)
+		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryChange, events[0].Kind)
+		require.NotNil(t, events[0].Chat.Summary)
+		require.Equal(t, "trimmed summary", *events[0].Chat.Summary)
+	})
+
+	t.Run("SkipsBlankSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, " \n\t ")
+	})
+
+	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "stale summary", Valid: true},
+		}).Return(int64(0), nil)
+
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
+
+		require.Empty(t, ps.watchEvents(t))
+	})
+}
+
+func assistantReportMessage(t *testing.T, chatID uuid.UUID, id int64, text string) database.ChatMessage {
+	t.Helper()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}
+	data, err := json.Marshal(parts)
+	require.NoError(t, err)
+
+	return database.ChatMessage{
+		ID:             id,
+		ChatID:         chatID,
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        pqtype.NullRawMessage{RawMessage: data, Valid: true},
+		ContentVersion: chatprompt.ContentVersionV1,
+		Visibility:     database.ChatMessageVisibilityBoth,
+	}
+}
+
+func TestStoreSubagentReportSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PersistsFinalReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, "intermediate progress"),
+			assistantReportMessage(t, chat.ID, 2, "final report"),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "final report", Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("SkipsWhenNoVisibleReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{}, nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("TruncatesLongReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		longReport := strings.Repeat("a", subagentReportSummaryMaxRunes+100)
+		wantSummary := strings.Repeat("a", subagentReportSummaryMaxRunes-1) + "…"
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, longReport),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: wantSummary, Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("StoresSnippetOfMarkdownReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		report := "## Result\n\nFixed **the race** in `cache.go`. " +
+			"Added a regression test.\n\nLonger explanation follows here."
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, report),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary: sql.NullString{
+				String: "Fixed the race in cache.go. Added a regression test.",
+				Valid:  true,
+			},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+}
+
+func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx, cancel: serverCancel, db: db}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	entered := make(chan struct{})
+	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).DoAndReturn(
+		func(readCtx context.Context, _ uuid.UUID) (database.Chat, error) {
+			close(entered)
+			// Hang like an unreachable callee until the context is
+			// canceled; only server shutdown can release this before
+			// chatSummaryWorkTimeout.
+			<-readCtx.Done()
+			return database.Chat{}, readCtx.Err()
+		},
+	)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	server.maybeGenerateChatSummaryAsync(ctx, logger, chat)
+
+	testutil.TryReceive(ctx, t, entered)
+
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		_ = server.Close()
+	}()
+	testutil.TryReceive(ctx, t, closed)
 }
 
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {

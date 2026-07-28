@@ -38,82 +38,6 @@ import type {
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
-const getMissingParameters = (
-	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	newBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	templateParameters: TypesGen.TemplateVersionParameter[],
-) => {
-	const missingParameters: TypesGen.TemplateVersionParameter[] = [];
-	const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
-
-	for (const p of templateParameters) {
-		// It is mutable and required. Mutable values can be changed after so we
-		// don't need to ask them if they are not required.
-		const isMutableAndRequired = p.mutable && p.required;
-		// Is immutable, so we can check if it is its first time on the build
-		const isImmutable = !p.mutable;
-
-		if (isMutableAndRequired || isImmutable) {
-			requiredParameters.push(p);
-		}
-	}
-
-	for (const parameter of requiredParameters) {
-		// Check if there is a new value
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === parameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === parameter.name,
-			);
-		}
-
-		// If there is a value from the new or old one, it is not missed
-		if (buildParameter) {
-			continue;
-		}
-
-		missingParameters.push(parameter);
-	}
-
-	// Check if parameter "options" changed and we can't use old build parameters.
-	for (const templateParameter of templateParameters) {
-		if (templateParameter.options.length === 0) {
-			continue;
-		}
-		// For multi-select, extra steps are necessary to JSON parse the value.
-		if (templateParameter.form_type === "multi-select") {
-			continue;
-		}
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === templateParameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === templateParameter.name,
-			);
-		}
-
-		if (!buildParameter) {
-			continue;
-		}
-
-		const matchingOption = templateParameter.options.find(
-			(option) => option.value === buildParameter?.value,
-		);
-		if (!matchingOption) {
-			missingParameters.push(templateParameter);
-		}
-	}
-
-	return missingParameters;
-};
-
 /**
  * Originally from codersdk/client.go.
  * The below declaration is required to stop Knip from complaining.
@@ -478,20 +402,6 @@ export type InsightsParams = {
 export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
-
-export class MissingBuildParameters extends Error {
-	parameters: TypesGen.TemplateVersionParameter[] = [];
-	versionId: string;
-
-	constructor(
-		parameters: TypesGen.TemplateVersionParameter[],
-		versionId: string,
-	) {
-		super("Missing build parameters.");
-		this.parameters = parameters;
-		this.versionId = versionId;
-	}
-}
 
 export class ParameterValidationError extends Error {
 	constructor(
@@ -1160,9 +1070,10 @@ class ApiMethods {
 
 	getTemplateVersionExternalAuth = async (
 		versionId: string,
+		userId = "me",
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`/api/v2/templateversions/${versionId}/external-auth?user_id=${userId}`,
 		);
 
 		return response.data;
@@ -2611,6 +2522,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	recordTemplateBuilderSession = async (
+		req: TypesGen.TemplateBuilderSessionRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/templatebuilder/sessions", req);
+	};
+
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
 			headers: { "Content-Type": file.type },
@@ -2711,121 +2628,49 @@ class ApiMethods {
 		}
 	};
 
-	/** Steps to change the workspace version
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the new version
-	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace if it is already running
-	 * - Create a build with the version and updated build parameters
-	 */
 	changeWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const currentBuildParameters = await this.getWorkspaceBuildParameters(
-			workspace.latest_build.id,
-		);
-
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
-				templateVersionId,
-				workspace.owner_id,
-				currentBuildParameters,
-			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(templateVersionId);
-		}
-
-		const missingParameters = getMissingParameters(
-			currentBuildParameters,
-			newBuildParameters,
-			templateParameters,
-		);
-
-		if (missingParameters.length > 0) {
-			throw new MissingBuildParameters(missingParameters, templateVersionId);
-		}
-
-		await this.stopWorkspaceIfRunning(workspace);
-
-		return this.postWorkspaceBuild(workspace.id, {
-			transition: "start",
-			template_version_id: templateVersionId,
-			rich_parameter_values: newBuildParameters,
-		});
-	};
-
-	/** Steps to update the workspace
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the newest version
-	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace if it is already running
-	 * - Create a build with the latest version and updated build parameters
-	 */
-	updateWorkspace = async (
-		workspace: TypesGen.Workspace,
-		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
-	): Promise<TypesGen.WorkspaceBuild> => {
-		const [template, oldBuildParameters] = await Promise.all([
-			this.getTemplate(workspace.template_id),
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-		]);
-
-		const activeVersionId = template.active_version_id;
-
-		if (!isDynamicParametersEnabled) {
-			// Dynamic templates rely on the backend to fully validate parameters.
-			// Legacy templates do not, so do an additional check for any missing params.
-			const templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
-
-			const missingParameters = getMissingParameters(
-				oldBuildParameters,
-				newBuildParameters,
-				templateParameters,
-			);
-
-			if (missingParameters.length > 0) {
-				throw new MissingBuildParameters(missingParameters, activeVersionId);
-			}
-		}
-
 		await this.stopWorkspaceIfRunning(workspace);
 
 		try {
 			return await this.postWorkspaceBuild(workspace.id, {
 				transition: "start",
-				template_version_id: activeVersionId,
+				template_version_id: templateVersionId,
 				rich_parameter_values: newBuildParameters,
 			});
 		} catch (error) {
 			// If the build failed because of a parameter validation error, then we
 			// throw a special sentinel error that can be caught by the caller.
 			if (
-				isDynamicParametersEnabled &&
 				isApiError(error) &&
 				error.response.status === 400 &&
 				error.response.data.validations &&
 				error.response.data.validations.length > 0
 			) {
 				throw new ParameterValidationError(
-					activeVersionId,
+					templateVersionId,
 					error.response.data.validations,
 				);
 			}
 			throw error;
 		}
+	};
+
+	updateWorkspace = async (
+		workspace: TypesGen.Workspace,
+		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const template = await this.getTemplate(workspace.template_id);
+		const activeVersionId = template.active_version_id;
+
+		return this.changeWorkspaceVersion(
+			workspace,
+			activeVersionId,
+			newBuildParameters,
+		);
 	};
 
 	getWorkspaceResolveAutostart = async (
@@ -3437,6 +3282,12 @@ class ExperimentalApiMethods {
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,
+		);
+		return response.data;
+	};
+	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+		const response = await this.axios.get<TypesGen.ChatCost>(
+			`/api/experimental/chats/${chatId}/cost`,
 		);
 		return response.data;
 	};
