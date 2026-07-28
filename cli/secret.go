@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,7 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 		description string
 		env         string
 		file        string
+		enabled     bool
 	)
 
 	cmd := &serpent.Command{
@@ -99,6 +101,13 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				Description: "Workspace file path where this secret will be written. Must start with ~/ or /.",
 				Value:       serpent.StringOf(&file),
 			},
+			{
+				Name:        "enabled",
+				Flag:        "enabled",
+				Description: "Whether the secret is injected into workspaces. An enabled secret must set --env or --file; pass --enabled=false to store a secret without injecting it.",
+				Default:     "true",
+				Value:       serpent.BoolOf(&enabled),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -117,13 +126,18 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				return xerrors.New("secret value must be provided by exactly one of --value or non-interactive stdin (pipe or redirect)")
 			}
 
-			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, codersdk.CreateUserSecretRequest{
+			req := codersdk.CreateUserSecretRequest{
 				Name:        inv.Args[0],
 				Value:       resolvedValue,
 				Description: description,
 				EnvName:     env,
 				FilePath:    file,
-			})
+			}
+			if userSetOption(inv, "enabled") {
+				req.Enabled = ptr.Ref(enabled)
+			}
+
+			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, req)
 			if err != nil {
 				return xerrors.Errorf("create secret %q: %w", inv.Args[0], err)
 			}
@@ -142,13 +156,14 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 		description string
 		env         string
 		file        string
+		enabled     bool
 	)
 
 	cmd := &serpent.Command{
 		Use:   "update <name>",
 		Short: "Update a secret",
 		Long: strings.Join([]string{
-			"At least one of --value, --description, --env, or --file must be specified.",
+			"At least one of --value, --description, --env, --file, or --enabled must be specified.",
 			"Provide the secret value by at most one of --value or non-interactive stdin (pipe or redirect).",
 		}, " "),
 		Middleware: serpent.Chain(
@@ -179,6 +194,12 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 				Description: "Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.",
 				Value:       serpent.StringOf(&file),
 			},
+			{
+				Name:        "enabled",
+				Flag:        "enabled",
+				Description: "Whether the secret is injected into workspaces. An enabled secret must keep at least one of --env or --file; pass --enabled=false to stop injecting it without deleting it.",
+				Value:       serpent.BoolOf(&enabled),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -202,6 +223,9 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			}
 			if userSetOption(inv, "file") {
 				req.FilePath = &file
+			}
+			if userSetOption(inv, "enabled") {
+				req.Enabled = ptr.Ref(enabled)
 			}
 
 			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, inv.Args[0], req)
@@ -298,6 +322,7 @@ type secretListRow struct {
 	Updated     string `json:"-" table:"updated"`
 	Env         string `json:"-" table:"env"`
 	File        string `json:"-" table:"file"`
+	Enabled     string `json:"-" table:"enabled"`
 	Description string `json:"-" table:"description"`
 }
 
@@ -309,6 +334,7 @@ func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
 		Updated:     humanize.Time(secret.UpdatedAt),
 		Env:         secret.EnvName,
 		File:        secret.FilePath,
+		Enabled:     strconv.FormatBool(secret.Enabled),
 		Description: secret.Description,
 	}
 }
@@ -389,7 +415,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 		cliui.ChangeFormatterData(
 			cliui.TableFormat(
 				[]secretListRow{},
-				[]string{"name", "created", "updated", "env", "file", "description"},
+				[]string{"name", "created", "updated", "env", "file", "enabled", "description"},
 			),
 			func(data any) (any, error) {
 				switch rows := data.(type) {

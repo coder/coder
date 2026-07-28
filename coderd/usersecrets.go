@@ -90,6 +90,10 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
 			return
 		}
+		if validations := userSecretInjectionTargetValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+			return
+		}
 		if resp, ok := userSecretLimitResponse(err); ok {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
@@ -201,6 +205,15 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, conflicts)
+			return
+		}
+		if validations := userSecretInjectionTargetValidationErrors(err); len(validations) > 0 {
+			if index >= 0 {
+				for i := range validations {
+					validations[i].Field = fmt.Sprintf("secrets[%d].%s", index, validations[i].Field)
+				}
+			}
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 			return
 		}
 		if resp, ok := userSecretLimitResponse(err); ok {
@@ -438,6 +451,10 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 			}})
 			return
 		}
+		if validations := userSecretInjectionTargetValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+			return
+		}
 		if validations := userSecretConflictValidationErrors(err); len(validations) > 0 {
 			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
 			return
@@ -566,6 +583,22 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 		}, true
 	}
 	return codersdk.Response{}, false
+}
+
+// userSecretInjectionTargetValidationErrors maps the
+// user_secrets_enabled_requires_target CHECK violation to a field-level
+// validation error. The database constraint is the race-safe source of
+// truth for the injection-target invariant: concurrent PATCHes can each
+// clear a different target and pass the handler's own post-state check,
+// so the constraint is what ultimately rejects an enabled target-less row.
+func userSecretInjectionTargetValidationErrors(err error) []codersdk.ValidationError {
+	if database.IsCheckViolation(err, database.CheckUserSecretsEnabledRequiresTarget) {
+		return []codersdk.ValidationError{{
+			Field:  codersdk.UserSecretEnvNameField,
+			Detail: codersdk.UserSecretInjectionTargetRequiredDetail,
+		}}
+	}
+	return nil
 }
 
 func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {

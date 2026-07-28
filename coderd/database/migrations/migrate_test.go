@@ -2252,10 +2252,10 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
 }
 
-func TestMigration000553UserSecretsEnabled(t *testing.T) {
+func TestMigration000556UserSecretsEnabled(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 553
+	const migrationVersion = 556
 
 	sqlDB := testSQLDB(t)
 

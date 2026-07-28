@@ -10,13 +10,21 @@
 -- to enabled = false. Today those rows are silently skipped during agent
 -- manifest assembly, so flipping them preserves observable behavior
 -- while letting the manifest stop encoding the both-empty special case.
--- The write-time invariant (an enabled secret must have at least one of
--- env_name / file_path non-empty) is enforced at the API layer, so no
--- CHECK constraint is added here. Disabled secrets may have no targets;
--- bulk imports use that state for keys that cannot be env-injected.
 ALTER TABLE user_secrets
     ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT true;
 
 UPDATE user_secrets
 SET    enabled = false
 WHERE  env_name = '' AND file_path = '';
+
+-- Enforce the injection-target invariant in the database: an enabled
+-- secret must have at least one of env_name / file_path non-empty.
+-- Disabled secrets may have no targets (bulk imports use that state for
+-- keys that cannot be env-injected). The API also checks this on write,
+-- but the constraint is the source of truth: it closes a read-modify-write
+-- race where two concurrent PATCHes each clear a different target, both
+-- pass the API's post-state check, and serialize to an enabled row with
+-- no targets.
+ALTER TABLE user_secrets
+    ADD CONSTRAINT user_secrets_enabled_requires_target
+    CHECK (NOT enabled OR env_name <> '' OR file_path <> '');
