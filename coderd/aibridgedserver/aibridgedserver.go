@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -80,7 +81,10 @@ type store interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
+	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
+	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -111,13 +115,15 @@ type Server struct {
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	experiments       codersdk.Experiments
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
 	// budgetPeriod is the deployment-configured budgeting period used to
 	// derive the window over which user AI spend is aggregated.
-	budgetPeriod codersdk.AIBudgetPeriod
-	clock        quartz.Clock
+	budgetPeriod  codersdk.AIBudgetPeriod
+	clock         quartz.Clock
+	notifEnqueuer notifications.Enqueuer
 }
 
 // Options carries the dependencies required to construct an aibridged Server.
@@ -125,6 +131,9 @@ type Options struct {
 	Store         store
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
+	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
+	// enqueuer.
+	Enqueuer notifications.Enqueuer
 
 	AccessURL           string
 	GatewayCfg          codersdk.AIBridgeConfig
@@ -136,6 +145,11 @@ type Options struct {
 }
 
 func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
+	enqueuer := opts.Enqueuer
+	if enqueuer == nil {
+		enqueuer = notifications.NewNoopEnqueuer()
+	}
+
 	eac := make(map[string]*externalauth.Config, len(opts.ExternalAuthConfigs))
 
 	for _, cfg := range opts.ExternalAuthConfigs {
@@ -154,9 +168,11 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
 		aiSeatTracker:       opts.AISeatTracker,
+		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
 		clock:               opts.Clock,
+		notifEnqueuer:       enqueuer,
 	}
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
@@ -255,8 +271,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
+		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	}
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -356,7 +374,11 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
 	createdAt := in.GetCreatedAt().AsTime()
-	return s.store.InTx(func(tx database.Store) error {
+
+	// Populated inside the transaction with any budget thresholds this
+	// interception crossed.
+	var crossings []budgetThresholdCrossing
+	err := s.store.InTx(func(tx database.Store) error {
 		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 			ID:                    uuid.New(),
 			InterceptionID:        intc.ID,
@@ -399,8 +421,29 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		}); err != nil {
 			return xerrors.Errorf("increment user daily spend: %w", err)
 		}
+
+		// Threshold detection is best-effort: a failed read must not roll back
+		// the committed spend, so the error is logged rather than propagated.
+		var detectErr error
+		crossings, detectErr = s.detectBudgetThresholdCrossings(ctx, tx, intc, cost, createdAt)
+		if detectErr != nil {
+			s.logger.Error(ctx, "failed to detect AI budget threshold crossing",
+				slog.F("interception_id", intc.ID),
+				slog.F("initiator_id", intc.InitiatorID),
+				slog.Error(detectErr))
+		}
 		return nil
 	}, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := s.notifyBudgetThresholdCrossings(ctx, crossings); err != nil {
+		s.logger.Error(ctx, "failed to send AI budget notifications",
+			slog.F("initiator_id", intc.InitiatorID),
+			slog.Error(err))
+	}
+	return nil
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
@@ -812,32 +855,35 @@ type userAIBudget struct {
 //     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
 func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
-	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
 	if err != nil {
 		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}
-	if !ok {
-		// No budget configured for the user; return zero-valued status.
+	// ok is false when no budget is configured. The nil Limit check keeps
+	// enforcement failing open if a caller resolves via the unlimited
+	// Everyone fallback.
+	if !ok || effectiveGroup.Limit == nil {
+		// No enforceable spend limit for the user; return zero-valued status.
 		return userAIBudget{}, nil
 	}
 
 	spend, err := s.store.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
 		UserID:           userID,
-		EffectiveGroupID: effectiveBudget.GroupID,
+		EffectiveGroupID: effectiveGroup.GroupID,
 		PeriodStart:      periodStart,
 	})
 	if err != nil {
-		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveBudget.GroupID, err)
+		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveGroup.GroupID, err)
 	}
 
-	exceeded := spend.SpendMicros >= effectiveBudget.SpendLimitMicros
+	exceeded := spend.SpendMicros >= effectiveGroup.Limit.SpendLimitMicros
 
 	logger := s.logger.With(
 		slog.F("user_id", userID),
-		slog.F("effective_group_id", effectiveBudget.GroupID),
+		slog.F("effective_group_id", effectiveGroup.GroupID),
 		slog.F("period_start", periodStart),
 		slog.F("current_spend_micros", spend.SpendMicros),
-		slog.F("spend_limit_micros", effectiveBudget.SpendLimitMicros),
+		slog.F("spend_limit_micros", effectiveGroup.Limit.SpendLimitMicros),
 		slog.F("exceeded", exceeded),
 	)
 	logger.Debug(ctx, "user AI spend status")
@@ -847,7 +893,7 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 
 	return userAIBudget{
 		Exceeded:         exceeded,
-		SpendLimitMicros: ptr.Ref(effectiveBudget.SpendLimitMicros),
+		SpendLimitMicros: ptr.Ref(effectiveGroup.Limit.SpendLimitMicros),
 	}, nil
 }
 

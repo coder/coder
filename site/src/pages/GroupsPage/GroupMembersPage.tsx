@@ -1,16 +1,22 @@
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
-import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
+import {
+	addMembers,
+	groupAIBudget,
+	groupMembersAISpend,
+	removeMember,
+} from "#/api/queries/groups";
 import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
+	GroupMemberAISpend,
 	OrganizationMemberWithUserData,
+	ReducedUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -51,8 +57,12 @@ import {
 	GroupMemberBudgetCells,
 } from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
+
+type MemberWithSpend = ReducedUser & {
+	readonly spend: GroupMemberAISpend | undefined;
+};
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -69,8 +79,7 @@ const GroupMembersPage: FC = () => {
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-	const [budgetUser, setBudgetUser] =
-		useState<GroupMemberWithAICostControl | null>(null);
+	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
 
 	const { experiments } = useDashboard();
 	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
@@ -85,6 +94,23 @@ const GroupMembersPage: FC = () => {
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
 	});
+	const memberIds = members.map((member) => member.id);
+	const membersSpendQuery = useQuery({
+		...groupMembersAISpend(groupData.id, memberIds),
+		enabled: aibridgeVisible && memberIds.length > 0,
+	});
+	const spendByUserId = new Map(
+		membersSpendQuery.data?.members.map((spend) => [spend.user_id, spend]) ??
+			[],
+	);
+	// Join each member with its spend (undefined when loading, failed, or
+	// omitted by the backend) so each row gets a single object.
+	const membersWithSpend = members.map(
+		(member): MemberWithSpend => ({
+			...member,
+			spend: spendByUserId.get(member.id),
+		}),
+	);
 	const aiBudgetNote = [
 		"Monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.
@@ -96,6 +122,17 @@ const GroupMembersPage: FC = () => {
 	]
 		.filter(Boolean)
 		.join(" ");
+
+	useEffect(() => {
+		if (membersSpendQuery.error) {
+			toast.error(
+				getErrorMessage(membersSpendQuery.error, "Unable to load AI spend."),
+				{
+					description: getErrorDetail(membersSpendQuery.error),
+				},
+			);
+		}
+	}, [membersSpendQuery.error]);
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -130,13 +167,20 @@ const GroupMembersPage: FC = () => {
 									<TableHead>
 										<div className="flex items-center gap-1">
 											AI budget
-											<InfoIconTooltip message={aiBudgetNote} />
+											{membersSpendQuery.isError ? (
+												<StatusIconTooltip
+													kind="warning"
+													message="AI spend couldn't be loaded, so budgets aren't shown."
+												/>
+											) : (
+												<StatusIconTooltip message={aiBudgetNote} />
+											)}
 										</div>
 									</TableHead>
 									<TableHead>
 										<div className="flex items-center gap-1">
 											Budget group
-											<InfoIconTooltip message="The group or individual budget currently responsible for this user's AI spend. Admins can reassign this at any time, so spend history may span multiple sources." />
+											<StatusIconTooltip message="The group or individual budget currently responsible for this user's AI spend. Admins can reassign this at any time, so spend history may span multiple sources." />
 										</div>
 									</TableHead>
 								</>
@@ -153,7 +197,7 @@ const GroupMembersPage: FC = () => {
 								</TableCell>
 							</TableRow>
 						) : (
-							members.map((member) => (
+							membersWithSpend.map((member) => (
 								<GroupMemberRow
 									member={member}
 									group={groupData}
@@ -192,7 +236,7 @@ const GroupMembersPage: FC = () => {
 					}}
 					user={budgetUser}
 					currentGroup={groupData}
-					effectiveGroupId={budgetUser.ai_cost_control?.effective_group_id}
+					effectiveGroupId={budgetUser.spend?.effective_group_id}
 				/>
 			)}
 		</div>
@@ -292,7 +336,7 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 };
 
 interface GroupMemberRowProps {
-	member: GroupMemberWithAICostControl;
+	member: MemberWithSpend;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
@@ -308,9 +352,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
-	const costControl = member.ai_cost_control;
 	const budgetFromOtherGroup =
-		effectiveBudgetGroup(costControl, group).kind === "other";
+		effectiveBudgetGroup(member.spend, group).kind === "other";
 
 	return (
 		<TableRow key={member.id}>
@@ -343,7 +386,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<GroupMemberBudgetCells
 					group={group}
 					userID={member.id}
-					costControl={costControl}
+					spend={member.spend}
 				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">

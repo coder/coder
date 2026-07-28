@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // tokensPerMillion is the divisor for prices, which are quoted per million
@@ -23,6 +24,8 @@ const tokensPerMillion = 1_000_000
 // price or cost of 0 is recorded as 0, which is distinct from NULL.
 type tokenUsageCost struct {
 	effectiveGroupID      uuid.NullUUID
+	spendLimitMicros      sql.NullInt64
+	limitSource           codersdk.AIBudgetLimitSource
 	inputPriceMicros      sql.NullInt64
 	outputPriceMicros     sql.NullInt64
 	cacheReadPriceMicros  sql.NullInt64
@@ -31,22 +34,33 @@ type tokenUsageCost struct {
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
-// interception and computes its cost. Two outcomes are expected and yield NULL
-// columns rather than an error: a user with no configured budget (yields a NULL
-// group) and a model absent from the price table (yields NULL prices and cost).
-// Any other error is returned. A NULL cost unambiguously means "model not priced".
+// interception and computes its cost. Two independent conditions yield a NULL
+// column rather than an error: an unresolved effective group (the user has no
+// org membership), and a model absent from the price table leaves prices and
+// cost NULL (a NULL cost unambiguously means "model not priced").
+// Any other error is returned.
 func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBridgeInterception, in *proto.RecordTokenUsageRequest) (tokenUsageCost, error) {
 	var result tokenUsageCost
 
-	// Resolve the effective group for attribution. This is independent of
-	// whether the model is priced. ok is false when no budget is configured,
-	// which leaves the group attribution NULL.
-	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, intc.InitiatorID, s.budgetPolicy)
+	// Resolve the effective group for attribution, independent of whether the
+	// model is priced.
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, intc.InitiatorID, s.budgetPolicy)
 	if err != nil {
-		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI budget for user %q with policy %q: %w", intc.InitiatorID, s.budgetPolicy, err)
+		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI group for user %q with policy %q: %w", intc.InitiatorID, s.budgetPolicy, err)
 	}
-	if ok {
-		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveBudget.GroupID, Valid: true}
+	if !ok {
+		// A user should always resolve to at least their Everyone group, so log
+		// this unexpected case. Spend is still recorded, with a NULL group.
+		s.logger.Warn(ctx, "no effective group for user, AI spend not attributed",
+			slog.F("user_id", intc.InitiatorID))
+	} else {
+		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveGroup.GroupID, Valid: true}
+		// Limit is nil for the unlimited Everyone fallback; only a budgeted
+		// group carries the spend limit and its source.
+		if effectiveGroup.Limit != nil {
+			result.spendLimitMicros = sql.NullInt64{Int64: effectiveGroup.Limit.SpendLimitMicros, Valid: true}
+			result.limitSource = effectiveGroup.Limit.Source
+		}
 	}
 
 	// Snapshot the price for this (provider, model) and compute cost.

@@ -461,6 +461,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"archived":                    ActionTrack,
 		"last_error":                  ActionIgnore, // Internal.
 		"last_turn_summary":           ActionIgnore, // Internal cached display text.
+		"summary":                     ActionIgnore, // Internal cached display text, generated asynchronously.
+		"summary_generated_at":        ActionIgnore, // Internal freshness marker for the cached summary.
 		"mode":                        ActionTrack,
 		"mcp_server_ids":              ActionTrack,
 		"labels":                      ActionTrack,
@@ -483,6 +485,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"generation_attempt":          ActionIgnore, // Internal retry counter.
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

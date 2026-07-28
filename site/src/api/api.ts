@@ -38,82 +38,6 @@ import type {
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
-const getMissingParameters = (
-	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	newBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	templateParameters: TypesGen.TemplateVersionParameter[],
-) => {
-	const missingParameters: TypesGen.TemplateVersionParameter[] = [];
-	const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
-
-	for (const p of templateParameters) {
-		// It is mutable and required. Mutable values can be changed after so we
-		// don't need to ask them if they are not required.
-		const isMutableAndRequired = p.mutable && p.required;
-		// Is immutable, so we can check if it is its first time on the build
-		const isImmutable = !p.mutable;
-
-		if (isMutableAndRequired || isImmutable) {
-			requiredParameters.push(p);
-		}
-	}
-
-	for (const parameter of requiredParameters) {
-		// Check if there is a new value
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === parameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === parameter.name,
-			);
-		}
-
-		// If there is a value from the new or old one, it is not missed
-		if (buildParameter) {
-			continue;
-		}
-
-		missingParameters.push(parameter);
-	}
-
-	// Check if parameter "options" changed and we can't use old build parameters.
-	for (const templateParameter of templateParameters) {
-		if (templateParameter.options.length === 0) {
-			continue;
-		}
-		// For multi-select, extra steps are necessary to JSON parse the value.
-		if (templateParameter.form_type === "multi-select") {
-			continue;
-		}
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === templateParameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === templateParameter.name,
-			);
-		}
-
-		if (!buildParameter) {
-			continue;
-		}
-
-		const matchingOption = templateParameter.options.find(
-			(option) => option.value === buildParameter?.value,
-		);
-		if (!matchingOption) {
-			missingParameters.push(templateParameter);
-		}
-	}
-
-	return missingParameters;
-};
-
 /**
  * Originally from codersdk/client.go.
  * The below declaration is required to stop Knip from complaining.
@@ -199,29 +123,6 @@ export const watchAgentContainers = (
 type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
-
-// TODO(AIGOV-290): drop once `ai_cost_control` is generated onto Group.
-export type GroupAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-}>;
-export type GroupWithAICostControl = TypesGen.Group &
-	Readonly<{ ai_cost_control?: GroupAICostControl }>;
-
-// TODO(AIGOV-291): drop once `ai_cost_control` is generated onto ReducedUser.
-export type GroupMemberAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-	effective_group_id: string | null;
-	limit_source: TypesGen.AIBudgetLimitSource | null;
-}>;
-export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
-	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
-export type GroupMembersResponseWithAICostControl = Omit<
-	TypesGen.GroupMembersResponse,
-	"users"
-> &
-	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
 
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
@@ -430,6 +331,25 @@ export type DeploymentConfig = Readonly<{
 	options: TypesGen.SerpentOption[];
 }>;
 
+/**
+ * Fetches `items` in concurrent batches of at most `batchSize`, resolving
+ * with one response per batch, in input order.
+ */
+async function fetchInBatches<Item, Response>(
+	items: readonly Item[],
+	batchSize: number,
+	fetchBatch: (batch: readonly Item[]) => Promise<Response>,
+): Promise<Response[]> {
+	const batches: Promise<Response>[] = [];
+	for (let i = 0; i < items.length; i += batchSize) {
+		batches.push(fetchBatch(items.slice(i, i + batchSize)));
+	}
+	return Promise.all(batches);
+}
+
+/** The AI spend endpoints reject requests with more than 100 IDs. */
+const aiSpendBatchSize = 100;
+
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
@@ -482,20 +402,6 @@ export type InsightsParams = {
 export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
-
-export class MissingBuildParameters extends Error {
-	parameters: TypesGen.TemplateVersionParameter[] = [];
-	versionId: string;
-
-	constructor(
-		parameters: TypesGen.TemplateVersionParameter[],
-		versionId: string,
-	) {
-		super("Missing build parameters.");
-		this.parameters = parameters;
-		this.versionId = versionId;
-	}
-}
 
 export class ParameterValidationError extends Error {
 	constructor(
@@ -1164,9 +1070,10 @@ class ApiMethods {
 
 	getTemplateVersionExternalAuth = async (
 		versionId: string,
+		userId = "me",
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`/api/v2/templateversions/${versionId}/external-auth?user_id=${userId}`,
 		);
 
 		return response.data;
@@ -2232,11 +2139,77 @@ class ApiMethods {
 	 */
 	getGroupsByOrganization = async (
 		organization: string,
-	): Promise<GroupWithAICostControl[]> => {
-		const response = await this.axios.get(
+	): Promise<TypesGen.Group[]> => {
+		const response = await this.axios.get<TypesGen.Group[]>(
 			`/api/v2/organizations/${organization}/groups`,
 		);
 		return response.data;
+	};
+
+	/**
+	 * AI spend for the given groups in the active budget period. Fetched in
+	 * batches of 100 (the backend cap) and merged. Requires at least one ID;
+	 * the period window comes from the backend, so an empty request has no
+	 * meaningful response.
+	 * @param organization Can be the organization's ID or name
+	 */
+	getOrganizationGroupsAISpend = async (
+		organization: string,
+		groupIds: readonly string[],
+	): Promise<TypesGen.OrganizationGroupsAISpend> => {
+		if (groupIds.length === 0) {
+			throw new Error("groupIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			groupIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/organizations/${organization}/groups/ai/spend`,
+					{ group_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.OrganizationGroupsAISpend>(url);
+				return response.data;
+			},
+		);
+		// Every batch reports the same active period window.
+		return {
+			...responses[0],
+			groups: responses.flatMap((r) => r.groups),
+		};
+	};
+
+	/**
+	 * Per-member AI spend attributed to a group in the active budget period.
+	 * Users not in the group, or whose spend the caller can't read, are
+	 * omitted. Fetched in batches of 100 (the backend cap) and merged.
+	 * Requires at least one ID.
+	 */
+	getGroupMembersAISpend = async (
+		groupId: string,
+		userIds: readonly string[],
+	): Promise<TypesGen.GroupMembersAISpend> => {
+		if (userIds.length === 0) {
+			throw new Error("userIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			userIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/groups/${groupId}/members/ai/spend`,
+					{ user_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.GroupMembersAISpend>(url);
+				return response.data;
+			},
+		);
+		return {
+			...responses[0],
+			members: responses.flatMap((r) => r.members),
+		};
 	};
 
 	/**
@@ -2285,12 +2258,15 @@ class ApiMethods {
 		groupName: string,
 		filter?: UsersRequest,
 		signal?: AbortSignal,
-	): Promise<GroupMembersResponseWithAICostControl> => {
+	): Promise<TypesGen.GroupMembersResponse> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
 			filter,
 		);
-		const response = await this.axios.get(url.toString(), { signal });
+		const response = await this.axios.get<TypesGen.GroupMembersResponse>(
+			url.toString(),
+			{ signal },
+		);
 		return response.data;
 	};
 
@@ -2546,6 +2522,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	recordTemplateBuilderSession = async (
+		req: TypesGen.TemplateBuilderSessionRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/templatebuilder/sessions", req);
+	};
+
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
 			headers: { "Content-Type": file.type },
@@ -2646,121 +2628,49 @@ class ApiMethods {
 		}
 	};
 
-	/** Steps to change the workspace version
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the new version
-	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace if it is already running
-	 * - Create a build with the version and updated build parameters
-	 */
 	changeWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const currentBuildParameters = await this.getWorkspaceBuildParameters(
-			workspace.latest_build.id,
-		);
-
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
-				templateVersionId,
-				workspace.owner_id,
-				currentBuildParameters,
-			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(templateVersionId);
-		}
-
-		const missingParameters = getMissingParameters(
-			currentBuildParameters,
-			newBuildParameters,
-			templateParameters,
-		);
-
-		if (missingParameters.length > 0) {
-			throw new MissingBuildParameters(missingParameters, templateVersionId);
-		}
-
-		await this.stopWorkspaceIfRunning(workspace);
-
-		return this.postWorkspaceBuild(workspace.id, {
-			transition: "start",
-			template_version_id: templateVersionId,
-			rich_parameter_values: newBuildParameters,
-		});
-	};
-
-	/** Steps to update the workspace
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the newest version
-	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace if it is already running
-	 * - Create a build with the latest version and updated build parameters
-	 */
-	updateWorkspace = async (
-		workspace: TypesGen.Workspace,
-		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
-	): Promise<TypesGen.WorkspaceBuild> => {
-		const [template, oldBuildParameters] = await Promise.all([
-			this.getTemplate(workspace.template_id),
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-		]);
-
-		const activeVersionId = template.active_version_id;
-
-		if (!isDynamicParametersEnabled) {
-			// Dynamic templates rely on the backend to fully validate parameters.
-			// Legacy templates do not, so do an additional check for any missing params.
-			const templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
-
-			const missingParameters = getMissingParameters(
-				oldBuildParameters,
-				newBuildParameters,
-				templateParameters,
-			);
-
-			if (missingParameters.length > 0) {
-				throw new MissingBuildParameters(missingParameters, activeVersionId);
-			}
-		}
-
 		await this.stopWorkspaceIfRunning(workspace);
 
 		try {
 			return await this.postWorkspaceBuild(workspace.id, {
 				transition: "start",
-				template_version_id: activeVersionId,
+				template_version_id: templateVersionId,
 				rich_parameter_values: newBuildParameters,
 			});
 		} catch (error) {
 			// If the build failed because of a parameter validation error, then we
 			// throw a special sentinel error that can be caught by the caller.
 			if (
-				isDynamicParametersEnabled &&
 				isApiError(error) &&
 				error.response.status === 400 &&
 				error.response.data.validations &&
 				error.response.data.validations.length > 0
 			) {
 				throw new ParameterValidationError(
-					activeVersionId,
+					templateVersionId,
 					error.response.data.validations,
 				);
 			}
 			throw error;
 		}
+	};
+
+	updateWorkspace = async (
+		workspace: TypesGen.Workspace,
+		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const template = await this.getTemplate(workspace.template_id);
+		const activeVersionId = template.active_version_id;
+
+		return this.changeWorkspaceVersion(
+			workspace,
+			activeVersionId,
+			newBuildParameters,
+		);
 	};
 
 	getWorkspaceResolveAutostart = async (
@@ -3375,6 +3285,12 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+		const response = await this.axios.get<TypesGen.ChatCost>(
+			`/api/experimental/chats/${chatId}/cost`,
+		);
+		return response.data;
+	};
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },
@@ -3460,6 +3376,18 @@ class ExperimentalApiMethods {
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * Requests a manual context compaction on an idle chat. The
+	 * compaction runs asynchronously through the chat worker and
+	 * bypasses the automatic usage threshold.
+	 */
+	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/compact`,
 		);
 		return response.data;
 	};

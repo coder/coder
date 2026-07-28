@@ -62,6 +62,7 @@ interface TemplateBuilderPageViewProps {
 	createError: Error | null;
 	isCreating: boolean;
 	onClearCreateError?: () => void;
+	sessionId: string;
 }
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
@@ -72,10 +73,11 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	createError,
 	isCreating,
 	onClearCreateError,
+	sessionId,
 }) => {
 	const [state, dispatch] = useReducer(
 		wizardReducer,
-		preselectedBase,
+		{ sessionId, preselectedBase },
 		initWizardState,
 	);
 	const [searchParams, setSearchParams] = useSearchParams();

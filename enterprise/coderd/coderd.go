@@ -721,6 +721,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
 	}
 
+	// The NATS pubsub, if enabled, used the Replica Manager for clustering. It's a layering violation if the pubsub
+	// for the Replica Manager *is* the NATS pubsub, because then we have a dependency loop.
+	if _, isNats := options.ReplicaSyncPubsub.(*nats.Pubsub); isNats {
+		return nil, xerrors.Errorf("replica sync pubsub cannot be the NATS pubsub")
+	}
+
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing,
 	// and NATS clustering for HA pubsub.
@@ -931,7 +937,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Database,
+			ctx, api.Logger, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
 				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
@@ -947,7 +953,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
 				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-			})
+			},
+			api.AGPL.HTTPAuth.Authorizer,
+			api.AGPL.Experiments,
+		)
 		if err != nil {
 			return codersdk.Entitlements{}, err
 		}

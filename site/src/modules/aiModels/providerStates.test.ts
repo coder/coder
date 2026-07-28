@@ -27,30 +27,38 @@ const baseProviderState: ProviderState = {
 };
 
 describe("deriveProviderStates", () => {
-	it("orders provider configs first, then catalog-only providers", () => {
+	it("orders providers alphabetically by display label", () => {
 		const providerConfigs = [
 			{
 				...MockChatProviderConfig,
-				id: "prov-anthropic",
-				provider: "anthropic",
-				display_name: "Anthropic",
+				id: "prov-openai",
+				provider: "openai",
+				display_name: "OpenAI",
 			},
 		];
 		const catalog: TypesGen.ChatModelsResponse = {
 			providers: [
-				{ ...MockChatModelProvider, provider: "anthropic" },
 				{ ...MockChatModelProvider, provider: "google" },
+				{ ...MockChatModelProvider, provider: "anthropic" },
 			],
 			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], providerConfigs, catalog);
 
-		expect(states.map((s) => s.provider)).toEqual(["anthropic", "google"]);
-		expect(states[0].key).toBe("prov-anthropic");
-		expect(states[1].key).toBe("google");
+		expect(states.map((s) => s.provider)).toEqual([
+			"anthropic",
+			"google",
+			"openai",
+		]);
+		expect(states.map((s) => s.label)).toEqual([
+			"Anthropic",
+			"Google",
+			"OpenAI",
+		]);
 		expect(states[0].hasEffectiveAPIKey).toBe(true);
 		expect(states[1].hasEffectiveAPIKey).toBe(true);
+		expect(states[2].hasEffectiveAPIKey).toBe(true);
 	});
 
 	it("matches model configs to provider configs by ai_provider_id", () => {

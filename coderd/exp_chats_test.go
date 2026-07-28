@@ -9394,6 +9394,184 @@ func TestInterruptChat(t *testing.T) {
 	})
 }
 
+func TestCompactChat(t *testing.T) {
+	t.Parallel()
+
+	// seedCompactableChat inserts an idle chat with one user and one
+	// assistant message so a manual compaction has something to
+	// summarize.
+	seedCompactableChat := func(t *testing.T, db database.Store, orgID, ownerID, modelConfigID uuid.UUID) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "compact route test",
+		})
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("question"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       userContent,
+		})
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("answer"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
+		})
+		return chat
+	}
+
+	t.Run("RequestsCompaction", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		// Assert on the response snapshot only: the chat is runnable
+		// after the transition, so a worker may already be mutating
+		// the persisted row.
+		compacted, err := client.CompactChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, compacted.ID)
+		require.Equal(t, codersdk.ChatStatusRunning, compacted.Status)
+	})
+
+	t.Run("NothingToCompact", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Idle chat with only a user message: no assistant turn to
+		// summarize.
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "compact empty test",
+		})
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("question"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       userContent,
+		})
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to compact")
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
+		require.False(t, persisted.CompactionRequestedAt.Valid)
+	})
+
+	t.Run("Busy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Cannot compact the chat in its current state")
+	})
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
+	})
+
+	t.Run("ChatNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CompactChat(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Even the owner needs RBAC update permission on the chat.
+	t.Run("UpdateDenied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Authorizer: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+					// dbgen seeds rows with a synthetic "owner" subject;
+					// message inserts need chat update, so let them pass.
+					if subject.ID == "owner" {
+						return nil
+					}
+					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
+						return xerrors.New("denied")
+					}
+					return nil
+				},
+			},
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		db := api.Database
+		client := codersdk.NewExperimentalClient(clientRaw)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := client.CompactChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
 func TestRegenerateChatTitle(t *testing.T) {
 	t.Parallel()
 
@@ -11505,7 +11683,7 @@ func assertChatCostSummary(t *testing.T, summary codersdk.ChatCostSummary, model
 
 	require.Equal(t, int64(1000), summary.TotalCostMicros)
 	require.Equal(t, int64(2), summary.PricedMessageCount)
-	require.Equal(t, int64(0), summary.UnpricedMessageCount)
+	require.Equal(t, int64(0), summary.UnpricedMessagesHavingUsageCount)
 	require.Equal(t, int64(200), summary.TotalInputTokens)
 	require.Equal(t, int64(100), summary.TotalOutputTokens)
 	require.Equal(t, int64(4000), summary.TotalRuntimeMs)
@@ -11611,6 +11789,224 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
+func TestGetChatCost(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BasicCost", func(t *testing.T) {
+		t.Parallel()
+
+		f := seedChatCostFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := f.Client.GetChatCost(ctx, f.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, f.ChatID, cost.ChatID)
+		require.Equal(t, int64(1000), cost.TotalCostMicros)
+		require.Equal(t, int64(2), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
+	})
+
+	t.Run("RollsUpSubtree", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		rootChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "root chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          rootChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		})
+
+		childChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child chat",
+			ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          childChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 250, Valid: true},
+		})
+
+		// root_chat_id is flattened to the top-level root at any depth,
+		// so subtree traversal must follow parent_chat_id instead.
+		grandchildChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "grandchild chat",
+			ParentChatID:      uuid.NullUUID{UUID: childChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          grandchildChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The root rolls up every descendant's cost.
+		rootCost, err := client.GetChatCost(ctx, rootChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, rootChat.ID, rootCost.ChatID)
+		require.Equal(t, int64(850), rootCost.TotalCostMicros)
+		require.Equal(t, int64(3), rootCost.PricedMessageCount)
+
+		// A subagent reports only its own subtree: itself plus the
+		// nested subagents it spawned, excluding the parent's spend.
+		childCost, err := client.GetChatCost(ctx, childChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, childChat.ID, childCost.ChatID)
+		require.Equal(t, int64(350), childCost.TotalCostMicros)
+		require.Equal(t, int64(2), childCost.PricedMessageCount)
+
+		// A leaf subagent reports only its own spend.
+		grandchildCost, err := client.GetChatCost(ctx, grandchildChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, grandchildChat.ID, grandchildCost.ChatID)
+		require.Equal(t, int64(100), grandchildCost.TotalCostMicros)
+		require.Equal(t, int64(1), grandchildCost.PricedMessageCount)
+	})
+
+	t.Run("UnpricedMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "unpriced chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 400, Valid: true},
+		})
+		// Token usage but no cost (no model pricing) counts as unpriced.
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			InputTokens:   sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:  sql.NullInt64{Int64: 50, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(400), cost.TotalCostMicros)
+		require.Equal(t, int64(1), cost.PricedMessageCount)
+		require.Equal(t, int64(1), cost.UnpricedMessagesHavingUsageCount)
+	})
+
+	t.Run("MemberCannotReadOtherUsersChat", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "owner chat",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.GetChatCost(ctx, chat.ID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("ZeroMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// No assistant messages must still return one zero-total row; a COALESCE
+		// or :one regression would surface as sql.ErrNoRows -> 500.
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "empty chat",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cost.ChatID)
+		require.Equal(t, int64(0), cost.TotalCostMicros)
+		require.Equal(t, int64(0), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
+	})
+
+	t.Run("ExcludesNonAssistantMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "mixed-role chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 600, Valid: true},
+		})
+		// User-role cost must be excluded; the query bills only assistant messages.
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			Role:            database.ChatMessageRoleUser,
+			TotalCostMicros: sql.NullInt64{Int64: 999, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(600), cost.TotalCostMicros)
+		require.Equal(t, int64(1), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
 	})
 }
 
@@ -11807,7 +12203,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 
 	require.Equal(t, int64(500), summary.TotalCostMicros)
 	require.Equal(t, int64(1), summary.PricedMessageCount)
-	require.Equal(t, int64(1), summary.UnpricedMessageCount)
+	require.Equal(t, int64(1), summary.UnpricedMessagesHavingUsageCount)
 	require.Equal(t, int64(300), summary.TotalInputTokens)
 	require.Equal(t, int64(125), summary.TotalOutputTokens)
 }
@@ -16626,6 +17022,17 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to send this",
 			}},
 		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("CompactChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})

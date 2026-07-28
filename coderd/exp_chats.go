@@ -1649,18 +1649,18 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	response := codersdk.ChatCostSummary{
-		StartDate:                startDate,
-		EndDate:                  endDate,
-		TotalCostMicros:          summary.TotalCostMicros,
-		PricedMessageCount:       summary.PricedMessageCount,
-		UnpricedMessageCount:     summary.UnpricedMessageCount,
-		TotalInputTokens:         summary.TotalInputTokens,
-		TotalOutputTokens:        summary.TotalOutputTokens,
-		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
-		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
-		TotalRuntimeMs:           summary.TotalRuntimeMs,
-		ByModel:                  modelBreakdowns,
-		ByChat:                   chatBreakdowns,
+		StartDate:                        startDate,
+		EndDate:                          endDate,
+		TotalCostMicros:                  summary.TotalCostMicros,
+		PricedMessageCount:               summary.PricedMessageCount,
+		UnpricedMessagesHavingUsageCount: summary.UnpricedMessagesHavingUsageCount,
+		TotalInputTokens:                 summary.TotalInputTokens,
+		TotalOutputTokens:                summary.TotalOutputTokens,
+		TotalCacheReadTokens:             summary.TotalCacheReadTokens,
+		TotalCacheCreationTokens:         summary.TotalCacheCreationTokens,
+		TotalRuntimeMs:                   summary.TotalRuntimeMs,
+		ByModel:                          modelBreakdowns,
+		ByChat:                           chatBreakdowns,
 	}
 	if usageStatus != nil {
 		response.UsageLimit = usageStatus
@@ -2408,6 +2408,47 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat cost
+// @ID get-chat-cost
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatCost
+// @Router /api/experimental/chats/{chat}/cost [get]
+// @Description Experimental: this endpoint is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	// The query rolls up the requested chat's subtree, so a root chat
+	// reports itself plus all subagents while a subagent reports only
+	// its own spend (plus any nested subagents it spawned).
+	row, err := api.Database.GetChatModelUsageCostByChatID(ctx, chat.ID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat cost.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCost{
+		ChatID:                           row.ChatID,
+		TotalCostMicros:                  row.TotalCostMicros,
+		PricedMessageCount:               row.PricedMessageCount,
+		UnpricedMessagesHavingUsageCount: row.UnpricedMessagesHavingUsageCount,
 	})
 }
 
@@ -3972,6 +4013,84 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	chat = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Compact chat
+// @ID compact-chat
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Produce json
+// @Success 200 {object} codersdk.Chat
+// @Router /api/experimental/chats/{chat}/compact [post]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+// @Description Requests a manual context compaction on an idle chat. The
+// @Description compaction runs asynchronously through the chat worker and
+// @Description bypasses the automatic usage threshold.
+func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+	logger := api.Logger.Named("chat_compact").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	// Compaction triggers LLM inference, requiring update permission
+	// on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may trigger compaction. Org admins pass the
+	// RBAC check above (org-level ActionUpdate), but compaction runs
+	// inference with the owner's delegated credentials.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may compact the chat.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.CompactChat(ctx, chat)
+	if err != nil {
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
+			return
+		}
+		switch {
+		case errors.Is(err, chatd.ErrNothingToCompact):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Nothing to compact.",
+				Detail:  "The chat has no conversation to summarize after the latest compaction.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			// Covers every non-waiting state: running, interrupting,
+			// requires-action, and error. "Busy" would misdescribe an
+			// errored chat, so keep the message state-neutral.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot compact the chat in its current state.",
+				Detail:  "Compaction is only available while the chat is idle.",
+			})
+		default:
+			logger.Error(ctx, "failed to compact chat", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to compact chat.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
