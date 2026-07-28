@@ -6,8 +6,8 @@ import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory. `created_at` is derived from `id` to make
- *  ordering deterministic in tests that care about sort order. */
+/** Minimal ChatMessage factory. `created_at` is derived from `id` so the two
+ *  agree unless a test deliberately makes them disagree. */
 const makeMessage = (
 	id: number,
 	role: string,
@@ -53,19 +53,19 @@ describe("replaceMessages", () => {
 		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 
-	it("sorts messages by created_at", () => {
+	it("sorts messages by id when created_at disagrees with append order", () => {
 		const store = createChatStore();
-		const older = {
+		const first = {
 			...makeMessage(1, "user", "first"),
-			created_at: "2025-01-01T00:00:01.000Z",
-		} as TypesGen.ChatMessage;
-		const newer = {
-			...makeMessage(2, "assistant", "second"),
 			created_at: "2025-01-01T00:00:05.000Z",
+		} as TypesGen.ChatMessage;
+		const second = {
+			...makeMessage(2, "assistant", "second"),
+			created_at: "2025-01-01T00:00:01.000Z",
 		} as TypesGen.ChatMessage;
 
 		// Insert in reverse order.
-		store.replaceMessages([newer, older]);
+		store.replaceMessages([second, first]);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
@@ -95,6 +95,35 @@ describe("replaceMessages", () => {
 		store.replaceMessages([msg]);
 
 		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// upsertDurableMessages
+// ---------------------------------------------------------------------------
+
+describe("upsertDurableMessages", () => {
+	it("orders merged messages by id rather than by arrival", () => {
+		const store = createChatStore();
+		// A batch shares one created_at, so the merge order is all that
+		// distinguishes these once the later ids are already present.
+		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
+		const withSharedCreatedAt = (id: number, role: string) =>
+			({
+				...makeMessage(id, role, `message-${id}`),
+				created_at: sharedCreatedAt,
+			}) as TypesGen.ChatMessage;
+
+		store.replaceMessages([
+			withSharedCreatedAt(3, "assistant"),
+			withSharedCreatedAt(4, "tool"),
+		]);
+		store.upsertDurableMessages([
+			withSharedCreatedAt(1, "user"),
+			withSharedCreatedAt(2, "assistant"),
+		]);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
 	});
 });
 

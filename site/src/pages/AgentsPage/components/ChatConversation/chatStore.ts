@@ -7,15 +7,6 @@ import {
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
-const byMessageCreatedAt = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): number => {
-	return (
-		new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
-	);
-};
-
 const buildMessageMap = (
 	messages: readonly TypesGen.ChatMessage[],
 ): Map<number, TypesGen.ChatMessage> =>
@@ -24,8 +15,8 @@ const buildMessageMap = (
 const buildOrderedMessageIDs = (
 	messages: readonly TypesGen.ChatMessage[],
 ): readonly number[] => {
-	const sorted = [...messages];
-	sorted.sort(byMessageCreatedAt);
+	// created_at is shared across an insert batch, so only id tracks append order.
+	const sorted = messages.toSorted((left, right) => left.id - right.id);
 	// Deduplicate by ID. The input can contain duplicate IDs when
 	// cross-page duplication occurs in the React Query cache (e.g.
 	// upsertCacheMessages writes to page 0 while the same message
