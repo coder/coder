@@ -658,14 +658,15 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
 	const remainingUses = rec
 		? asNumber(rec.remaining_uses, { parseString: true })
 		: undefined;
+	// A streamed advice delta can partially parse as an error envelope, so
+	// only a settled call counts as failed.
+	const advisorFailed = resolvedResultType === "error";
 
 	return (
 		<AdvisorTool
 			question={question}
-			status={resolvedResultType === "error" ? "error" : status}
-			resultType={
-				resolvedResultType === "error" ? undefined : resolvedResultType
-			}
+			status={advisorFailed && status !== "running" ? "error" : status}
+			resultType={advisorFailed ? undefined : resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
 			advisorModel={advisorModel || undefined}
