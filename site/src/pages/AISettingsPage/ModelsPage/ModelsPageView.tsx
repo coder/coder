@@ -135,7 +135,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		return map;
 	}, [providerStates]);
 
-	const modelHasProviderById = useMemo(() => {
+	const hasProviderByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
 			for (const providerModel of providerState.modelConfigs) {
@@ -145,7 +145,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		return map;
 	}, [providerStates]);
 
-	const modelProviderEnabledById = useMemo(() => {
+	const providerEnabledByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
 			for (const providerModel of providerState.modelConfigs) {
@@ -293,9 +293,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
-								hasProvider={modelHasProviderById.get(model.id) ?? false}
+								hasProvider={hasProviderByModelId.get(model.id) ?? false}
 								providerEnabled={
-									modelProviderEnabledById.get(model.id) ?? false
+									providerEnabledByModelId.get(model.id) ?? false
 								}
 								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
 							/>
