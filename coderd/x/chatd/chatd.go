@@ -1518,28 +1518,9 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID, organizationID uuid.NullUUID) error {
-	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, organizationID, time.Now())
-	if err != nil {
-		// Fail open: never block chat due to a limit-resolution failure.
-		p.logger.Warn(ctx, "usage limit check failed, allowing message",
-			slog.F("owner_id", ownerID),
-			slog.Error(err),
-		)
-		return nil
-	}
-	if status == nil {
-		return nil
-	}
-	// Block when current spend reaches or exceeds limit (>= ensures
-	// the user cannot start new conversations once the limit is hit).
-	if status.SpendLimitMicros != nil && status.CurrentSpend >= *status.SpendLimitMicros {
-		return &UsageLimitExceededError{
-			LimitMicros:    *status.SpendLimitMicros,
-			ConsumedMicros: status.CurrentSpend,
-			PeriodEnd:      status.PeriodEnd,
-		}
-	}
+// checkUsageLimit is a no-op. Usage limits (a.k.a. "Budgets") are now enforced
+// by AI Gateway.
+func (*Server) checkUsageLimit(_ context.Context, _ database.Store, _ uuid.UUID, _ uuid.NullUUID) error {
 	return nil
 }
 
