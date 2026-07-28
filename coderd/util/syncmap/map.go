@@ -62,14 +62,18 @@ func (m *Map[K, V]) CompareAndDelete(key K, old V) (deleted bool) {
 	return m.m.CompareAndDelete(key, old)
 }
 
+// Swap stores the given value for the key and returns the previous
+// value if there was one. As with sync.Map, previous is the zero V when
+// the key was absent.
+//
 //nolint:forcetypeassert
-func (m *Map[K, V]) Swap(key K, value V) (previous any, loaded bool) {
-	previous, loaded = m.m.Swap(key, value)
+func (m *Map[K, V]) Swap(key K, value V) (previous V, loaded bool) {
+	prev, loaded := m.m.Swap(key, value)
 	if !loaded {
 		var empty V
 		return empty, loaded
 	}
-	return previous.(V), loaded
+	return prev.(V), loaded
 }
 
 //nolint:forcetypeassert

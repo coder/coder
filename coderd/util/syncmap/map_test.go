@@ -147,6 +147,23 @@ func TestSwap(t *testing.T) {
 	require.Equal(t, 2, v)
 }
 
+// TestSwapTyped pins previous to V rather than any: dereferencing it
+// only compiles if the wrapper returns the value type.
+func TestSwapTyped(t *testing.T) {
+	t.Parallel()
+
+	m := syncmap.New[string, *int]()
+	first, second := 1, 2
+
+	previous, loaded := m.Swap("key", &first)
+	require.False(t, loaded)
+	require.Nil(t, previous)
+
+	previous, loaded = m.Swap("key", &second)
+	require.True(t, loaded)
+	require.Equal(t, 1, *previous)
+}
+
 func TestCompareAndSwap(t *testing.T) {
 	t.Parallel()
 
