@@ -232,7 +232,7 @@ service:
 
 Use TLS to protect credentials and AI traffic whenever they cross an untrusted network.
 Prefer TLS termination at the Ingress or Kubernetes Gateway when your platform already manages certificates there.
-To terminate TLS in the AI Gateway process, reference an existing TLS Secret with `aigateway.listenerTLS`.
+To terminate TLS in the AI Gateway process, set `aigateway.listenerTLS.name` to an existing TLS Secret.
 
 If `CODER_AI_GATEWAY_PROXY_TARGET` uses HTTPS with a private CA, add that CA to the trust store of the `coderd` pods before changing the proxy target.
 For the Coder Helm chart, you can mount a CA bundle with `coder.certs.secrets`.
