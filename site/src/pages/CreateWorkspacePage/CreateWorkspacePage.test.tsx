@@ -20,6 +20,7 @@ import {
 	MockUserOwner,
 	MockValidationParameter,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { checkParameters, editParameters } from "#/testHelpers/parameters";
 import {
@@ -53,6 +54,18 @@ describe("CreateWorkspacePage", () => {
 		mockSocket: MockWebSocket;
 		mockPublisher: MockWebSocketServer;
 	};
+
+	// checkAuthorization returns a boolean for each key it is asked about and no
+	// others, so the mock resolves every requested check from `overrides`,
+	// defaulting unlisted keys to false.
+	const mockCheckAuthorization = (overrides: Record<string, boolean> = {}) =>
+		vi
+			.spyOn(API, "checkAuthorization")
+			.mockImplementation(async ({ checks }) =>
+				Object.fromEntries(
+					Object.keys(checks).map((key) => [key, overrides[key] ?? false]),
+				),
+			);
 
 	// Mocks the required endpoints, most importantly the web socket, constructs
 	// the route with the required query parameters, then renders the page on that
@@ -221,10 +234,9 @@ describe("CreateWorkspacePage", () => {
 		vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
-		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+		mockCheckAuthorization({
 			createWorkspaceForUserID: true,
 			createWorkspaceForAny: true,
-			canUpdateTemplate: false,
 		});
 	});
 
@@ -640,14 +652,8 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("Permissions", () => {
-		const deniedPermissions = {
-			createWorkspaceForUserID: false,
-			createWorkspaceForAny: false,
-			canUpdateTemplate: false,
-		};
-
 		it("blocks the form behind a permission dialog when the user cannot create workspaces", async () => {
-			vi.spyOn(API, "checkAuthorization").mockResolvedValue(deniedPermissions);
+			mockCheckAuthorization();
 
 			const { mockPublisher } = await renderPageWithSocket({});
 			await expectSocketHandshake({ mockPublisher, parameters: [] });
@@ -661,7 +667,7 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("blocks auto-creation without showing the consent dialog when the user cannot create workspaces", async () => {
-			vi.spyOn(API, "checkAuthorization").mockResolvedValue(deniedPermissions);
+			mockCheckAuthorization();
 			const autoCreateSpy = vi.spyOn(API, "createWorkspace");
 
 			const { mockPublisher } = await renderPageWithSocket({
@@ -684,7 +690,9 @@ describe("CreateWorkspacePage", () => {
 			vi.spyOn(API, "checkAuthorization").mockImplementation(
 				async ({ checks }) => {
 					if ("createWorkspaceForUserID" in checks) {
-						throw new Error("failed to check authorization");
+						throw mockApiError({
+							message: "failed to check authorization",
+						});
 					}
 					return {};
 				},
@@ -710,7 +718,7 @@ describe("CreateWorkspacePage", () => {
 	describe("Load Errors", () => {
 		it("shows an error instead of the loader when the template fails to load", async () => {
 			vi.spyOn(API, "getTemplateByName").mockRejectedValue(
-				new Error("failed to load template"),
+				mockApiError({ message: "failed to load template" }),
 			);
 
 			renderCreateWorkspacePage();
