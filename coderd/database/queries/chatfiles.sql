@@ -28,12 +28,9 @@ WHERE cfl.chat_id = @chat_id::uuid
 ORDER BY cf.created_at ASC;
 
 -- name: DeleteOldChatFiles :execrows
--- Deletes chat files that are older than the given threshold and are
--- not linked to any existing chat. Linked files are retained until
--- every linking chat row is deleted; DeleteOldChats runs first in the
--- same purge transaction and its ON DELETE CASCADE clears
--- chat_file_links, so an archived chat's old files are deleted in
--- the same tick as the chat. Never-linked uploads age out here.
+-- Deletes files older than the threshold only after all chat links are gone.
+-- The purge transaction removes eligible chats first, and cascades clear
+-- their file links.
 WITH deletable AS (
     SELECT cf.id
     FROM chat_files cf

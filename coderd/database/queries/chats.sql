@@ -64,10 +64,6 @@ FROM chats_expanded
 ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
 
 -- name: UnarchiveChatByID :many
--- Unarchives a chat (and its children). Stale file references are
--- handled automatically by FK cascades on chat_file_links: when
--- dbpurge deletes a chat_files row, the corresponding
--- chat_file_links rows are cascade-deleted by PostgreSQL.
 WITH updated_chats AS (
     UPDATE chats SET
         archived = false,

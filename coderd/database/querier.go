@@ -188,12 +188,9 @@ type sqlcQuerier interface {
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
-	// Deletes chat files that are older than the given threshold and are
-	// not linked to any existing chat. Linked files are retained until
-	// every linking chat row is deleted; DeleteOldChats runs first in the
-	// same purge transaction and its ON DELETE CASCADE clears
-	// chat_file_links, so an archived chat's old files are deleted in
-	// the same tick as the chat. Never-linked uploads age out here.
+	// Deletes files older than the threshold only after all chat links are gone.
+	// The purge transaction removes eligible chats first, and cascades clear
+	// their file links.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
@@ -1392,10 +1389,6 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
-	// Unarchives a chat (and its children). Stale file references are
-	// handled automatically by FK cascades on chat_file_links: when
-	// dbpurge deletes a chat_files row, the corresponding
-	// chat_file_links rows are cascade-deleted by PostgreSQL.
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
