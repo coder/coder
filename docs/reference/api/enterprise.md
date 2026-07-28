@@ -1035,6 +1035,49 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/ai/spend`
+
+Returns the AI spend limit and aggregate spend for the group.
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description |
+|---------|------|--------------|----------|-------------|
+| `group` | path | string(uuid) | true     | Group ID    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupAISpend](schemas.md#codersdkgroupaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group members by group ID
 
 ### Code samples

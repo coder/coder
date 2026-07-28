@@ -1232,6 +1232,58 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 }
 
+// @Summary Get group AI spend
+// @Description Returns the AI spend limit and aggregate spend for the group.
+// @ID get-group-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 200 {object} codersdk.GroupAISpend
+// @Router /api/v2/groups/{group}/ai/spend [get]
+func (api *API) groupAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+	logger := api.Logger.With(slog.F("group_id", group.ID))
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	rows, err := api.Database.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+		OrganizationID: group.OrganizationID,
+		GroupIds:       []uuid.UUID{group.ID},
+		PeriodStart:    periodWindow.Start,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to get group AI spend", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// Read access was already established when the group was extracted from
+	// the route, so the query only returns no rows when the group was deleted
+	// in between.
+	if len(rows) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupAISpend{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		OrganizationGroupAISpend: db2sdk.OrganizationGroupAISpend(rows[0]),
+	})
+}
+
 // @Summary Get group members AI spend by organization
 // @Description Returns aggregate AI spend attributed to the group per requested user.
 // @Description A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
