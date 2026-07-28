@@ -1992,13 +1992,6 @@ func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountCon
 	return q.db.CountAuthorizedConnectionLogs(ctx, arg, prep)
 }
 
-func (q *querier) CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return 0, err
-	}
-	return q.db.CountEnabledModelsWithoutPricing(ctx)
-}
-
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
@@ -3136,41 +3129,6 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
-func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
-	// The owner's chats, may cross orgs. AnyOrganization() authorizes
-	// the caller if they hold read permission on chats owned by
-	// arg.OwnerID in any org they belong to.
-	// TODO(CODAGT-161): the underlying SQL queries filter only by owner_id, not
-	// organization_id.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatCostPerChat(ctx, arg)
-}
-
-func (q *querier) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
-	// See GetChatCostPerChat for the authorization rationale.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatCostPerModel(ctx, arg)
-}
-
-func (q *querier) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatCostPerUser(ctx, arg)
-}
-
-func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
-	// See GetChatCostPerChat for the authorization rationale.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
-		return database.GetChatCostSummaryRow{}, err
-	}
-	return q.db.GetChatCostSummary(ctx, arg)
-}
-
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	// The allow-users flag is a deployment-wide setting read by any
 	// authenticated chat user. We only require that an explicit actor
@@ -3506,13 +3464,6 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 		return nil, err
 	}
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
-}
-
-func (q *querier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatModelUsageCostByChatIDRow, error) {
-	if _, err := q.GetChatByID(ctx, chatID); err != nil {
-		return database.GetChatModelUsageCostByChatIDRow{}, err
-	}
-	return q.db.GetChatModelUsageCostByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {

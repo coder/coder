@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -1596,203 +1594,6 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	response.UnsupportedProviders = chatprovider.UnsupportedProviders(availability.configuredProviders)
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-
-	// Default date range: last 30 days.
-	now := time.Now()
-	defaultStart := now.AddDate(0, 0, -30)
-
-	qp := r.URL.Query()
-	p := httpapi.NewQueryParamParser()
-	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
-	endDate := p.Time(qp, now, "end_date", time.RFC3339)
-	p.ErrorExcessParams(qp)
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query parameters.",
-			Validations: p.Errors,
-		})
-		return
-	}
-
-	targetUser := httpmw.UserParam(r)
-	if targetUser.ID != apiKey.UserID && !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(targetUser.ID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	summary, err := api.Database.GetChatCostSummary(ctx, database.GetChatCostSummaryParams{
-		OwnerID:   targetUser.ID,
-		StartDate: startDate,
-		EndDate:   endDate,
-	})
-	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	byModel, err := api.Database.GetChatCostPerModel(ctx, database.GetChatCostPerModelParams{
-		OwnerID:   targetUser.ID,
-		StartDate: startDate,
-		EndDate:   endDate,
-	})
-	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	byChat, err := api.Database.GetChatCostPerChat(ctx, database.GetChatCostPerChatParams{
-		OwnerID:   targetUser.ID,
-		StartDate: startDate,
-		EndDate:   endDate,
-	})
-	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
-	for _, model := range byModel {
-		modelBreakdowns = append(modelBreakdowns, convertChatCostModelBreakdown(model))
-	}
-
-	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
-	for _, chat := range byChat {
-		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
-	}
-
-	response := codersdk.ChatCostSummary{
-		StartDate:                        startDate,
-		EndDate:                          endDate,
-		TotalCostMicros:                  summary.TotalCostMicros,
-		PricedMessageCount:               summary.PricedMessageCount,
-		UnpricedMessagesHavingUsageCount: summary.UnpricedMessagesHavingUsageCount,
-		TotalInputTokens:                 summary.TotalInputTokens,
-		TotalOutputTokens:                summary.TotalOutputTokens,
-		TotalCacheReadTokens:             summary.TotalCacheReadTokens,
-		TotalCacheCreationTokens:         summary.TotalCacheCreationTokens,
-		TotalRuntimeMs:                   summary.TotalRuntimeMs,
-		ByModel:                          modelBreakdowns,
-		ByChat:                           chatBreakdowns,
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	now := time.Now()
-	defaultStart := now.AddDate(0, 0, -30)
-
-	qp := r.URL.Query()
-	p := httpapi.NewQueryParamParser()
-	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
-	endDate := p.Time(qp, now, "end_date", time.RFC3339)
-	username := strings.TrimSpace(p.String(qp, "", "username"))
-	limit := p.Int(qp, 10, "limit")
-	offset := p.Int(qp, 0, "offset")
-	p.ErrorExcessParams(qp)
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query parameters.",
-			Validations: p.Errors,
-		})
-		return
-	}
-	if limit <= 0 {
-		limit = 10
-	}
-	if offset < 0 || offset > math.MaxInt32 || limit > math.MaxInt32 {
-		validations := make([]codersdk.ValidationError, 0, 2)
-		if offset < 0 {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "offset",
-				Detail: "Must be greater than or equal to 0.",
-			})
-		}
-		if offset > math.MaxInt32 {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "offset",
-				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
-			})
-		}
-		if limit > math.MaxInt32 {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "limit",
-				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
-			})
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query parameters.",
-			Validations: validations,
-		})
-		return
-	}
-
-	users, err := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
-		StartDate: startDate,
-		EndDate:   endDate,
-		Username:  username,
-		// #nosec G115 - Pagination limits are validated to fit in int32 above.
-		PageLimit: int32(limit),
-		// #nosec G115 - Pagination offsets are validated to fit in int32 above.
-		PageOffset: int32(offset),
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
-	count := int64(0)
-	for _, user := range users {
-		count = user.TotalCount
-		rollups = append(rollups, convertChatCostUserRollup(user))
-	}
-
-	if len(users) == 0 && offset > 0 {
-		countUsers, countErr := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
-			StartDate:  startDate,
-			EndDate:    endDate,
-			Username:   username,
-			PageLimit:  1,
-			PageOffset: 0,
-		})
-		if countErr != nil {
-			httpapi.InternalServerError(rw, countErr)
-			return
-		}
-		if len(countUsers) > 0 {
-			count = countUsers[0].TotalCount
-		}
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
-		StartDate: startDate,
-		EndDate:   endDate,
-		Count:     count,
-		Users:     rollups,
-	})
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -6571,57 +6372,6 @@ func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []d
 	return rows
 }
 
-func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
-	displayName := strings.TrimSpace(model.DisplayName)
-	if displayName == "" {
-		displayName = model.Model
-	}
-	return codersdk.ChatCostModelBreakdown{
-		ModelConfigID:            model.ModelConfigID,
-		DisplayName:              displayName,
-		Provider:                 model.Provider,
-		Model:                    model.Model,
-		TotalCostMicros:          model.TotalCostMicros,
-		MessageCount:             model.MessageCount,
-		TotalInputTokens:         model.TotalInputTokens,
-		TotalOutputTokens:        model.TotalOutputTokens,
-		TotalCacheReadTokens:     model.TotalCacheReadTokens,
-		TotalCacheCreationTokens: model.TotalCacheCreationTokens,
-		TotalRuntimeMs:           model.TotalRuntimeMs,
-	}
-}
-
-func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.ChatCostChatBreakdown {
-	return codersdk.ChatCostChatBreakdown{
-		RootChatID:               chat.RootChatID,
-		ChatTitle:                chat.ChatTitle,
-		TotalCostMicros:          chat.TotalCostMicros,
-		MessageCount:             chat.MessageCount,
-		TotalInputTokens:         chat.TotalInputTokens,
-		TotalOutputTokens:        chat.TotalOutputTokens,
-		TotalCacheReadTokens:     chat.TotalCacheReadTokens,
-		TotalCacheCreationTokens: chat.TotalCacheCreationTokens,
-		TotalRuntimeMs:           chat.TotalRuntimeMs,
-	}
-}
-
-func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.ChatCostUserRollup {
-	return codersdk.ChatCostUserRollup{
-		UserID:                   user.UserID,
-		Username:                 user.Username,
-		Name:                     user.Name,
-		AvatarURL:                user.AvatarURL,
-		TotalCostMicros:          user.TotalCostMicros,
-		MessageCount:             user.MessageCount,
-		ChatCount:                user.ChatCount,
-		TotalInputTokens:         user.TotalInputTokens,
-		TotalOutputTokens:        user.TotalOutputTokens,
-		TotalCacheReadTokens:     user.TotalCacheReadTokens,
-		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
-		TotalRuntimeMs:           user.TotalRuntimeMs,
-	}
-}
-
 func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
 	return db2sdk.ChatQueuedMessage(m)
 }
@@ -7579,26 +7329,6 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		return nil
 	}
 
-	costConfig := codersdk.ModelCostConfig{}
-	if modelConfig.Cost != nil {
-		costConfig = *modelConfig.Cost
-	}
-
-	pricingFields := []struct {
-		name  string
-		value *decimal.Decimal
-	}{
-		{name: "cost.input_price_per_million_tokens", value: costConfig.InputPricePerMillionTokens},
-		{name: "cost.output_price_per_million_tokens", value: costConfig.OutputPricePerMillionTokens},
-		{name: "cost.cache_read_price_per_million_tokens", value: costConfig.CacheReadPricePerMillionTokens},
-		{name: "cost.cache_write_price_per_million_tokens", value: costConfig.CacheWritePricePerMillionTokens},
-	}
-	for _, field := range pricingFields {
-		if err := validateNonNegativeDecimalField(field.name, field.value); err != nil {
-			return err
-		}
-	}
-
 	if err := validateChatModelReasoningEffortConfig(modelConfig); err != nil {
 		return err
 	}
@@ -7641,16 +7371,6 @@ func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions
 	return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
 }
 
-func validateNonNegativeDecimalField(name string, value *decimal.Decimal) error {
-	if value == nil {
-		return nil
-	}
-	if value.IsNegative() {
-		return xerrors.Errorf("%s must be greater than or equal to zero", name)
-	}
-	return nil
-}
-
 func unmarshalChatModelCallConfig(
 	raw json.RawMessage,
 ) *codersdk.ChatModelCallConfig {
@@ -7681,23 +7401,11 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.FrequencyPenalty == nil &&
 		config.ReasoningEffort == nil &&
 		isZeroChatModelOpenAIConfig(config.OpenAIConfig) &&
-		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
 }
 
 func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
 	return config == nil || config.UseResponsesAPI == nil
-}
-
-func isZeroModelCostConfig(cost *codersdk.ModelCostConfig) bool {
-	if cost == nil {
-		return true
-	}
-
-	return cost.InputPricePerMillionTokens == nil &&
-		cost.OutputPricePerMillionTokens == nil &&
-		cost.CacheReadPricePerMillionTokens == nil &&
-		cost.CacheWritePricePerMillionTokens == nil
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {

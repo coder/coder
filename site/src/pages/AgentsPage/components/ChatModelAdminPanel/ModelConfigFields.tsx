@@ -37,10 +37,6 @@ import {
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
 } from "./modelConfigFormLogic";
-import {
-	getPricingPlaceholderForField,
-	pricingFieldNames,
-} from "./pricingFields";
 
 const booleanFieldOptions = [
 	{ label: "Off", value: "false" },
@@ -56,14 +52,6 @@ const isReasoningEffortField = (jsonName: string): boolean =>
 	jsonName === "reasoning_effort.max";
 
 // ── Helpers ────────────────────────────────────────────────────
-
-/** Short display labels for pricing fields to avoid overly verbose names. */
-const shortLabelOverrides: Record<string, string> = {
-	"cost.input_price_per_million_tokens": "Input",
-	"cost.output_price_per_million_tokens": "Output",
-	"cost.cache_read_price_per_million_tokens": "Cache read",
-	"cost.cache_write_price_per_million_tokens": "Cache write",
-};
 
 /**
  * Suffix units displayed inside the input control. When present,
@@ -92,8 +80,7 @@ const placeholderOverrides: Record<string, string> = {
 
 /**
  * Convert a dot-and-underscore-separated json_name into a
- * human-readable label. Uses short overrides for pricing fields
- * when available.
+ * human-readable label.
  *
  * @example
  * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
@@ -108,9 +95,6 @@ function snakeToPrettyLabel(field: FieldSchema): string {
 	if (field.label) {
 		return field.label;
 	}
-	if (shortLabelOverrides[field.json_name]) {
-		return shortLabelOverrides[field.json_name];
-	}
 	const words = field.json_name.split(/[._]/);
 	return words
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -121,11 +105,6 @@ function snakeToPrettyLabel(field: FieldSchema): string {
  * Derive a sensible placeholder from the field schema type.
  */
 function placeholderForField(field: FieldSchema): string {
-	const pricingPlaceholder = getPricingPlaceholderForField(field.json_name);
-	if (pricingPlaceholder !== undefined) {
-		return pricingPlaceholder;
-	}
-
 	switch (field.type) {
 		case "integer":
 		case "number":
@@ -618,67 +597,6 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	);
 };
 
-/**
- * Pricing fields rendered with $ prefix and /1M suffix using
- * InputGroup for a compact, readable layout.
- */
-export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	provider,
-	form,
-	fieldErrors,
-	disabled,
-}) => {
-	const fields = getVisibleGeneralFields(provider).filter(({ json_name }) =>
-		pricingFieldNames.has(json_name),
-	);
-
-	return (
-		<>
-			{fields.map((field) => {
-				const camelName = field.json_name
-					.split(".")
-					.map(snakeToCamel)
-					.join(".");
-				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
-				const errorId = `${fieldKey}-error`;
-				const fieldError = fieldErrors[camelName];
-				const fieldProps = form.getFieldProps(fieldKey);
-
-				return (
-					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
-						<FieldLabel htmlFor={fieldKey} label={label} />
-						<InputGroup
-							className={cn(fieldError && "border-border-destructive")}
-						>
-							<InputGroupAddon align="inline-start">$</InputGroupAddon>
-							<InputGroupInput
-								id={fieldKey}
-								className="min-w-0 placeholder:text-content-disabled"
-								placeholder="0"
-								{...fieldProps}
-								disabled={disabled}
-								aria-invalid={Boolean(fieldError)}
-								aria-describedby={fieldError ? errorId : undefined}
-							/>
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">
-									USD/1M tokens
-								</span>
-							</InputGroupAddon>
-						</InputGroup>
-						{fieldError && (
-							<p id={errorId} className="m-0 text-xs text-content-destructive">
-								{fieldError}
-							</p>
-						)}
-					</div>
-				);
-			})}
-		</>
-	);
-};
-
 /** Reasoning effort selects, outside Advanced. */
 export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 	provider,
@@ -726,15 +644,14 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const fields = getVisibleGeneralFields(provider).filter(
-		({ json_name }) =>
-			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
+		({ json_name }) => !isReasoningEffortField(json_name),
 	);
 
 	return (
 		<>
 			{fields.map((field) => {
 				// General field keys support nested json_name values, such as
-				// cost.input_price_per_million_tokens.
+				// thinking.budget_tokens.
 				const camelName = field.json_name
 					.split(".")
 					.map(snakeToCamel)

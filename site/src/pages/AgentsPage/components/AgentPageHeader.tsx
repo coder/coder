@@ -1,6 +1,5 @@
 import {
 	ArrowLeftIcon,
-	BarChart3Icon,
 	BellIcon,
 	BellOffIcon,
 	EllipsisIcon,
@@ -175,14 +174,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuItem asChild>
-							<Link
-								to={{ pathname: "/agents/analytics", search: location.search }}
-							>
-								<BarChart3Icon className="size-icon-sm" />
-								Analytics
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem

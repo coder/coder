@@ -751,7 +751,6 @@ func (s *taskStarter) generateAssistant(
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:          prepared.ModelConfigID,
-		modelCallConfig:        prepared.ModelConfig,
 		step:                   stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID:     prepared.ToolNameToConfigID,
 		logger:                 s.opts.Logger,
@@ -858,7 +857,6 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
 		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,

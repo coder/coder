@@ -10,7 +10,6 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
@@ -127,21 +126,13 @@ func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *
 	require.True(t, parts[1].ProviderExecuted)
 }
 
-func TestBuildCommitStepMessages_UsageCostRuntime(t *testing.T) {
+func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 	t.Parallel()
 
-	inputPrice := decimal.NewFromFloat(2.5)
-	outputPrice := decimal.NewFromFloat(7.5)
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		modelCallConfig: codersdk.ChatModelCallConfig{
-			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:  &inputPrice,
-				OutputPricePerMillionTokens: &outputPrice,
-			},
-		},
 		step: stepData{
 			Content:      []fantasy.Content{fantasy.TextContent{Text: "usage"}},
 			Usage:        fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
@@ -160,8 +151,6 @@ func TestBuildCommitStepMessages_UsageCostRuntime(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
-	require.True(t, msg.TotalCostMicros.Valid)
-	require.Greater(t, msg.TotalCostMicros.Int64, int64(0))
 }
 
 func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {

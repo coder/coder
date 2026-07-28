@@ -941,7 +941,6 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        total_cost_micros,
         runtime_ms
     )
     SELECT
@@ -962,7 +961,6 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@total_cost_micros::bigint[])[allocated.ord], 0),
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
@@ -2211,229 +2209,6 @@ SELECT
     COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
 FROM deduped;
 
--- name: GetChatCostSummary :one
--- Aggregate cost summary for a single user within a date range.
--- Only counts assistant-role messages.
-SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NOT NULL
-    )::bigint AS priced_message_count,
-    COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NULL
-            AND (
-                cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-            )
-    )::bigint AS unpriced_messages_having_usage_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz;
-
--- name: GetChatCostPerModel :many
--- Per-model cost breakdown for a single user within a date range.
--- Only counts assistant-role messages that have a model_config_id.
-SELECT
-    cmc.id AS model_config_id,
-    cmc.display_name,
-    COALESCE(ap.type::text, '')::text AS provider,
-    cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*) FILTER (
-        WHERE cm.input_tokens IS NOT NULL
-            OR cm.output_tokens IS NOT NULL
-            OR cm.reasoning_tokens IS NOT NULL
-            OR cm.cache_creation_tokens IS NOT NULL
-            OR cm.cache_read_tokens IS NOT NULL
-    )::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-JOIN
-    chat_model_configs cmc ON cmc.id = cm.model_config_id
-LEFT JOIN
-    ai_providers ap ON ap.id = cmc.ai_provider_id
-WHERE
-    c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz
-GROUP BY
-    cmc.id, cmc.display_name, ap.type, cmc.model
-ORDER BY
-    total_cost_micros DESC;
-
--- name: GetChatCostPerChat :many
--- Per-root-chat cost breakdown for a single user within a date range.
--- Groups by root_chat_id so forked chats roll up under their root.
--- Only counts assistant-role messages.
-WITH chat_costs AS (
-    SELECT
-        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-    FROM chat_messages cm
-    JOIN chats c ON c.id = cm.chat_id
-    WHERE c.owner_id = @owner_id::uuid
-      AND cm.role = 'assistant'
-      AND cm.created_at >= @start_date::timestamptz
-      AND cm.created_at < @end_date::timestamptz
-    GROUP BY COALESCE(c.root_chat_id, c.id)
-)
-SELECT
-    cc.root_chat_id,
-    COALESCE(rc.title, '') AS chat_title,
-    cc.total_cost_micros,
-    cc.message_count,
-    cc.total_input_tokens,
-    cc.total_output_tokens,
-    cc.total_cache_read_tokens,
-    cc.total_cache_creation_tokens,
-    cc.total_runtime_ms
-FROM chat_costs cc
-LEFT JOIN chats rc ON rc.id = cc.root_chat_id
-ORDER BY cc.total_cost_micros DESC;
-
--- name: GetChatModelUsageCostByChatID :one
--- Assistant-message cost rolled up over the requested chat's subtree: the
--- chat itself plus every descendant reachable through parent_chat_id. A
--- root chat therefore reports its whole tree, while a subagent chat
--- reports only its own spend plus any nested subagents it spawned.
-WITH RECURSIVE target AS (
-    SELECT @chat_id::uuid AS chat_id
-), subtree AS (
-    SELECT chat_id AS id FROM target
-    UNION ALL
-    SELECT c.id
-    FROM chats c
-    JOIN subtree s ON c.parent_chat_id = s.id
-), costs AS (
-    SELECT
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NOT NULL
-        )::bigint AS priced_message_count,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NULL
-                AND (
-                    cm.input_tokens IS NOT NULL
-                    OR cm.output_tokens IS NOT NULL
-                    OR cm.reasoning_tokens IS NOT NULL
-                    OR cm.cache_creation_tokens IS NOT NULL
-                    OR cm.cache_read_tokens IS NOT NULL
-                )
-        )::bigint AS unpriced_messages_having_usage_count
-    FROM chat_messages cm
-    JOIN subtree s ON s.id = cm.chat_id
-    WHERE cm.role = 'assistant'
-)
-SELECT
-    t.chat_id,
-    costs.total_cost_micros,
-    costs.priced_message_count,
-    costs.unpriced_messages_having_usage_count
-FROM target t
-CROSS JOIN costs;
-
--- name: GetChatCostPerUser :many
--- Deployment-wide per-user cost rollup within a date range.
--- Only counts assistant-role messages.
-WITH chat_cost_users AS (
-    SELECT
-        c.owner_id AS user_id,
-        u.username,
-        u.name,
-        u.avatar_url,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-    FROM
-        chat_messages cm
-    JOIN
-        chats c ON c.id = cm.chat_id
-    JOIN
-        users u ON u.id = c.owner_id
-    WHERE
-        cm.role = 'assistant'
-        AND cm.created_at >= @start_date::timestamptz
-        AND cm.created_at < @end_date::timestamptz
-        AND (
-            @username::text = ''
-            OR u.username ILIKE '%' || @username::text || '%'
-            OR u.name ILIKE '%' || @username::text || '%'
-        )
-    GROUP BY
-        c.owner_id,
-        u.username,
-        u.name,
-        u.avatar_url
-)
-SELECT
-    user_id,
-    username,
-    name,
-    avatar_url,
-    total_cost_micros,
-    message_count,
-    chat_count,
-    total_input_tokens,
-    total_output_tokens,
-    total_cache_read_tokens,
-    total_cache_creation_tokens,
-    total_runtime_ms,
-    COUNT(*) OVER()::bigint AS total_count
-FROM
-    chat_cost_users
-ORDER BY
-    total_cost_micros DESC,
-    username ASC
-LIMIT
-    sqlc.arg('page_limit')::int
-OFFSET
-    sqlc.arg('page_offset')::int;
-
 -- name: GetTotalChatMessageRuntimeMsInRange :one
 -- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
 -- soft-deleted messages and messages from all chats.
@@ -2442,22 +2217,6 @@ FROM chat_messages cm
 WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
-
--- name: CountEnabledModelsWithoutPricing :one
--- Counts enabled, non-deleted model configs that lack both input and
--- output pricing in their JSONB options.cost configuration.
-SELECT COUNT(*)::bigint AS count
-FROM chat_model_configs
-WHERE enabled = TRUE
-  AND deleted = FALSE
-  AND (
-    options->'cost' IS NULL
-    OR options->'cost' = 'null'::jsonb
-    OR (
-      (options->'cost'->>'input_price_per_million_tokens' IS NULL)
-      AND (options->'cost'->>'output_price_per_million_tokens' IS NULL)
-    )
-  );
 
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
@@ -2521,7 +2280,6 @@ SELECT
     COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
     COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
     COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count

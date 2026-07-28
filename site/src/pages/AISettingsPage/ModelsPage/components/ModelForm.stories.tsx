@@ -411,18 +411,6 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
-export const CostTrackingExpanded: Story = {
-	args: {
-		editingModel: mockGPT5,
-		onDeleteModel: fn(async () => undefined),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button", { name: /cost tracking/i });
-		await userEvent.click(toggle);
-	},
-};
-
 export const UseResponsesAPIForOpenAI: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

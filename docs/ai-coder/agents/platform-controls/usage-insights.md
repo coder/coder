@@ -40,16 +40,24 @@ The API reference documents how to [get](../../../reference/api/enterprise.md#ge
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
 
-## Spend visibility
+## Viewing spend
 
+There is no dedicated deployment-wide spend dashboard.
 Spend is shown where it is actionable:
 
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
 - **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
-- **Agents** > **Settings** > **Manage Agents** > **Spend**: deployment-wide chat cost per user, with per-user drill-down.
 
-> [!NOTE]
-> Per-chat cost comes from AI Gateway records, which are pruned according to `--ai-gateway-retention` (60 days by default).
-> A chat for which gateway records have been pruned reports no cost.
+Per-user, per-group, per-model, and per-provider spend can be exported as CSV by an organization administrator:
+
+```sh
+curl -X GET "https://coder.example.com/api/v2/organizations/$ORGANIZATION/ai/spend/export" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
+```
+
+The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
+
+AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60 days by default, which is configured independently of chat retention.
+Spend for requests older than that period is no longer reported, so a chat for which gateway records have been pruned reports no cost.

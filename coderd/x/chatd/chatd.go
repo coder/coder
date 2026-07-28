@@ -2929,7 +2929,6 @@ type chatMessage struct {
 	cacheCreationTokens int64
 	cacheReadTokens     int64
 	contextLimit        int64
-	totalCostMicros     int64
 	runtimeMs           int64
 }
 
@@ -2973,7 +2972,6 @@ func appendMessageFields(
 	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
 	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
 	params.Compressed = append(params.Compressed, msg.compressed)
-	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 }
 
