@@ -11,6 +11,9 @@ import { WorkspaceProxyView } from "./WorkspaceProxyView";
 const meta: Meta<typeof WorkspaceProxyView> = {
 	title: "pages/UserSettingsPage/WorkspaceProxyView",
 	component: WorkspaceProxyView,
+	args: {
+		showPaywall: false,
+	},
 };
 
 export default meta;
@@ -33,6 +36,13 @@ export const Example: Story = {
 		proxies: MockWorkspaceProxies,
 		proxyLatencies: MockProxyLatencies,
 		preferredProxy: MockHealthyWildWorkspaceProxy,
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		...Example.args,
+		showPaywall: true,
 	},
 };
 

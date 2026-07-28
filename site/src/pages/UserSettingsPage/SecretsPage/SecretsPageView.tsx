@@ -36,6 +36,10 @@ type SecretsPageViewProps = {
 		request: UpdateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
 	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
+	onToggleSecretEnabled: (
+		secret: UserSecret,
+		enabled: boolean,
+	) => Promise<void> | void;
 };
 
 type SecretDialogState =
@@ -55,6 +59,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	onCreateSecret,
 	onUpdateSecret,
 	onDeleteSecret,
+	onToggleSecretEnabled,
 }) => {
 	const [dialogState, setDialogState] = useState<SecretDialogState>({
 		mode: "add",
@@ -143,6 +148,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					onAddSecret={openAddSecret}
 					onEditSecret={openEditSecret}
 					onDeleteSecret={onDeleteSecret}
+					onToggleEnabled={onToggleSecretEnabled}
 				/>
 			</section>
 		</div>
