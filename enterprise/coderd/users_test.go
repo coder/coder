@@ -644,7 +644,7 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Equal(t, codersdk.UserStatusDormant, user.Status)
 	})
 
-	t.Run("ServiceAccount/NotifiesAdminsAsServiceAccount", func(t *testing.T) {
+	t.Run("ServiceAccount/NotifiesAdmins", func(t *testing.T) {
 		t.Parallel()
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
@@ -661,13 +661,8 @@ func TestEnterprisePostUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Notifications skip the initiator, so the notified admin must be
-		// someone other than the creator.
-		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
-		notifyEnq.Clear()
-
-		//nolint:gocritic
-		serviceAccount, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		//nolint:gocritic // The owner is the only user admin, so it is the recipient under test.
+		serviceAccount, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Username:        "service-acct-notify",
 			UserLoginType:   codersdk.LoginTypeNone,
@@ -676,7 +671,9 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.NoError(t, err)
 
 		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountCreated))
-		require.NotEmpty(t, sent)
+		require.Len(t, sent, 1)
+		require.Equal(t, first.UserID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, serviceAccount.ID)
 		require.Equal(t, serviceAccount.Username, sent[0].Labels["created_account_name"])
 		require.Equal(t, "service", sent[0].Labels["account_type"])
 	})
