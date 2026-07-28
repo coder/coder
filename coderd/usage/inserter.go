@@ -31,7 +31,8 @@ type Inserter interface {
 	// ignoring duplicate records.
 	//
 	// Generators that backfill historical buckets pass the bucket start as
-	// `createdAt` rather than the insertion time.
+	// `createdAt` rather than the insertion time. `createdAt` must be
+	// non-zero; implementations reject the zero time rather than storing it.
 	InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error
 }
 

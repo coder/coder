@@ -314,6 +314,59 @@ func TestGeneratorBackfillAfterDowntime(t *testing.T) {
 	require.Equal(t, expected, runtimes)
 }
 
+func TestGeneratorInserterArguments(t *testing.T) {
+	t.Parallel()
+
+	startTime := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	clock.Set(startTime)
+
+	var (
+		bucketA     = time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+		windowFirst = startTime.Add(-usage.AgentRuntimeWindow)
+		// The first pass stops at 12:00; the second pass fires after 14:05
+		// and adds the newly eligible 13:00 bucket.
+		windowLast = startTime.Add(-time.Hour)
+	)
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, bucketA.Add(10*time.Minute), false)
+
+	ins := coderdtest.NewUsageInserter()
+	trap := clock.Trap().NewTimer(generatorTimerName)
+	defer trap.Close()
+
+	gen := usage.NewGenerator(clock, log, h.authzDB, ins)
+	gen.Start(ctx)
+	defer gen.Close()
+
+	// Each pass requests its next timer only after finishing, so trapping
+	// that request synchronizes with the end of the pass.
+	for range 2 {
+		call := trap.MustWait(ctx)
+		call.MustRelease(ctx)
+		clock.Advance(call.Duration).MustWait(ctx)
+	}
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	var expected []coderdtest.HeartbeatEvent
+	for bucket := windowFirst; !bucket.After(windowLast); bucket = bucket.Add(usage.AgentRuntimeInterval) {
+		var runtimeMs int64
+		if bucket.Equal(bucketA) {
+			runtimeMs = 1000
+		}
+		expected = append(expected, coderdtest.HeartbeatEvent{
+			ID:        "hb_agent_runtime_v1:" + bucket.Format("2006-01-02_15:04:05"),
+			CreatedAt: bucket,
+			Event:     usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs},
+		})
+	}
+	require.Equal(t, expected, ins.GetHeartbeatEvents())
+}
+
 // TestGeneratorConcurrentReplicas runs two generators against the same
 // database concurrently and verifies exactly one event is produced per
 // bucket. Each replica gets its own mock clock (as real replicas have their

@@ -116,4 +116,20 @@ func TestInserter(t *testing.T) {
 		})
 		assert.ErrorContains(t, err, `invalid "hb_agent_runtime_v1" event: runtime_ms cannot be negative`)
 	})
+
+	t.Run("ZeroCreatedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctrl := gomock.NewController(t)
+		// The mock store fails the test on any unexpected call, so no insert
+		// may reach the database.
+		db := dbmock.NewMockStore(ctrl)
+
+		inserter := usage.NewDBInserter()
+		err := inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Time{}, usagetypes.HBAgentRuntime{
+			RuntimeMs: 1,
+		})
+		assert.ErrorContains(t, err, `createdAt must be set for "hb_agent_runtime_v1" event`)
+	})
 }

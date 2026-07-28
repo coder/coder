@@ -83,6 +83,8 @@ func (g *Generator) Start(ctx context.Context) {
 }
 
 // Close stops the Generator and waits for its goroutine to exit.
+// It always returns nil; the error return exists to satisfy io.Closer, as the
+// Generator is registered with the server's closer list.
 func (g *Generator) Close() error {
 	if g.cancel != nil {
 		g.cancel()

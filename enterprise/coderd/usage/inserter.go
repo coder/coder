@@ -73,6 +73,12 @@ func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.St
 	if !event.EventType().IsHeartbeat() {
 		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
 	}
+	// A zero createdAt stores the row at year 1, where bucket reconciliation
+	// can never match it again while the deterministic id turns every retry
+	// into a no-op, silently forfeiting the bucket's usage.
+	if createdAt.IsZero() {
+		return xerrors.Errorf("createdAt must be set for %q event", event.EventType())
+	}
 	if err := event.Valid(); err != nil {
 		return xerrors.Errorf("invalid %q event: %w", event.EventType(), err)
 	}

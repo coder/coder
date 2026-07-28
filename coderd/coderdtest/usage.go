@@ -12,10 +12,16 @@ import (
 
 var _ usage.Inserter = (*UsageInserter)(nil)
 
+type HeartbeatEvent struct {
+	ID        string
+	CreatedAt time.Time
+	Event     usagetypes.HeartbeatEvent
+}
+
 type UsageInserter struct {
 	sync.Mutex
 	discreteEvents  []usagetypes.DiscreteEvent
-	heartbeatEvents []usagetypes.HeartbeatEvent
+	heartbeatEvents []HeartbeatEvent
 	seenHeartbeats  map[string]struct{}
 }
 
@@ -23,7 +29,7 @@ func NewUsageInserter() *UsageInserter {
 	return &UsageInserter{
 		discreteEvents:  []usagetypes.DiscreteEvent{},
 		seenHeartbeats:  map[string]struct{}{},
-		heartbeatEvents: []usagetypes.HeartbeatEvent{},
+		heartbeatEvents: []HeartbeatEvent{},
 	}
 }
 
@@ -34,7 +40,7 @@ func (u *UsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.S
 	return nil
 }
 
-func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, _ time.Time, event usagetypes.HeartbeatEvent) error {
+func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
 	u.Lock()
 	defer u.Unlock()
 	if _, seen := u.seenHeartbeats[id]; seen {
@@ -42,14 +48,18 @@ func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.
 	}
 
 	u.seenHeartbeats[id] = struct{}{}
-	u.heartbeatEvents = append(u.heartbeatEvents, event)
+	u.heartbeatEvents = append(u.heartbeatEvents, HeartbeatEvent{
+		ID:        id,
+		CreatedAt: createdAt,
+		Event:     event,
+	})
 	return nil
 }
 
-func (u *UsageInserter) GetHeartbeatEvents() []usagetypes.HeartbeatEvent {
+func (u *UsageInserter) GetHeartbeatEvents() []HeartbeatEvent {
 	u.Lock()
 	defer u.Unlock()
-	eventsCopy := make([]usagetypes.HeartbeatEvent, len(u.heartbeatEvents))
+	eventsCopy := make([]HeartbeatEvent, len(u.heartbeatEvents))
 	copy(eventsCopy, u.heartbeatEvents)
 	return eventsCopy
 }
@@ -73,5 +83,5 @@ func (u *UsageInserter) Reset() {
 	defer u.Unlock()
 	u.seenHeartbeats = map[string]struct{}{}
 	u.discreteEvents = []usagetypes.DiscreteEvent{}
-	u.heartbeatEvents = []usagetypes.HeartbeatEvent{}
+	u.heartbeatEvents = []HeartbeatEvent{}
 }
