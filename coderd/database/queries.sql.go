@@ -8417,7 +8417,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -8460,10 +8459,12 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC
 `
 
+// Ordered by id throughout: the boundary row below is compared with id, and the
+// prompt must present roles in append order so tool results follow the assistant
+// message that requested them.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {

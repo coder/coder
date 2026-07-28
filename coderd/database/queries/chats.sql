@@ -484,6 +484,9 @@ LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
 -- name: GetChatMessagesForPromptByChatID :many
+-- Ordered by id throughout: the boundary row below is compared with id, and the
+-- prompt must present roles in append order so tool results follow the assistant
+-- message that requested them.
 WITH latest_compressed_summary AS (
     SELECT
         id
@@ -495,7 +498,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -538,7 +540,6 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC;
 
 -- name: GetChats :many
