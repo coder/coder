@@ -155,9 +155,6 @@ coder_ai_gateway_cost_control_blocked_requests_total{group_id="a1b2c3d4-e5f6-789
 coder_ai_gateway_cost_control_blocked_users{group_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890"} 0
 # HELP coder_ai_gateway_cost_control_enforcement_duration_seconds The duration of AI budget enforcement checks, in seconds (outcome: allowed, blocked, error).
 # TYPE coder_ai_gateway_cost_control_enforcement_duration_seconds histogram
-coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.0005"} 0
-coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.001"} 0
-coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.0025"} 0
 coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.005"} 0
 coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.01"} 0
 coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.025"} 0

@@ -57,14 +57,14 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help: "The number of recorded AI token-usage records for which no model price was found " +
 				"(provider: anthropic, openai, copilot).",
 		}, []string{"provider", "model"}),
-		// Pessimistic cardinality: 3 outcomes, 11 buckets + 3 extra series
-		// (count, sum, +Inf) = up to 42.
+		// Pessimistic cardinality: 3 outcomes, 8 buckets + 3 extra series
+		// (count, sum, +Inf) = up to 33.
 		EnforcementDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "cost_control",
 			Name:      "enforcement_duration_seconds",
 			Help: "The duration of AI budget enforcement checks, in seconds " +
 				"(outcome: allowed, blocked, error).",
-			Buckets:                         []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+			Buckets:                         []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: time.Hour,
