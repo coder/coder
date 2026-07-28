@@ -1,82 +1,19 @@
-import { type FC, type ReactNode, useId } from "react";
-import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
+import { useFormik } from "formik";
+import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
+import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
-
-type OAuth2AppFormValues = {
-	name: string;
-	callback_url: string;
-	icon: string;
-};
+import { getFormHelpers } from "#/utils/formUtils";
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: OAuth2AppFormValues) => void;
+	onSubmit: (data: TypesGen.PostOAuth2ProviderAppRequest) => void;
 	error?: unknown;
 	isUpdating: boolean;
 	actions?: ReactNode;
-	defaultValues?: OAuth2AppFormValues;
+	defaultValues?: TypesGen.PostOAuth2ProviderAppRequest;
 	disabled: boolean;
-};
-
-const formDataString = (formData: FormData, key: string): string => {
-	const value = formData.get(key);
-	return typeof value === "string" ? value : "";
-};
-
-type AppFormFieldProps = {
-	id: string;
-	name: keyof OAuth2AppFormValues;
-	label: string;
-	defaultValue?: string;
-	errorMessage?: string;
-	helperText: string;
-	disabled: boolean;
-	autoFocus?: boolean;
-};
-
-const AppFormField: FC<AppFormFieldProps> = ({
-	id,
-	name,
-	label,
-	defaultValue,
-	errorMessage,
-	helperText,
-	disabled,
-	autoFocus,
-}) => {
-	const errorId = `${id}-error`;
-	const helperId = `${id}-helper`;
-	const hasError = Boolean(errorMessage);
-
-	return (
-		<div className="flex flex-col gap-2">
-			<Label htmlFor={id}>{label}</Label>
-			<Input
-				id={id}
-				name={name}
-				defaultValue={defaultValue}
-				disabled={disabled}
-				autoFocus={autoFocus}
-				aria-invalid={hasError}
-				aria-describedby={hasError ? errorId : helperId}
-				className={cn(hasError && "border-border-destructive")}
-			/>
-			<span
-				id={hasError ? errorId : helperId}
-				className={cn(
-					"text-xs",
-					hasError ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{errorMessage || helperText}
-			</span>
-		</div>
-	);
 };
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
@@ -88,51 +25,44 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	defaultValues,
 	disabled,
 }) => {
-	const id = useId();
-	const apiValidationErrors = isApiValidationError(error)
-		? mapApiErrorToFieldErrors(error.response.data)
-		: undefined;
+	const form = useFormik<TypesGen.PostOAuth2ProviderAppRequest>({
+		initialValues: {
+			name: app?.name ?? defaultValues?.name ?? "",
+			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
+			icon: app?.icon ?? defaultValues?.icon ?? "",
+		},
+		// Mark fields touched from the start so server-side validation errors
+		// surface as soon as they arrive instead of waiting for the user to
+		// interact with each field.
+		initialTouched: { name: true, callback_url: true, icon: true },
+		onSubmit,
+	});
+	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<form
-			className="mt-2.5"
-			onSubmit={(event) => {
-				event.preventDefault();
-				const formData = new FormData(event.currentTarget);
-				onSubmit({
-					name: formDataString(formData, "name"),
-					callback_url: formDataString(formData, "callback_url"),
-					icon: formDataString(formData, "icon"),
-				});
-			}}
-		>
+		<form className="mt-2.5" onSubmit={form.handleSubmit}>
 			<div className="flex flex-col gap-5">
-				<AppFormField
-					id={`${id}-name`}
-					name="name"
+				<FormField
+					field={getFieldHelpers("name", {
+						helperText: "The name of your Coder app.",
+					})}
 					label="Application name"
-					defaultValue={app?.name ?? defaultValues?.name}
-					errorMessage={apiValidationErrors?.name}
-					helperText="The name of your Coder app."
 					disabled={disabled}
 					autoFocus
 				/>
-				<AppFormField
-					id={`${id}-callback-url`}
-					name="callback_url"
+				<FormField
+					field={getFieldHelpers("callback_url", {
+						helperText:
+							"The full URL to redirect to after a user authorizes an installation.",
+					})}
 					label="Callback URL"
-					defaultValue={app?.callback_url ?? defaultValues?.callback_url}
-					errorMessage={apiValidationErrors?.callback_url}
-					helperText="The full URL to redirect to after a user authorizes an installation."
 					disabled={disabled}
 				/>
-				<AppFormField
-					id={`${id}-icon`}
-					name="icon"
+				<FormField
+					field={getFieldHelpers("icon", {
+						helperText: "A full or relative URL to an icon.",
+					})}
 					label="Application icon"
-					defaultValue={app?.icon ?? defaultValues?.icon}
-					errorMessage={apiValidationErrors?.icon}
-					helperText="A full or relative URL to an icon."
 					disabled={disabled}
 				/>
 

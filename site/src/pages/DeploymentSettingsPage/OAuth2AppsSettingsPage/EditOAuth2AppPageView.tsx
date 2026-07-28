@@ -10,6 +10,7 @@ import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
+import { Separator } from "#/components/Separator/Separator";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -162,7 +163,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</dd>
 						</dl>
 
-						<hr className="my-2 border-solid border-0 border-t w-full" />
+						<Separator className="my-2" />
 
 						<OAuth2AppForm
 							app={app}
@@ -183,7 +184,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 
 						{canViewAppSecrets && (
 							<>
-								<hr className="my-2 border-solid border-0 border-t w-full" />
+								<Separator className="my-2" />
 
 								<OAuth2AppSecretsTable
 									secrets={secrets}
