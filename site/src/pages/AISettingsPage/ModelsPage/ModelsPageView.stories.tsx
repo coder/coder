@@ -137,7 +137,9 @@ export const DisabledProviderModelsStillListed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const row = canvas.getByRole("row", { name: /GPT-4o Secondary/i });
+		// useClickableTableRow renders each row with role="button", not "row",
+		// so the row is queried by its clickable role.
+		const row = canvas.getByRole("button", { name: /GPT-4o Secondary/i });
 		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
 		// A model under a disabled provider is not usable, so the status
 		// column must show "Disabled" even though the stored enabled flag is
@@ -162,7 +164,7 @@ export const OrphanedModelShowsUnset: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const row = canvas.getByRole("row", { name: /Orphaned Model/i });
+		const row = canvas.getByRole("button", { name: /Orphaned Model/i });
 		await expect(within(row).getByText("Unset")).toBeInTheDocument();
 		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
 	},
