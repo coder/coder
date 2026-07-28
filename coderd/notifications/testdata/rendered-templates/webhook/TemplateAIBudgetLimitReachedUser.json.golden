@@ -1,0 +1,28 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "AI Budget Limit Reached",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "effective_group_name": "Engineering",
+      "limit": "$1000.00",
+      "period": "monthly",
+      "period_end": "August 1, 2026",
+      "period_start": "July 1, 2026",
+      "threshold": "100"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "You've reached your monthly AI budget limit",
+  "title_markdown": "You've reached your monthly AI budget limit",
+  "body": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: Engineering\n\nAI budget period: July 1, 2026 - August 1, 2026",
+  "body_markdown": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: **Engineering**\n\nAI budget period: July 1, 2026 - August 1, 2026"
+}

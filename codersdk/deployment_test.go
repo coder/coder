@@ -149,6 +149,19 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	}
 }
 
+func TestAIBudgetPeriodAdjective(t *testing.T) {
+	t.Parallel()
+
+	// Every selectable period must have a real adjective.
+	for _, p := range codersdk.AIBudgetPeriods {
+		period := codersdk.AIBudgetPeriod(p)
+		require.NotEqual(t, p, period.Adjective(),
+			"add an adjective for AI budget period %q in AIBudgetPeriod.Adjective", p)
+	}
+
+	require.Equal(t, "monthly", codersdk.AIBudgetPeriodMonth.Adjective())
+}
+
 func TestParseSSHConfigOption(t *testing.T) {
 	t.Parallel()
 

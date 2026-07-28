@@ -17723,3 +17723,92 @@ func requireAIGatewayKeysViolation(
 		require.FailNow(t, "test case must expect a constraint error")
 	}
 }
+
+// TestGetActiveUsersAuthorizationRolesParity verifies that the bulk
+// GetActiveUsersAuthorizationRoles query returns, for every eligible
+// user, the same roles and groups as the per-user
+// GetAuthorizationUserRoles query. The two queries encode the implied
+// member roles, organization default roles, and group memberships
+// independently and must not drift.
+func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	orgA := dbgen.Organization(t, db, database.Organization{})
+	orgB := dbgen.Organization(t, db, database.Organization{})
+
+	activeUser := func(seed database.User) database.User {
+		seed.Status = database.UserStatusActive
+		return dbgen.User(t, db, seed)
+	}
+	member := func(orgID uuid.UUID, user database.User, roles ...string) {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			Roles:          roles,
+		})
+	}
+
+	// Site-wide role, zero org memberships.
+	owner := activeUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
+
+	// Plain single-org member; effective roles come from the implied
+	// member role plus the org's default member roles.
+	plain := activeUser(database.User{})
+	member(orgA.ID, plain)
+
+	// Explicit org roles across two organizations.
+	multiOrg := activeUser(database.User{})
+	member(orgA.ID, multiOrg, rbac.RoleOrgAdmin())
+	member(orgB.ID, multiOrg)
+
+	// Custom org role.
+	customRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:           "parity-role",
+		DisplayName:    "Parity Role",
+		OrganizationID: uuid.NullUUID{UUID: orgA.ID, Valid: true},
+		OrgPermissions: []database.CustomRolePermission{{
+			ResourceType: rbac.ResourceWorkspace.Type,
+			Action:       policy.ActionCreate,
+		}},
+	})
+	require.NoError(t, err)
+	custom := activeUser(database.User{})
+	member(orgA.ID, custom, customRole.Name)
+
+	// Group memberships.
+	grouped := activeUser(database.User{})
+	member(orgA.ID, grouped)
+	for range 2 {
+		group := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  grouped.ID,
+			GroupID: group.ID,
+		})
+	}
+
+	// Excluded from the bulk query: service accounts and non-active
+	// users.
+	sa := activeUser(database.User{IsServiceAccount: true})
+	member(orgA.ID, sa)
+	suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+	member(orgA.ID, suspended)
+
+	rows, err := db.GetActiveUsersAuthorizationRoles(ctx)
+	require.NoError(t, err)
+
+	gotIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		gotIDs = append(gotIDs, row.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, custom.ID, grouped.ID}, gotIDs)
+
+	for _, row := range rows {
+		single, err := db.GetAuthorizationUserRoles(ctx, row.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, single.Roles, row.Roles, "roles diverged for user %s", row.ID)
+		require.ElementsMatch(t, single.Groups, row.Groups, "groups diverged for user %s", row.ID)
+	}
+}

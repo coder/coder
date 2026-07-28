@@ -984,6 +984,19 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
+      # Cache the Coder release binaries downloaded by the outdatedCLI /
+      # outdatedAgent e2e tests so most runs skip the flaky GitHub release
+      # download entirely. The cache key is keyed off the test files that pin
+      # the downloaded versions, so it invalidates when those versions change.
+      - name: Restore e2e Coder release binary cache
+        id: coder-e2e-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/tests/outdatedCLI.spec.ts', 'site/e2e/tests/outdatedAgent.spec.ts') }}
+          restore-keys: |
+            coder-e2e-cache-${{ runner.os }}-
+
       # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
         if: ${{ !matrix.variant.premium }}
@@ -999,6 +1012,16 @@ jobs:
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
+
+      - name: Save e2e Coder release binary cache
+        # Only the default branch is trusted to write the cache, so PR runs
+        # cannot poison the cache that subsequent runs restore from. Skip when
+        # the cache already had an exact key hit (no new content).
+        if: always() && github.ref == 'refs/heads/main' && steps.coder-e2e-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: ${{ steps.coder-e2e-cache.outputs.cache-primary-key }}
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +45,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1707,6 +1710,9 @@ func TestRecordTokenUsage(t *testing.T) {
 						Day:              now.UTC().Truncate(24 * time.Hour),
 						CostMicros:       wantCost,
 					}).Return(database.AIUserDailySpend{}, nil)
+
+					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
 			},
 			{
@@ -1759,6 +1765,9 @@ func TestRecordTokenUsage(t *testing.T) {
 						Day:              now.UTC().Truncate(24 * time.Hour),
 						CostMicros:       wantCost,
 					}).Return(database.AIUserDailySpend{}, nil)
+
+					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
 			},
 			{
@@ -2288,6 +2297,557 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, group.ID, spend.EffectiveGroupID, "effective group ID")
 	require.True(t, today.Equal(spend.PeriodStart), "period start: want %s, got %s", today, spend.PeriodStart)
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
+}
+
+// TestRecordTokenUsageBudgetNotifications verifies that recording token usage
+// enqueues the right budget notifications: the warning template when spend
+// crosses the warning threshold, the limit-reached template at 100%, both when
+// a single interception crosses both, and nothing when no threshold is
+// freshly crossed.
+func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	// Each case sets its cost via inputTokens (tokensPerDollar tokens = $1).
+	// newSpend is the post-increment period total; the code derives the
+	// pre-increment total as newSpend - cost and fires a threshold only when the
+	// pre-increment total is below the threshold and the post-increment total is
+	// at or above it.
+	price := &database.AIModelPrice{
+		InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true},
+	}
+
+	// Threshold percentage label expected for each template.
+	wantThreshold := map[uuid.UUID]string{
+		notifications.TemplateAIBudgetWarningUser:      "85",
+		notifications.TemplateAIBudgetLimitReachedUser: "100",
+	}
+
+	testCases := []struct {
+		name          string
+		inputTokens   int64
+		newSpend      int64 // post-increment period total
+		wantTemplates []uuid.UUID
+	}{
+		{
+			name: "crosses warning threshold",
+			// pre = $84.50 (< $85), post = $85.50 (>= $85) -> warning.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + dollar/2,
+			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetWarningUser},
+		},
+		{
+			name: "crosses warning threshold exactly",
+			// pre = $84 (< $85), post = $85 (>= $85) -> warning.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt,
+			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetWarningUser},
+		},
+		{
+			name: "stays below warning threshold",
+			// post = $84.50 (< $85) -> no crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt - dollar/2,
+			wantTemplates: nil,
+		},
+		{
+			name: "already at warning threshold",
+			// pre = $85 (not < $85), post = $86 -> no fresh crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + dollar,
+			wantTemplates: nil,
+		},
+		{
+			name: "already above warning threshold",
+			// pre = $89 (>= $85, < $100), post = $90 -> no crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + 5*dollar,
+			wantTemplates: nil,
+		},
+		{
+			name: "crosses limit",
+			// pre = $99.50 (>= $85, so no warning; < $100), post = $100.50 (>= $100) -> limit.
+			inputTokens:   tokensPerDollar,
+			newSpend:      spendLimit + dollar/2,
+			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetLimitReachedUser},
+		},
+		{
+			name: "crosses warning and limit in one interception",
+			// pre = $80 (< $85), post = $100 (>= $85 and >= $100) -> warning + limit.
+			inputTokens: 20 * tokensPerDollar,
+			newSpend:    spendLimit,
+			wantTemplates: []uuid.UUID{
+				notifications.TemplateAIBudgetWarningUser,
+				notifications.TemplateAIBudgetLimitReachedUser,
+			},
+		},
+		{
+			name: "already above limit",
+			// pre = $109 (>= $100), post = $110 -> no fresh crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      spendLimit + 10*dollar,
+			wantTemplates: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			// The group and user are resolved once per interception that
+			// notifies, regardless of how many thresholds it crosses.
+			if len(tc.wantTemplates) > 0 {
+				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+					Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+					Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+				// No admins configured, so only the user is notified.
+				db.EXPECT().GetUsers(gomock.Any(), gomock.Any()).Return(nil, nil)
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tc.inputTokens,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, enq.Sent(), len(tc.wantTemplates), "unexpected number of notifications")
+			for _, tmpl := range tc.wantTemplates {
+				sent := enq.Sent(notificationstest.WithTemplateID(tmpl))
+				require.Len(t, sent, 1, "expected one notification for template %s", tmpl)
+				require.Equal(t, intc.InitiatorID, sent[0].UserID)
+				require.Equal(t, wantThreshold[tmpl], sent[0].Labels["threshold"])
+				require.Equal(t, "$100.00", sent[0].Labels["limit"])
+				require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
+				// The interception is recorded at 2026-06-25, so its budget
+				// period runs June 1 - July 1, 2026.
+				require.Equal(t, "June 1, 2026", sent[0].Labels["period_start"])
+				require.Equal(t, "July 1, 2026", sent[0].Labels["period_end"])
+			}
+		})
+	}
+}
+
+// TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary verifies that an
+// interception created in one budget period but processed after the period has
+// rolled over is still evaluated against the period it belongs to, so a genuine
+// threshold crossing is detected rather than lost across the boundary.
+func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
+	)
+
+	// The interception was created in the final second of January but is
+	// processed just after the rollover into February. The spend is bucketed
+	// into January, so detection must sum against January's period.
+	createdAt := time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC)
+	processedAt := time.Date(2026, 2, 1, 0, 0, 1, 0, time.UTC)
+	januaryStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	enq := &notificationstest.FakeEnqueuer{}
+
+	intc := newTestInterception(uuid.New())
+	groupID := uuid.New()
+	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true}}
+
+	expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+	)
+	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+		Return(database.AIUserDailySpend{}, nil)
+
+	// The spend query must run against the period the interception belongs to
+	// (January), not the period it was processed in (February).
+	var gotPeriodStart time.Time
+	db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+			gotPeriodStart = p.PeriodStart
+			return database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil
+		})
+	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+	db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+		Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+	// No admins configured, so only the user is notified.
+	db.EXPECT().GetUsers(gomock.Any(), gomock.Any()).Return(nil, nil)
+
+	clock := quartz.NewMock(t)
+	clock.Set(processedAt)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        testutil.Logger(t),
+		Clock:         clock,
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: intc.ID.String(),
+		MsgId:          "msg_boundary",
+		InputTokens:    tokensPerDollar,
+		CreatedAt:      timestamppb.New(createdAt),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, januaryStart, gotPeriodStart,
+		"spend must be summed against the period the interception belongs to, not the processing period")
+
+	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
+	require.Len(t, sent, 1, "expected the crossing to be detected against the interception's period")
+}
+
+// TestRecordTokenUsageBudgetNotificationBestEffort verifies that a failure while
+// detecting or sending a budget notification is swallowed: the token usage and
+// spend are still recorded (RecordTokenUsage returns no error) and no
+// notification is enqueued. This guards the best-effort contract, e.g. that a
+// detection error is not propagated out of the transaction (which would roll
+// back the committed spend).
+func TestRecordTokenUsageBudgetNotificationBestEffort(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000
+		spendLimit      int64 = 100 * dollar
+		warnAt          int64 = 85 * dollar
+		inputPrice      int64 = dollar
+		tokensPerDollar int64 = 1_000_000
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true}}
+
+	testCases := []struct {
+		name string
+		// spendSinceErr fails detection (the read inside the transaction);
+		// groupLookupErr fails the notification after a crossing is detected.
+		spendSinceErr  error
+		groupLookupErr error
+	}{
+		{name: "detection read fails", spendSinceErr: sql.ErrConnDone},
+		{name: "group lookup fails", groupLookupErr: sql.ErrConnDone},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			// The token usage and spend are recorded before detection runs.
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+
+			switch {
+			case tc.spendSinceErr != nil:
+				// Detection fails; the group is never looked up.
+				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+					Return(database.GetUserAISpendSinceRow{}, tc.spendSinceErr)
+			case tc.groupLookupErr != nil:
+				// A crossing is detected ($84 -> $85), but resolving the group
+				// for the notification fails.
+				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+					Return(database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil)
+				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+					Return(database.Group{}, tc.groupLookupErr)
+			default:
+				t.Fatal("test case must set spendSinceErr or groupLookupErr")
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				// The detect/notify failure is logged; ignore it here since
+				// triggering it is the point of the test.
+				Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Clock:  quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			// The failure must not surface as an error from RecordTokenUsage.
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tokensPerDollar,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+			require.Empty(t, enq.Sent(), "no notification should be enqueued when detection or lookup fails")
+		})
+	}
+}
+
+// TestRecordTokenUsageBudgetNotificationZeroLimit verifies that a zero spend
+// limit (used to block a group entirely) produces no budget notification: there
+// is no meaningful threshold to cross, and such users are already blocked by
+// pre-request enforcement. The token usage is still recorded.
+func TestRecordTokenUsageBudgetNotificationZeroLimit(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	enq := &notificationstest.FakeEnqueuer{}
+
+	intc := newTestInterception(uuid.New())
+	groupID := uuid.New()
+	// A zero limit blocks the group; there is no threshold to cross.
+	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 0}
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: 1_000_000, Valid: true}}
+
+	expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+	)
+	// The spend is still recorded; detection then short-circuits on the zero
+	// limit without reading spend or looking up the group.
+	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+		Return(database.AIUserDailySpend{}, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        testutil.Logger(t),
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: intc.ID.String(),
+		MsgId:          "msg_123",
+		InputTokens:    1_000_000, // $1 at $1 per million tokens
+		CreatedAt:      timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+	})
+	require.NoError(t, err)
+	require.Empty(t, enq.Sent(), "a zero spend limit must not produce a notification")
+}
+
+// TestRecordTokenUsageBudgetAdminNotification verifies that crossing a budget
+// threshold also notifies deployment owners and user admins, and that the
+// affected user is not double-notified as an admin.
+func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	cases := []struct {
+		name              string
+		useOverride       bool
+		inputTokens       int64
+		newSpend          int64
+		wantThreshold     string
+		wantLimitSource   string
+		wantUserTemplate  uuid.UUID
+		wantAdminTemplate uuid.UUID
+	}{
+		{
+			// A $1 interception takes spend to warnAt ($85): pre ($84) < warnAt <= post.
+			name:              "warning",
+			inputTokens:       tokensPerDollar,
+			newSpend:          warnAt,
+			wantThreshold:     "85",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceGroup),
+			wantUserTemplate:  notifications.TemplateAIBudgetWarningUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetWarningAdmin,
+		},
+		{
+			// A $5 interception takes spend from $95 to the $100 limit, so the limit threshold is crossed.
+			name:              "limit reached",
+			inputTokens:       5 * tokensPerDollar,
+			newSpend:          spendLimit,
+			wantThreshold:     "100",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceGroup),
+			wantUserTemplate:  notifications.TemplateAIBudgetLimitReachedUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetLimitReachedAdmin,
+		},
+		{
+			// A per-user override supplies the limit, so limit_source is user_override.
+			name:              "warning, per-user override",
+			useOverride:       true,
+			inputTokens:       tokensPerDollar,
+			newSpend:          warnAt,
+			wantThreshold:     "85",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceUserOverride),
+			wantUserTemplate:  notifications.TemplateAIBudgetWarningUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetWarningAdmin,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			price := &database.AIModelPrice{
+				InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true},
+			}
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+
+			admin := database.GetUsersRow{ID: uuid.New(), Username: "admin1"}
+			// The affected user is also an admin; they must not receive the admin copy.
+			selfAdmin := database.GetUsersRow{ID: intc.InitiatorID, Username: "bob"}
+
+			// Whether the limit comes from a group budget or a per-user override, the
+			// spend is attributed to the same effective group, so the group lookup and
+			// notifications are identical apart from the limit_source label.
+			if tc.useOverride {
+				override := &database.UserAIBudgetOverride{GroupID: groupID, SpendLimitMicros: spendLimit}
+				expectTokenUsageCostLookups(db, intc, override, nil, nil, price)
+			} else {
+				group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+				expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+			}
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+				Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+				Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+			db.EXPECT().GetUsers(gomock.Any(), database.GetUsersParams{
+				RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
+			}).Return([]database.GetUsersRow{admin, selfAdmin}, nil)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tc.inputTokens,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			// The user who crossed the threshold gets the user-facing notification.
+			userSent := enq.Sent(notificationstest.WithTemplateID(tc.wantUserTemplate))
+			require.Len(t, userSent, 1)
+			require.Equal(t, intc.InitiatorID, userSent[0].UserID)
+
+			// The admin (but not the affected user, who is also an admin) gets the
+			// admin notification naming the affected user.
+			adminSent := enq.Sent(notificationstest.WithTemplateID(tc.wantAdminTemplate))
+			require.Len(t, adminSent, 1)
+			require.Equal(t, admin.ID, adminSent[0].UserID)
+			require.Equal(t, "bob", adminSent[0].Labels["username"])
+			require.Equal(t, tc.wantThreshold, adminSent[0].Labels["threshold"])
+			require.Equal(t, "$100.00", adminSent[0].Labels["limit"])
+			require.Equal(t, "Engineering", adminSent[0].Labels["effective_group_name"])
+			require.Equal(t, tc.wantLimitSource, adminSent[0].Labels["limit_source"])
+		})
+	}
 }
 
 // newTestInterception returns an interception with a fixed initiator, provider,
@@ -3582,3 +4142,74 @@ func (*fakeWatchProvidersStream) MsgSend(drpc.Message, drpc.Encoding) error { re
 func (*fakeWatchProvidersStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
 func (*fakeWatchProvidersStream) CloseSend() error                          { return nil }
 func (*fakeWatchProvidersStream) Close() error                              { return nil }
+
+// countingSeatTracker records the number of RecordUsage calls.
+type countingSeatTracker struct {
+	calls atomic.Int64
+}
+
+func (c *countingSeatTracker) RecordUsage(context.Context, uuid.UUID, agplaiseats.Reason) {
+	c.calls.Add(1)
+}
+
+// TestRecordInterceptionAISeat verifies that bridge usage claims an AI
+// Governance seat only when the seat exclusion experiment is disabled.
+func TestRecordInterceptionAISeat(t *testing.T) {
+	t.Parallel()
+
+	newRequest := func() *proto.RecordInterceptionRequest {
+		return &proto.RecordInterceptionRequest{
+			Id:          uuid.NewString(),
+			ApiKeyId:    uuid.NewString(),
+			InitiatorId: uuid.NewString(),
+			Provider:    "anthropic",
+			Model:       "claude-4-opus",
+			StartedAt:   timestamppb.Now(),
+		}
+	}
+
+	cases := []struct {
+		name          string
+		experiments   []codersdk.Experiment
+		expectedCalls int64
+	}{
+		{
+			name:          "experiment off records a seat",
+			experiments:   requiredExperiments,
+			expectedCalls: 1,
+		},
+		{
+			name:          "seat exclusion skips the seat",
+			experiments:   append([]codersdk.Experiment{codersdk.ExperimentAIGatewaySeatExclusion}, requiredExperiments...),
+			expectedCalls: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeInterception{}, nil)
+
+			tracker := &countingSeatTracker{}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: tracker,
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   tc.experiments,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordInterception(ctx, newRequest())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedCalls, tracker.calls.Load())
+		})
+	}
+}
