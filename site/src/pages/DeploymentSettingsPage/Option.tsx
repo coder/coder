@@ -1,5 +1,5 @@
 import { WrenchIcon } from "lucide-react";
-import type { FC, HTMLAttributes, PropsWithChildren } from "react";
+import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
 import { cn } from "#/utils/cn";
 
@@ -11,8 +11,31 @@ export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
+// Highlight a leading "Deprecated:" prefix in the destructive/red color so
+// it stands out from the rest of the description.
+const DEPRECATED_PREFIX = "Deprecated:";
+
+const renderDescription = (children: ReactNode): ReactNode => {
+	if (typeof children !== "string") {
+		return children;
+	}
+	if (!children.startsWith(DEPRECATED_PREFIX)) {
+		return children;
+	}
+	return (
+		<>
+			<span className="font-semibold text-content-destructive">
+				{DEPRECATED_PREFIX}
+			</span>
+			{children.slice(DEPRECATED_PREFIX.length)}
+		</>
+	);
+};
+
 export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
-	return <span className="text-sm font-normal">{children}</span>;
+	return (
+		<span className="text-sm font-normal">{renderDescription(children)}</span>
+	);
 };
 
 interface OptionValueProps {
