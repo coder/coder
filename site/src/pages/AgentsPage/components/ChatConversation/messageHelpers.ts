@@ -13,7 +13,6 @@ export type UserInlineRenderBlock =
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
-	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
 	hasUserMessageBody: boolean;
@@ -161,7 +160,6 @@ export const deriveMessageDisplayState = ({
 		!hasCopyableContent &&
 		(hasThinkingOnlyContent || parsed.sources.length > 0);
 	return {
-		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
 		hasUserMessageBody,

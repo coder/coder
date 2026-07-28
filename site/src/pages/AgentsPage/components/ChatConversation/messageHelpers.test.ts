@@ -327,88 +327,54 @@ describe("deriveMessageDisplayState", () => {
 
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
-
-	it("hides assistant messages with no renderable content", () => {
-		const message = buildMessage([], "assistant");
-
-		expect(getDisplayState(message).shouldHide).toBe(true);
-	});
-
-	it("hides assistant messages whose execute tool renders nothing", () => {
-		const message = buildMessage(
-			[
-				{
-					type: "tool-call",
-					tool_call_id: "tool-1",
-					tool_name: "execute",
-					args: {},
-				},
-			],
-			"assistant",
-		);
-
-		expect(getDisplayState(message).shouldHide).toBe(true);
-	});
-
-	it("keeps assistant messages visible when execute shows a real command", () => {
-		const message = buildMessage(
-			[
-				{
-					type: "tool-call",
-					tool_call_id: "tool-1",
-					tool_name: "execute",
-					args: { command: "pnpm test" },
-				},
-			],
-			"assistant",
-		);
-
-		expect(
-			getDisplayState(message, {
-				parsed: parsed({
-					tools: [
-						{
-							id: "tool-1",
-							name: "execute",
-							args: { command: "pnpm test" },
-							isError: false,
-							status: "completed",
-						},
-					],
-					blocks: [{ type: "tool", id: "tool-1" }],
-				}),
-			}).shouldHide,
-		).toBe(false);
-	});
-
-	it("hides running wait_agent messages until the chat id is available", () => {
-		const message = buildMessage([], "assistant");
-		const parsedContent: ParsedMessageContent = {
-			...parseMessageContent(message.content),
-			blocks: [{ type: "tool", id: "wait-1" }],
-			tools: [
-				{
-					id: "wait-1",
-					name: "wait_agent",
-					args: {},
-					isError: false,
-					status: "running",
-				},
-			],
-		};
-
-		expect(
-			deriveMessageDisplayState({
-				message,
-				parsed: parsedContent,
-				hideActions: false,
-				hasActiveStream: false,
-			}).shouldHide,
-		).toBe(true);
-	});
 });
 
 describe("buildDisplayMessages", () => {
+	it("drops assistant messages with no renderable content", () => {
+		const result = buildDisplayMessages([
+			entry({ messageID: 1, parsedOverrides: {} }),
+		]);
+
+		expect(result).toEqual([]);
+	});
+
+	it.each([
+		[
+			"an execute tool with no command",
+			{
+				id: "execute-1",
+				name: "execute",
+				args: {},
+				isError: false,
+				status: "completed",
+			},
+		],
+		[
+			"a wait_agent tool without a chat id",
+			{
+				id: "wait-1",
+				name: "wait_agent",
+				args: {},
+				isError: false,
+				status: "running",
+			},
+		],
+	] satisfies Array<
+		[string, MergedTool]
+	>)("drops assistant messages whose only block is %s", (_, tool) => {
+		const result = buildDisplayMessages([
+			entry({
+				messageID: 1,
+				parsedOverrides: {
+					tools: [tool],
+					blocks: [{ type: "tool", id: tool.id }],
+				},
+			}),
+		]);
+
+		expect(result).toEqual([]);
+	});
+
 	it("keeps durable tool calls visible after parser-level result merging", () => {
 		const result = buildDisplayMessages(
 			parseMessagesWithMergedTools([

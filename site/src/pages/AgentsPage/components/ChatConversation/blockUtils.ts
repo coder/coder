@@ -36,12 +36,8 @@ type TimelineBlock =
 	| { type: "tool"; tool: MergedTool }
 	| { type: "tool-group"; tools: readonly [MergedTool, ...MergedTool[]] };
 
-/**
- * Blocks carry their tool from here on, so the timeline never resolves an id
- * that might be missing. A tool-result part can create a block before its call
- * arrives: while streaming that renders as a pending tool, and once the stream
- * settles the block is dropped.
- */
+// An id with no tool means its call has not arrived: pending while streaming,
+// dropped once settled.
 export const groupSequentialReadFileBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],

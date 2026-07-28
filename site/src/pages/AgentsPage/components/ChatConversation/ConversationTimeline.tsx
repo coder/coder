@@ -511,9 +511,6 @@ const ChatMessageItem = memo<{
 			hasActiveStream,
 			isAwaitingFirstStreamChunk,
 		});
-		if (displayState.shouldHide) {
-			return null;
-		}
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -1100,16 +1097,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// per-bubble prev/next arrow buttons that jump the transcript
 		// to the neighbouring user prompt.
 		const visibleUserMessageIds: number[] = [];
-		for (const { message, parsed } of parsedMessages) {
-			if (message.role !== "user") continue;
-			const { shouldHide } = deriveMessageDisplayState({
-				message,
-				parsed,
-				hideActions: false,
-				hasActiveStream: false,
-				isAwaitingFirstStreamChunk: false,
-			});
-			if (!shouldHide) visibleUserMessageIds.push(message.id);
+		for (const { message } of displayMessages) {
+			if (message.role === "user") visibleUserMessageIds.push(message.id);
 		}
 		const userNeighborsById = new Map<
 			number,
@@ -1168,16 +1157,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				>
 					{displayMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
-							const { shouldHide } = deriveMessageDisplayState({
-								message,
-								parsed,
-								hideActions: false,
-								hasActiveStream: false,
-								isAwaitingFirstStreamChunk: false,
-							});
-							if (shouldHide) {
-								return null;
-							}
 							return (
 								<StickyUserMessage
 									key={message.id}
