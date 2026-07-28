@@ -59,8 +59,9 @@ export const putApp = (queryClient: QueryClient) => {
 			req: TypesGen.PutOAuth2ProviderAppRequest;
 		}) => API.putOAuth2ProviderApp(id, req),
 		onSuccess: async (app: TypesGen.OAuth2ProviderApp) => {
+			queryClient.setQueryData(oauth2ProviderAppKey(app.id), app);
 			await queryClient.invalidateQueries({
-				queryKey: oauth2ProviderAppKey(app.id),
+				queryKey: oauth2ProviderAppsKey,
 			});
 		},
 	};

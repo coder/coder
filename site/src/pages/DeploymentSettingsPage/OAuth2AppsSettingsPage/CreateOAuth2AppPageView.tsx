@@ -30,7 +30,7 @@ export const CreateOAuth2AppPageView: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("New OAuth2 Application")}</title>
+			<title>{pageTitle("Add an OAuth2 application")}</title>
 
 			<Button variant="subtle" asChild className="-ml-3">
 				<Link to={BACK_HREF}>
@@ -50,26 +50,28 @@ export const CreateOAuth2AppPageView: FC = () => {
 
 				<div className="border border-solid p-6 rounded-lg">
 					<OAuth2AppForm
-						onSubmit={(req) => {
-							postAppMutation.mutate(req, {
-								onSuccess: (app) => {
-									toast.success(
-										`OAuth2 application "${app.name}" created successfully.`,
-									);
-									void navigate(
-										`/deployment/oauth2-provider/apps/${app.id}?created=true`,
-									);
-								},
-								onError: (error) => {
-									toast.error(
-										getErrorMessage(
-											error,
-											`Failed to create "${req.name}" OAuth2 application.`,
-										),
-										{ description: getErrorDetail(error) },
-									);
-								},
-							});
+						onSubmit={async (req) => {
+							try {
+								const app = await postAppMutation.mutateAsync(req);
+								toast.success(
+									`OAuth2 application "${app.name}" created successfully.`,
+								);
+								// Awaited so the form's submitting state stays true through
+								// navigation, keeping the unsaved-changes prompt suppressed.
+								await navigate(
+									`/deployment/oauth2-provider/apps/${app.id}?created=true`,
+								);
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										req.name.trim()
+											? `Failed to create "${req.name}" OAuth2 application.`
+											: "Failed to create OAuth2 application.",
+									),
+									{ description: getErrorDetail(error) },
+								);
+							}
 						}}
 						isUpdating={postAppMutation.isPending}
 						error={postAppMutation.error}

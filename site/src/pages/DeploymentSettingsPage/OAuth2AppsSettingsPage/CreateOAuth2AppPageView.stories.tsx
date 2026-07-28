@@ -80,7 +80,7 @@ export const InvalidName: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const nameInput = await canvas.findByLabelText(/^name/i);
-		await userEvent.type(nameInput, "Foo Application");
+		await userEvent.type(nameInput, "Foo@Application");
 		await userEvent.tab();
 		await expect(
 			await canvas.findByText(

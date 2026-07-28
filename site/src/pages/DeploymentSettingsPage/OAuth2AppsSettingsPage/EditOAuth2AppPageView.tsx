@@ -72,7 +72,7 @@ export const EditOAuth2AppPageView: FC = () => {
 
 	const app = appQuery.data;
 	const title = (
-		<title>{pageTitle(app?.name ?? "Loading...", "OAuth2 Applications")}</title>
+		<title>{pageTitle(app?.name ?? "Loading...", "OAuth2 applications")}</title>
 	);
 
 	if (!appId) {
@@ -180,30 +180,29 @@ export const EditOAuth2AppPageView: FC = () => {
 					<ErrorAlert error={secretsQuery.error} />
 				) : undefined}
 
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
+					<h2 className="m-0 text-xl font-semibold">Settings</h2>
 					<OAuth2AppForm
 						key={app.id}
 						app={app}
-						onSubmit={(req) => {
-							putAppMutation.mutate(
-								{ id: appId, req },
-								{
-									onSuccess: (updated) => {
-										toast.success(
-											`Successfully updated the OAuth2 application "${updated.name}".`,
-										);
-									},
-									onError: (error) => {
-										toast.error(
-											getErrorMessage(
-												error,
-												`Failed to update "${req.name}" OAuth2 application.`,
-											),
-											{ description: getErrorDetail(error) },
-										);
-									},
-								},
-							);
+						onSubmit={async (req) => {
+							try {
+								const updated = await putAppMutation.mutateAsync({
+									id: appId,
+									req,
+								});
+								toast.success(
+									`Successfully updated the OAuth2 application "${updated.name}".`,
+								);
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										`Failed to update "${req.name}" OAuth2 application.`,
+									),
+									{ description: getErrorDetail(error) },
+								);
+							}
 						}}
 						isUpdating={putAppMutation.isPending}
 						error={putAppMutation.error}
@@ -213,6 +212,7 @@ export const EditOAuth2AppPageView: FC = () => {
 				</div>
 
 				<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
+					<h2 className="m-0 text-xl font-semibold">Endpoints</h2>
 					<div className="flex flex-col gap-2">
 						<Label>Client ID</Label>
 						<CodeExample secret={false} code={app.id} />
@@ -263,11 +263,11 @@ export const EditOAuth2AppPageView: FC = () => {
 							<TableHeader>
 								<TableRow>
 									<TableHead className="w-[80%]">Secret</TableHead>
-									<TableHead className="w-[20%]">Last Used</TableHead>
+									<TableHead className="w-[20%]">Last used</TableHead>
 									<TableHead className="w-[1%]" />
 								</TableRow>
 							</TableHeader>
-							<TableBody>
+							<TableBody size="lg">
 								{secretsQuery.isLoading && <TableLoader />}
 								{!secretsQuery.isLoading &&
 									!secretsQuery.error &&
@@ -386,7 +386,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 		<TableRow data-testid={`secret-${secret.id}`}>
 			<TableCell>*****{secret.client_secret_truncated}</TableCell>
 			<TableCell data-pixel="ignore">
-				{secret.last_used_at ? createDayString(secret.last_used_at) : "never"}
+				{secret.last_used_at ? createDayString(secret.last_used_at) : "Never"}
 			</TableCell>
 			<TableCell>
 				<ConfirmDialog
@@ -410,7 +410,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 					}
 				/>
 				<Button variant="destructive" onClick={() => setShowDelete(true)}>
-					Delete&hellip;
+					Delete secret
 				</Button>
 			</TableCell>
 		</TableRow>

@@ -4825,13 +4825,13 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
-		callback_url: "http://localhost:3001",
+		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		endpoints: {
-			authorization: "http://localhost:3001/oauth2/authorize",
-			token: "http://localhost:3001/oauth2/token",
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
 			device_authorization: "",
-			token_revoke: "http://localhost:3001/oauth2/revoke",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
 		},
 	},
 ];
@@ -4844,9 +4844,9 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 			last_used_at: null,
 		},
 		{
-			id: "1",
+			id: "2",
 			last_used_at: "2022-12-16T20:10:45.637452Z",
-			client_secret_truncated: "foo",
+			client_secret_truncated: "bar",
 		},
 	];
 

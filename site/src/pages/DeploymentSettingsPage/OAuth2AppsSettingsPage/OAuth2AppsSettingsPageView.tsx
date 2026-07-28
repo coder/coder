@@ -30,6 +30,15 @@ type OAuth2AppsSettingsProps = {
 	canCreateApp: boolean;
 };
 
+const AddApplicationButton: FC = () => (
+	<Button variant="outline" asChild>
+		<Link to="/deployment/oauth2-provider/apps/add">
+			<PlusIcon />
+			<span>Add application</span>
+		</Link>
+	</Button>
+);
+
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
 	isLoading,
@@ -37,61 +46,47 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	canCreateApp,
 }) => {
 	return (
-		<>
-			<div className="flex flex-row gap-4 items-baseline justify-between">
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Configure applications to use Coder as an OAuth2 provider.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+		<div>
+			<SettingsHeader
+				actions={canCreateApp ? <AddApplicationButton /> : undefined}
+			>
+				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure applications to use Coder as an OAuth2 provider.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
+			{Boolean(error) && (
+				<div className="mb-4">
+					<ErrorAlert error={error} />
 				</div>
-
-				{canCreateApp && (
-					<Button variant="outline" asChild>
-						<Link to="/deployment/oauth2-provider/apps/add">
-							<PlusIcon />
-							Add application
-						</Link>
-					</Button>
-				)}
-			</div>
-
-			{error ? <ErrorAlert error={error} /> : undefined}
+			)}
 
 			<Table className="table-fixed" aria-label="OAuth2 applications">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
-						<TableHead className="w-1/2">Callback URL</TableHead>
+						<TableHead className="w-1/3">Callback URL</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open</span>
 						</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody size="lg">
-					{isLoading && <TableLoader />}
-					{!isLoading && (!apps || apps.length === 0) && (
+					{isLoading ? (
+						<TableLoader />
+					) : !error && (!apps || apps.length === 0) ? (
 						<TableEmpty
-							message="No OAuth2 applications have been configured."
-							cta={
-								canCreateApp ? (
-									<Button variant="outline" asChild>
-										<Link to="/deployment/oauth2-provider/apps/add">
-											<PlusIcon />
-											Add application
-										</Link>
-									</Button>
-								) : undefined
-							}
+							message="No OAuth2 applications configured"
+							description="Add an application to use Coder as an OAuth2 provider."
+							cta={canCreateApp ? <AddApplicationButton /> : undefined}
 						/>
+					) : (
+						apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)
 					)}
-					{!isLoading &&
-						apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)}
 				</TableBody>
 			</Table>
-		</>
+		</div>
 	);
 };
 

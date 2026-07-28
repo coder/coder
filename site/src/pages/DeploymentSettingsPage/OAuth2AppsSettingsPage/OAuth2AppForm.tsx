@@ -1,15 +1,21 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { TriangleAlertIcon } from "lucide-react";
+import { type FC, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import {
 	getFormHelpers,
+	iconValidator,
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
@@ -22,7 +28,7 @@ type OAuth2AppFormValues = {
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: OAuth2AppFormValues) => void;
+	onSubmit: (data: OAuth2AppFormValues) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
 	defaultValues?: OAuth2AppFormValues;
@@ -32,13 +38,27 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
+const isHttpUrl = (value: string | undefined): boolean => {
+	if (!value) {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return url.protocol === "http:" || url.protocol === "https:";
+	} catch {
+		return false;
+	}
+};
+
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
-		.url("Callback URL must be a valid URL."),
-	icon: Yup.string(),
+		.test("http-url", "Callback URL must be a valid URL.", (value) =>
+			isHttpUrl(value),
+		),
+	icon: iconValidator,
 });
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
@@ -50,6 +70,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	disabled,
 	onIconChange,
 }) => {
+	const didSubmit = useRef(false);
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
@@ -58,8 +79,9 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		},
 		validationSchema,
 		validateOnMount: true,
-		onSubmit: (values) => {
-			onSubmit(values);
+		onSubmit: async (values) => {
+			didSubmit.current = true;
+			await onSubmit(values);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
@@ -69,9 +91,28 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
 
+	// When the parent's mutation finishes without an error, treat the just-
+	// submitted values as the new baseline so the unsaved-changes prompt does
+	// not fire on subsequent navigations.
+	const previousIsUpdating = useRef(isUpdating);
+	useEffect(() => {
+		if (previousIsUpdating.current && !isUpdating) {
+			if (didSubmit.current && !error) {
+				form.resetForm({ values: form.values });
+			}
+			didSubmit.current = false;
+		}
+		previousIsUpdating.current = isUpdating;
+	}, [isUpdating, error, form]);
+
+	const unsavedChanges = useUnsavedChangesPrompt(
+		form.dirty && !form.isSubmitting,
+	);
+
 	return (
-		<form onSubmit={form.handleSubmit}>
-			<div className="flex flex-col gap-5">
+		<Form onSubmit={form.handleSubmit}>
+			<FormFields>
+				{Boolean(error) && <ErrorAlert error={error} />}
 				<FormField
 					field={getFieldHelpers("name")}
 					label="Name"
@@ -125,7 +166,24 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						{app ? "Update application" : "Create application"}
 					</Button>
 				</div>
-			</div>
-		</form>
+			</FormFields>
+			<ConfirmDialog
+				type="info"
+				hideCancel={false}
+				open={unsavedChanges.isOpen}
+				onClose={unsavedChanges.onCancel}
+				onConfirm={unsavedChanges.onConfirm}
+				title="Unsaved changes"
+				confirmText="Confirm"
+				description={
+					<div className="flex items-start gap-3">
+						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
+						<p className="m-0">
+							Your updates haven't been saved. Leave anyway?
+						</p>
+					</div>
+				}
+			/>
+		</Form>
 	);
 };
