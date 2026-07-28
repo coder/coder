@@ -116,10 +116,16 @@ none, if the template does not define any).
 
 ### Spend management
 
-Administrators can set spend limits to cap LLM usage per user within a rolling
-time period, with per-user and per-group overrides. The cost tracking dashboard
-provides visibility into per-user spending, token consumption, and per-model
-breakdowns.
+AI Gateway budgets cap each user's AI spend, including Coder Agents chats,
+over a monthly period. Budgets are set per group, and a deployment policy
+resolves which one applies when a user belongs to several budgeted groups. A
+per-user override takes priority over group budgets. The cost tracking
+dashboard provides visibility into per-user spending, token consumption, and
+per-model breakdowns.
+
+Budgets require the `ai-gateway-cost-control` experiment and a license that
+includes AI Gateway. They are the only spend cap for Coder Agents chats;
+chats no longer enforce a separate limit of their own.
 
 See [Spend Management](./usage-insights.md) for details.
 
@@ -159,7 +165,7 @@ For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-d
 ## Where we are headed
 
 The controls above cover providers, models, system prompts, templates, MCP
-servers, usage limits, and data retention. We are continuing to invest in platform controls
+servers, AI Gateway budgets, and data retention. We are continuing to invest in platform controls
 based on what we hear from customers deploying agents in regulated and
 enterprise environments.
 

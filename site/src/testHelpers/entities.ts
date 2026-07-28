@@ -3381,7 +3381,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
-	viewAnyAIBridgeInterception: true,
+	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
 	viewAIGatewayKeys: false,
 	createOAuth2App: false,

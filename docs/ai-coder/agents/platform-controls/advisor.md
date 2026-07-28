@@ -40,8 +40,7 @@ Once the experiment is enabled, configure the advisor under **AI Settings** >
 | Reasoning effort  | Model default        | Overrides the selected advisor model's reasoning effort. Available only when the model supports selectable effort.      |
 
 The advisor is not available in plan mode or to subagents. Failed advisor
-invocations refund the per-turn budget, and advisor calls are not metered
-against the root chat's usage limit.
+invocations refund the per-turn budget.
 
 The same configuration is available at:
 

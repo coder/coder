@@ -40,24 +40,25 @@ export const EmptyConversationPrompt: Story = {
 	},
 };
 
-/** Usage-limit failures replace the idle prompt with the analytics CTA. */
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "usage_limit",
-				message:
-					"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+				message: "Your AI spend budget has been reached.",
 			},
 		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
+		expect(
+			canvas.getByRole("heading", { name: /usage limit reached/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/ai spend budget has been reached/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

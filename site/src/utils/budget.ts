@@ -1,4 +1,19 @@
+import dayjs from "dayjs";
+
 export type UsageSeverity = "normal" | "warning" | "exceeded";
+
+/**
+ * Formats an AI budget window, e.g. "June 1 - July 1, 2026". Uses local time
+ * and renders the exclusive period_end as-is.
+ */
+export function formatSpendPeriodLabel(
+	periodStart: string,
+	periodEnd: string,
+): string {
+	const start = dayjs(periodStart).format("MMMM D");
+	const end = dayjs(periodEnd).format("MMMM D, YYYY");
+	return `${start} - ${end}`;
+}
 
 /**
  * Classifies usage against a budget. Returns "warning" once usage reaches 85%

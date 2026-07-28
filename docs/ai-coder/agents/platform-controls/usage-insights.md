@@ -1,55 +1,43 @@
 # Spend Management
 
 Coder provides admin-only controls for monitoring and controlling agent
-spend: usage limits and cost tracking.
+spend: AI Gateway budgets and cost tracking.
 
-## Usage limits
+## Budgets
 
-Navigate to **Agents** > **Settings** > **Manage Agents** > **Spend**.
+Coder Agents spend is controlled by AI Gateway budgets, which cap all AI
+Gateway usage (including Coder Agents chats) per user over the budget
+period.
 
-Usage limits cap how much each user can spend on LLM usage within a rolling
-time period. When enabled, the system checks the user's current spend before
-processing each chat message.
+- **Group budgets**: set a budget for a group from the group's settings
+  page. The deployment budget policy resolves which group budget applies
+  when a user belongs to multiple budgeted groups.
+- **Per-user overrides**: set a custom budget for an individual user,
+  attributed to one of their groups. Takes priority over group budgets.
 
-### Configuration
+Budgets always reset monthly. A user who belongs to no budgeted group falls
+back to the Everyone group, which has no budget unless one is set for it.
+There is no deployment-wide budget amount.
 
-- **Enable/disable toggle** — master on/off for the entire limit system.
-- **Period** — `day`, `week`, or `month`. Periods are UTC-aligned: midnight
-  UTC for daily, Monday start for weekly, first of the month for monthly.
-- **Default limit** — deployment-wide default in dollars. Applies to all
-  users who do not have a more specific override. Leave unset for no limit.
-- **Per-user overrides** — set a custom dollar limit for an individual user.
-  Takes highest priority.
-- **Per-group overrides** — set a limit for a group. When a user belongs to
-  multiple groups, the lowest group limit applies.
-
-### Priority hierarchy
-
-The system resolves a user's effective limit in this order:
-
-1. Individual user override (highest priority)
-1. Minimum group limit across all of the user's groups
-1. Global default limit
-1. No limit (if limits are disabled or no value is configured)
+> [!IMPORTANT]
+> Budgets require the `ai-gateway-cost-control` experiment and a license
+> that includes AI Gateway. Without the experiment the group budget controls
+> are hidden and the budget endpoints respond that the experiment must be
+> enabled, so no budget can be configured, and no spend is capped.
 
 ### Enforcement
 
-- Checked before each chat message is processed.
-- When current spend meets or exceeds the limit, the chat returns a
-  **409 Conflict** response and the message is blocked.
-- Fail-open: if the limit query itself fails, the message is allowed
-  through.
-- Brief overage is possible when concurrent messages are in flight, because
-  cost is determined only after the LLM returns.
+- The AI Gateway checks the user's current spend before forwarding each
+  request. When spend meets or exceeds the budget, the request is rejected
+  and the chat shows a terminal error explaining that the budget was
+  exceeded.
+- Brief overage is possible when concurrent requests are in flight, because
+  cost is recorded after the LLM responds.
 
 ### User-facing status
 
-Users can view their own spend status, including whether a limit is active,
-their effective limit, current spend, and when the current period resets.
-
-> [!NOTE]
-> The admin configuration page shows the count of models without pricing
-> data. Models missing pricing cannot be tracked accurately against limits.
+When a budget applies, users see their current AI spend, the budget, and
+the period reset date in the usage indicator on the Agents page.
 
 ## Cost tracking
 
@@ -78,13 +66,10 @@ name or username, and pagination.
 
 Select a user to see:
 
-- **Summary cards** — total cost, token breakdowns, and message counts.
-- **Usage limit progress** — if a limit is active, a color-coded progress
-  bar shows current spend relative to the limit.
-- **Per-model breakdown** — table of costs and token usage by model.
-- **Per-chat breakdown** — table of costs and token usage by chat session.
+- **Summary cards**: total cost, token breakdowns, and message counts.
+- **Per-model breakdown**: table of costs and token usage by model.
+- **Per-chat breakdown**: table of costs and token usage by chat session.
 
 > [!NOTE]
-> Automatic title generation uses lightweight models, such as Claude Haiku or GPT-4o
-> Mini. Its token usage is not counted towards usage limits or shown in usage
-> summaries.
+> Automatic title generation uses lightweight models, such as Claude Haiku or
+> GPT-4o Mini. Its token usage is not shown in usage summaries.
