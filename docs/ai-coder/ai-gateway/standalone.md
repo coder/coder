@@ -1,5 +1,10 @@
 # Deploy AI Gateway as a standalone service
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 When AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can deploy AI Gateway separately from the Coder control plane (`coderd`).
 
 A standalone AI Gateway serves client traffic on its own listener and maintains a control connection to `coderd`.
@@ -49,6 +54,9 @@ coder ai-gateway start
 Use `CODER_AI_GATEWAY_KEY_FILE` instead of `CODER_AI_GATEWAY_KEY` to read the key from a file.
 The standalone process does not require a user login or `CODER_SESSION_TOKEN` after you provide the Gateway key.
 
+The listener defaults to `127.0.0.1:4001`, which accepts connections only from the local host.
+Set `CODER_AI_GATEWAY_HTTP_ADDRESS` to a routable address, as shown above, before other hosts or pods can reach the Gateway.
+
 The standalone Gateway fetches provider configuration from `coderd`.
 Configure at least one [AI provider](./providers.md) in Coder before sending provider traffic through the Gateway.
 The standalone Gateway does not use the deprecated [provider seed variables](./providers.md#database-management-of-providers).
@@ -61,7 +69,7 @@ For all command options, refer to [`coder ai-gateway start`](../../reference/cli
 
 To run the standalone Gateway as a Kubernetes workload, provide the same environment variables and network access to the Coder URL.
 You can manage the workload with your own Kubernetes manifests or use the provided Helm chart.
-The chart configures the Deployment, probes, Service, and Ingress.
+The chart configures the Deployment, probes, and Service, plus an optional Ingress or `HTTPRoute`.
 
 To use the Kubernetes examples, install `kubectl` and configure access to the cluster where AI Gateway will run.
 Install Helm if you use the chart.
@@ -91,11 +99,12 @@ aigateway:
 ```
 
 The Gateway must be able to reach the Coder URL from every replica.
-For an HTTPS URL signed by a private CA, configure `aigateway.coderTLS.caSecret`.
-If Coder requires client mTLS, also configure `aigateway.coderTLS.clientSecret`.
+For an HTTPS URL signed by a private CA, set `aigateway.coderTLS.caSecret.name` to the Secret holding the CA bundle.
+If Coder requires client mTLS, also set `aigateway.coderTLS.clientSecret.name`.
 
 The chart defaults to one replica, a `ClusterIP` Service, and a data-plane listener on port 4001.
 It also enables a separate Prometheus listener on port 2112.
+Ingress and `HTTPRoute` are disabled by default.
 
 For the complete chart configuration, including private CAs, mTLS, Ingress, Kubernetes Gateway API, and additional manifests, refer to the [AI Gateway Helm chart README](../../../helm/ai-gateway/README.md).
 
@@ -108,8 +117,10 @@ helm install ai-gateway \
   oci://ghcr.io/coder/chart/coder-ai-gateway \
   --namespace coder-ai-gateway \
   --values ai-gateway-values.yaml \
-  --version '<Coder version>'
+  --version '<chart version>'
 ```
+
+Chart versions omit the leading `v`, so use `2.36.0` rather than `v2.36.0`.
 
 When you install the chart directly from a Git checkout, set `coder.image.tag` explicitly and install `./helm/ai-gateway`.
 Released chart packages select the matching Coder image by default.
@@ -151,6 +162,8 @@ curl --fail http://127.0.0.1:4001/healthz
 curl --fail http://127.0.0.1:4001/readyz
 ```
 
+Both endpoints return HTTP 200 with an empty body when the replica is serving and ready.
+
 List Gateway keys and verify that the key has a recent heartbeat:
 
 ```sh
@@ -159,6 +172,8 @@ coder ai-gateway keys list
 
 The first heartbeat is recorded when the replica connects.
 Active sessions update the timestamp every 60 seconds.
+Coder stores one timestamp per key, so a recent heartbeat on a shared key does not confirm that every replica is connected.
+Check `/readyz` on each replica to verify individual health.
 
 ## Route traffic to the standalone Gateway
 
