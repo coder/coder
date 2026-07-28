@@ -131,17 +131,6 @@ export const formatShellDurationMs = (
 export const normalizeStatus = (status: string): string =>
 	status.trim().toLowerCase();
 
-/**
- * Folds a failure the tool reports in-band (an `error` field or
- * `success: false` in the result body) into its status. A running call stays
- * running: only the advisor streams a partial result body, so a mid-stream
- * body that parses as a failure is noise rather than a verdict.
- */
-export const foldResultFailure = (
-	status: ToolStatus,
-	failedInResult: boolean,
-): ToolStatus => (status === "running" || !failedInResult ? status : "error");
-
 export const isSubagentSuccessStatus = (status: string): boolean => {
 	switch (normalizeStatus(status)) {
 		case "completed":

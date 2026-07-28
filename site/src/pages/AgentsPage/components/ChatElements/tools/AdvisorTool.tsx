@@ -12,7 +12,6 @@ export type AdvisorToolResultType = "advice" | "limit_reached" | "error";
 type AdvisorToolProps = {
 	question: string;
 	status: ToolStatus;
-	/** A body-typed error is folded into `status`, so it never arrives here. */
 	resultType?: Exclude<AdvisorToolResultType, "error">;
 	advice?: string;
 	errorMessage?: string;

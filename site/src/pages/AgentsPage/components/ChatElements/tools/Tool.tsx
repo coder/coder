@@ -40,7 +40,6 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
-	foldResultFailure,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -373,7 +372,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
-			status={foldResultFailure(status, Boolean(rec?.error))}
+			status={rec?.error ? "error" : status}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
@@ -663,7 +662,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
 	return (
 		<AdvisorTool
 			question={question}
-			status={foldResultFailure(status, resolvedResultType === "error")}
+			status={resolvedResultType === "error" ? "error" : status}
 			resultType={
 				resolvedResultType === "error" ? undefined : resolvedResultType
 			}
@@ -901,7 +900,7 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	return (
 		<GenericToolRenderer
 			{...props}
-			status={foldResultFailure(props.status, rec !== null && !rec.success)}
+			status={rec !== null && !rec.success ? "error" : props.status}
 		/>
 	);
 };
@@ -915,7 +914,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 
 	return (
 		<StartWorkspaceTool
-			status={foldResultFailure(status, Boolean(rec?.error))}
+			status={rec?.error ? "error" : status}
 			buildId={buildId}
 			workspaceName={wsName}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}

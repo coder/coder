@@ -7,7 +7,6 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
-	foldResultFailure,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
@@ -116,22 +115,6 @@ describe("normalizeStatus", () => {
 
 	it("handles empty string", () => {
 		expect(normalizeStatus("")).toBe("");
-	});
-});
-
-describe("foldResultFailure", () => {
-	it("promotes a completed call whose result body failed", () => {
-		expect(foldResultFailure("completed", true)).toBe("error");
-	});
-
-	it("leaves a running call running even when the body already failed", () => {
-		expect(foldResultFailure("running", true)).toBe("running");
-	});
-
-	it("passes the status through when the result body did not fail", () => {
-		expect(foldResultFailure("completed", false)).toBe("completed");
-		expect(foldResultFailure("running", false)).toBe("running");
-		expect(foldResultFailure("error", false)).toBe("error");
 	});
 });
 
