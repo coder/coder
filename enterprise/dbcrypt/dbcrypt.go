@@ -713,8 +713,8 @@ func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (da
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
-	cfg, err := db.Store.GetMCPServerConfigBySlug(ctx, slug)
+func (db *dbCrypt) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -750,6 +750,19 @@ func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID
 	return cfgs, nil
 }
 
+func (db *dbCrypt) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg database.GetMCPServerConfigsByIDsAndOrganizationsParams) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigsByIDsAndOrganizations(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cfgs {
+		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cfgs, nil
+}
+
 func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx)
 	if err != nil {
@@ -765,6 +778,19 @@ func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.M
 
 func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	cfgs, err := db.Store.GetForcedMCPServerConfigs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cfgs {
+		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cfgs, nil
+}
+
+func (db *dbCrypt) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}

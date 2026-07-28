@@ -961,15 +961,26 @@ func TestMCPServerConfigs(t *testing.T) {
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetMCPServerConfigBySlug", func(t *testing.T) {
+	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		got, err := crypt.GetMCPServerConfigBySlug(ctx, cfg.Slug)
+		got, err := crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: cfg.OrganizationID,
+			Slug:           cfg.Slug,
+		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+
+		// The slug is only unique per organization: the same slug in
+		// another organization must not resolve.
+		_, err = crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: uuid.New(),
+			Slug:           cfg.Slug,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
 	t.Run("GetMCPServerConfigs", func(t *testing.T) {

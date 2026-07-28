@@ -795,6 +795,11 @@ var (
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
+					// TODO(mafredri): remove after CODAGT-711 B3
+					// (org-scoping cutover). The chat-org-then-default-org
+					// fallback for MCP server configs resolves the default
+					// organization under the chatd subject.
+					rbac.ResourceOrganization.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -3826,6 +3831,13 @@ func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCP
 	return q.db.GetForcedMCPServerConfigs(ctx)
 }
 
+func (q *querier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -4020,11 +4032,11 @@ func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (dat
 	return q.db.GetMCPServerConfigByID(ctx, id)
 }
 
-func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+func (q *querier) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
 	}
-	return q.db.GetMCPServerConfigBySlug(ctx, slug)
+	return q.db.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
 }
 
 func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
@@ -4039,6 +4051,13 @@ func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID)
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+}
+
+func (q *querier) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg database.GetMCPServerConfigsByIDsAndOrganizationsParams) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetMCPServerConfigsByIDsAndOrganizations(ctx, arg)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

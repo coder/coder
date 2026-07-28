@@ -6,13 +6,14 @@ FROM
 WHERE
     id = @id::uuid;
 
--- name: GetMCPServerConfigBySlug :one
+-- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    slug = @slug::text;
+    organization_id = @organization_id::uuid
+    AND slug = @slug::text;
 
 -- name: GetMCPServerConfigs :many
 SELECT
@@ -42,6 +43,17 @@ WHERE
 ORDER BY
     display_name ASC;
 
+-- name: GetMCPServerConfigsByIDsAndOrganizations :many
+SELECT
+    *
+FROM
+    mcp_server_configs
+WHERE
+    id = ANY(@ids::uuid[])
+    AND organization_id = ANY(@organization_ids::uuid[])
+ORDER BY
+    display_name ASC;
+
 -- name: GetForcedMCPServerConfigs :many
 SELECT
     *
@@ -53,8 +65,21 @@ WHERE
 ORDER BY
     display_name ASC;
 
+-- name: GetForcedMCPServerConfigsByOrganization :many
+SELECT
+    *
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
+    AND availability = 'force_on'
+ORDER BY
+    display_name ASC;
+
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    organization_id,
     display_name,
     slug,
     description,
@@ -84,6 +109,7 @@ INSERT INTO mcp_server_configs (
     created_by,
     updated_by
 ) VALUES (
+    @organization_id::uuid,
     @display_name::text,
     @slug::text,
     @description::text,
