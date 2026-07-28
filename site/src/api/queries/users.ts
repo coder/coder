@@ -217,7 +217,8 @@ export const saveUserAIBudgetOverride = (
 					queryKey: getUserAIBudgetOverrideQueryKey(userId),
 				}),
 				queryClient.invalidateQueries({
-					predicate: (query) => isGroupMembersAISpendQueryKey(query.queryKey),
+					predicate: (query) =>
+						isGroupMembersAISpendQueryKey(query.queryKey, userId),
 				}),
 			]);
 		},
@@ -236,7 +237,8 @@ export const deleteUserAIBudgetOverride = (
 					queryKey: getUserAIBudgetOverrideQueryKey(userId),
 				}),
 				queryClient.invalidateQueries({
-					predicate: (query) => isGroupMembersAISpendQueryKey(query.queryKey),
+					predicate: (query) =>
+						isGroupMembersAISpendQueryKey(query.queryKey, userId),
 				}),
 			]);
 		},
