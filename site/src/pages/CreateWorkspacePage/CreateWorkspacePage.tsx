@@ -98,7 +98,10 @@ const CreateWorkspacePage: FC = () => {
 		}),
 		enabled: Boolean(templateQuery.data),
 	});
-	const canCreateWorkspace = Boolean(
+	// Scoped to the template's organization and to workspaces owned by the
+	// current user; holding workspace-create permission in other organizations
+	// does not grant access here.
+	const canCreateWorkspaceInOrg = Boolean(
 		permissionsQuery.data?.createWorkspaceForUserID,
 	);
 
@@ -319,14 +322,14 @@ const CreateWorkspacePage: FC = () => {
 
 	let autoCreateReady =
 		mode === "auto" &&
-		canCreateWorkspace &&
+		canCreateWorkspaceInOrg &&
 		hasAllRequiredExternalAuth &&
 		autoCreateConsented &&
 		presetResolved;
 
 	const showAutoCreateConsent =
 		mode === "auto" &&
-		canCreateWorkspace &&
+		canCreateWorkspaceInOrg &&
 		!autoCreateConsented &&
 		!autoCreateError &&
 		presetResolved;
@@ -425,7 +428,7 @@ const CreateWorkspacePage: FC = () => {
 			) : shouldShowLoader ? (
 				<Loader />
 			) : (
-				<RequirePermission isFeatureVisible={canCreateWorkspace}>
+				<RequirePermission isFeatureVisible={canCreateWorkspaceInOrg}>
 					<CreateWorkspacePageView
 						mode={mode}
 						defaultName={defaultName}
