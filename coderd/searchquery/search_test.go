@@ -1707,3 +1707,78 @@ func TestSearchChats(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchGroups(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              string
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: "",
+		},
+		{
+			Name:     "SingleWord",
+			Query:    "alpha",
+			Expected: "alpha",
+		},
+		{
+			// Groups support free-text search, so an unquoted multi-word query
+			// is joined into a single search value instead of being rejected as
+			// a duplicate param.
+			Name:     "MultiWord",
+			Query:    "front end",
+			Expected: "front end",
+		},
+		{
+			Name:     "CaseInsensitive",
+			Query:    "AlPhA",
+			Expected: "alpha",
+		},
+		{
+			Name:     "MultiWordCaseInsensitive",
+			Query:    "Front End",
+			Expected: "front end",
+		},
+		{
+			Name:     "TrimsSurroundingSpaces",
+			Query:    "   alpha   ",
+			Expected: "alpha",
+		},
+		{
+			// Structured key:value queries are not supported for groups; the
+			// unrecognized key surfaces as an invalid query param.
+			Name:                  "StructuredKeyValueRejected",
+			Query:                 "name:alpha",
+			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			Name:                  "ExtraColon",
+			Query:                 "a:b:c",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			search, errs := searchquery.Groups(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, search, "expected search value")
+			}
+		})
+	}
+}

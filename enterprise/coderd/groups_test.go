@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -1233,4 +1234,194 @@ func TestGetGroupMembersPagination(t *testing.T) {
 		return group.Users, group.Count
 	}
 	coderdtest.UsersPagination(ctx, t, client, setup, fetch)
+}
+
+func TestPaginatedGroups(t *testing.T) {
+	t.Parallel()
+
+	client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureTemplateRBAC: 1,
+		},
+	}})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create a deterministic set of groups. Names include mixed case, a pair
+	// that differs only by case, and one group with a distinct display name so
+	// ordering (LOWER(name)), the groups.id tiebreaker, and display-name search
+	// are all exercised. The org's implicit "Everyone" group also exists, so
+	// account for it in the expected counts.
+	type groupSpec struct {
+		name        string
+		displayName string
+	}
+	specs := []groupSpec{
+		{name: "alpha"},
+		{name: "Bravo"},
+		{name: "charlie"},
+		{name: "Delta"},
+		{name: "echo"},
+		// "Dev" and "dev" collide once lowercased, forcing the groups.id
+		// tiebreaker to produce a deterministic order.
+		{name: "Dev"},
+		{name: "dev"},
+		{name: "zeta", displayName: "Frontend Squad"},
+	}
+	for _, spec := range specs {
+		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:        spec.name,
+			DisplayName: spec.displayName,
+		})
+		require.NoError(t, err)
+	}
+
+	// The org's implicit "Everyone" group is included in the paginated results.
+	totalGroups := len(specs) + 1
+
+	// Add a known member to the "alpha" group so member hydration can be
+	// asserted below.
+	_, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	alpha, err := userAdminClient.GroupByOrgAndName(ctx, user.OrganizationID, "alpha")
+	require.NoError(t, err)
+	_, err = userAdminClient.PatchGroup(ctx, alpha.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{member.ID.String()},
+	})
+	require.NoError(t, err)
+
+	t.Run("AllGroups", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{})
+		require.NoError(t, err)
+		require.Equal(t, totalGroups, resp.Count)
+		require.Len(t, resp.Groups, totalGroups)
+
+		// Verify deterministic ordering: lower(name) ascending, with ties
+		// broken by groups.id ascending. uuid string comparison matches
+		// Postgres' byte-wise uuid ordering.
+		for i := 1; i < len(resp.Groups); i++ {
+			prev, cur := resp.Groups[i-1], resp.Groups[i]
+			prevName, curName := strings.ToLower(prev.Name), strings.ToLower(cur.Name)
+			if prevName == curName {
+				require.Less(t, prev.ID.String(), cur.ID.String(),
+					"groups with equal lowercased names must be ordered by id")
+			} else {
+				require.Less(t, prevName, curName,
+					"groups must be ordered by lowercased name")
+			}
+		}
+	})
+
+	t.Run("MemberHydration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The handler enriches each page group with its members and total
+		// count. Assert both so removing that logic would fail the test.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "alpha",
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "alpha", resp.Groups[0].Name)
+		require.Equal(t, 1, resp.Groups[0].TotalMemberCount)
+		require.Len(t, resp.Groups[0].Members, 1)
+		require.Equal(t, member.ID, resp.Groups[0].Members[0].ID)
+	})
+
+	t.Run("Search", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "alpha",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "alpha", resp.Groups[0].Name)
+	})
+
+	t.Run("SearchNoResults", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "does-not-exist",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, resp.Count)
+		require.Empty(t, resp.Groups)
+	})
+
+	t.Run("SearchSubstring", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A substring of the name matches, not just a prefix.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "harl",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "charlie", resp.Groups[0].Name)
+	})
+
+	t.Run("SearchCaseInsensitive", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// An uppercase query matches both "Dev" and "dev" case-insensitively.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "DEV",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 2, resp.Count)
+		require.Len(t, resp.Groups, 2)
+		for _, g := range resp.Groups {
+			require.Equal(t, "dev", strings.ToLower(g.Name))
+		}
+		// The case-only collision is ordered deterministically by id.
+		require.Less(t, resp.Groups[0].ID.String(), resp.Groups[1].ID.String())
+	})
+
+	t.Run("SearchDisplayName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Search matches the display name, not just the name.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "squad",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "zeta", resp.Groups[0].Name)
+	})
+
+	t.Run("PageBoundaries", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Page through the results two at a time and ensure the union covers
+		// every group exactly once, with a stable Count on each page.
+		seen := make(map[string]struct{})
+		for offset := 0; offset < totalGroups; offset += 2 {
+			resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+				Pagination: codersdk.Pagination{Limit: 2, Offset: offset},
+			})
+			require.NoError(t, err)
+			require.Equal(t, totalGroups, resp.Count)
+			require.LessOrEqual(t, len(resp.Groups), 2)
+			for _, g := range resp.Groups {
+				_, dup := seen[g.Name]
+				require.False(t, dup, "group %q appeared on more than one page", g.Name)
+				seen[g.Name] = struct{}{}
+			}
+		}
+		require.Len(t, seen, totalGroups)
+	})
 }

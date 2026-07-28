@@ -1280,6 +1280,7 @@ type sqlcQuerier interface {
 	//  - Use just 'user_id' to get all orgs a user is a member of
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
+	PaginatedOrganizationGroups(ctx context.Context, arg PaginatedOrganizationGroupsParams) ([]PaginatedOrganizationGroupsRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
 	// Under READ COMMITTED, concurrent pin operations for the same
 	// owner may momentarily produce duplicate pin_order values because

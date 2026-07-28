@@ -174,6 +174,30 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+func Groups(query string) (string, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Groups support free-text search only, so join bare terms into a
+		// single search value. Adding each term separately would make a
+		// multi-word query like "front end" look like a duplicate param and
+		// return a 400 instead of matching the name/display name substring.
+		if existing := values.Get("search"); existing != "" {
+			term = existing + " " + term
+		}
+		values.Set("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return "", errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	search := parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return search, parser.Errors
+}
+
 func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
 	query = strings.TrimSpace(query)
 	if query == "" {

@@ -2234,6 +2234,76 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get groups by organization (paginated)
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginated-groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/paginated-groups`
+
+### Parameters
+
+| Name           | In    | Type    | Required | Description             |
+|----------------|-------|---------|----------|-------------------------|
+| `organization` | path  | string  | true     | Organization ID or name |
+| `q`            | query | string  | false    | Search query            |
+| `limit`        | query | integer | false    | Page limit              |
+| `offset`       | query | integer | false    | Page offset             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "source": "user",
+      "total_member_count": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.PaginatedGroupsResponse](schemas.md#codersdkpaginatedgroupsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Serve provisioner daemon
 
 ### Code samples

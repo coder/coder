@@ -7023,6 +7023,17 @@ func (q *querier) OrganizationMembers(ctx context.Context, arg database.Organiza
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
 }
 
+func (q *querier) PaginatedOrganizationGroups(ctx context.Context, arg database.PaginatedOrganizationGroupsParams) ([]database.PaginatedOrganizationGroupsRow, error) {
+	// Required to have permission to read all groups in the organization. This
+	// mirrors PaginatedOrganizationMembers: a single org-wide read check with no
+	// per-row post-filter, so that SQL LIMIT/OFFSET and COUNT(*) OVER() stay
+	// consistent across pages.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.PaginatedOrganizationGroups(ctx, arg)
+}
+
 func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
 	// Required to have permission to read all members in the organization
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)); err != nil {

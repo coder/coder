@@ -547,6 +547,89 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.groups(rw, r)
 }
 
+// @Summary Get groups by organization (paginated)
+// @ID get-groups-by-organization-paginated
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID or name"
+// @Param q query string false "Search query"
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.PaginatedGroupsResponse
+// @Router /api/v2/organizations/{organization}/paginated-groups [get]
+func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+
+	filterQuery := r.URL.Query().Get("q")
+	search, filterErrs := searchquery.Groups(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid group search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	groups, err := api.Database.PaginatedOrganizationGroups(ctx, database.PaginatedOrganizationGroupsParams{
+		OrganizationID: org.ID,
+		Search:         search,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(groups) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedGroupsResponse{
+			Groups: []codersdk.Group{},
+			Count:  0,
+		})
+		return
+	}
+
+	resp := codersdk.PaginatedGroupsResponse{
+		Groups: make([]codersdk.Group, 0, len(groups)),
+		Count:  int(groups[0].Count),
+	}
+	for _, group := range groups {
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		resp.Groups = append(resp.Groups, db2sdk.Group(database.GetGroupsRow{
+			Group:                   group.Group,
+			OrganizationName:        group.OrganizationName,
+			OrganizationDisplayName: group.OrganizationDisplayName,
+		}, members, int(memberCount)))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // @Summary Get groups
 // @ID get-groups
 // @Security CoderSessionToken
