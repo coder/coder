@@ -198,7 +198,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		<div className="grow basis-0 min-h-screen flex justify-center items-center py-12">
 			<div className="flex flex-col w-full max-w-[500px] px-4">
 				<header className="mb-8">
-						<ProductLogo />
+					<ProductLogo />
 					<h1 className="text-2xl font-semibold mt-4 mb-0">Welcome to Coder</h1>
 					<p className="mt-3 mb-0 text-sm text-content-secondary font-normal">
 						Set up your admin account and start building secure, reproducible
