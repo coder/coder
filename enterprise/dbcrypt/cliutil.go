@@ -95,6 +95,8 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					EnvName:           "",
 					UpdateFilePath:    false,
 					FilePath:          "",
+					UpdateEnabled:     false,
+					Enabled:           false,
 				}); err != nil {
 					return xerrors.Errorf("rotate user secret user_id=%s name=%s: %w", uid, secret.Name, err)
 				}
@@ -307,6 +309,8 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					EnvName:           "",
 					UpdateFilePath:    false,
 					FilePath:          "",
+					UpdateEnabled:     false,
+					Enabled:           false,
 				}); err != nil {
 					return xerrors.Errorf("decrypt user secret user_id=%s name=%s: %w", uid, secret.Name, err)
 				}

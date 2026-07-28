@@ -406,9 +406,13 @@ func TestParseSecretsFileBestEffortEnvName(t *testing.T) {
 			t.Parallel()
 			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
 			require.NoError(t, err)
+			// Reserved keys cannot be env-injected, so they are imported
+			// without an injection target and therefore disabled.
+			disabled := false
 			require.Equal(t, []codersdk.CreateUserSecretRequest{{
-				Name:  "PATH",
-				Value: "value",
+				Name:    "PATH",
+				Value:   "value",
+				Enabled: &disabled,
 			}}, reqs)
 		})
 	}
