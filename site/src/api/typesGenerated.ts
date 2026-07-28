@@ -6978,6 +6978,22 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/groups.go
+/**
+ * PaginatedGroupsRequest are the filters for a paginated groups request.
+ * Groups only support free-text search, so unlike UsersRequest it exposes no
+ * key:value filters that the endpoint would reject.
+ */
+export interface PaginatedGroupsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/groups.go
+export interface PaginatedGroupsResponse {
+	readonly groups: readonly Group[];
+	readonly count: number;
+}
+
 // From codersdk/organizations.go
 export interface PaginatedMembersRequest {
 	readonly limit?: number;

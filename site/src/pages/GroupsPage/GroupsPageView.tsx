@@ -9,6 +9,9 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import type { useFilter } from "#/components/Filter/Filter";
+import { GroupsFilter } from "#/components/Filter/GroupsFilter";
+import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -24,6 +27,7 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { docs } from "#/utils/docs";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
@@ -35,7 +39,7 @@ export type GroupWithSpend = Group & {
 
 /** Attach each group's spend, when present, so rows get a single object. */
 export const joinGroupsSpend = (
-	groups: Group[] | undefined,
+	groups: readonly Group[] | undefined,
 	groupsSpend: OrganizationGroupsAISpend | undefined,
 ): GroupWithSpend[] | undefined => {
 	if (groups === undefined) {
@@ -57,6 +61,10 @@ type GroupsPageViewProps = {
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	filterProps: { filter: ReturnType<typeof useFilter> };
+	groupsQuery: PaginationResultInfo & {
+		isPlaceholderData: boolean;
+	};
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
@@ -65,6 +73,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	filterProps,
+	groupsQuery,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -77,39 +87,56 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	}
 
 	return (
-		<Table aria-label="Groups">
-			<TableHeader>
-				<TableRow>
-					<TableHead className="w-2/5">Name</TableHead>
-					<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
-						Users
-					</TableHead>
-					{showAIBudget && (
-						<TableHead className="w-2/5">
-							<div className="flex items-center gap-1">
-								AI budget
-								{spendError ? (
-									<StatusIconTooltip
-										kind="warning"
-										message="AI spend couldn't be loaded, so budgets aren't shown."
-									/>
-								) : (
-									<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
-								)}
-							</div>
-						</TableHead>
-					)}
-					<TableHead className="w-auto" />
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				<GroupsTableBody
-					groups={groups}
-					canCreateGroup={canCreateGroup}
-					showAIBudget={showAIBudget}
-				/>
-			</TableBody>
-		</Table>
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-row justify-between">
+				<GroupsFilter {...filterProps} />
+				{canCreateGroup && (
+					<Button asChild>
+						<RouterLink to="create">
+							<PlusIcon className="size-icon-sm" />
+							Create group
+						</RouterLink>
+					</Button>
+				)}
+			</div>
+
+			<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+				<Table aria-label="Groups">
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-2/5">Name</TableHead>
+							<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
+								Users
+							</TableHead>
+							{showAIBudget && (
+								<TableHead className="w-2/5">
+									<div className="flex items-center gap-1">
+										AI budget
+										{spendError ? (
+											<StatusIconTooltip
+												kind="warning"
+												message="AI spend couldn't be loaded, so budgets aren't shown."
+											/>
+										) : (
+											<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+										)}
+									</div>
+								</TableHead>
+							)}
+							<TableHead className="w-auto" />
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						<GroupsTableBody
+							groups={groups}
+							canCreateGroup={canCreateGroup}
+							showAIBudget={showAIBudget}
+							filterUsed={filterProps.filter.used}
+						/>
+					</TableBody>
+				</Table>
+			</PaginationContainer>
+		</div>
 	);
 };
 
@@ -117,17 +144,33 @@ interface GroupsTableBodyProps {
 	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
+	filterUsed: boolean;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
 	showAIBudget,
+	filterUsed,
 }) => {
 	if (groups === undefined) {
 		return <TableLoader showAIBudget={showAIBudget} />;
 	}
 	if (groups.length === 0) {
+		// When a search returned no matches, don't nudge the user to create a
+		// first group; the org may already have groups that simply don't match.
+		if (filterUsed) {
+			return (
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="No groups match your search"
+							description="Try a different search term."
+						/>
+					</TableCell>
+				</TableRow>
+			);
+		}
 		return (
 			<TableRow>
 				<TableCell colSpan={999}>

@@ -1,11 +1,34 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import { MockGroup } from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
 	component: GroupsPageView,
+	args: {
+		canCreateGroup: true,
+		groupsEnabled: true,
+		filterProps: {
+			filter: {
+				query: "",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: false,
+			},
+		},
+		groupsQuery: {
+			...mockSuccessResult,
+			totalRecords: 1,
+		} as UsePaginatedQueryResult,
+	},
 };
 
 export default meta;
@@ -23,26 +46,65 @@ const aiGroup = (id: string, name: string): GroupWithSpend => ({
 	display_name: name,
 });
 
+export const Default: Story = {};
+
 export const NotEnabled: Story = {
 	args: {
-		groups: [{ ...mockGroupWithSpend }],
-		canCreateGroup: true,
+		groups: [mockGroupWithSpend],
 		groupsEnabled: false,
 	},
 };
 
 export const WithGroups: Story = {
 	args: {
-		groups: [{ ...mockGroupWithSpend }],
-		canCreateGroup: true,
-		groupsEnabled: true,
+		groups: [mockGroupWithSpend],
+	},
+};
+
+const totalRecords = 15;
+const totalPages = 3;
+const limit = totalRecords / totalPages;
+
+// Multiple pages of results with the search field in use.
+export const WithSearchAndPagination: Story = {
+	args: {
+		groups: Array.from({ length: limit }, (_, i) =>
+			aiGroup(`group-${i}`, `Group ${i}`),
+		),
+		filterProps: {
+			filter: {
+				query: "group",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: true,
+			},
+		},
+		groupsQuery: {
+			...mockSuccessResult,
+			totalRecords,
+			totalPages,
+			limit,
+			hasNextPage: true,
+		} as UsePaginatedQueryResult,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Filter")).toHaveValue("group");
+	},
+};
+
+// Groups still loading: the pagination + table render their loading states.
+export const Loading: Story = {
+	args: {
+		groups: undefined,
+		groupsQuery: mockInitialRenderResult as UsePaginatedQueryResult,
 	},
 };
 
 export const WithAIBudgets: Story = {
 	args: {
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
 		groups: [
 			{
@@ -132,9 +194,8 @@ export const WithAIBudgets: Story = {
 export const WithAIBudgetsLoading: Story = {
 	args: {
 		groups: undefined,
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
+		groupsQuery: mockInitialRenderResult as UsePaginatedQueryResult,
 	},
 };
 
@@ -178,8 +239,6 @@ export const WithAIBudgetsSpendError: Story = {
 export const WithAIBudgetsSpendUnavailable: Story = {
 	args: {
 		groups: [aiGroup("ai-unavailable", "Spend unavailable")],
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
 	},
 	play: async ({ canvasElement }) => {
@@ -194,8 +253,6 @@ export const WithAIBudgetsSpendUnavailable: Story = {
 export const WithoutAIBudgetColumn: Story = {
 	args: {
 		groups: [aiGroup("ai-hidden", "No AI column")],
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: false,
 	},
 	play: async ({ canvasElement }) => {
@@ -207,8 +264,6 @@ export const WithoutAIBudgetColumn: Story = {
 export const WithDisplayGroup: Story = {
 	args: {
 		groups: [{ ...mockGroupWithSpend, name: "front-end" }],
-		canCreateGroup: true,
-		groupsEnabled: true,
 	},
 };
 
@@ -216,14 +271,36 @@ export const EmptyGroup: Story = {
 	args: {
 		groups: [],
 		canCreateGroup: false,
-		groupsEnabled: true,
 	},
 };
 
 export const EmptyGroupWithPermission: Story = {
 	args: {
 		groups: [],
-		canCreateGroup: true,
-		groupsEnabled: true,
+	},
+};
+
+// A search that matches nothing shows filter-aware copy, not the
+// create-first-group empty state.
+export const NoSearchResults: Story = {
+	args: {
+		groups: [],
+		filterProps: {
+			filter: {
+				query: "nomatch",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("No groups match your search"),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("No groups yet")).not.toBeInTheDocument();
 	},
 };

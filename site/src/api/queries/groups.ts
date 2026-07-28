@@ -9,6 +9,8 @@ import type {
 	GroupMembersResponse,
 	GroupRequest,
 	OrganizationGroupsAISpend,
+	PaginatedGroupsRequest,
+	PaginatedGroupsResponse,
 	PatchGroupRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
@@ -73,6 +75,37 @@ export const groupMembersAISpend = (
 		queryFn: () => API.getGroupMembersAISpend(groupId, userIds),
 	} satisfies UseQueryOptions<GroupMembersAISpend>;
 };
+
+const getPaginatedGroupsByOrganizationQueryKey = (
+	organization: string,
+	req?: PaginatedGroupsRequest,
+) => {
+	// Nested under the org groups key so create/patch/delete invalidations,
+	// which target ["organization", org, "groups"], also cover this list.
+	const base = [...getGroupsByOrganizationQueryKey(organization), "paginated"];
+	return req ? [...base, req] : base;
+};
+
+export function paginatedGroupsByOrganization(
+	organization: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<PaginatedGroupsResponse, PaginatedGroupsRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getPaginatedGroupsByOrganizationQueryKey(organization, payload),
+		queryFn: ({ payload }) =>
+			API.getOrganizationPaginatedGroups(organization, payload),
+	};
+}
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
