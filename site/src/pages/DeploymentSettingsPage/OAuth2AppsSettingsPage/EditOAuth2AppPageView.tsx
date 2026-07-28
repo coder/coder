@@ -26,6 +26,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { createDayString } from "#/utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
@@ -244,13 +245,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				<TableBody>
 					{isLoadingSecrets && <TableLoader />}
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div className="text-center">
-									No client secrets have been generated.
-								</div>
-							</TableCell>
-						</TableRow>
+						<TableEmpty message="No client secrets have been generated." />
 					)}
 					{!isLoadingSecrets &&
 						secrets?.map((secret) => (

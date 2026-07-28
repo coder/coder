@@ -19,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
@@ -72,13 +73,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 						<OAuth2AppRow key={app.id} app={app} />
 					))}
 					{apps?.length === 0 && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div className="text-center">
-									No OAuth2 applications have been configured.
-								</div>
-							</TableCell>
-						</TableRow>
+						<TableEmpty message="No OAuth2 applications have been configured." />
 					)}
 				</TableBody>
 			</Table>
