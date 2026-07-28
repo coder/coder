@@ -43,13 +43,14 @@ func (m *Map[K, V]) LoadAndDelete(key K) (actual V, loaded bool) {
 	return act.(V), loaded
 }
 
+// LoadOrStore returns the existing value for the key if present.
+// Otherwise, it stores and returns the given value. The loaded result
+// is true if the value was loaded, false if stored. As with sync.Map,
+// actual is usable in both cases.
+//
 //nolint:forcetypeassert
 func (m *Map[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	act, loaded := m.m.LoadOrStore(key, value)
-	if !loaded {
-		var empty V
-		return empty, loaded
-	}
 	return act.(V), loaded
 }
 
