@@ -157,10 +157,3 @@ A user consumes an AI seat when they use AI features such as AI Gateway or
 Tasks. The column helps administrators identify which users contribute to
 the organization's AI seat count, making it easier to manage seat
 allocations and stay within license limits.
-
-The **AI add-on** column only appears when the deployment has an active
-`ai_governance_user_limit` entitlement. If the entitlement is not present
-or the license has expired, the column is hidden.
-
-> **Tip:** Hover over the **AI add-on** column header for a tooltip
-> describing what the column represents.
