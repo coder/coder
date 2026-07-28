@@ -73,6 +73,11 @@ type Template struct {
 	// DisableModuleCache disables the use of cached Terraform modules during
 	// provisioning.
 	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming is destructive for templates whose Terraform
+	// references the workspace name in a resource identifier.
+	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -283,6 +288,10 @@ type UpdateTemplateMeta struct {
 	// DisableModuleCache disables the using of cached Terraform modules during
 	// provisioning. It is recommended not to disable this.
 	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming is destructive for templates whose Terraform
+	// references the workspace name in a resource identifier.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 type TemplateExample struct {

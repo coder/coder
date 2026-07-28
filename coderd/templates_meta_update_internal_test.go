@@ -43,6 +43,7 @@ func baselineTemplate() database.Template {
 		UseClassicParameterFlow:       true,
 		CorsBehavior:                  database.CorsBehaviorPassthru,
 		DisableModuleCache:            true,
+		AllowWorkspaceRenames:         true,
 		GroupACL: database.TemplateACL{
 			orgID.String(): {"read"},
 		},
@@ -85,6 +86,7 @@ func baselineResolved() templateMetaUpdate {
 		deprecationMessage:                   tpl.Deprecated,
 		useClassicTemplateFlow:               tpl.UseClassicParameterFlow,
 		disableModuleCache:                   tpl.DisableModuleCache,
+		allowWorkspaceRenames:                tpl.AllowWorkspaceRenames,
 		corsBehavior:                         tpl.CorsBehavior,
 		autostopRequirementDaysOfWeekParsed:  0b0000001,
 		autostartRequirementDaysOfWeekParsed: 0b1000000,
@@ -279,6 +281,13 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			req:  codersdk.UpdateTemplateMeta{DisableModuleCache: ptr.Ref(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.disableModuleCache = false
+			}},
+		},
+		{
+			name: "AllowWorkspaceRenames",
+			req:  codersdk.UpdateTemplateMeta{AllowWorkspaceRenames: ptr.Ref(false)},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.allowWorkspaceRenames = false
 			}},
 		},
 
