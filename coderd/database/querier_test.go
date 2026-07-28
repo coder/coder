@@ -8483,7 +8483,9 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "duplicate key value")
 
-		// Create secret with empty env_name and file_path (should succeed)
+		// Create secret with empty env_name and file_path. A target-less
+		// secret must be disabled to satisfy the
+		// user_secrets_enabled_requires_target constraint.
 		secret2 := dbgen.UserSecret(t, db, database.UserSecret{
 			UserID:      testUser.ID,
 			Name:        "unique-test-4",
@@ -8491,6 +8493,8 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			Value:       "value2",
 			EnvName:     "", // Empty env_name
 			FilePath:    "", // Empty file_path
+		}, func(params *database.CreateUserSecretParams) {
+			params.Enabled = false
 		})
 
 		// Verify both secrets exist
@@ -8503,6 +8507,83 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+}
+
+// TestUserSecretsEnabledRequiresTargetConstraint verifies the
+// user_secrets_enabled_requires_target CHECK constraint. It is the
+// race-safe backstop for the injection-target invariant: the API's
+// post-state check can be defeated by two concurrent PATCHes that each
+// clear a different target, so the database must reject an enabled row
+// with no target.
+func TestUserSecretsEnabledRequiresTargetConstraint(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	user := dbgen.User(t, db, database.User{})
+
+	// A disabled secret may have no target.
+	disabled, err := db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:       uuid.New(),
+		UserID:   user.ID,
+		Name:     "disabled-no-target",
+		Value:    "v",
+		EnvName:  "",
+		FilePath: "",
+		Enabled:  false,
+	})
+	require.NoError(t, err)
+
+	// Enabling a target-less secret must be rejected by the constraint.
+	_, err = db.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+		UserID:        user.ID,
+		Name:          disabled.Name,
+		UpdateEnabled: true,
+		Enabled:       true,
+	})
+	require.True(t, database.IsCheckViolation(err, database.CheckUserSecretsEnabledRequiresTarget),
+		"enabling a target-less secret should violate the constraint, got: %v", err)
+
+	// An enabled secret with both targets set.
+	enabled, err := db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:       uuid.New(),
+		UserID:   user.ID,
+		Name:     "enabled-both",
+		Value:    "v",
+		EnvName:  "ENABLED_BOTH",
+		FilePath: "~/enabled-both",
+		Enabled:  true,
+	})
+	require.NoError(t, err)
+
+	// Clearing both targets while the secret stays enabled (the race
+	// outcome) must be rejected.
+	_, err = db.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+		UserID:         user.ID,
+		Name:           enabled.Name,
+		UpdateEnvName:  true,
+		EnvName:        "",
+		UpdateFilePath: true,
+		FilePath:       "",
+	})
+	require.True(t, database.IsCheckViolation(err, database.CheckUserSecretsEnabledRequiresTarget),
+		"clearing both targets of an enabled secret should violate the constraint, got: %v", err)
+
+	// Clearing both targets and disabling in the same update is allowed.
+	updated, err := db.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+		UserID:         user.ID,
+		Name:           enabled.Name,
+		UpdateEnvName:  true,
+		EnvName:        "",
+		UpdateFilePath: true,
+		FilePath:       "",
+		UpdateEnabled:  true,
+		Enabled:        false,
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Enabled)
+	require.Empty(t, updated.EnvName)
+	require.Empty(t, updated.FilePath)
 }
 
 // TestUserSecretsSoftDeleteTrigger verifies that a user's secrets
