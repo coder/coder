@@ -31,7 +31,7 @@ const ProvisionerDaemonsPage: FC = () => {
 
 			<Main>
 				{daemons.error && (
-					<Alert severity="error" prominent dismissible>
+					<Alert severity="error" prominent>
 						{daemons.error}
 					</Alert>
 				)}

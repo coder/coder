@@ -10,10 +10,9 @@ import { Spinner } from "#/components/Spinner/Spinner";
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 	const queryClient = useQueryClient();
 	const healthSettingsQuery = useQuery(healthSettings());
-	// They call the same mutation but are used in diff contexts so we don't want
-	// to merge their states. Eg. You mute a warning and when it is done it
-	// will show the unmute button but since the mutation is still invalidating
-	// other queries it will be in the loading state when it should be idle.
+	// Separate mutation instances so unmuting isn't stuck pending while
+	// muting's query invalidation resolves (a shared mutation would share
+	// isPending and spin the wrong button).
 	const unmuteMutation = useMutation(updateHealthSettings(queryClient));
 	const muteMutation = useMutation(updateHealthSettings(queryClient));
 

@@ -36,7 +36,7 @@ const WebsocketPage = () => {
 
 			<Main>
 				{websocket.error && (
-					<Alert severity="error" prominent dismissible>
+					<Alert severity="error" prominent>
 						{websocket.error}
 					</Alert>
 				)}
