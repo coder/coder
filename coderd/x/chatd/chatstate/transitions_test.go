@@ -513,8 +513,10 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 		return nil
 	}))
 
-	suffix := userTextMessage("session notice", f.User.ID, f.Model.ID)
-	suffix.Role = database.ChatMessageRoleSystem
+	firstSuffix := userTextMessage("first notice", f.User.ID, f.Model.ID)
+	firstSuffix.Role = database.ChatMessageRoleSystem
+	secondSuffix := userTextMessage("second notice", f.User.ID, f.Model.ID)
+	secondSuffix.Role = database.ChatMessageRoleSystem
 	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("edited prompt"),
 	})
@@ -524,7 +526,7 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		result, err = tx.EditMessage(chatstate.EditMessageInput{
 			MessageID:      targetID,
-			SuffixMessages: []chatstate.Message{suffix},
+			SuffixMessages: []chatstate.Message{firstSuffix, secondSuffix},
 			CreatedBy:      f.User.ID,
 			Content:        rawContent,
 		})
@@ -532,12 +534,37 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 	}))
 
 	require.Contains(t, result.DeletedMessageIDs, targetID)
-	require.Len(t, result.SuffixMessages, 1)
-	assertChatMessageText(t, result.SuffixMessages[0], "session notice")
+	require.Len(t, result.SuffixMessages, 2)
+	assertChatMessageText(t, result.SuffixMessages[0], "first notice")
+	assertChatMessageText(t, result.SuffixMessages[1], "second notice")
 	require.Greater(t, result.SuffixMessages[0].ID, result.ReplacementMessage.ID,
-		"the suffix message must follow the replacement")
+		"the suffix messages must follow the replacement")
+	require.Greater(t, result.SuffixMessages[1].ID, result.SuffixMessages[0].ID,
+		"suffix message IDs must ascend with the input array")
 	_, err = f.DB.GetChatMessageByID(ctx, result.ReplacementMessage.ID)
 	require.NoError(t, err, "the replacement message must stay active")
+
+	// Reloading is what the generation path does, so the input order has to
+	// survive the round trip and not just the returned slice.
+	history, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: created.Chat.ID,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(history), 3)
+	tail := history[len(history)-3:]
+	require.Equal(t, []int64{
+		result.ReplacementMessage.ID,
+		result.SuffixMessages[0].ID,
+		result.SuffixMessages[1].ID,
+	}, []int64{tail[0].ID, tail[1].ID, tail[2].ID})
+	assertChatMessageText(t, tail[0], "edited prompt")
+	assertChatMessageText(t, tail[1], "first notice")
+	assertChatMessageText(t, tail[2], "second notice")
+
+	for _, message := range history {
+		require.NotEqual(t, targetID, message.ID,
+			"the edited message must not stay in active history")
+	}
 }
 
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon
