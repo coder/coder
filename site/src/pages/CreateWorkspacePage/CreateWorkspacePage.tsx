@@ -266,7 +266,10 @@ const CreateWorkspacePage: FC = () => {
 	const isLoadingFormData =
 		ws.current?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
-		permissionsQuery.isLoading;
+		// isPending stays true until the permission data exists, covering the
+		// renders where the query is still disabled or has not started fetching,
+		// during which isLoading would be false.
+		permissionsQuery.isPending;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
