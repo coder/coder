@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatModelConfig } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -78,16 +78,22 @@ export const ModelRow: FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span className="block w-fit truncate text-sm font-medium leading-6 text-content-secondary underline decoration-dashed underline-offset-4">
-								Unset
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">
-							The provider connected to this model has been deleted.
-						</TooltipContent>
-					</Tooltip>
+					<div className="flex items-center gap-1">
+						<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+							Unset
+						</span>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon
+									aria-label="Provider status"
+									className="size-3 text-content-secondary"
+								/>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-[240px]">
+								The provider connected to this model has been deleted.
+							</TooltipContent>
+						</Tooltip>
+					</div>
 				)}
 			</TableCell>
 			<TableCell className="min-w-0">
