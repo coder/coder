@@ -62,7 +62,9 @@ const TemplateVariablesPage: FC = () => {
 		mutateAsync: sendUpdateActiveTemplateVersion,
 		error: publishError,
 		isPending: isPublishing,
-	} = useMutation(updateActiveTemplateVersion(template, queryClient));
+	} = useMutation(
+		updateActiveTemplateVersion(template, organization, queryClient),
+	);
 
 	const publishVersion = useCallback(
 		async (versionId: string) => {

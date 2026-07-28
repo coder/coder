@@ -233,6 +233,10 @@ const TemplateSchedulePage = lazy(
 			"./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
 		),
 );
+const TemplateDataPage = lazy(
+	() =>
+		import("./pages/TemplateSettingsPage/TemplateDataPage/TemplateDataPage"),
+);
 const TemplateSettingsPage = lazy(
 	() =>
 		import(
@@ -519,6 +523,7 @@ const templateRouter = () => {
 					<Route index element={<TemplateSettingsPage />} />
 					<Route path="permissions" element={<TemplatePermissionsPage />} />
 					<Route path="variables" element={<TemplateVariablesPage />} />
+					<Route path="data" element={<TemplateDataPage />} />
 					<Route path="schedule" element={<TemplateSchedulePage />} />
 				</Route>
 
