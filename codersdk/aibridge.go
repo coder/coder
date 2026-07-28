@@ -92,6 +92,13 @@ type OrganizationGroupAISpend struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// GroupAISpend is the current AI spend snapshot for a single group within
+// the active budget period.
+type GroupAISpend struct {
+	AISpendPeriodWindow
+	OrganizationGroupAISpend
+}
+
 // GroupMembersAISpend reports per-member AI spend attributed to a specific
 // group in the active budget period.
 type GroupMembersAISpend struct {
@@ -574,6 +581,25 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupAISpend returns AI spend for the given group within the active budget
+// period.
+func (c *Client) GroupAISpend(ctx context.Context, group uuid.UUID) (GroupAISpend, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/ai/spend", group.String()),
+		nil,
+	)
+	if err != nil {
+		return GroupAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupAISpend
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
