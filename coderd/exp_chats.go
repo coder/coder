@@ -3392,6 +3392,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Message content flows into the LLM prompt, the DB, and lifecycle
+	// hook request bodies, so bound the memory one request can pin.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
+
 	var req codersdk.CreateChatMessageRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -3645,6 +3649,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Edited content flows into the LLM prompt, the DB, and two lifecycle
+	// hook request bodies, so bound the memory one request can pin.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 
 	var req codersdk.EditChatMessageRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

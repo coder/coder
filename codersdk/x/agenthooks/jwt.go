@@ -1,6 +1,7 @@
 package agenthooks
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"strings"
@@ -50,13 +51,22 @@ func SignClaims(secret []byte, claims Claims) (string, error) {
 // required claims, and validity window. Request binding remains the caller's
 // responsibility; see NewHTTPHandler.
 func Verify(authzHeader string, secret []byte) (Claims, error) {
-	if len(secret) < MinSecretLen {
-		return Claims{}, xerrors.Errorf("secret must be at least %d bytes", MinSecretLen)
-	}
 	const bearerPrefix = "Bearer "
 	token, ok := strings.CutPrefix(authzHeader, bearerPrefix)
 	if !ok || token == "" || strings.ContainsAny(token, " \t\r\n") {
 		return Claims{}, xerrors.New("authorization header must contain one Bearer token")
+	}
+	return verifyToken(token, secret)
+}
+
+// verifyToken authenticates a compact HS256 token and validates its JWT
+// header, required claims, and validity window.
+func verifyToken(token string, secret []byte) (Claims, error) {
+	if len(secret) < MinSecretLen {
+		return Claims{}, xerrors.Errorf("secret must be at least %d bytes", MinSecretLen)
+	}
+	if token == "" || strings.ContainsAny(token, " \t\r\n") {
+		return Claims{}, xerrors.New("token must be one compact JWT")
 	}
 
 	object, err := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.HS256})
@@ -84,6 +94,58 @@ func Verify(authzHeader string, secret []byte) (Claims, error) {
 		return Claims{}, err
 	}
 	return claims, nil
+}
+
+// responseTokenTTL bounds a response token's validity. The dispatcher reads
+// the response within its own dispatch timeout, so the window only needs to
+// absorb clock skew between coderd and the consumer.
+const responseTokenTTL = 2 * time.Minute
+
+// responseClockSkewLeeway backdates nbf so a consumer clock slightly ahead
+// of coderd's does not produce tokens that read as not yet valid.
+const responseClockSkewLeeway = 30 * time.Second
+
+// SignResponse mints the SignatureHeader token for one hook response: the
+// verified request claims echoed with body_sha256 recomputed over the exact
+// bytes of responseBody and a fresh validity window. Echoing jti binds the
+// response to its dispatch, so a captured response cannot answer any other
+// dispatch even within the validity window.
+func SignResponse(secret []byte, requestClaims Claims, responseBody []byte) (string, error) {
+	digest := sha256.Sum256(responseBody)
+	now := time.Now()
+	claims := requestClaims
+	claims.BodySHA256 = hex.EncodeToString(digest[:])
+	claims.IssuedAt = now.Unix()
+	claims.NotBefore = now.Add(-responseClockSkewLeeway).Unix()
+	claims.Expires = now.Add(responseTokenTTL).Unix()
+	return SignClaims(secret, claims)
+}
+
+// VerifyResponse authenticates a hook response token and binds it to the
+// dispatch identified by requestClaims and to the exact response body bytes.
+func VerifyResponse(token string, secret []byte, requestClaims Claims, responseBody []byte) error {
+	if token == "" {
+		return xerrors.Errorf("response carries no %s header", SignatureHeader)
+	}
+	claims, err := verifyToken(token, secret)
+	if err != nil {
+		return err
+	}
+	switch {
+	case claims.JTI != requestClaims.JTI:
+		return xerrors.New("response JWT ID does not match the dispatch")
+	case claims.Type != requestClaims.Type:
+		return xerrors.New("response type claim does not match the dispatched event")
+	case claims.Subject != requestClaims.Subject:
+		return xerrors.New("response subject claim does not match the dispatched chat")
+	case claims.Audience != requestClaims.Audience:
+		return xerrors.New("response audience claim does not match the hook URL")
+	}
+	digest := sha256.Sum256(responseBody)
+	if claims.BodySHA256 != hex.EncodeToString(digest[:]) {
+		return xerrors.New("response body does not match body_sha256 claim")
+	}
+	return nil
 }
 
 func validateClaims(claims Claims, now time.Time) error {

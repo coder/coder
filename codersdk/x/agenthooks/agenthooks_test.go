@@ -467,3 +467,158 @@ func TestHTTPHandlerRejectsOversizedBody(t *testing.T) {
 	defer response.Body.Close()
 	require.Equal(t, http.StatusRequestEntityTooLarge, response.StatusCode)
 }
+
+func TestSignResponseVerifyResponse(t *testing.T) {
+	t.Parallel()
+
+	requestClaims := validClaims(t, testAudience, agenthooks.EventPreToolUse, nil)
+	body := []byte(`{"permission":{"decision":"deny"}}`)
+
+	token, err := agenthooks.SignResponse(testSecret, requestClaims, body)
+	require.NoError(t, err)
+	require.NoError(t, agenthooks.VerifyResponse(token, testSecret, requestClaims, body))
+
+	tests := []struct {
+		name    string
+		token   func(t *testing.T) string
+		body    []byte
+		wantErr string
+	}{
+		{
+			name:    "missing token",
+			token:   func(*testing.T) string { return "" },
+			body:    body,
+			wantErr: "response carries no Coder-Hook-Signature header",
+		},
+		{
+			name:    "tampered body",
+			token:   func(*testing.T) string { return token },
+			body:    []byte(`{"permission":{"decision":"allow","input_override":{}}}`),
+			wantErr: "response body does not match body_sha256 claim",
+		},
+		{
+			name: "token minted for a different dispatch",
+			token: func(t *testing.T) string {
+				other := requestClaims
+				other.JTI = uuid.New()
+				otherToken, err := agenthooks.SignResponse(testSecret, other, body)
+				require.NoError(t, err)
+				return otherToken
+			},
+			body:    body,
+			wantErr: "response JWT ID does not match the dispatch",
+		},
+		{
+			name: "token minted for a different chat",
+			token: func(t *testing.T) string {
+				other := requestClaims
+				other.Subject = "coder:chat:" + uuid.NewString()
+				otherToken, err := agenthooks.SignResponse(testSecret, other, body)
+				require.NoError(t, err)
+				return otherToken
+			},
+			body:    body,
+			wantErr: "response subject claim does not match the dispatched chat",
+		},
+		{
+			name: "token minted for a different event type",
+			token: func(t *testing.T) string {
+				other := requestClaims
+				other.Type = agenthooks.EventStop
+				otherToken, err := agenthooks.SignResponse(testSecret, other, body)
+				require.NoError(t, err)
+				return otherToken
+			},
+			body:    body,
+			wantErr: "response type claim does not match the dispatched event",
+		},
+		{
+			name: "token signed with a different secret",
+			token: func(t *testing.T) string {
+				otherToken, err := agenthooks.SignResponse([]byte("fedcba9876543210fedcba9876543210"), requestClaims, body)
+				require.NoError(t, err)
+				return otherToken
+			},
+			body:    body,
+			wantErr: "verify token",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := agenthooks.VerifyResponse(test.token(t), testSecret, requestClaims, test.body)
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+func TestHTTPHandlerSignsResponses(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{
+		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
+			return agenthooks.Response{UserMessage: "noted"}, nil
+		},
+	}))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
+func TestSignResponsesWrapsRawHandler(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{"user_message":"raw"}`))
+	})))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"user_message":"raw"}`, buffer.String())
+
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
+func TestSignResponsesRejectsUnauthenticatedRequests(t *testing.T) {
+	t.Parallel()
+
+	inner := 0
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		inner++
+	})))
+	t.Cleanup(server.Close)
+
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, strings.NewReader("{}"))
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+	require.Zero(t, inner)
+}

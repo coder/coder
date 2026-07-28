@@ -38,10 +38,21 @@ func SessionStartSource(messages []database.ChatMessage) string {
 // envelope, dispatches, and normalizes the outcome.
 type Trigger struct {
 	dispatcher *dispatch.Dispatcher
+	// toolNameAliases maps deprecated tool names to the canonical tool
+	// execution resolves them to. Events report the canonical name so a
+	// name-keyed consumer policy cannot be sidestepped by the alias.
+	toolNameAliases map[string]string
 }
 
-func NewTrigger(dispatcher *dispatch.Dispatcher) *Trigger {
-	return &Trigger{dispatcher: dispatcher}
+func NewTrigger(dispatcher *dispatch.Dispatcher, toolNameAliases map[string]string) *Trigger {
+	return &Trigger{dispatcher: dispatcher, toolNameAliases: toolNameAliases}
+}
+
+func (t *Trigger) canonicalToolName(name string) string {
+	if canonical, aliased := t.toolNameAliases[name]; aliased {
+		return canonical
+	}
+	return name
 }
 
 func (t *Trigger) Enabled() bool {
@@ -93,6 +104,9 @@ type Message struct {
 	Source       string
 	Prompt       string
 	Parts        json.RawMessage
+	SystemPrompt string
+	CustomPrompt string
+	DynamicTools json.RawMessage
 	ToolUseID    string
 	ToolName     string
 	ToolInput    json.RawMessage
@@ -152,11 +166,17 @@ func (t *Trigger) Trigger(
 	case agenthooks.EventSessionStart:
 		data = agenthooks.SessionStartData{Source: msg.Source}
 	case agenthooks.EventUserPromptSubmit:
-		data = agenthooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
+		data = agenthooks.UserPromptSubmitData{
+			Prompt:       msg.Prompt,
+			Parts:        msg.Parts,
+			SystemPrompt: msg.SystemPrompt,
+			CustomPrompt: msg.CustomPrompt,
+			DynamicTools: msg.DynamicTools,
+		}
 	case agenthooks.EventPreToolUse:
-		data = agenthooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
+		data = agenthooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: t.canonicalToolName(msg.ToolName), ToolInput: msg.ToolInput}
 	case agenthooks.EventPostToolUse:
-		data = agenthooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
+		data = agenthooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: t.canonicalToolName(msg.ToolName), ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
 	case agenthooks.EventPreCompact:
 		data = agenthooks.PreCompactData{}
 	case agenthooks.EventPostCompact:

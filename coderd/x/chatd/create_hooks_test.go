@@ -197,7 +197,7 @@ func newCreateHookTestServer(
 ) (*chatd.Server, <-chan agenthooks.Request) {
 	t.Helper()
 	requests := make(chan agenthooks.Request, 2)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests <- request
@@ -206,7 +206,7 @@ func newCreateHookTestServer(
 			_, err := w.Write([]byte(response))
 			require.NoError(t, err)
 		}
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 	return newHookTestServer(t, db, ps, consumer), requests
 }

@@ -1319,6 +1319,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
+	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
@@ -1329,6 +1330,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if err != nil {
 			return database.Chat{}, err
 		}
+		// The prompt is one of several caller-controlled instruction
+		// channels this create admits; a policy shown only the prompt
+		// would admit the others sight unseen.
+		promptMessage.SystemPrompt = userPrompt
+		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, opts.OwnerID)
+		promptMessage.DynamicTools = opts.DynamicTools
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
 			OwnerID:     opts.OwnerID,
@@ -1349,7 +1356,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1487,6 +1493,10 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, err
 		}
+		// The owner's custom prompt is injected into this turn's system
+		// prompt but is stored through its own API without a lifecycle
+		// event, so this event is where a policy sees it.
+		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1746,6 +1756,11 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 	if target.ChatID != chatID || target.Deleted {
 		return ErrEditedMessageNotFound
 	}
+	// Hidden rows (hook-injected model context) are invisible to the
+	// messages API, so not-found keeps their IDs unprobeable.
+	if target.Visibility != database.ChatMessageVisibilityBoth {
+		return ErrEditedMessageNotFound
+	}
 	if target.Role != database.ChatMessageRoleUser {
 		return ErrEditedMessageNotUser
 	}
@@ -1799,6 +1814,10 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, err
 		}
+		// The owner's custom prompt is injected into the regenerated
+		// turn's system prompt but is stored through its own API without
+		// a lifecycle event, so this event is where a policy sees it.
+		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1845,6 +1864,11 @@ func (p *Server) EditMessage(
 			return ErrEditedMessageNotFound
 		}
 		if target.Deleted {
+			return ErrEditedMessageNotFound
+		}
+		// Hidden rows (hook-injected model context) are invisible to the
+		// messages API, so not-found keeps their IDs unprobeable.
+		if target.Visibility != database.ChatMessageVisibilityBoth {
 			return ErrEditedMessageNotFound
 		}
 		if target.Role != database.ChatMessageRoleUser {
@@ -3180,7 +3204,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
-		hooks:                          chathooks.NewTrigger(hookDispatcher),
+		hooks:                          chathooks.NewTrigger(hookDispatcher, subagentToolNameAliases),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,

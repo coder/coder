@@ -572,6 +572,14 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if target.Deleted {
 		return EditMessageResult{}, ErrMessageNotFound
 	}
+	// Hook-injected model context persists as user-role rows with model
+	// visibility. They are not readable through the messages API, so they
+	// are not editable through it either; otherwise the chat owner could
+	// overwrite policy context the model still trusts. Not-found keeps
+	// hidden row IDs unprobeable.
+	if target.Visibility != database.ChatMessageVisibilityBoth {
+		return EditMessageResult{}, ErrMessageNotFound
+	}
 	if target.Role != database.ChatMessageRoleUser {
 		return EditMessageResult{}, newTransitionErrorWithCause(
 			TransitionEditMessage, from,

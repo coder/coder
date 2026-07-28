@@ -61,7 +61,7 @@ Handle the events your policy needs, using the data Coder sends with each one:
 | Event                | When Coder sends it                                                 | Decision-relevant data                                                 |
 |----------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
 | `session_start`      | A chat session starts, resumes, or clears                           | `source` (`startup`, `resume`, or `clear`)                             |
-| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt` and `parts`                                                   |
+| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt`, `parts`, `system_prompt`, `custom_prompt`, `dynamic_tools`   |
 | `pre_tool_use`       | Before a non-provider-executed tool runs                            | `tool_use_id`, `tool_name`, and `tool_input`                           |
 | `post_tool_use`      | After a non-provider-executed tool returns                          | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
 | `pre_compact`        | Before Coder compacts chat context                                  | No event-specific fields                                               |
@@ -80,6 +80,16 @@ A policy that gates them must validate their input itself.
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
 A consumer that gates prompt content must inspect `parts`.
+
+The prompt isn't the only caller-controlled channel that reaches the model, so the event also carries the other instruction channels in effect for the admitted turn:
+
+- `system_prompt` is the caller-supplied per-chat system prompt, present on the admission for a chat create and immutable afterward.
+- `custom_prompt` is the chat owner's stored custom prompt as it will be injected into the turn's system prompt. It's stored through its own API without a lifecycle event, so this field is where a policy sees it, on every prompt admission.
+- `dynamic_tools` carries the caller-declared tool definitions admitted with a chat create. Their names and descriptions reach the model as instructions.
+
+A prompt policy that inspects only `prompt` admits these channels sight unseen.
+
+For `pre_tool_use` and `post_tool_use`, `tool_name` is always the canonical tool name: when the model calls a deprecated alias, Coder reports the tool it actually executes.
 
 ### Verify each request
 
@@ -108,11 +118,16 @@ An empty JSON object has the same effect.
 If the response has a body, return a JSON object with these optional fields.
 Coder rejects a response body with unknown fields, duplicate JSON keys, or trailing data as malformed, so the dispatch fails closed instead of misreading the decision.
 
+Every `2xx` response must also carry a `Coder-Hook-Signature` header: an `HS256` JWT signed with the shared secret that echoes the request's claims (`jti`, `type`, `sub`, `aud`) with `body_sha256` recomputed over the exact response body bytes and a fresh validity window.
+Responses steer chats, so Coder rejects an unsigned or mismatched response as a protocol error and fails the dispatch closed; without this requirement, anyone able to inject traffic on the return path could allow, deny, or rewrite tool input without knowing the secret.
+`agenthooks.NewHTTPHandler` signs responses automatically, and `agenthooks.SignResponses` wraps any other `http.Handler` to do the same.
+Consumers not using the Go SDK mint the token with the same claim set they verified on the request.
+
 | Field           | Effect                                                                                                                                                                         |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                               |
+| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only. `reason` is limited to 4&nbsp;KiB and `input_override` to 256&nbsp;KiB.                       |
 | `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB. The text is absent from the user-visible transcript, but users may infer its effects from model behavior. |
-| `user_message`  | Adds a message visible to the user.                                                                                                                                            |
+| `user_message`  | Adds a message visible to the user. The value is limited to 16&nbsp;KiB.                                                                                                       |
 
 The `permission.decision` value supports `allow` and `deny`.
 Any other value causes the dispatch to fail closed.
@@ -165,7 +180,7 @@ This covers a failed `post_tool_use` for an executed tool and a failed `user_pro
 Dispatch precedes persistence, so a delivered event doesn't guarantee that the operation commits.
 Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
-Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
+Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id` together with a hash of the tool input.
 
 Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot; a dispatch that waits out that limit fails as over capacity.
 The limit is per replica rather than deployment-wide, so size the consumer for 256 concurrent requests per replica.
@@ -185,7 +200,7 @@ Use event-specific identifiers for logical duplicates:
 
 | Events                                | Deduplication guidance                                                                                                                     |
 |---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `pre_tool_use`, `post_tool_use`       | Key by `chat_id`, event type, and `tool_use_id`.                                                                                           |
+| `pre_tool_use`, `post_tool_use`       | Key by `chat_id`, event type, `tool_use_id`, and a hash of `tool_input`, because a provider may reuse a tool-use ID with different input.  |
 | `session_start`                       | Response effects can repeat after runner or process replacement. Make them safe to apply more than once.                                   |
 | `user_prompt_submit`                  | Dispatch occurs before a message ID exists. Avoid non-idempotent external effects because identical prompt content can be submitted twice. |
 | `pre_compact`, `post_compact`, `stop` | Don't rely on `turn_id` surviving recovery. Make external effects safe to repeat.                                                          |

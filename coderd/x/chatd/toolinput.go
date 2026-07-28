@@ -53,24 +53,89 @@ func validateOverriddenToolInputs(prepared generationPrepared, preflight chathoo
 	return nil
 }
 
-// validateBuiltinToolInput only guards builtin tools, whose input coderd
-// decodes itself. Dynamic calls are executed by the client and MCP calls by
-// their own server, and a dynamic tool cannot shadow a builtin name.
+// validateBuiltinToolInput only guards tools whose input coderd decodes
+// itself: builtin tools and provider tools with a local runner. Dynamic
+// calls are executed by the client and MCP calls by their own server, and
+// a dynamic tool cannot shadow a builtin name.
 func validateBuiltinToolInput(prepared generationPrepared, toolName string, input []byte) error {
 	// Execution resolves a deprecated alias to its canonical tool, so
 	// skipping that here would let the old name bypass validation.
 	if canonical, aliased := subagentToolNameAliases[toolName]; aliased {
 		toolName = canonical
 	}
-	if !prepared.BuiltinToolNames[toolName] {
+	if prepared.BuiltinToolNames[toolName] {
+		for _, tool := range prepared.Tools {
+			info := tool.Info()
+			if info.Name != toolName {
+				continue
+			}
+			return toolschema.ValidateUnambiguous(info.Parameters, input)
+		}
 		return nil
 	}
-	for _, tool := range prepared.Tools {
-		info := tool.Info()
-		if info.Name != toolName {
+	for _, providerTool := range prepared.ProviderTools {
+		runner := providerTool.Runner
+		if runner == nil || runner.Info().Name != toolName {
 			continue
 		}
-		return toolschema.ValidateUnambiguous(info.Parameters, input)
+		return toolschema.ValidateUnambiguous(localProviderToolProperties(runner), input)
+	}
+	return nil
+}
+
+// computerUseProperties lists every input key the computer-use runners
+// decode: the anthropic parser's flat action struct and the OpenAI batch
+// envelope, including the keys of each batched action. The provider
+// defines the tool schema server-side, so the runner advertises no local
+// parameters and the ambiguity guard needs its own property set; without
+// one, a case variant such as ACTION is invisible to a pre_tool_use
+// consumer reading case-sensitively while encoding/json folds it into the
+// executed action.
+var computerUseProperties = map[string]any{
+	"action":           nil,
+	"coordinate":       nil,
+	"start_coordinate": nil,
+	"text":             nil,
+	"scroll_direction": nil,
+	"scroll_amount":    nil,
+	"duration":         nil,
+	"region":           nil,
+	"call_id":          nil,
+	"actions": map[string]any{
+		"items": map[string]any{
+			"properties": map[string]any{
+				"type":     nil,
+				"button":   nil,
+				"keys":     nil,
+				"text":     nil,
+				"x":        nil,
+				"y":        nil,
+				"scroll_x": nil,
+				"scroll_y": nil,
+				"path": map[string]any{
+					"items": map[string]any{
+						"properties": map[string]any{
+							"x": nil,
+							"y": nil,
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+// localProviderToolProperties returns the property set to validate a
+// provider tool executed by a local runner. The runner's advertised
+// parameters win when present; the computer-use runner advertises none, so
+// it falls back to the keys its decoders read.
+func localProviderToolProperties(runner fantasy.AgentTool) map[string]any {
+	info := runner.Info()
+	if len(info.Parameters) > 0 {
+		return info.Parameters
+	}
+	if info.Name == "computer" {
+		return computerUseProperties
 	}
 	return nil
 }

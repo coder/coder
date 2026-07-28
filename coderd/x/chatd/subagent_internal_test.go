@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -289,11 +290,12 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 
-		consumer := httptest.NewServer(handler)
+		consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), handler))
 		t.Cleanup(consumer.Close)
 		server := &Server{
-			db:     db,
-			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			db:          db,
+			logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			configCache: newChatConfigCache(ctx, db, quartz.NewReal()),
 			hooks: chathooks.NewTrigger(dispatch.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				consumer.Client(),
@@ -303,7 +305,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 				"test-deployment",
 				"test-version",
 				prometheus.NewRegistry(),
-			)),
+			), subagentToolNameAliases),
 		}
 		return ctx, db, parent, server
 	}

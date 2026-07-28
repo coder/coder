@@ -772,9 +772,11 @@ func (p *Server) subagentTools(
 				)
 				if err != nil {
 					// A failed hook dispatch must fail closed instead of
-					// degrading into a tool error the model can ignore.
+					// degrading into a tool error the model can ignore. The
+					// redaction keeps the operator's hook URL out of the
+					// committed tool result row.
 					if _, ok := errors.AsType[*dispatch.Error](err); ok {
-						return fantasy.ToolResponse{}, err
+						return fantasy.ToolResponse{}, chathooks.RedactDispatchError(agenthooks.EventUserPromptSubmit, err)
 					}
 					// chathooks.UserPromptDeniedError.Error() carries the user-facing
 					// denial message, so the model can adjust its prompt.
@@ -1010,6 +1012,14 @@ func (p *Server) subagentTools(
 					busyBehavior,
 				)
 				if err != nil {
+					// A failed hook dispatch must fail closed instead of
+					// degrading into a tool error the model can ignore,
+					// matching spawn admission. The redaction keeps the
+					// operator's hook URL out of the committed tool
+					// result row.
+					if _, ok := errors.AsType[*dispatch.Error](err); ok {
+						return fantasy.ToolResponse{}, chathooks.RedactDispatchError(agenthooks.EventUserPromptSubmit, err)
+					}
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
@@ -1306,6 +1316,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		if err != nil {
 			return database.Chat{}, err
 		}
+		// Subagent turns inject the owner's custom prompt like any other
+		// chat, so the admission event carries it too.
+		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, parent.OwnerID)
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,

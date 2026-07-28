@@ -32,9 +32,20 @@ const (
 	maxAdmissionDispatches = 192
 	maxResponseBodyBytes   = 1_048_576
 	maxModelContextBytes   = 16_384
-	capacityWaitLimit      = 250 * time.Millisecond
-	retryBackoff           = 250 * time.Millisecond
-	clockSkewLeeway        = 30 * time.Second
+	// maxUserMessageBytes bounds text persisted into the user-visible
+	// transcript and folded into prompt content, mirroring the model
+	// context cap.
+	maxUserMessageBytes = 16_384
+	// maxPermissionReasonBytes bounds the denial annotation persisted in
+	// synthetic tool results and API error messages.
+	maxPermissionReasonBytes = 4_096
+	// maxInputOverrideBytes matches the chat API ingress cap
+	// (2*maxSystemPromptLenBytes) so an override cannot exceed what a
+	// client could have submitted directly.
+	maxInputOverrideBytes = 262_144
+	capacityWaitLimit     = 250 * time.Millisecond
+	retryBackoff          = 250 * time.Millisecond
+	clockSkewLeeway       = 30 * time.Second
 )
 
 // CapacityClass selects which share of dispatch capacity an event draws from.
@@ -330,7 +341,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 
 	digest := sha256.Sum256(body)
 	now := time.Now()
-	token, err := agenthooks.SignClaims(d.secret, agenthooks.Claims{
+	claims := agenthooks.Claims{
 		Issuer:     d.deploymentID,
 		Subject:    "coder:chat:" + event.ChatID.String(),
 		Audience:   d.hookURL,
@@ -340,12 +351,13 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		JTI:        dispatchID,
 		Type:       event.Type,
 		BodySHA256: hex.EncodeToString(digest[:]),
-	})
+	}
+	token, err := agenthooks.SignClaims(d.secret, claims)
 	if err != nil {
 		return dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("sign request: %w", err)}
 	}
 
-	response, result, err := d.post(ctx, body, token)
+	response, result, err := d.post(ctx, body, token, claims)
 	outcome := dispatchOutcome{
 		result:   result,
 		response: response,
@@ -372,6 +384,7 @@ func (d *Dispatcher) post(
 	ctx context.Context,
 	body []byte,
 	token string,
+	requestClaims agenthooks.Claims,
 ) (response agenthooks.Response, result Result, err error) {
 	// The deadline set in Dispatch bounds both attempts so a retry cannot
 	// extend the dispatch past the configured timeout or the JWT lifetime.
@@ -438,6 +451,19 @@ func (d *Dispatcher) post(
 		}
 		if len(responseBody) > maxResponseBodyBytes {
 			return agenthooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
+		}
+		// Any 2xx response steers the chat (an empty body reads as allow),
+		// so every one must prove possession of the shared secret and bind
+		// to this dispatch. Without this, traffic injected on the return
+		// path (the loopback plain-HTTP hop, or any hop past a TLS
+		// terminator) could deny, allow, or rewrite tool input unseen.
+		if err := agenthooks.VerifyResponse(
+			httpResponse.Header.Get(agenthooks.SignatureHeader),
+			d.secret,
+			requestClaims,
+			responseBody,
+		); err != nil {
+			return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("verify lifecycle hook response: %w", err)
 		}
 		trimmed := bytes.TrimSpace(responseBody)
 		if len(trimmed) == 0 {
@@ -585,11 +611,23 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 	if len(response.ModelContext) > maxModelContextBytes {
 		return xerrors.New("model_context exceeds 16 KiB")
 	}
+	// user_message persists into the transcript and prompt, so it gets
+	// the same bound as model_context instead of riding the 1 MiB
+	// envelope cap.
+	if len(response.UserMessage) > maxUserMessageBytes {
+		return xerrors.New("user_message exceeds 16 KiB")
+	}
 	if response.Permission == nil {
 		return nil
 	}
 	if eventType != agenthooks.EventUserPromptSubmit && eventType != agenthooks.EventPreToolUse {
 		return xerrors.Errorf("permission is not valid for event %q", eventType)
+	}
+	if len(response.Permission.Reason) > maxPermissionReasonBytes {
+		return xerrors.New("permission reason exceeds 4 KiB")
+	}
+	if len(response.Permission.InputOverride) > maxInputOverrideBytes {
+		return xerrors.New("input_override exceeds 256 KiB")
 	}
 
 	switch response.Permission.Decision {

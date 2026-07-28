@@ -33,7 +33,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		data    agenthooks.SessionStartData
 	}
 	receivedCh := make(chan received, 2)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(secret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(secret))
@@ -43,7 +43,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		receivedCh <- received{request: request, claims: claims, data: data}
 		_, err = w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	db, _ := dbtestutil.NewDB(t)
@@ -57,7 +57,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		"test-version",
 		prometheus.NewRegistry(),
 	)
-	trigger := NewTrigger(dispatcher)
+	trigger := NewTrigger(dispatcher, nil)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
@@ -96,7 +96,7 @@ func TestRejectDuplicateToolUseIDs(t *testing.T) {
 
 func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 	t.Helper()
-	consumer := httptest.NewServer(handler)
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), handler))
 	t.Cleanup(consumer.Close)
 	return NewTrigger(dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -107,7 +107,7 @@ func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 		"test-deployment",
 		"test-version",
 		prometheus.NewRegistry(),
-	))
+	), nil)
 }
 
 func TestHookTriggerDisabled(t *testing.T) {
@@ -115,7 +115,7 @@ func TestHookTriggerDisabled(t *testing.T) {
 
 	for name, trigger := range map[string]*Trigger{
 		"NilTrigger":    nil,
-		"NilDispatcher": NewTrigger(nil),
+		"NilDispatcher": NewTrigger(nil, nil),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

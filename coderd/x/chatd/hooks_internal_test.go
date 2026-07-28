@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -51,9 +52,9 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 	dispatcher := dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -66,7 +67,7 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 		prometheus.NewRegistry(),
 	)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
-	starter.server.hooks = chathooks.NewTrigger(dispatcher)
+	starter.server.hooks = chathooks.NewTrigger(dispatcher, nil)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
 	defer debugTurn.Finalize(ctx)

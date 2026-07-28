@@ -67,7 +67,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 
 	var mu sync.Mutex
 	var received []agenthooks.PostToolUseData
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -92,7 +92,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 			_, err = w.Write([]byte(`{}`))
 		}
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	ctrl := gomock.NewController(t)
@@ -196,7 +196,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	var postCalls atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -211,7 +211,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 		require.JSONEq(t, `{"answer":42}`, string(data.ToolResponse))
 		_, err := w.Write([]byte(`{"model_context":"dynamic feedback","user_message":"dynamic notice"}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -284,7 +284,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	var postCalls atomic.Int32
 	var failPostToolUse atomic.Bool
 	failPostToolUse.Store(true)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -296,7 +296,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -370,7 +370,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	var postCalls atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -382,7 +382,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	ctrl := gomock.NewController(t)
@@ -444,7 +444,7 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 
 	var mu sync.Mutex
 	var postToolUseIDs []string
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
@@ -462,7 +462,7 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	ctrl := gomock.NewController(t)
@@ -505,7 +505,10 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 	require.Contains(t, sibling, "sibling")
 	spawn := string(messages[3].Content.RawMessage)
 	require.Contains(t, spawn, "call_spawn")
-	require.Contains(t, spawn, "lifecycle hook returned HTTP status 500")
+	// The committed tool result carries the redacted dispatch error, not
+	// the raw dispatcher message with the upstream HTTP status.
+	require.Contains(t, spawn, "hook dispatch failed: user_prompt_submit: http_error")
+	require.NotContains(t, spawn, "lifecycle hook returned HTTP status 500")
 
 	mu.Lock()
 	dispatched := slices.Clone(postToolUseIDs)
@@ -536,7 +539,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 
 	var mu sync.Mutex
 	results := map[string]string{}
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -558,7 +561,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	ctrl := gomock.NewController(t)

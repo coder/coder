@@ -10,7 +10,9 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 const (
@@ -280,6 +282,12 @@ func withSubagentType(result map[string]any, chat database.Chat) map[string]any 
 }
 
 func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse {
+	// Dispatch failures normally fail the tool closed before reaching
+	// here; this redaction is a backstop so no code path stringifies the
+	// operator's hook URL into a client-visible tool result.
+	if message, ok := chathooks.DispatchErrorMessage(agenthooks.EventUserPromptSubmit, err); ok {
+		err = xerrors.New(message)
+	}
 	if chat == nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}

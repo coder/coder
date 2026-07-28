@@ -59,7 +59,9 @@ func TestDispatcherSuccess(t *testing.T) {
 		assert.NoError(t, json.Unmarshal(request.Data, &decoded))
 		assert.Equal(t, agenthooks.SessionStartData{Source: "new"}, decoded)
 
-		_, err = w.Write([]byte(`{}`))
+		responseBody := []byte(`{}`)
+		signResponse(t, w, claims, responseBody)
+		_, err = w.Write(responseBody)
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -96,9 +98,8 @@ func TestDispatcherDeny(t *testing.T) {
 	t.Parallel()
 
 	event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "delete everything"})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"deny","reason":"blocked"},"user_message":"not allowed"}`))
-		assert.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSignedResponse(t, w, r, []byte(`{"permission":{"decision":"deny","reason":"blocked"},"user_message":"not allowed"}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -119,9 +120,8 @@ func TestDispatcherDenyNullOverrideDecode(t *testing.T) {
 		ToolName:  "execute",
 		ToolInput: json.RawMessage(`{"cmd":"rm"}`),
 	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"deny","input_override":null}}`))
-		assert.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSignedResponse(t, w, r, []byte(`{"permission":{"decision":"deny","input_override":null}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -144,9 +144,8 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 		ToolName:  "edit",
 		ToolInput: toolInput,
 	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"path":"after"}}}`))
-		assert.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSignedResponse(t, w, r, []byte(`{"permission":{"decision":"allow","input_override":{"path":"after"}}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -171,9 +170,8 @@ func TestDispatcherAllowsCaseDistinctOverrideKeys(t *testing.T) {
 	})
 	// The envelope key is folded by the decoder, so the boundary detection
 	// must fold too or the case-distinct override below is wrongly rejected.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"allow","INPUT_OVERRIDE":{"URL":"upper","url":"lower"}}}`))
-		assert.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSignedResponse(t, w, r, []byte(`{"permission":{"decision":"allow","INPUT_OVERRIDE":{"URL":"upper","url":"lower"}}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -216,6 +214,7 @@ func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
 		assert.NoError(t, err)
 		claimsCh <- claims
+		signResponse(t, w, claims, nil)
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(server.Close)
@@ -278,7 +277,9 @@ func TestDispatcherRetriesHTTP2AbortWithSameDispatchID(t *testing.T) {
 			assert.NoError(t, http.NewResponseController(w).Flush())
 			panic(http.ErrAbortHandler)
 		}
-		_, err = w.Write([]byte(`{}`))
+		responseBody := []byte(`{}`)
+		signResponse(t, w, claims, responseBody)
+		_, err = w.Write(responseBody)
 		assert.NoError(t, err)
 	}))
 	server.EnableHTTP2 = true
@@ -301,7 +302,10 @@ func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
 	t.Parallel()
 
 	event := newTestEvent(t, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		assert.NoError(t, err)
+		signResponse(t, w, claims, nil)
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(server.Close)
@@ -517,15 +521,142 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			t.Parallel()
 
 			event := newTestEvent(t, test.eventType, test.data)
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, err := w.Write(test.responseBody)
-				assert.NoError(t, err)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Signing keeps each case failing for its original
+				// decode or validation reason rather than at signature
+				// verification.
+				writeSignedResponse(t, w, r, test.responseBody)
 			}))
 			t.Cleanup(server.Close)
 
 			_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
 				testutil.Context(t, testutil.WaitLong), event,
 			)
+			assertDispatchErrorClass(t, err, ResultProtocolError)
+		})
+	}
+}
+
+func TestDispatcherUnsignedResponseIsRejected(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.ErrorContains(t, err, "verify lifecycle hook response")
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+}
+
+func TestDispatcherTamperedResponseBodyIsRejected(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		require.NoError(t, err)
+		// The token commits to `{}`, so the body actually written must
+		// fail body_sha256 verification.
+		signResponse(t, w, claims, []byte(`{}`))
+		_, err = w.Write([]byte(`{"user_message":"tampered"}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.ErrorContains(t, err, "verify lifecycle hook response")
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+}
+
+func TestDispatcherResponseSignedForOtherDispatchIsRejected(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		require.NoError(t, err)
+		// A token minted under the shared secret for a different dispatch
+		// must not authenticate this one.
+		claims.JTI = uuid.New()
+		responseBody := []byte(`{}`)
+		signResponse(t, w, claims, responseBody)
+		_, err = w.Write(responseBody)
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.ErrorContains(t, err, "verify lifecycle hook response")
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+}
+
+func TestDispatcherResponseFieldCaps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		eventType    agenthooks.EventType
+		data         any
+		responseBody []byte
+		wantErr      string
+	}{
+		{
+			name:      "oversized user_message",
+			eventType: agenthooks.EventStop,
+			data:      agenthooks.StopData{},
+			responseBody: mustJSON(t, agenthooks.Response{
+				UserMessage: string(bytes.Repeat([]byte("x"), maxUserMessageBytes+1)),
+			}),
+			wantErr: "user_message exceeds 16 KiB",
+		},
+		{
+			name:      "oversized permission reason",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_reason", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision: agenthooks.PermissionDeny,
+				Reason:   string(bytes.Repeat([]byte("r"), maxPermissionReasonBytes+1)),
+			}}),
+			wantErr: "permission reason exceeds 4 KiB",
+		},
+		{
+			name:      "oversized input_override",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_override_cap", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionAllow,
+				InputOverride: mustJSON(t, map[string]string{"cmd": string(bytes.Repeat([]byte("a"), maxInputOverrideBytes))}),
+			}}),
+			wantErr: "input_override exceeds 256 KiB",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			event := newTestEvent(t, test.eventType, test.data)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Signed so the response reaches field validation instead
+				// of failing signature verification.
+				writeSignedResponse(t, w, r, test.responseBody)
+			}))
+			t.Cleanup(server.Close)
+
+			_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+				testutil.Context(t, testutil.WaitLong), event,
+			)
+			require.ErrorContains(t, err, test.wantErr)
 			assertDispatchErrorClass(t, err, ResultProtocolError)
 		})
 	}
@@ -558,9 +689,8 @@ func TestDispatcherRejectedResponseIsNotObserved(t *testing.T) {
 		ToolName:  "execute",
 		ToolInput: json.RawMessage(`{"cmd":"ls"}`),
 	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"deny","input_override":{"cmd":"rm"}},"model_context":"ctx"}`))
-		assert.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSignedResponse(t, w, r, []byte(`{"permission":{"decision":"deny","input_override":{"cmd":"rm"}},"model_context":"ctx"}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -691,6 +821,28 @@ func mustJSON(t *testing.T, value any) []byte {
 	return encoded
 }
 
+// signResponse mints the Coder-Hook-Signature token over body with the
+// dispatch's verified request claims and sets it on w. It must run before
+// the handler writes the status or body.
+func signResponse(t *testing.T, w http.ResponseWriter, claims agenthooks.Claims, body []byte) {
+	t.Helper()
+	signature, err := agenthooks.SignResponse([]byte(testSecret), claims, body)
+	require.NoError(t, err)
+	w.Header().Set(agenthooks.SignatureHeader, signature)
+}
+
+// writeSignedResponse verifies r's Authorization to recover the dispatch
+// claims, signs body with them, and writes it. Handlers that already hold
+// verified claims can call signResponse directly instead.
+func writeSignedResponse(t *testing.T, w http.ResponseWriter, r *http.Request, body []byte) {
+	t.Helper()
+	claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+	require.NoError(t, err)
+	signResponse(t, w, claims, body)
+	_, err = w.Write(body)
+	assert.NoError(t, err)
+}
+
 func serverURL(r *http.Request) string {
 	return "http://" + r.Host
 }
@@ -731,9 +883,8 @@ func TestDispatcherAdmissionReserve(t *testing.T) {
 	t.Run("AdmissionReleasesBothPools", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, err := w.Write([]byte(`{}`))
-			assert.NoError(t, err)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeSignedResponse(t, w, r, []byte(`{}`))
 		}))
 		t.Cleanup(server.Close)
 
@@ -790,9 +941,8 @@ func TestDispatcherAdmissionReserve(t *testing.T) {
 	t.Run("SaturatedAdmissionStillServesGeneration", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, err := w.Write([]byte(`{}`))
-			assert.NoError(t, err)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeSignedResponse(t, w, r, []byte(`{}`))
 		}))
 		t.Cleanup(server.Close)
 

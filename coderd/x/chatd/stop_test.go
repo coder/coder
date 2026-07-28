@@ -161,7 +161,7 @@ func TestStopHookDispatchFailureErrorsChat(t *testing.T) {
 
 func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server {
 	t.Helper()
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventStop {
@@ -175,7 +175,7 @@ func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server 
 			_, err := w.Write([]byte(body))
 			require.NoError(t, err)
 		}
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 	return consumer
 }

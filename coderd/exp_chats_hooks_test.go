@@ -55,7 +55,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			requests := make(chan agenthooks.Request, 2)
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				requests <- request
@@ -64,7 +64,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 					_, err := w.Write([]byte(test.response))
 					require.NoError(t, err)
 				}
-			}))
+			})))
 			t.Cleanup(consumer.Close)
 
 			client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
@@ -112,10 +112,10 @@ func TestChatLifecycleHooksExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
 	var hookRequests atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hookRequests.Add(1)
 		w.WriteHeader(http.StatusOK)
-	}))
+	})))
 	t.Cleanup(consumer.Close)
 
 	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {

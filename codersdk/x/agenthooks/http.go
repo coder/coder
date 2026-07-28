@@ -1,6 +1,7 @@
 package agenthooks
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -111,12 +112,62 @@ func NewHTTPHandler(secret []byte, expectedAudience string, hooks Hooks, opts ..
 			http.Error(rw, "encode response", http.StatusInternalServerError)
 			return
 		}
+		signature, err := SignResponse(secret, claims, encoded)
+		if err != nil {
+			http.Error(rw, "sign response", http.StatusInternalServerError)
+			return
+		}
 		rw.Header().Set("Content-Type", "application/json")
+		rw.Header().Set(SignatureHeader, signature)
 		if _, err := rw.Write(encoded); err != nil {
 			return
 		}
 	})
 }
+
+// SignResponses wraps a consumer's own hook handler so every 2xx response
+// carries the SignatureHeader token the dispatcher requires. The wrapper
+// authenticates the request token itself because the response token echoes
+// its claims; NewHTTPHandler signs inline and does not need it.
+func SignResponses(secret []byte, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		claims, err := Verify(r.Header.Get("Authorization"), secret)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		buffer := &bufferedResponse{header: make(http.Header), status: http.StatusOK}
+		next.ServeHTTP(buffer, r)
+		body := buffer.body.Bytes()
+		if buffer.status >= http.StatusOK && buffer.status < http.StatusMultipleChoices {
+			signature, err := SignResponse(secret, claims, body)
+			if err != nil {
+				http.Error(rw, "sign response", http.StatusInternalServerError)
+				return
+			}
+			buffer.header.Set(SignatureHeader, signature)
+		}
+		for key, values := range buffer.header {
+			rw.Header()[key] = values
+		}
+		rw.WriteHeader(buffer.status)
+		_, _ = rw.Write(body)
+	})
+}
+
+// bufferedResponse captures a handler's response so it can be signed before
+// any byte reaches the network.
+type bufferedResponse struct {
+	header http.Header
+	body   bytes.Buffer
+	status int
+}
+
+func (b *bufferedResponse) Header() http.Header { return b.header }
+
+func (b *bufferedResponse) Write(p []byte) (int, error) { return b.body.Write(p) }
+
+func (b *bufferedResponse) WriteHeader(status int) { b.status = status }
 
 func verifyBody(body []byte, claims Claims, request Request, audience string) error {
 	digest := sha256.Sum256(body)
