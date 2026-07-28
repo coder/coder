@@ -23,10 +23,10 @@ Secret values are omitted from the output.
 
 ### -c, --column
 
-|         |                                                               |
-|---------|---------------------------------------------------------------|
-| Type    | <code>[created\|name\|updated\|env\|file\|description]</code> |
-| Default | <code>name,created,updated,env,file,description</code>        |
+|         |                                                                        |
+|---------|------------------------------------------------------------------------|
+| Type    | <code>[created\|name\|updated\|env\|file\|enabled\|description]</code> |
+| Default | <code>name,created,updated,env,file,enabled,description</code>         |
 
 Columns to display in table output.
 

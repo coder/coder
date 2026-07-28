@@ -145,6 +145,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		Experiments:         api.AGPL.Experiments,
 		Logger:              logger,
 		Clock:               api.AGPL.Clock,
+		Metrics:             api.AGPL.AIGatewayServerMetrics,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

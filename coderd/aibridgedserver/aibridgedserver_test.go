@@ -10,11 +10,13 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,7 @@ import (
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -418,21 +421,23 @@ func TestIsBudgetExceeded(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name            string
-		userIDStr       string
-		setupMocks      func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse
-		wantErrContains string
+		name              string
+		userIDStr         string
+		setupMocks        func(db *dbmock.MockStore, userID uuid.UUID) (resp *proto.IsBudgetExceededResponse, blockedGroupID uuid.UUID)
+		wantErrContains   string
+		wantMetricOutcome string
 	}{
 		{
 			// Invalid UUID short-circuits before any store call.
-			name:            "invalid user_id",
-			userIDStr:       "not-a-uuid",
-			wantErrContains: "invalid user_id",
+			name:              "invalid user_id",
+			userIDStr:         "not-a-uuid",
+			wantErrContains:   "invalid user_id",
+			wantMetricOutcome: "error",
 		},
 		{
 			// No override and no group budget resolves: pass-through.
 			name: "no budget configured returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
@@ -440,13 +445,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
 					SpendLimitMicros: nil,
-				}
+				}, uuid.Nil
 			},
+			wantMetricOutcome: "allowed",
 		},
 		{
 			// Group budget resolves, spend below limit (spend 500 < limit 1000): pass-through.
 			name: "under limit returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -457,13 +463,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, uuid.Nil
 			},
+			wantMetricOutcome: "allowed",
 		},
 		{
 			// Group budget resolves, spend at limit (spend 1000 == limit 1000): blocked.
 			name: "at limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -474,14 +481,15 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, groupID
 			},
+			wantMetricOutcome: "blocked",
 		},
 		{
 			// Limit of 0 is a valid "block-all" setting, distinct from
 			// "no budget configured": blocked.
 			name: "zero limit blocks all requests",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -492,13 +500,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(0)),
-				}
+				}, groupID
 			},
+			wantMetricOutcome: "blocked",
 		},
 		{
 			// Group budget resolves, spend above limit (spend 1500 > limit 1000): blocked.
 			name: "over limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -509,14 +518,15 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, groupID
 			},
+			wantMetricOutcome: "blocked",
 		},
 		{
 			// User override wins, group lookup skipped, spend aggregated against
 			// the override's group (spend 600 > limit 500): blocked.
 			name: "user override wins over group budget",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				overrideGroupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{
@@ -530,32 +540,35 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(500)),
-				}
+				}, overrideGroupID
 			},
+			wantMetricOutcome: "blocked",
 		},
 		{
 			// Unexpected error from budget override lookup propagates.
 			name: "budget resolution error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrConnDone)
-				return nil
+				return nil, uuid.Nil
 			},
-			wantErrContains: "resolve effective AI budget",
+			wantErrContains:   "resolve effective AI budget",
+			wantMetricOutcome: "error",
 		},
 		{
 			// Error from spend aggregation propagates (fail-closed).
 			name: "spend aggregation error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: uuid.New(), SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{}, sql.ErrConnDone)
-				return nil
+				return nil, uuid.Nil
 			},
-			wantErrContains: "get user AI spend",
+			wantErrContains:   "get user AI spend",
+			wantMetricOutcome: "error",
 		},
 	}
 
@@ -574,10 +587,13 @@ func TestIsBudgetExceeded(t *testing.T) {
 			}
 
 			var wantResp *proto.IsBudgetExceededResponse
+			var blockedGroupID uuid.UUID
 			if tc.setupMocks != nil {
-				wantResp = tc.setupMocks(db, userID)
+				wantResp, blockedGroupID = tc.setupMocks(db, userID)
 			}
 
+			reg := prometheus.NewRegistry()
+			metrics := aibridgedserver.NewMetrics(reg)
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
 				AISeatTracker: agplaiseats.Noop{},
@@ -586,11 +602,30 @@ func TestIsBudgetExceeded(t *testing.T) {
 				Experiments:   requiredExperiments,
 				Logger:        logger,
 				Clock:         quartz.NewReal(),
+				Metrics:       metrics,
 			})
 			require.NoError(t, err)
 
 			req := &proto.IsBudgetExceededRequest{UserId: userIDStr}
 			resp, err := srv.IsBudgetExceeded(t.Context(), req)
+
+			// The enforcement duration is always observed once, labeled by the
+			// outcome, even when the check errors.
+			require.Equal(t, 1, promtest.CollectAndCount(metrics.EnforcementDuration))
+			require.EqualValues(t, 1, promhelp.HistogramValue(t, reg,
+				"cost_control_enforcement_duration_seconds",
+				prometheus.Labels{"outcome": tc.wantMetricOutcome}).GetSampleCount())
+			wantBlocked := 0
+			if tc.wantMetricOutcome == "blocked" {
+				wantBlocked = 1
+			}
+			require.Equal(t, wantBlocked, promtest.CollectAndCount(metrics.BlockedRequests))
+			if wantBlocked == 1 {
+				require.Equal(t, 1, promhelp.CounterValue(t, reg,
+					"cost_control_blocked_requests_total",
+					prometheus.Labels{"group_id": blockedGroupID.String()}))
+			}
+
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Nil(t, resp)
@@ -1713,6 +1748,11 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
+				// A priced model does not increment unpriced_token_usage_records_total.
+				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
+					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_token_usage_records_total",
+						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
+				},
 			},
 			{
 				// Budget resolves via user override, model is priced.
@@ -1854,6 +1894,11 @@ func TestRecordTokenUsage(t *testing.T) {
 
 					// Spend update is skipped because cost is NULL.
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
+				},
+				// A missing price row increments unpriced_token_usage_records_total.
+				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
+					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
+						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{
@@ -2029,6 +2074,11 @@ func TestRecordTokenUsage(t *testing.T) {
 
 					// Spend update is skipped because cost is NULL.
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
+				},
+				// A missing price row increments unpriced_token_usage_records_total.
+				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
+					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
+						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{
@@ -3167,6 +3217,9 @@ type testRecordMethodCase[Req any] struct {
 	// setupMocks is called with the mock store and the above request.
 	setupMocks  func(t *testing.T, db *dbmock.MockStore, req Req)
 	expectedErr string
+	// assertMetrics, when set, is called after the method returns to assert
+	// the metrics recorded on the server's registry.
+	assertMetrics func(t *testing.T, reg *prometheus.Registry)
 }
 
 // testRecordMethod is a helper that abstracts the common testing pattern for all Record* methods.
@@ -3190,6 +3243,8 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
+			reg := prometheus.NewRegistry()
+			metrics := aibridgedserver.NewMetrics(reg)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         db,
 				AISeatTracker: agplaiseats.Noop{},
@@ -3198,6 +3253,7 @@ func testRecordMethod[Req any, Resp any](
 				Experiments:   requiredExperiments,
 				Logger:        logger,
 				Clock:         quartz.NewReal(),
+				Metrics:       metrics,
 			})
 			require.NoError(t, err)
 
@@ -3208,6 +3264,9 @@ func testRecordMethod[Req any, Resp any](
 			} else {
 				require.NoError(t, err, "Unexpected error for test case: %s", tc.name)
 				require.NotNil(t, resp)
+			}
+			if tc.assertMetrics != nil {
+				tc.assertMetrics(t, reg)
 			}
 		})
 	}
@@ -4141,3 +4200,74 @@ func (*fakeWatchProvidersStream) MsgSend(drpc.Message, drpc.Encoding) error { re
 func (*fakeWatchProvidersStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
 func (*fakeWatchProvidersStream) CloseSend() error                          { return nil }
 func (*fakeWatchProvidersStream) Close() error                              { return nil }
+
+// countingSeatTracker records the number of RecordUsage calls.
+type countingSeatTracker struct {
+	calls atomic.Int64
+}
+
+func (c *countingSeatTracker) RecordUsage(context.Context, uuid.UUID, agplaiseats.Reason) {
+	c.calls.Add(1)
+}
+
+// TestRecordInterceptionAISeat verifies that bridge usage claims an AI
+// Governance seat only when the seat exclusion experiment is disabled.
+func TestRecordInterceptionAISeat(t *testing.T) {
+	t.Parallel()
+
+	newRequest := func() *proto.RecordInterceptionRequest {
+		return &proto.RecordInterceptionRequest{
+			Id:          uuid.NewString(),
+			ApiKeyId:    uuid.NewString(),
+			InitiatorId: uuid.NewString(),
+			Provider:    "anthropic",
+			Model:       "claude-4-opus",
+			StartedAt:   timestamppb.Now(),
+		}
+	}
+
+	cases := []struct {
+		name          string
+		experiments   []codersdk.Experiment
+		expectedCalls int64
+	}{
+		{
+			name:          "experiment off records a seat",
+			experiments:   requiredExperiments,
+			expectedCalls: 1,
+		},
+		{
+			name:          "seat exclusion skips the seat",
+			experiments:   append([]codersdk.Experiment{codersdk.ExperimentAIGatewaySeatExclusion}, requiredExperiments...),
+			expectedCalls: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeInterception{}, nil)
+
+			tracker := &countingSeatTracker{}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: tracker,
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   tc.experiments,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordInterception(ctx, newRequest())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedCalls, tracker.calls.Load())
+		})
+	}
+}
