@@ -22,19 +22,13 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import {
-	isSubagentToolName,
-	type SubagentIconKind,
-} from "./subagentDescriptor";
 
 export const ToolIcon: React.FC<{
 	name: string;
-	isError: boolean;
 	iconUrl?: string;
 	isRunning?: boolean;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
-}> = ({ name, iconUrl, isRunning, serverName, subagentIconKind }) => {
+}> = ({ name, iconUrl, isRunning, serverName }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = "text-current";
 	const base = cn(
@@ -80,20 +74,6 @@ export const ToolIcon: React.FC<{
 		return img;
 	}
 
-	if (isSubagentToolName(name)) {
-		// This name-based fallback only exists for legacy callers that do
-		// not pass a descriptor. The descriptor path should provide
-		// subagentIconKind for new subagent types instead of extending it.
-		const iconKind =
-			subagentIconKind ||
-			(name === "spawn_computer_use_agent" ? "monitor" : "bot");
-		return iconKind === "monitor" ? (
-			<MonitorIcon className={base} />
-		) : (
-			<BotIcon className={base} />
-		);
-	}
-
 	switch (name) {
 		case "execute":
 		case "process_output":
@@ -116,6 +96,7 @@ export const ToolIcon: React.FC<{
 		case "start_workspace":
 			return <PowerIcon className={base} />;
 		case "chat_summarized":
+		case "list_agents":
 			return <BotIcon className={base} />;
 		case "thinking":
 			return <LightbulbIcon className={base} />;

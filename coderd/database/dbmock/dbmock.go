@@ -1724,6 +1724,21 @@ func (mr *MockStoreMockRecorder) ExpirePrebuildsAPIKeys(ctx, now any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpirePrebuildsAPIKeys", reflect.TypeOf((*MockStore)(nil).ExpirePrebuildsAPIKeys), ctx, now)
 }
 
+// ExportOrganizationAISpend mocks base method.
+func (m *MockStore) ExportOrganizationAISpend(ctx context.Context, arg database.ExportOrganizationAISpendParams) ([]database.ExportOrganizationAISpendRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportOrganizationAISpend", ctx, arg)
+	ret0, _ := ret[0].([]database.ExportOrganizationAISpendRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportOrganizationAISpend indicates an expected call of ExportOrganizationAISpend.
+func (mr *MockStoreMockRecorder) ExportOrganizationAISpend(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportOrganizationAISpend", reflect.TypeOf((*MockStore)(nil).ExportOrganizationAISpend), ctx, arg)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2231,6 +2246,21 @@ func (m *MockStore) GetActiveUserCount(ctx context.Context, includeSystem bool) 
 func (mr *MockStoreMockRecorder) GetActiveUserCount(ctx, includeSystem any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveUserCount", reflect.TypeOf((*MockStore)(nil).GetActiveUserCount), ctx, includeSystem)
+}
+
+// GetActiveUsersAuthorizationRoles mocks base method.
+func (m *MockStore) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]database.GetActiveUsersAuthorizationRolesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveUsersAuthorizationRoles", ctx)
+	ret0, _ := ret[0].([]database.GetActiveUsersAuthorizationRolesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveUsersAuthorizationRoles indicates an expected call of GetActiveUsersAuthorizationRoles.
+func (mr *MockStoreMockRecorder) GetActiveUsersAuthorizationRoles(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveUsersAuthorizationRoles", reflect.TypeOf((*MockStore)(nil).GetActiveUsersAuthorizationRoles), ctx)
 }
 
 // GetActiveWorkspaceBuildsByTemplateID mocks base method.
@@ -4826,6 +4856,21 @@ func (m *MockStore) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) GetOrganizationsWithPrebuildStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationsWithPrebuildStatus", reflect.TypeOf((*MockStore)(nil).GetOrganizationsWithPrebuildStatus), ctx, arg)
+}
+
+// GetOverBudgetUsersPerGroup mocks base method.
+func (m *MockStore) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOverBudgetUsersPerGroup", ctx, periodStart)
+	ret0, _ := ret[0].([]database.GetOverBudgetUsersPerGroupRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOverBudgetUsersPerGroup indicates an expected call of GetOverBudgetUsersPerGroup.
+func (mr *MockStoreMockRecorder) GetOverBudgetUsersPerGroup(ctx, periodStart any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOverBudgetUsersPerGroup", reflect.TypeOf((*MockStore)(nil).GetOverBudgetUsersPerGroup), ctx, periodStart)
 }
 
 // GetParameterSchemasByJobID mocks base method.

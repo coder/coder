@@ -169,6 +169,7 @@ const WorkspacesPage: FC = () => {
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
+				canCreateWorkspace={permissions.createWorkspace}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}
@@ -248,7 +249,6 @@ const WorkspacesPage: FC = () => {
 				onSubmit={async () => {
 					await batchActions.updateTemplateVersions({
 						workspaces: checkedWorkspaces,
-						isDynamicParametersEnabled: false,
 					});
 					setActiveBatchAction(undefined);
 				}}

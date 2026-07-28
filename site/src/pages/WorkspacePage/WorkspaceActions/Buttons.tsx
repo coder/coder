@@ -114,7 +114,6 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				label="Start with build parameters"
 				workspace={workspace}
 				disabled={loading}
-				onSubmit={handleAction}
 			/>
 		</div>
 	);
@@ -155,7 +154,6 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				label="Restart with build parameters"
 				workspace={workspace}
 				disabled={loading}
-				onSubmit={handleAction}
 			/>
 		</div>
 	);

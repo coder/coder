@@ -87,6 +87,14 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 		// so multiple empty env_names are allowed.
 		if UserSecretEnvNameValid(e.key) == nil {
 			req.EnvName = e.key
+		} else {
+			// Keys that cannot be env-injected (reserved names, invalid
+			// identifiers) are imported without an injection target, so
+			// they must be disabled: an enabled secret always has at
+			// least one of env_name or file_path set. The user can add
+			// a target and re-enable the secret afterwards.
+			disabled := false
+			req.Enabled = &disabled
 		}
 		reqs = append(reqs, req)
 	}

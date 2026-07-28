@@ -179,8 +179,9 @@ func TestImportUserSecretsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-		Name:  "EXISTING",
-		Value: "original",
+		Name:    "EXISTING",
+		Value:   "original",
+		EnvName: "EXISTING",
 	})
 	require.NoError(t, err)
 	auditor.ResetLogs()
@@ -217,8 +218,9 @@ func TestImportUserSecretsLimits(t *testing.T) {
 
 		for i := 0; i < codersdk.MaxUserSecretsPerUserCount-1; i++ {
 			_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-				Name:  fmt.Sprintf("prefill-%03d", i),
-				Value: "original",
+				Name:     fmt.Sprintf("prefill-%03d", i),
+				Value:    "original",
+				FilePath: fmt.Sprintf("/tmp/prefill-%03d", i),
 			})
 			require.NoError(t, err)
 		}
