@@ -17,7 +17,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -26,12 +25,8 @@ import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
 
 const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
-	const { experiments } = useDashboard();
 	const { organization, showOrganizations } = useGroupsSettings();
-	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
-	// the cost-control feature is stable.
-	const aibridgeVisible =
-		Boolean(aibridge) && experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(aibridge);
 	const groupsQuery = useQuery({
 		...groupsByOrganization(organization?.name ?? ""),
 		enabled: Boolean(organization),

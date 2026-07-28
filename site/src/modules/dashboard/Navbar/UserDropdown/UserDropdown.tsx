@@ -9,7 +9,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
@@ -34,11 +33,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data, isError } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,

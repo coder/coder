@@ -4831,7 +4831,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "ai-gateway-cost-control"
 	| "ai-gateway-seat-exclusion"
 	| "auto-fill-parameters"
 	| "chat-advisor"
@@ -4847,7 +4846,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"ai-gateway-cost-control",
 	"ai-gateway-seat-exclusion",
 	"auto-fill-parameters",
 	"chat-advisor",
