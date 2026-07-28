@@ -289,8 +289,8 @@ importers:
         specifier: 2.4.10
         version: 2.4.10
       '@coder/pixel-storybook':
-        specifier: file:.pixel-experiment/pixel-storybook-162da26.tgz
-        version: file:.pixel-experiment/pixel-storybook-162da26.tgz(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
+        specifier: file:.pixel-experiment/pixel-storybook-cc953b4.tgz
+        version: file:.pixel-experiment/pixel-storybook-cc953b4.tgz(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       '@octokit/types':
         specifier: 12.6.0
         version: 12.6.0
@@ -682,8 +682,8 @@ packages:
   '@chevrotain/utils@11.1.2':
     resolution: {integrity: sha512-4mudFAQ6H+MqBTfqLmU7G1ZwRzCLfJEooL/fsF6rCX5eePMbGhoy5n4g+G4vlh2muDcsCTJtL+uKbOzWxs5LHA==, tarball: https://registry.npmjs.org/@chevrotain/utils/-/utils-11.1.2.tgz}
 
-  '@coder/pixel-storybook@file:.pixel-experiment/pixel-storybook-162da26.tgz':
-    resolution: {integrity: sha512-56yaBpwMQZs9Di1zOesrCbCeaUMUQNPv4Fs5TPmWma4ww15IflK6Phu3JQk6ipDMms5bccrZvX+YB9YDjlQEYQ==, tarball: file:.pixel-experiment/pixel-storybook-162da26.tgz}
+  '@coder/pixel-storybook@file:.pixel-experiment/pixel-storybook-cc953b4.tgz':
+    resolution: {integrity: sha512-Tg6DrbbL8NPbreb6M2aQcwZ+LlIUBzZLbyihHrJHLlYhtamhNR6a85cwY/iZPwR2Naug7ZGKnxEPKtQi674SlQ==, tarball: file:.pixel-experiment/pixel-storybook-cc953b4.tgz}
     version: 0.2.2
     engines: {node: '>=22'}
     hasBin: true
@@ -6780,7 +6780,7 @@ snapshots:
 
   '@chevrotain/utils@11.1.2': {}
 
-  '@coder/pixel-storybook@file:.pixel-experiment/pixel-storybook-162da26.tgz(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
+  '@coder/pixel-storybook@file:.pixel-experiment/pixel-storybook-cc953b4.tgz(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
       get-port-please: 3.1.2
       jsonc-parser: 3.3.1
