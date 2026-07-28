@@ -36,13 +36,12 @@ Dynamic Parameters help you reduce template duplication by setting the condition
 They reduce the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization.
 They allow you to set resource guardrails by referencing Coder identity in the `coder_workspace_owner` data source.
 
-## How to enable Dynamic Parameters
+## How to use Dynamic Parameters
 
-In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new templates. For Coder v2.24 and below, you can opt-in to Dynamic Parameters for individual existing templates via template settings.
+Dynamic Parameters is the standard workspace creation experience.
+In Coder v2.25.0 and later it is enabled automatically, and the classic parameter flow is deprecated.
 
-1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
-
-   ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-ga-settings.png)
+To use the features described on this page in an existing template:
 
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
@@ -57,8 +56,7 @@ In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new
    }
    ```
 
-1. This enables Dynamic Parameters in the template.
-   Add some [conditional parameters](#available-form-input-types).
+1. Add some [conditional parameters](#available-form-input-types).
 
    Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters.
 
@@ -67,7 +65,6 @@ In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new
 1. Users should see the updated workspace creation form.
 
 Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
-If you decide to revert to the legacy flow later, disable Dynamic Parameters in the template's settings.
 
 ## Features and Capabilities
 
@@ -806,15 +803,13 @@ This will resolve the necessary template metadata to render the form.
 
 ### Reverting to classic parameters
 
-To revert Dynamic Parameters on a template:
+The classic parameter flow is deprecated and can no longer be enabled from the UI.
+A template can still opt out of Dynamic Parameters by setting the `use_classic_parameter_flow`
+field through the [templates API](../../../reference/api/templates.md#update-template-settings-by-id),
+but this opt-out will be removed in a future release.
 
-1. Prepare your template by removing any conditional logic or user data references in parameters.
-1. As a template administrator or owner, go to your template's settings:
-
-   **Templates** > **Your template** > **Settings**
-
-1. Uncheck the **Enable dynamic parameters for workspace creation** option.
-1. Create a new template version and publish to the active version.
+If your template's parameters do not work with Dynamic Parameters, please
+[file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ### Template variables not showing up
 

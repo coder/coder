@@ -7242,9 +7242,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai-gateway-cost-control`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7749,6 +7749,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `group_id`           | string  | false    |              |             |
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
+
+## codersdk.GroupAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
+| `group_id`             | string  | false    |              |                                                                                                            |
+| `period_end`           | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                      |
+| `period_start`         | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                    |
+| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
 
 ## codersdk.GroupMemberAISpend
 
@@ -12613,6 +12635,52 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name      | Type                                                                      | Required | Restrictions | Description |
 |-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
 | `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderSessionEventType
+
+```json
+"wizard_entry"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                             |
+|--------------------------------------|
+| `compose_completion`, `wizard_entry` |
+
+## codersdk.TemplateBuilderSessionRequest
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "success": true
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                               | false    |              |             |
+| `duration_seconds` | number                                                                               | false    |              |             |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
+| `module_ids`       | array of string                                                                      | false    |              |             |
+| `session_id`       | string                                                                               | true     |              |             |
+| `success`          | boolean                                                                              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                             |
+|--------------|--------------------------------------|
+| `event_type` | `compose_completion`, `wizard_entry` |
 
 ## codersdk.TemplateBuilderVariableType
 

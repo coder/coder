@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // tokensPerMillion is the divisor for prices, which are quoted per million
@@ -24,6 +25,7 @@ const tokensPerMillion = 1_000_000
 type tokenUsageCost struct {
 	effectiveGroupID      uuid.NullUUID
 	spendLimitMicros      sql.NullInt64
+	limitSource           codersdk.AIBudgetLimitSource
 	inputPriceMicros      sql.NullInt64
 	outputPriceMicros     sql.NullInt64
 	cacheReadPriceMicros  sql.NullInt64
@@ -54,9 +56,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	} else {
 		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveGroup.GroupID, Valid: true}
 		// Limit is nil for the unlimited Everyone fallback; only a budgeted
-		// group carries the spend limit.
+		// group carries the spend limit and its source.
 		if effectiveGroup.Limit != nil {
 			result.spendLimitMicros = sql.NullInt64{Int64: effectiveGroup.Limit.SpendLimitMicros, Valid: true}
+			result.limitSource = effectiveGroup.Limit.Source
 		}
 	}
 
@@ -70,6 +73,9 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		// Model not in the price table: record tokens but leave cost NULL.
 		s.logger.Debug(ctx, "no price found for model, recording token usage with NULL cost",
 			slog.F("provider", intc.Provider), slog.F("model", intc.Model))
+		if s.metrics != nil {
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.Provider, intc.Model).Inc()
+		}
 		return result, nil
 	case err != nil:
 		return tokenUsageCost{}, xerrors.Errorf("look up model price for %s/%s: %w", intc.Provider, intc.Model, err)

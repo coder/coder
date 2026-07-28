@@ -84,6 +84,7 @@ type store interface {
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
+	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -114,6 +115,7 @@ type Server struct {
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	experiments       codersdk.Experiments
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
@@ -122,6 +124,8 @@ type Server struct {
 	budgetPeriod  codersdk.AIBudgetPeriod
 	clock         quartz.Clock
 	notifEnqueuer notifications.Enqueuer
+	// metrics records cost-control metrics. May be nil.
+	metrics *Metrics
 }
 
 // Options carries the dependencies required to construct an aibridged Server.
@@ -138,8 +142,9 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
 
-	Logger slog.Logger
-	Clock  quartz.Clock
+	Logger  slog.Logger
+	Clock   quartz.Clock
+	Metrics *Metrics
 }
 
 func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
@@ -166,10 +171,12 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
 		aiSeatTracker:       opts.AISeatTracker,
+		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
 		clock:               opts.Clock,
 		notifEnqueuer:       enqueuer,
+		metrics:             opts.Metrics,
 	}
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
@@ -268,8 +275,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
+		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	}
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -433,14 +442,10 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		return err
 	}
 
-	for _, crossing := range crossings {
-		if err := s.notifyBudgetThresholdCrossing(ctx, crossing); err != nil {
-			s.logger.Error(ctx, "failed to send AI budget notification",
-				slog.F("user_id", crossing.userID),
-				slog.F("group_id", crossing.effectiveGroupID),
-				slog.F("threshold_percent", crossing.thresholdPercent),
-				slog.Error(err))
-		}
+	if err := s.notifyBudgetThresholdCrossings(ctx, crossings); err != nil {
+		s.logger.Error(ctx, "failed to send AI budget notifications",
+			slog.F("initiator_id", intc.InitiatorID),
+			slog.Error(err))
 	}
 	return nil
 }
@@ -810,9 +815,24 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 // IsBudgetExceeded reports whether the user's AI spend has reached their
 // effective limit over [periodStart, now], where periodStart is the start of
 // the current deployment-configured budget period.
-func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
+func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (resp *proto.IsBudgetExceededResponse, retErr error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
+
+	start := s.clock.Now()
+	defer func() {
+		if s.metrics == nil {
+			return
+		}
+		outcome := "allowed"
+		switch {
+		case retErr != nil:
+			outcome = "error"
+		case resp != nil && resp.Exceeded:
+			outcome = "blocked"
+		}
+		s.metrics.EnforcementDuration.WithLabelValues(outcome).Observe(s.clock.Since(start).Seconds())
+	}()
 
 	userID, err := uuid.Parse(in.GetUserId())
 	if err != nil {
@@ -828,6 +848,9 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	if err != nil {
 		return nil, err
 	}
+	if userBudget.Exceeded && s.metrics != nil {
+		s.metrics.BlockedRequests.WithLabelValues(userBudget.GroupID.String()).Inc()
+	}
 	return &proto.IsBudgetExceededResponse{
 		Exceeded:         userBudget.Exceeded,
 		SpendLimitMicros: userBudget.SpendLimitMicros,
@@ -835,10 +858,12 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 }
 
 // userAIBudget is a snapshot of a user's AI budget status. SpendLimitMicros
-// is nil when no budget is configured for the user (unlimited).
+// is nil when no budget is configured for the user (unlimited). GroupID is the
+// effective group the limit resolved to, set only when a limit applies.
 type userAIBudget struct {
 	Exceeded         bool
 	SpendLimitMicros *int64
+	GroupID          uuid.UUID
 }
 
 // checkUserAIBudget evaluates the user's AI budget status aggregated over
@@ -893,6 +918,7 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 	return userAIBudget{
 		Exceeded:         exceeded,
 		SpendLimitMicros: ptr.Ref(effectiveGroup.Limit.SpendLimitMicros),
+		GroupID:          effectiveGroup.GroupID,
 	}, nil
 }
 

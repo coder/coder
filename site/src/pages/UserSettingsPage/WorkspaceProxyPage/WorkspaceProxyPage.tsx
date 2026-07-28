@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const WorkspaceProxyPage: FC = () => {
@@ -11,6 +12,7 @@ const WorkspaceProxyPage: FC = () => {
 		isLoading: proxiesLoading,
 		proxy,
 	} = useProxy();
+	const { workspace_proxy: workspaceProxyEnabled } = useFeatureVisibility();
 
 	return (
 		<WorkspaceProxyView
@@ -20,6 +22,7 @@ const WorkspaceProxyPage: FC = () => {
 			hasLoaded={proxiesFetched}
 			getWorkspaceProxiesError={proxiesError}
 			preferredProxy={proxy.proxy}
+			showPaywall={!workspaceProxyEnabled}
 		/>
 	);
 };
