@@ -118,6 +118,16 @@ export const handlers = [
 			return HttpResponse.json([]);
 		},
 	),
+	http.post(
+		"/api/v2/templateversions/:templateVersionId/dynamic-parameters/evaluate",
+		() => {
+			return HttpResponse.json({
+				id: 0,
+				diagnostics: [],
+				parameters: [],
+			});
+		},
+	),
 	http.get("/api/v2/templateversions/:templateVersionId/external-auth", () => {
 		return HttpResponse.json([]);
 	}),
@@ -434,6 +444,7 @@ function userSecretFromCreateRequest(
 		description: request.description ?? "",
 		env_name: request.env_name ?? "",
 		file_path: request.file_path ?? "",
+		enabled: request.enabled ?? true,
 		created_at: now,
 		updated_at: now,
 	};

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -58,6 +59,8 @@ func (r *RootCmd) secrets() *serpent.Command {
 			r.secretCreate(),
 			r.secretUpdate(),
 			r.secretImport(),
+			r.secretEnable(),
+			r.secretDisable(),
 			r.secretList(),
 			r.secretDelete(),
 		},
@@ -72,6 +75,7 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 		description string
 		env         string
 		file        string
+		enabled     bool
 	)
 
 	cmd := &serpent.Command{
@@ -106,6 +110,13 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				Description: "Workspace file path where this secret will be written. Must start with ~/ or /.",
 				Value:       serpent.StringOf(&file),
 			},
+			{
+				Name:        "enabled",
+				Flag:        "enabled",
+				Description: "Whether the secret is injected into workspaces. An enabled secret must set --env or --file; pass --enabled=false to store a secret without injecting it.",
+				Default:     "true",
+				Value:       serpent.BoolOf(&enabled),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -124,13 +135,18 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				return xerrors.New("secret value must be provided by exactly one of --value or non-interactive stdin (pipe or redirect)")
 			}
 
-			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, codersdk.CreateUserSecretRequest{
+			req := codersdk.CreateUserSecretRequest{
 				Name:        inv.Args[0],
 				Value:       resolvedValue,
 				Description: description,
 				EnvName:     env,
 				FilePath:    file,
-			})
+			}
+			if userSetOption(inv, "enabled") {
+				req.Enabled = ptr.Ref(enabled)
+			}
+
+			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, req)
 			if err != nil {
 				return xerrors.Errorf("create secret %q: %w", inv.Args[0], err)
 			}
@@ -149,13 +165,14 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 		description string
 		env         string
 		file        string
+		enabled     bool
 	)
 
 	cmd := &serpent.Command{
 		Use:   "update <name>",
 		Short: "Update a secret",
 		Long: strings.Join([]string{
-			"At least one of --value, --description, --env, or --file must be specified.",
+			"At least one of --value, --description, --env, --file, or --enabled must be specified.",
 			"Provide the secret value by at most one of --value or non-interactive stdin (pipe or redirect).",
 		}, " "),
 		Middleware: serpent.Chain(
@@ -186,6 +203,12 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 				Description: "Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.",
 				Value:       serpent.StringOf(&file),
 			},
+			{
+				Name:        "enabled",
+				Flag:        "enabled",
+				Description: "Whether the secret is injected into workspaces. An enabled secret must keep at least one of --env or --file; pass --enabled=false to stop injecting it without deleting it.",
+				Value:       serpent.BoolOf(&enabled),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -209,6 +232,9 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			}
 			if userSetOption(inv, "file") {
 				req.FilePath = &file
+			}
+			if userSetOption(inv, "enabled") {
+				req.Enabled = ptr.Ref(enabled)
 			}
 
 			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, inv.Args[0], req)
@@ -461,6 +487,7 @@ type secretListRow struct {
 	Updated     string `json:"-" table:"updated"`
 	Env         string `json:"-" table:"env"`
 	File        string `json:"-" table:"file"`
+	Enabled     string `json:"-" table:"enabled"`
 	Description string `json:"-" table:"description"`
 }
 
@@ -472,8 +499,80 @@ func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
 		Updated:     humanize.Time(secret.UpdatedAt),
 		Env:         secret.EnvName,
 		File:        secret.FilePath,
+		Enabled:     strconv.FormatBool(secret.Enabled),
 		Description: secret.Description,
 	}
+}
+
+func (r *RootCmd) secretEnable() *serpent.Command {
+	return r.secretEnabledSetter(secretEnabledStateEnabled)
+}
+
+func (r *RootCmd) secretDisable() *serpent.Command {
+	return r.secretEnabledSetter(secretEnabledStateDisabled)
+}
+
+// secretEnabledState distinguishes the two `coder secret enable` and
+// `coder secret disable` subcommands without using a bare bool, which
+// revive's flag-parameter rule treats as a control coupling.
+type secretEnabledState int
+
+const (
+	secretEnabledStateEnabled secretEnabledState = iota
+	secretEnabledStateDisabled
+)
+
+// secretEnabledSetter builds the `coder secret enable` and `coder secret
+// disable` subcommands. Both are a one-field PATCH that flips the enabled
+// state. Disabling stops injection for new sessions but leaves the secret
+// in place so it can be re-enabled later; existing sessions keep injected
+// values until the workspace's agent manifest is refetched.
+func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command {
+	var (
+		verb       string
+		participle string
+		short      string
+		enabled    bool
+	)
+	switch state {
+	case secretEnabledStateEnabled:
+		verb = "enable"
+		participle = "Enabled"
+		short = "Enable a secret so it is injected into workspaces"
+		enabled = true
+	case secretEnabledStateDisabled:
+		verb = "disable"
+		participle = "Disabled"
+		short = "Disable a secret without removing it"
+		enabled = false
+	}
+
+	cmd := &serpent.Command{
+		Use:   fmt.Sprintf("%s <name>", verb),
+		Short: short,
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			name := inv.Args[0]
+			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, name, codersdk.UpdateUserSecretRequest{
+				Enabled: ptr.Ref(enabled),
+			})
+			if err != nil {
+				return xerrors.Errorf("%s secret %q: %w", verb, name, err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "%s secret %s.\n", participle, cliui.Keyword(secret.Name))
+			return nil
+		},
+	}
+
+	return cmd
 }
 
 func (r *RootCmd) secretList() *serpent.Command {
@@ -481,7 +580,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 		cliui.ChangeFormatterData(
 			cliui.TableFormat(
 				[]secretListRow{},
-				[]string{"name", "created", "updated", "env", "file", "description"},
+				[]string{"name", "created", "updated", "env", "file", "enabled", "description"},
 			),
 			func(data any) (any, error) {
 				switch rows := data.(type) {

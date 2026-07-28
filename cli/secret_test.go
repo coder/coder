@@ -200,8 +200,9 @@ func TestSecretUpdate(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
+			Name:    "my-secret",
+			Value:   "original-value",
+			EnvName: "MY_SECRET",
 		})
 		require.NoError(t, err)
 
@@ -229,6 +230,10 @@ func TestSecretUpdate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Clearing env_name and description while leaving file_path
+		// keeps the secret well-formed (still has an injection
+		// target). Trying to clear both env_name and file_path is
+		// covered by the server-side test below.
 		inv, root := clitest.New(
 			t,
 			"secret",
@@ -237,7 +242,6 @@ func TestSecretUpdate(t *testing.T) {
 			"--value", "rotated-secret",
 			"--description", "",
 			"--env", "",
-			"--file", "",
 		)
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, client, root)
@@ -251,7 +255,41 @@ func TestSecretUpdate(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "", secret.Description)
 		require.Equal(t, "", secret.EnvName)
-		require.Equal(t, "", secret.FilePath)
+		require.Equal(t, "~/.my-secret", secret.FilePath)
+	})
+
+	t.Run("ClearingBothTargetsRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "my-secret",
+			Value:   "original-value",
+			EnvName: "MY_SECRET",
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(
+			t,
+			"secret",
+			"update",
+			"my-secret",
+			"--env", "",
+		)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err = inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "env_name", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "at least one of env_name or file_path")
 	})
 
 	t.Run("UpdatesValueFromEmptyFlag", func(t *testing.T) {
@@ -262,8 +300,9 @@ func TestSecretUpdate(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
+			Name:    "my-secret",
+			Value:   "original-value",
+			EnvName: "MY_SECRET",
 		})
 		require.NoError(t, err)
 
@@ -291,8 +330,9 @@ func TestSecretUpdate(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
+			Name:    "my-secret",
+			Value:   "original-value",
+			EnvName: "MY_SECRET",
 		})
 		require.NoError(t, err)
 
@@ -315,8 +355,9 @@ func TestSecretUpdate(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
+			Name:    "my-secret",
+			Value:   "original-value",
+			EnvName: "MY_SECRET",
 		})
 		require.NoError(t, err)
 
@@ -512,8 +553,9 @@ func TestSecretDelete(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "service-token",
-			Value: "service-token-value",
+			Name:    "service-token",
+			Value:   "service-token-value",
+			EnvName: "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
@@ -547,8 +589,9 @@ func TestSecretDelete(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "service-token",
-			Value: "service-token-value",
+			Name:    "service-token",
+			Value:   "service-token-value",
+			EnvName: "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
@@ -776,5 +819,88 @@ func TestSecretImport(t *testing.T) {
 		secret, err := client.UserSecretByName(ctx, codersdk.Me, "PATH")
 		require.NoError(t, err)
 		require.Empty(t, secret.EnvName)
+	})
+}
+
+func TestSecretEnableDisable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Disable", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "service-token",
+			Value:   "service-token-value",
+			EnvName: "SERVICE_TOKEN",
+		})
+		require.NoError(t, err)
+		require.True(t, created.Enabled)
+
+		inv, root := clitest.New(t, "secret", "disable", "service-token")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, output.Stdout(), "Disabled secret")
+		require.Contains(t, output.Stdout(), "service-token")
+
+		got, err := client.UserSecretByName(setupCtx, codersdk.Me, "service-token")
+		require.NoError(t, err)
+		assert.False(t, got.Enabled)
+	})
+
+	t.Run("Enable", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		disabled := false
+		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "service-token",
+			Value:   "service-token-value",
+			EnvName: "SERVICE_TOKEN",
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+		require.False(t, created.Enabled)
+
+		inv, root := clitest.New(t, "secret", "enable", "service-token")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, output.Stdout(), "Enabled secret")
+		require.Contains(t, output.Stdout(), "service-token")
+
+		got, err := client.UserSecretByName(setupCtx, codersdk.Me, "service-token")
+		require.NoError(t, err)
+		assert.True(t, got.Enabled)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "secret", "disable", "missing-secret")
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }

@@ -194,6 +194,11 @@ to use the Coder's filter query:
   `login_type:github`
 - To find service accounts: `service_account:true`.
 
+Any text that is not part of a `key:value` filter is treated as a free-text
+search and matches against a user's username, email, and display name. For
+example, entering `jane` returns users whose username, email, or display name
+contains `jane`.
+
 The following filters are supported:
 
 - `status` - Indicates the status of the user. It can be either `active`,

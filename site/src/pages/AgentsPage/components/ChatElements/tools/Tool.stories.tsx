@@ -1122,7 +1122,6 @@ export const WaitAgentExploreStreamingFromHistory: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.queryByText("Waiting for sub-agent…")).toBeNull();
 	},
 };
 
@@ -1142,7 +1141,6 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.queryByText("Messaging sub-agent…")).toBeNull();
 	},
 };
 

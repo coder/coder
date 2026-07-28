@@ -1,10 +1,15 @@
 package coderd_test
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
+	entcoderd "github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -3693,6 +3699,1219 @@ func TestOrganizationGroupsAISpendRoleAccess(t *testing.T) {
 	}
 }
 
+// readAISpendExportCSV parses a CSV export body into its records.
+func readAISpendExportCSV(t *testing.T, body io.Reader) [][]string {
+	t.Helper()
+	records, err := csv.NewReader(body).ReadAll()
+	require.NoError(t, err)
+	return records
+}
+
+// readAISpendExportResponse asserts the response is sent once with an accurate
+// Content-Length and returns the parsed CSV records.
+func readAISpendExportResponse(t *testing.T, res *http.Response) [][]string {
+	t.Helper()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.Equal(t, strconv.Itoa(len(body)), res.Header.Get("Content-Length"))
+	return readAISpendExportCSV(t, bytes.NewReader(body))
+}
+
+// requestAISpendExport issues a raw export request so callers can inspect the
+// status code, headers, and CSV body directly.
+func requestAISpendExport(ctx context.Context, t *testing.T, client *codersdk.Client, orgID uuid.UUID, params map[string]string) *http.Response {
+	t.Helper()
+	res, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", orgID),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			for k, v := range params {
+				q.Set(k, v)
+			}
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	require.NoError(t, err)
+	return res
+}
+
+func TestExportOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Enablement", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name            string
+			experiments     []string
+			features        license.Features
+			wantMsgContains string
+		}{
+			{
+				name:            "RequiresLicenseFeature",
+				experiments:     []string{string(codersdk.ExperimentAIGatewayCostControl)},
+				features:        license.Features{},
+				wantMsgContains: "AI Gateway is a Premium feature",
+			},
+			{
+				name:            "RequiresExperiment",
+				experiments:     nil,
+				features:        license.Features{codersdk.FeatureAIBridge: 1},
+				wantMsgContains: "ai-gateway-cost-control",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dv := coderdtest.DeploymentValues(t)
+				dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+				if len(tc.experiments) > 0 {
+					dv.Experiments = tc.experiments
+				}
+				client, owner := coderdenttest.New(t, &coderdenttest.Options{
+					Options:        &coderdtest.Options{DeploymentValues: dv},
+					LicenseOptions: &coderdenttest.LicenseOptions{Features: tc.features},
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				//nolint:gocritic // Owner role is irrelevant because the request is blocked before RBAC.
+				_, err := client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Message, tc.wantMsgContains)
+			})
+		}
+	})
+
+	t.Run("PeriodValidation", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-period-validation-group",
+			Clock:     clock,
+		})
+		start := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+		// Older than the default 60d retention window relative to the clock.
+		beforeRetention := time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)
+
+		// wantMsgContains pins the branch each case exercises, since every
+		// rejection returns 400 and would otherwise be indistinguishable.
+		cases := []struct {
+			name            string
+			params          map[string]string
+			wantStatus      int
+			wantMsgContains string
+		}{
+			{
+				name:            "OnlyStart",
+				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "must be provided together",
+			},
+			{
+				name:            "OnlyEnd",
+				params:          map[string]string{"period_end": start.Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "must be provided together",
+			},
+			{
+				name:            "StartEqualsEnd",
+				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: `"period_start" must be before "period_end"`,
+			},
+			{
+				name:            "InvalidFormat",
+				params:          map[string]string{"period_start": "not-a-date", "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "PeriodTooLong",
+				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 32).Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "must not exceed 31 days",
+			},
+			{
+				name:       "MaxPeriodAllowed",
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
+				wantStatus: http.StatusOK,
+			},
+			{
+				// period_start predates the retention window, so the raw
+				// token usage would be purged and results incomplete.
+				name:            "BeforeRetentionWindow",
+				params:          map[string]string{"period_start": beforeRetention.Format(time.RFC3339Nano), "period_end": beforeRetention.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "retention window",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, tc.params)
+				defer res.Body.Close()
+				require.Equal(t, tc.wantStatus, res.StatusCode)
+				if tc.wantMsgContains == "" {
+					return
+				}
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
+				require.Contains(t, sdkErr.Message, tc.wantMsgContains)
+			})
+		}
+	})
+
+	t.Run("DefaultsToCurrentMonthAndAggregates", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-default-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Two claude-4 interceptions for the same user aggregate into one row.
+		for _, tu := range []database.InsertAIBridgeTokenUsageParams{
+			{InputTokens: 100, OutputTokens: 50, CacheReadInputTokens: 10, CacheWriteInputTokens: 5, CostMicros: sql.NullInt64{Int64: 1000, Valid: true}},
+			{InputTokens: 200, OutputTokens: 100, CacheReadInputTokens: 20, CacheWriteInputTokens: 10, CostMicros: sql.NullInt64{Int64: 2000, Valid: true}},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+			}, nil)
+			tu.InterceptionID = intc.ID
+			tu.CreatedAt = inMonth
+			tu.EffectiveGroupID = groupID
+			dbgen.AIBridgeTokenUsage(t, db, tu)
+		}
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Equal(t, entcoderd.AISpendExportCSVHeader, records[0])
+		require.Len(t, records, 2) // header + single aggregated row
+
+		// The default window echoes the current UTC month.
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "300", "150", "30", "15", "3000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("DefaultPeriodClampedToRetention", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		retention := 14 * 24 * time.Hour
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-retention-clamp-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+			Retention: &retention,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Retention starts on 6 March 2026 12:00 UTC.
+		retentionStart := now.Add(-retention)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Usage before the retention start falls outside the narrowed period.
+		for _, seed := range []struct {
+			at           time.Time
+			inputTokens  int64
+			outputTokens int64
+			costMicros   int64
+		}{
+			{at: retentionStart.Add(-time.Hour), inputTokens: 999, outputTokens: 999, costMicros: 9999},
+			{at: retentionStart.Add(time.Hour), inputTokens: 100, outputTokens: 50, costMicros: 1000},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: seed.at,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: seed.at, EffectiveGroupID: groupID,
+				InputTokens: seed.inputTokens, OutputTokens: seed.outputTokens,
+				CostMicros: sql.NullInt64{Int64: seed.costMicros, Valid: true},
+			})
+		}
+
+		// Start: 6 March 2026 12:00 UTC (inclusive).
+		// End:   1 April 2026 00:00 UTC (exclusive).
+		// Now:   20 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + only the retained row
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
+			"2026-03-06T12:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("CustomPeriodHalfOpen", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-custom-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+		start := time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
+
+		// Usage at start is included, usage at end is excluded.
+		for _, at := range []time.Time{start, end} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: at,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: at, EffectiveGroupID: effectiveGroupID,
+				InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+			})
+		}
+
+		// Start: 10 March 2026 00:00 UTC (inclusive).
+		// End:   11 March 2026 00:00 UTC (exclusive).
+		// Now:   15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+			"period_start": start.Format(time.RFC3339Nano),
+			"period_end":   end.Format(time.RFC3339Nano),
+		})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + only the start-boundary row
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
+			start.Format(time.RFC3339), end.Format(time.RFC3339),
+		}, records[1])
+	})
+
+	t.Run("ExplicitPeriodBeforeRetentionRejected", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		retention := 14 * 24 * time.Hour
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-retention-reject-group",
+			Clock:     clock,
+			Retention: &retention,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The requested start is an hour before the retention window begins, so
+		// the request fails instead of being shortened like the default period.
+		start := now.Add(-retention).Add(-time.Hour)
+
+		_, err := adminClient.ExportOrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{
+			PeriodStart: start,
+			PeriodEnd:   now,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "retention window")
+		require.Contains(t, sdkErr.Message, retention.String())
+	})
+
+	t.Run("RetentionDisabledAllowsOldPeriod", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		// A retention of zero disables purging, so no period is too old to
+		// export and neither the narrowing nor the rejection applies.
+		retention := time.Duration(0)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-retention-disabled-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+			Retention: &retention,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Two years before the request, far outside any retention window.
+		at := time.Date(2024, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: at, EffectiveGroupID: effectiveGroupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Start: 10 March 2024 07:00 UTC (inclusive).
+		// End:   10 March 2024 09:00 UTC (exclusive).
+		// Now:   20 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+			"period_start": at.Add(-time.Hour).Format(time.RFC3339Nano),
+			"period_end":   at.Add(time.Hour).Format(time.RFC3339Nano),
+		})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + the retained row
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
+			"2024-03-10T07:00:00Z", "2024-03-10T09:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("SeparateRowPerModel", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-per-model-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Usage for two different models produces one row each.
+		claudeIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: claudeIntc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+		gptIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "openai", ProviderName: "openai-prod", Model: "gpt-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: gptIntc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+			InputTokens: 500, OutputTokens: 250, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
+		})
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 3) // header + one row per model
+
+		userID := targetUser.ID.String()
+		username := targetUser.Username
+		groupID := group.ID.String()
+		groupName := group.Name
+		orgID := group.OrganizationID.String()
+		orgName := group.OrganizationName
+		periodStart := "2026-03-01T00:00:00Z"
+		periodEnd := "2026-04-01T00:00:00Z"
+		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+	})
+
+	t.Run("SeparateRowPerProviderName", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-per-provider-name-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Two configurations of the same provider, same model. Spend is reported
+		// per configuration rather than merged into one provider row.
+		for _, seed := range []struct {
+			providerName string
+			inputTokens  int64
+			outputTokens int64
+			costMicros   int64
+		}{
+			{providerName: "anthropic-dev", inputTokens: 100, outputTokens: 50, costMicros: 1000},
+			{providerName: "anthropic-prod", inputTokens: 500, outputTokens: 250, costMicros: 5000},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: seed.providerName, Model: "claude-4", StartedAt: inMonth,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+				InputTokens: seed.inputTokens, OutputTokens: seed.outputTokens,
+				CostMicros: sql.NullInt64{Int64: seed.costMicros, Valid: true},
+			})
+		}
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 3) // header + one row per provider name
+
+		userID := targetUser.ID.String()
+		username := targetUser.Username
+		groupID := group.ID.String()
+		groupName := group.Name
+		orgID := group.OrganizationID.String()
+		orgName := group.OrganizationName
+		periodStart := "2026-03-01T00:00:00Z"
+		periodEnd := "2026-04-01T00:00:00Z"
+		// Ordered by provider name: anthropic-dev, then anthropic-prod.
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-dev", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+	})
+
+	t.Run("SeparateRowPerGroup", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-per-group-first",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		// A second group in the same organization. The user is not added to it:
+		// the effective group is snapshotted on each token usage, so spend from
+		// before a membership or budget change stays attributed to the old group.
+		secondGroup, err := adminClient.CreateGroup(ctx, group.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "export-per-group-second",
+		})
+		require.NoError(t, err)
+
+		for _, seed := range []struct {
+			groupID      uuid.UUID
+			inputTokens  int64
+			outputTokens int64
+			costMicros   int64
+		}{
+			{groupID: group.ID, inputTokens: 100, outputTokens: 50, costMicros: 1000},
+			{groupID: secondGroup.ID, inputTokens: 500, outputTokens: 250, costMicros: 5000},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth,
+				EffectiveGroupID: uuid.NullUUID{UUID: seed.groupID, Valid: true},
+				InputTokens:      seed.inputTokens, OutputTokens: seed.outputTokens,
+				CostMicros: sql.NullInt64{Int64: seed.costMicros, Valid: true},
+			})
+		}
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 3) // header + one row per group
+
+		userID := targetUser.ID.String()
+		username := targetUser.Username
+		orgID := group.OrganizationID.String()
+		orgName := group.OrganizationName
+		periodStart := "2026-03-01T00:00:00Z"
+		periodEnd := "2026-04-01T00:00:00Z"
+		// Rows are ordered by group ID, which is a random UUID, so compare
+		// without depending on which group sorts first.
+		require.ElementsMatch(t, [][]string{
+			{userID, username, group.ID.String(), group.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd},
+			{userID, username, secondGroup.ID.String(), secondGroup.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd},
+		}, records[1:])
+	})
+
+	t.Run("PreviousMonthExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-prev-month-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		prevMonth := time.Date(2026, time.February, 20, 8, 0, 0, 0, time.UTC)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Previous-month usage falls outside the default window and is excluded.
+		prevIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: prevMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: prevIntc.ID, CreatedAt: prevMonth, EffectiveGroupID: groupID,
+			InputTokens: 999, OutputTokens: 999, CostMicros: sql.NullInt64{Int64: 9999, Valid: true},
+		})
+
+		// Current-month usage is included.
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		// Only the current-month usage is present, so the row carries none of the
+		// previous month's tokens or cost.
+		require.Len(t, records, 2) // header + current-month row
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-null-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		// Usage with no effective group cannot be attributed to an organization,
+		// so it is excluded entirely and the export returns no rows at all.
+		nullIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: nullIntc.ID, CreatedAt: at,
+			InputTokens: 500, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
+		})
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Equal(t, entcoderd.AISpendExportCSVHeader, records[0])
+		require.Len(t, records, 1) // header only
+	})
+
+	t.Run("ExcludesOtherOrganizations", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		// Built inline rather than through setupAICostControlTest, which
+		// licenses a single organization and returns no owner client.
+		db, ps := dbtestutil.NewDB(t)
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureAIBridge:              1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+		_, otherOrgMember := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "export-org-scope-group",
+		})
+		require.NoError(t, err)
+		otherOrgGroup, err := userAdminClient.CreateGroup(ctx, otherOrg.ID, codersdk.CreateGroupRequest{
+			Name: "export-org-scope-other-org-group",
+		})
+		require.NoError(t, err)
+
+		// Usage in each organization, attributed through that organization's
+		// group.
+		for _, seed := range []struct {
+			initiator uuid.UUID
+			groupID   uuid.UUID
+		}{
+			{initiator: owner.UserID, groupID: group.ID},
+			{initiator: otherOrgMember.ID, groupID: otherOrgGroup.ID},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: seed.initiator, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth,
+				EffectiveGroupID: uuid.NullUUID{UUID: seed.groupID, Valid: true},
+				InputTokens:      100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+			})
+		}
+
+		// The owner can read group members in both organizations, so only the
+		// query's organization filter keeps the other organization out.
+		// Now: 15 March 2026 12:00 UTC.
+		//nolint:gocritic // The owner is required to rule out RBAC filtering.
+		res := requestAISpendExport(ctx, t, ownerClient, owner.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + the requested organization's row
+		require.Equal(t, []string{
+			owner.UserID.String(), coderdtest.FirstUserParams.Username,
+			group.ID.String(), group.Name,
+			owner.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("EscapesFormulaCells", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-formula-escape-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Model, provider, and provider name are recorded verbatim from the
+		// intercepted request, so a leading formula character must be escaped.
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  targetUser.ID,
+			Provider:     "+openai",
+			ProviderName: "@prod",
+			Model:        `=HYPERLINK("http://insecure/","invoice")`,
+			StartedAt:    inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + the escaped row
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			`'=HYPERLINK("http://insecure/","invoice")`, "'+openai", "'@prod",
+			"100", "50", "0", "0", "1000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("DownloadHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-download-headers-group",
+			Clock:     clock,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Start: 10 March 2026 00:00 UTC (inclusive).
+		// End:   11 March 2026 00:00 UTC (exclusive).
+		// Now:   15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+			"period_start": time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
+			"period_end":   time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
+		})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		require.Equal(t, "text/csv; charset=utf-8", res.Header.Get("Content-Type"))
+		// The filename carries the organization name and the exported period.
+		require.Equal(t,
+			fmt.Sprintf(`attachment; filename="ai-spend-export-%s-2026-03-10-to-2026-03-11.csv"`, group.OrganizationName),
+			res.Header.Get("Content-Disposition"))
+
+		// No usage is seeded, so only the column header is written. Spelled out
+		// rather than compared against the handler's own variable, since the
+		// column names are a published contract that a rename would break.
+		records := readAISpendExportResponse(t, res)
+		require.Equal(t, []string{
+			"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
+			"model", "provider", "provider_name",
+			"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+			"cost_micros", "period_start", "period_end",
+		}, records[0])
+		require.Len(t, records, 1)
+	})
+}
+
+func TestGroupAISpend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "req-license-feature-spend-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.GroupAISpend(ctx, group.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
+	})
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "req-experiment-spend-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.GroupAISpend(ctx, group.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
+	})
+
+	t.Run("MalformedGroupID", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "malformed-group-id-spend-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a malformed UUID in the path.
+		// When: querying spend.
+		res, err := adminClient.Request(ctx, http.MethodGet, "/api/v2/groups/not-a-uuid/ai/spend", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: 400.
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("UnknownGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "unknown-group-spend-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a group ID that does not exist.
+		// When: querying spend.
+		_, err := adminClient.GroupAISpend(ctx, uuid.New())
+
+		// Then: request fails with 404.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	tests := []struct {
+		name             string
+		setBudget        bool
+		spendLimit       int64
+		spent            int64
+		wantSpendLimit   *int64
+		wantCurrentSpend int64
+	}{
+		{
+			name: "NoBudgetNoSpend",
+		},
+		{
+			name:             "ZeroLimitBudget",
+			setBudget:        true,
+			spendLimit:       0,
+			wantSpendLimit:   ptr.Ref(int64(0)),
+			wantCurrentSpend: 0,
+		},
+		{
+			name:             "BudgetZeroSpend",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 0,
+		},
+		{
+			name:             "BudgetWithSpend",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			spent:            250_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 250_000_000,
+		},
+		{
+			name:             "SpendExceedsLimit",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			spent:            1_500_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 1_500_000_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an admin, a group, and optionally a budget and seeded spend.
+			clock := quartz.NewMock(t)
+			db, ps := dbtestutil.NewDB(t)
+			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+				GroupName: "group-spend-test-group",
+				Clock:     clock,
+				Database:  db,
+				Pubsub:    ps,
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.setBudget {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.spendLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			// When: querying the group's spend.
+			got, err := adminClient.GroupAISpend(ctx, group.ID)
+			require.NoError(t, err)
+
+			// Then: the response reports the expected budget and spend.
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Equal(t, group.ID, got.GroupID)
+			require.Equal(t, tt.wantSpendLimit, got.SpendLimitMicros)
+			require.Equal(t, tt.wantCurrentSpend, got.CurrentSpendMicros)
+		})
+	}
+}
+
+func TestGroupAISpendRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "group-spend-role-access-group",
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		client    *codersdk.Client
+		wantGroup bool
+	}{
+		{name: "Owner", client: ownerClient, wantGroup: true},
+		{name: "UserAdmin", client: userAdminClient, wantGroup: true},
+		{name: "OrgAdmin", client: orgAdminClient, wantGroup: true},
+		{name: "OrgUserAdmin", client: orgUserAdminClient, wantGroup: true},
+		{name: "Member", client: memberClient, wantGroup: true},
+		{name: "OtherOrgMember", client: otherOrgMemberClient, wantGroup: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			resp, err := tc.client.GroupAISpend(ctx, group.ID)
+			if !tc.wantGroup {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, group.ID, resp.GroupID)
+		})
+	}
+}
+
+func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep the test deterministic. Seeding at time.Now()
+	// against the default month period fails when a run crosses a UTC month
+	// boundary.
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+
+	db, ps := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "export-role-access-group",
+	})
+	require.NoError(t, err)
+
+	// Seed spend for two users in the current month: the owner and a regular
+	// member. Both are attributed to the group.
+	for _, initiator := range []uuid.UUID{owner.UserID, member.ID} {
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: initiator, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   intc.ID,
+			CreatedAt:        inMonth,
+			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
+			InputTokens:      100,
+			OutputTokens:     50,
+			CostMicros:       sql.NullInt64{Int64: 1000, Valid: true},
+		})
+	}
+
+	cases := []struct {
+		name        string
+		client      *codersdk.Client
+		wantUserIDs []string // expected user_id column values when wantStatus is unset
+		wantStatus  int      // non-zero means the request is rejected with this status
+	}{
+		// Admins see every user's rows.
+		{name: "Owner", client: ownerClient, wantUserIDs: []string{owner.UserID.String(), member.ID.String()}},
+		{name: "UserAdmin", client: userAdminClient, wantUserIDs: []string{owner.UserID.String(), member.ID.String()}},
+		{name: "OrgAdmin", client: orgAdminClient, wantUserIDs: []string{owner.UserID.String(), member.ID.String()}},
+		{name: "OrgUserAdmin", client: orgUserAdminClient, wantUserIDs: []string{owner.UserID.String(), member.ID.String()}},
+		// The export covers the whole organization, so a regular member is
+		// rejected rather than served their own rows.
+		{name: "Member", client: memberClient, wantStatus: http.StatusForbidden},
+		// A member of another org cannot read this org at all, so it fails
+		// earlier, when the organization is resolved.
+		{name: "OtherOrgMember", client: otherOrgMemberClient, wantStatus: http.StatusNotFound},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			body, err := tc.client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+			if tc.wantStatus != 0 {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			defer body.Close()
+
+			records := readAISpendExportCSV(t, body)
+			var gotUserIDs []string
+			for _, row := range records[1:] {
+				gotUserIDs = append(gotUserIDs, row[0])
+			}
+			require.ElementsMatch(t, tc.wantUserIDs, gotUserIDs)
+		})
+	}
+}
+
 func TestGroupMembersAISpend(t *testing.T) {
 	t.Parallel()
 
@@ -4214,6 +5433,9 @@ type aiCostControlTestOptions struct {
 	Clock     quartz.Clock
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
+	// Retention overrides the AI Gateway data retention duration. Nil leaves the
+	// deployment default in place, and zero disables purging.
+	Retention *time.Duration
 }
 
 // setupAICostControlTest builds a deployment with FeatureAIBridge licensed
@@ -4226,6 +5448,9 @@ func setupAICostControlTest(t *testing.T, opts aiCostControlTestOptions) (*coder
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	if opts.Retention != nil {
+		dv.AI.BridgeConfig.Retention = serpent.Duration(*opts.Retention)
+	}
 	coderdOpts := &coderdtest.Options{DeploymentValues: dv}
 	if opts.Clock != nil {
 		coderdOpts.Clock = opts.Clock
