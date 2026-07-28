@@ -27,33 +27,20 @@ JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = @chat_id::uuid
 ORDER BY cf.created_at ASC;
 
--- TODO(cian): Add indexes on chats(archived, updated_at) and
--- chat_files(created_at) for purge query performance.
--- See: https://github.com/coder/internal/issues/1438
 -- name: DeleteOldChatFiles :execrows
 -- Deletes chat files that are older than the given threshold and are
--- not referenced by any chat that is still active or was archived
--- within the same threshold window. This covers two cases:
--- 1. Orphaned files not linked to any chat.
--- 2. Files whose every referencing chat has been archived for longer
---    than the retention period.
-WITH kept_file_ids AS (
-    -- NOTE: This uses updated_at as a proxy for archive time
-    -- because there is no archived_at column. Correctness
-    -- requires that updated_at is never backdated on archived
-    -- chats. See ArchiveChatByID.
-    SELECT DISTINCT cfl.file_id
-    FROM chat_file_links cfl
-    JOIN chats c ON c.id = cfl.chat_id
-    WHERE c.archived = false
-       OR c.updated_at >= @before_time::timestamptz
-),
-deletable AS (
+-- not linked to any existing chat. Linked files are retained until
+-- every linking chat row is deleted; DeleteOldChats runs first in the
+-- same purge transaction and its ON DELETE CASCADE clears
+-- chat_file_links, so an archived chat's old files are deleted in
+-- the same tick as the chat. Never-linked uploads age out here.
+WITH deletable AS (
     SELECT cf.id
     FROM chat_files cf
-    LEFT JOIN kept_file_ids k ON cf.id = k.file_id
     WHERE cf.created_at < @before_time::timestamptz
-      AND k.file_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
+      )
     ORDER BY cf.created_at ASC
     LIMIT @limit_count
 )

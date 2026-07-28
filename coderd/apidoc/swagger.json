@@ -15652,12 +15652,6 @@
 					"type": "string",
 					"format": "date-time"
 				},
-				"warnings": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
 				"workspace_id": {
 					"type": "string",
 					"format": "uuid"
@@ -17083,12 +17077,6 @@
 				},
 				"queued_message": {
 					"$ref": "#/definitions/codersdk.ChatQueuedMessage"
-				},
-				"warnings": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
 				}
 			}
 		},
@@ -18483,12 +18471,6 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.ChatMessage"
-					}
-				},
-				"warnings": {
-					"type": "array",
-					"items": {
-						"type": "string"
 					}
 				}
 			}

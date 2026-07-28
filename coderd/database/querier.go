@@ -188,15 +188,12 @@ type sqlcQuerier interface {
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
-	// TODO(cian): Add indexes on chats(archived, updated_at) and
-	// chat_files(created_at) for purge query performance.
-	// See: https://github.com/coder/internal/issues/1438
 	// Deletes chat files that are older than the given threshold and are
-	// not referenced by any chat that is still active or was archived
-	// within the same threshold window. This covers two cases:
-	// 1. Orphaned files not linked to any chat.
-	// 2. Files whose every referencing chat has been archived for longer
-	//    than the retention period.
+	// not linked to any existing chat. Linked files are retained until
+	// every linking chat row is deleted; DeleteOldChats runs first in the
+	// same purge transaction and its ON DELETE CASCADE clears
+	// chat_file_links, so an archived chat's old files are deleted in
+	// the same tick as the chat. Never-linked uploads age out here.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.

@@ -17407,12 +17407,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
@@ -18899,12 +18893,6 @@ const docTemplate = `{
                 },
                 "queued_message": {
                     "$ref": "#/definitions/codersdk.ChatQueuedMessage"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },
@@ -20349,12 +20337,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
-                    }
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
                     }
                 }
             }
