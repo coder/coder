@@ -145,6 +145,7 @@ The chart configures the following probes by default:
 `/healthz` can return HTTP 200 while `/readyz` returns HTTP 503.
 This occurs during the initial connection to `coderd`, during the initial provider load, or while the control connection is unavailable.
 After the initial provider load succeeds, readiness returns when the connection to `coderd` recovers.
+A replica that loses the control connection returns HTTP 503 for any new client request it receives.
 
 Port-forward the Service to inspect both endpoints:
 
@@ -250,8 +251,10 @@ coder:
 ```
 
 The Service balances requests across ready replicas.
-Each replica maintains its own control connection, local caches, concurrency limits, metrics, logs, and traces.
+Each replica maintains its own control connection, local caches, concurrency limits, request metrics, logs, and traces.
 All replicas fetch provider configuration from the same Coder deployment and write AI session records through `coderd`.
+Cost control metrics are registered only on `coderd`, so `coder_ai_gateway_cost_control_*` series never appear on a replica's Prometheus listener.
+Budget enforcement also runs in `coderd` over the control connection rather than per replica.
 Sticky load balancing can improve cache efficiency, but it is not required for correctness.
 
 When you enable [API dumps](./setup.md#api-dumps), each replica writes dumps to its own local disk.
