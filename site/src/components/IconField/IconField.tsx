@@ -1,4 +1,3 @@
-import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { type FC, lazy, Suspense, useState } from "react";
@@ -29,7 +28,6 @@ export const IconField: FC<IconFieldProps> = ({
 		throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
 	}
 
-	const theme = useTheme();
 	const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 	const [open, setOpen] = useState(false);
 
@@ -62,15 +60,6 @@ export const IconField: FC<IconFieldProps> = ({
 				}}
 			/>
 
-			<Global
-				styles={css`
-					em-emoji-picker {
-						--rgb-background: ${theme.palette.background.paper};
-						--rgb-input: ${theme.palette.primary.main};
-						--rgb-color: ${theme.palette.text.primary};
-					}
-				`}
-			/>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
 					<Button variant="outline" size="lg" className="group flex-shrink-0">

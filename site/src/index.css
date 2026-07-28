@@ -103,6 +103,11 @@
 			-webkit-overflow-scrolling: touch;
 		}
 	}
+	em-emoji-picker {
+		--rgb-background: hsl(var(--surface-primary));
+		--rgb-input: hsl(var(--content-link));
+		--rgb-color: hsl(var(--content-primary));
+	}
 }
 
 @layer base {
