@@ -137,12 +137,13 @@ export const DisabledProviderModelsStillListed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("GPT-4o Secondary")).toBeInTheDocument();
-		await expect(canvas.getByText("OpenAI Secondary")).toBeInTheDocument();
+		const row = canvas.getByRole("row", { name: /GPT-4o Secondary/i });
+		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
 		// A model under a disabled provider is not usable, so the status
 		// column must show "Disabled" even though the stored enabled flag is
-		// true. This exercises the providerEnabledByModelId derivation.
-		await expect(canvas.getAllByText("Disabled").length).toBeGreaterThan(0);
+		// true. Scope to the target row so a fixture change cannot pass this
+		// assertion via an unrelated "Disabled" cell.
+		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
 	},
 };
 
@@ -161,9 +162,9 @@ export const OrphanedModelShowsUnset: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Orphaned Model")).toBeInTheDocument();
-		await expect(canvas.getByText("Unset")).toBeInTheDocument();
-		await expect(canvas.getAllByText("Disabled").length).toBeGreaterThan(0);
+		const row = canvas.getByRole("row", { name: /Orphaned Model/i });
+		await expect(within(row).getByText("Unset")).toBeInTheDocument();
+		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
 	},
 };
 
