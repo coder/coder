@@ -1205,7 +1205,7 @@ func (p *Server) resolveExploreToolSnapshot(
 ) ([]uuid.UUID, error) {
 	inheritedMCPServerIDs := []uuid.UUID{}
 	if len(parent.MCPServerIDs) > 0 {
-		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, p.db, parent.OrganizationID, parent.MCPServerIDs)
 		if err != nil {
 			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}

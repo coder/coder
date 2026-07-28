@@ -2413,3 +2413,161 @@ func TestMigration000556UserSecretsEnabled(t *testing.T) {
 		"secret with both targets empty should be flipped to disabled "+
 			"to preserve the previous implicit-skip behavior")
 }
+
+func TestMigration000561MCPServerConfigsOrganizationID(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 561
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before 000561.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	var defaultOrgID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
+	require.NoError(t, err)
+
+	// Seed a user plus two MCP server configs with ciphertext-shaped secret
+	// pairs so the backfill must leave secret columns byte-identical.
+	userID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "mcp-org-backfill-user", "mcp-org-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password")
+	require.NoError(t, err)
+
+	keyDigest := "test-key-digest-000561"
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO dbcrypt_keys (number, active_key_digest, test) VALUES ($1, $2, $3)`,
+		561000, keyDigest, "mcp-org-backfill")
+	require.NoError(t, err)
+
+	configA := uuid.New()
+	configB := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO mcp_server_configs (id, display_name, slug, url, auth_type, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, availability, enabled, created_by, updated_by, created_at, updated_at)
+		VALUES
+			($1, 'Backfill A', 'backfill-a', 'https://a.example.com', 'api_key', 'ciphertext-a', $3, '', NULL, 'default_on', TRUE, $4, $4, $5, $5),
+			($2, 'Backfill B', 'backfill-b', 'https://b.example.com', 'custom_headers', '', NULL, '{"X-A":"b"}', $3, 'force_on', TRUE, $4, $4, $5, $5)`,
+		configA, configB, keyDigest, userID, now)
+	require.NoError(t, err)
+
+	// Run migration 000561.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Every config is backfilled to the default organization, secret pairs
+	// untouched.
+	var (
+		gotOrgID            uuid.UUID
+		gotAPIKeyValue      string
+		gotAPIKeyKeyID      string
+		gotCustomHeaders    string
+		gotCustomHeadersKey string
+		gotEnabled          bool
+	)
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT organization_id, api_key_value, COALESCE(api_key_value_key_id, ''), COALESCE(custom_headers, ''), COALESCE(custom_headers_key_id, ''), enabled FROM mcp_server_configs WHERE id = $1`,
+		configA).Scan(&gotOrgID, &gotAPIKeyValue, &gotAPIKeyKeyID, &gotCustomHeaders, &gotCustomHeadersKey, &gotEnabled)
+	require.NoError(t, err)
+	require.Equal(t, defaultOrgID, gotOrgID)
+	require.Equal(t, "ciphertext-a", gotAPIKeyValue)
+	require.Equal(t, keyDigest, gotAPIKeyKeyID)
+	require.True(t, gotEnabled)
+
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT organization_id, api_key_value, COALESCE(api_key_value_key_id, ''), COALESCE(custom_headers, ''), COALESCE(custom_headers_key_id, ''), enabled FROM mcp_server_configs WHERE id = $1`,
+		configB).Scan(&gotOrgID, &gotAPIKeyValue, &gotAPIKeyKeyID, &gotCustomHeaders, &gotCustomHeadersKey, &gotEnabled)
+	require.NoError(t, err)
+	require.Equal(t, defaultOrgID, gotOrgID)
+	require.Equal(t, `{"X-A":"b"}`, gotCustomHeaders)
+	require.Equal(t, keyDigest, gotCustomHeadersKey)
+	require.True(t, gotEnabled)
+
+	// organization_id is NOT NULL and indexed.
+	var notNull string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT is_nullable FROM information_schema.columns WHERE table_name = 'mcp_server_configs' AND column_name = 'organization_id'`).Scan(&notNull)
+	require.NoError(t, err)
+	require.Equal(t, "NO", notNull)
+
+	var indexCount int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'mcp_server_configs' AND indexname = 'idx_mcp_server_configs_organization_id'`).Scan(&indexCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, indexCount)
+
+	// Slug uniqueness is per organization: the global slug constraint is
+	// gone, the composite constraint exists.
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_constraint WHERE conrelid = 'mcp_server_configs'::regclass AND conname = 'mcp_server_configs_slug_key'`).Scan(&indexCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, indexCount)
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_constraint WHERE conrelid = 'mcp_server_configs'::regclass AND conname = 'mcp_server_configs_organization_id_slug_key'`).Scan(&indexCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, indexCount)
+
+	// A second organization reuses the same slug without conflict...
+	otherOrgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
+		VALUES ($1, $2, $3, '', '', $4, $4, false, '{}')`,
+		otherOrgID, "mcp-other-org", "Other Org", now)
+	require.NoError(t, err)
+	crossOrgConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO mcp_server_configs (id, organization_id, display_name, slug, url, created_by, updated_by)
+		VALUES ($1, $2, 'Same Slug Other Org', 'backfill-a', 'https://other.example.com', $3, $3)`,
+		crossOrgConfigID, otherOrgID, userID)
+	require.NoError(t, err, "same slug in another organization should be allowed")
+
+	// ...but a duplicate slug inside one organization violates the
+	// composite constraint.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO mcp_server_configs (id, organization_id, display_name, slug, url, created_by, updated_by)
+		VALUES ($1, $2, 'Same Slug Same Org', 'backfill-a', 'https://dupe.example.com', $3, $3)`,
+		uuid.New(), defaultOrgID, userID)
+	require.Error(t, err, "same slug in the same organization should violate the composite unique constraint")
+	var pqErr *pq.Error
+	require.ErrorAs(t, err, &pqErr)
+	require.Equal(t, "mcp_server_configs_organization_id_slug_key", pqErr.Constraint)
+
+	// The down migration restores the deployment-wide slug constraint and
+	// drops the column. It is only safe while every row lives in the
+	// default organization; remove the cross-org duplicate-slug row first.
+	_, err = sqlDB.ExecContext(ctx,
+		`DELETE FROM mcp_server_configs WHERE id = $1`, crossOrgConfigID)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000561_mcp_server_configs_organization_id.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'mcp_server_configs' AND column_name = 'organization_id'`).Scan(&indexCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, indexCount)
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_constraint WHERE conrelid = 'mcp_server_configs'::regclass AND conname = 'mcp_server_configs_slug_key'`).Scan(&indexCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, indexCount)
+}

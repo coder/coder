@@ -21,6 +21,10 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -65,6 +69,66 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, e
 	})
 	require.NoError(t, err)
 	return config
+}
+
+// TestCreateMCPServerConfigCustomRole verifies that a caller holding a
+// persisted site custom role with deployment_config read+update but no
+// organization:read can still create configs: the default-organization
+// resolution behind the gate must not require permissions the gate itself
+// does not imply.
+func TestCreateMCPServerConfigCustomRole(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawStore, _, rawSQLDB := dbtestutil.NewDBWithSQLDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: rawStore})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	db := rawStore
+
+	// The user belongs to a non-default org, so they hold no implicit
+	// organization read on the default org. Their only permissions come
+	// from a persisted site custom role granting deployment_config
+	// read+update and nothing else. Custom roles persisted through
+	// dbauthz cannot carry site permissions, so write directly to the
+	// raw database.
+	secondOrg := dbgen.Organization(t, db, database.Organization{})
+	customRole, err := database.New(rawSQLDB).InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name: "mcp-config-manager",
+		SitePermissions: []database.CustomRolePermission{
+			{ResourceType: rbac.ResourceDeploymentConfig.Type, Action: policy.ActionRead},
+			{ResourceType: rbac.ResourceDeploymentConfig.Type, Action: policy.ActionUpdate},
+		},
+		OrgPermissions:  []database.CustomRolePermission{},
+		UserPermissions: []database.CustomRolePermission{},
+	})
+	require.NoError(t, err)
+	user := dbgen.User(t, db, database.User{RBACRoles: []string{customRole.Name}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: secondOrg.ID,
+	})
+	_, token := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	userClient := codersdk.New(client.URL)
+	userClient.SetSessionToken(token)
+
+	created, err := userClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "Custom Role Server",
+		Slug:          "custom-role-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/custom-role",
+		AuthType:      "none",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, created.ID)
+
+	// The config lands in the default organization.
+	stored, err := db.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstUser.OrganizationID, stored.OrganizationID)
 }
 
 func TestMCPServerConfigsCRUD(t *testing.T) {
