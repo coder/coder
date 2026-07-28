@@ -32,8 +32,10 @@ const meta: Meta<typeof ModelRow> = {
 export default meta;
 type Story = StoryObj<typeof ModelRow>;
 
-// Baseline: an enabled model with an enabled provider renders the provider
-// label and an "Enabled" badge.
+// Control case for the effective-status logic: when both `hasProvider` and
+// `providerEnabled` are true, the status badge must reflect the persisted
+// enabled flag as-is. Any regression that inverts this collapses every model
+// to "Disabled" in the list.
 export const WithProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

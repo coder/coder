@@ -8,10 +8,12 @@ import {
 	MockBedrockProviderState,
 	MockDisabledProviderState,
 	MockOpenAIProviderState,
+	MockOrphanedProviderState,
 	mockBedrockClaude,
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
+	mockOrphanedModel,
 	mockProviderDisabledModel,
 } from "./testFixtures";
 
@@ -138,6 +140,31 @@ export const DisabledProviderModelsStillListed: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("GPT-4o Secondary")).toBeInTheDocument();
 		await expect(canvas.getByText("OpenAI Secondary")).toBeInTheDocument();
+		// A model under a disabled provider is not usable, so the status
+		// column must show "Disabled" even though the stored enabled flag is
+		// true. This exercises the providerEnabledByModelId derivation.
+		await expect(canvas.getAllByText("Disabled").length).toBeGreaterThan(0);
+	},
+};
+
+// An orphaned model is one whose ai_provider_id references a provider row
+// that has been deleted. This is the case the PR exists for: the row must
+// display "Unset" and force "Disabled" through the full ModelsPageView
+// derivation, not through props hardcoded in a lower-level story.
+export const OrphanedModelShowsUnset: Story = {
+	args: {
+		models: [mockGPT5, mockOrphanedModel],
+		providerStates: [MockOpenAIProviderState, MockOrphanedProviderState],
+		providerTypeByID: new Map<string, string>([
+			["prov-openai", "openai"],
+			["prov-orphaned", "openai"],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Orphaned Model")).toBeInTheDocument();
+		await expect(canvas.getByText("Unset")).toBeInTheDocument();
+		await expect(canvas.getAllByText("Disabled").length).toBeGreaterThan(0);
 	},
 };
 

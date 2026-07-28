@@ -144,3 +144,25 @@ export const MockCopilotProviderState: ProviderState = {
 	},
 	modelConfigs: [],
 };
+
+// A model whose provider row has been deleted. `providerConfig` is undefined,
+// which is the runtime shape that drives the "Unset" label and forced
+// "Disabled" status through the ModelsPageView derivation maps.
+export const mockOrphanedModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-orphaned",
+	ai_provider_id: "prov-orphaned",
+	model: "gpt-4o-orphaned",
+	display_name: "Orphaned Model",
+	is_default: false,
+	enabled: true,
+};
+
+export const MockOrphanedProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-orphaned",
+	provider: "openai",
+	label: "",
+	providerConfig: undefined,
+	modelConfigs: [mockOrphanedModel],
+};
