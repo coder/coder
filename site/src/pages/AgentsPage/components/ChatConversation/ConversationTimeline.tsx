@@ -291,24 +291,11 @@ export const BlockList: FC<{
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
-	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
-
-	// Pre-compute which tool IDs have a corresponding block so
-	// we can render "remaining" (block-less) tools afterwards.
-	const blockToolIDs = new Set(
-		displayBlocks.flatMap((block) => {
-			if (block.type === "tool") {
-				return toolByID.has(block.id) || isStreaming ? [block.id] : [];
-			}
-			if (block.type === "tool-group") {
-				return block.ids;
-			}
-			return [];
-		}),
+	const displayBlocks = groupSequentialReadFileBlocks(
+		blocks,
+		tools,
+		isStreaming,
 	);
-
-	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
 
 	// A thinking block is actively streaming only when it is the
 	// very last block in the list. Once newer content arrives
@@ -372,42 +359,15 @@ export const BlockList: FC<{
 								</span>
 							</div>
 						);
-					case "tool-group": {
-						const [firstGroupTool, ...restGroupTools] = block.ids
-							.map((id) => toolByID.get(id))
-							.filter((tool) => tool !== undefined);
-						if (!firstGroupTool) {
-							return null;
-						}
+					case "tool-group":
 						return (
 							<ReadFileTimelineBlock
-								key={firstGroupTool.id}
-								tools={[firstGroupTool, ...restGroupTools]}
+								key={block.tools[0].id}
+								tools={block.tools}
 							/>
 						);
-					}
 					case "tool": {
-						const tool = toolByID.get(block.id);
-						if (!tool) {
-							if (!isStreaming) {
-								return null;
-							}
-							// Streaming placeholder for not-yet-resolved tool.
-							return (
-								<Tool
-									key={block.id}
-									name="Tool"
-									status="running"
-									isError={false}
-									shellToolDisplayMode={shellToolDisplayMode}
-									codeDiffDisplayMode={codeDiffDisplayMode}
-									subagentTitles={subagentTitles}
-									subagentVariants={subagentVariants}
-									subagentStatusOverrides={subagentStatusOverrides}
-									mcpServers={mcpServers}
-								/>
-							);
-						}
+						const tool = block.tool;
 						if (tool.name === "read_file") {
 							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
 						}
@@ -471,41 +431,6 @@ export const BlockList: FC<{
 					}
 				}
 			})}
-			{remainingTools.map((tool) => (
-				<Tool
-					key={tool.id}
-					name={tool.name}
-					args={tool.args}
-					result={tool.result}
-					status={tool.status}
-					isError={tool.isError}
-					killedBySignal={tool.killedBySignal}
-					shellToolDisplayMode={shellToolDisplayMode}
-					codeDiffDisplayMode={codeDiffDisplayMode}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={
-						isStreaming ? subagentStatusOverrides : undefined
-					}
-					mcpServerConfigId={tool.mcpServerConfigId}
-					mcpServers={mcpServers}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					isLatestAskUserQuestion={
-						tool.id === latestAskUserQuestionToolId &&
-						!hasUserResponseAfterAskQuestion
-					}
-					previousResponseText={
-						tool.name === "ask_user_question"
-							? askUserQuestionResponseTextByToolId?.get(tool.id)
-							: undefined
-					}
-					modelIntent={tool.modelIntent}
-					parsedCommands={tool.parsedCommands}
-				/>
-			))}
 		</>
 	);
 };

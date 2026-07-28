@@ -120,10 +120,7 @@ describe("groupSequentialReadFileBlocks", () => {
 		);
 
 		expect(result).toEqual([
-			{
-				type: "tool-group",
-				ids: ["read-1", "read-2"],
-			},
+			{ type: "tool-group", tools: [tool("read-1"), tool("read-2")] },
 		]);
 	});
 
@@ -133,7 +130,7 @@ describe("groupSequentialReadFileBlocks", () => {
 			tools,
 		);
 
-		expect(result).toEqual([{ type: "tool", id: "read-1" }]);
+		expect(result).toEqual([{ type: "tool", tool: tool("read-1") }]);
 	});
 
 	it.each([
@@ -144,6 +141,11 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "response", text: "middle" },
 				{ type: "tool", id: "read-2" },
 			],
+			[
+				{ type: "tool", tool: tool("read-1") },
+				{ type: "response", text: "middle" },
+				{ type: "tool", tool: tool("read-2") },
+			],
 		],
 		[
 			"another tool",
@@ -151,6 +153,11 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "execute-1" },
 				{ type: "tool", id: "read-2" },
+			],
+			[
+				{ type: "tool", tool: tool("read-1") },
+				{ type: "tool", tool: tool("execute-1", "execute") },
+				{ type: "tool", tool: tool("read-2") },
 			],
 		],
 		[
@@ -160,10 +167,34 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "missing" },
 				{ type: "tool", id: "read-2" },
 			],
+			[
+				{ type: "tool", tool: tool("read-1") },
+				{ type: "tool", tool: tool("read-2") },
+			],
 		],
 	] satisfies Array<
-		[string, RenderBlock[]]
-	>)("does not collapse read_file blocks across %s", (_, blocks) => {
-		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(blocks);
+		[string, RenderBlock[], unknown]
+	>)("does not collapse read_file blocks across %s", (_, blocks, expected) => {
+		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(expected);
+	});
+
+	it("renders a block whose tool has not arrived yet as pending", () => {
+		expect(
+			groupSequentialReadFileBlocks(
+				[{ type: "tool", id: "missing" }],
+				tools,
+				true,
+			),
+		).toEqual([
+			{
+				type: "tool",
+				tool: {
+					id: "missing",
+					name: "Tool",
+					status: "running",
+					isError: false,
+				},
+			},
+		]);
 	});
 });

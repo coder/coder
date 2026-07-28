@@ -31,49 +31,71 @@ export const appendTextBlock = (
 	return nextBlocks;
 };
 
-type ToolGroupRenderBlock = {
-	type: "tool-group";
-	ids: string[];
-};
+type TimelineBlock =
+	| Exclude<RenderBlock, { type: "tool" }>
+	| { type: "tool"; tool: MergedTool }
+	| { type: "tool-group"; tools: readonly [MergedTool, ...MergedTool[]] };
 
-type TimelineRenderBlock = RenderBlock | ToolGroupRenderBlock;
-
+/**
+ * Blocks carry their tool from here on, so the timeline never resolves an id
+ * that might be missing. A tool-result part can create a block before its call
+ * arrives: while streaming that renders as a pending tool, and once the stream
+ * settles the block is dropped.
+ */
 export const groupSequentialReadFileBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-): TimelineRenderBlock[] => {
+	isStreaming = false,
+): TimelineBlock[] => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const grouped: TimelineRenderBlock[] = [];
-	let currentReadFileIDs: string[] = [];
+	const grouped: TimelineBlock[] = [];
+	let readFileRun: MergedTool[] = [];
 
-	const flushReadFileIDs = () => {
-		if (currentReadFileIDs.length === 0) {
+	const flushReadFileRun = () => {
+		const [first, ...rest] = readFileRun;
+		if (!first) {
 			return;
 		}
-		if (currentReadFileIDs.length === 1) {
-			grouped.push({ type: "tool", id: currentReadFileIDs[0] });
-		} else {
-			grouped.push({
-				type: "tool-group",
-				ids: currentReadFileIDs,
-			});
-		}
-		currentReadFileIDs = [];
+		grouped.push(
+			rest.length === 0
+				? { type: "tool", tool: first }
+				: { type: "tool-group", tools: [first, ...rest] },
+		);
+		readFileRun = [];
 	};
 
 	for (const block of blocks) {
-		if (block.type === "tool") {
-			const tool = toolByID.get(block.id);
-			if (tool?.name === "read_file") {
-				currentReadFileIDs.push(block.id);
-				continue;
-			}
+		if (block.type !== "tool") {
+			flushReadFileRun();
+			grouped.push(block);
+			continue;
 		}
 
-		flushReadFileIDs();
-		grouped.push(block);
+		const tool = toolByID.get(block.id);
+		if (!tool) {
+			flushReadFileRun();
+			if (isStreaming) {
+				grouped.push({
+					type: "tool",
+					tool: {
+						id: block.id,
+						name: "Tool",
+						status: "running",
+						isError: false,
+					},
+				});
+			}
+			continue;
+		}
+		if (tool.name === "read_file") {
+			readFileRun.push(tool);
+			continue;
+		}
+
+		flushReadFileRun();
+		grouped.push({ type: "tool", tool });
 	}
 
-	flushReadFileIDs();
+	flushReadFileRun();
 	return grouped;
 };
