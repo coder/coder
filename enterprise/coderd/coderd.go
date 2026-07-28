@@ -937,7 +937,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Database,
+			ctx, api.Logger, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
 				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
@@ -953,7 +953,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
 				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-			})
+			},
+			api.AGPL.HTTPAuth.Authorizer,
+			api.AGPL.Experiments,
+		)
 		if err != nil {
 			return codersdk.Entitlements{}, err
 		}

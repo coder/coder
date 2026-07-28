@@ -20125,6 +20125,7 @@ const docTemplate = `{
                 "workspace-build-updates",
                 "nats_pubsub",
                 "minimum-implicit-member",
+                "workspace-capable-licensing",
                 "ai-gateway-cost-control",
                 "chat-advisor",
                 "chat-virtual-desktop"
@@ -20141,6 +20142,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
+                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -20153,6 +20155,7 @@ const docTemplate = `{
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents."
@@ -20167,6 +20170,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
+                "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop"
