@@ -2695,6 +2695,41 @@ export const SequentialReadFilesRunningState: Story = {
 	},
 };
 
+export const SequentialReadFilesMixedRunningAndError: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-mixed-error",
+				path: "site/src/missing.ts",
+				status: "error",
+				errorMessage: "permission denied",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-mixed-running",
+				path: "site/src/streaming.ts",
+				status: "running",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A file still reading keeps the whole group reading; the failure
+		// surfaces once the straggler settles.
+		expect(
+			canvas.getByRole("button", { name: /reading 2 files/i }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "permission denied" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Collapsed thinking should visually align with adjacent tool calls. */
 export const ThinkingBlockWithToolCall: Story = {
 	parameters: {

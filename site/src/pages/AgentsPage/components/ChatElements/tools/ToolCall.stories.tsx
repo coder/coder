@@ -69,6 +69,29 @@ export const Failed: Story = {
 	},
 };
 
+export const RunningWithErrorCopy: Story = {
+	render: () => (
+		<ToolCall.Root
+			status="running"
+			errorMessage="Failed to read file"
+			hasContent={false}
+		>
+			<ToolCall.Header iconName="read_file" label="Reading README.md" />
+		</ToolCall.Root>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Every caller passes `errorMessage` as fallback copy regardless of
+		// outcome. Only `status` decides whether the row reads as failed.
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("img", { name: "Failed to read file" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const Collapsible: Story = {
 	render: () => (
 		<ToolCall.Root
