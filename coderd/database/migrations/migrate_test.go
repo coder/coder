@@ -1717,10 +1717,10 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	}
 }
 
-func TestMigration000549LegacyNoneLoginToPassword(t *testing.T) {
+func TestMigration000554LegacyNoneLoginToPassword(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 548
+	const priorMigrationVersion = 553
 
 	sqlDB := testSQLDB(t)
 
@@ -1772,7 +1772,7 @@ func TestMigration000549LegacyNoneLoginToPassword(t *testing.T) {
 		passwordID, "password-user", "password@test.com", []byte("hashed"), now, now, "active", pq.StringArray{}, "password", false, false)
 	require.NoError(t, err)
 
-	migrationSQL, err := os.ReadFile("000549_legacy_none_login_to_password.up.sql")
+	migrationSQL, err := os.ReadFile("000554_legacy_none_login_to_password.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
 	require.NoError(t, err)
