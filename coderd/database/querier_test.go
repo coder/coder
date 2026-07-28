@@ -2045,6 +2045,16 @@ func TestProxyByHostname(t *testing.T) {
 			accessURL:        "https://two.coder.com",
 			wildcardHostname: "*--suffix.two.coder.com",
 		},
+		{
+			name:             "three",
+			accessURL:        "https://three.coder.com:8443",
+			wildcardHostname: "*.wildcard.three.coder.com",
+		},
+		{
+			name:             "four",
+			accessURL:        "https://four.coder.com/",
+			wildcardHostname: "*.wildcard.four.coder.com",
+		},
 	}
 	for _, p := range proxies {
 		dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{
@@ -2076,6 +2086,34 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "MatchAccessURLWithPort",
+			testHostname:      "three.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "three",
+		},
+		{
+			name:              "MatchAccessURLWithTrailingSlash",
+			testHostname:      "four.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "four",
+		},
+		{
+			name:              "RejectAccessURLPrefix",
+			testHostname:      "one.coder",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
+			name:              "RejectAccessURLTLDPrefix",
+			testHostname:      "one.coder.co",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchWildcard",
 			testHostname:      "something.wildcard.one.coder.com",
 			allowAccessURL:    true,
@@ -2083,11 +2121,25 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "RejectWildcardHostnamePrefix",
+			testHostname:      "something.wildcard.one.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchSuffix",
 			testHostname:      "something--suffix.two.coder.com",
 			allowAccessURL:    true,
 			allowWildcardHost: true,
 			matchProxyName:    "two",
+		},
+		{
+			name:              "RejectSuffixHostnamePrefix",
+			testHostname:      "something--suffix.two.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
 			name:              "ValidateHostname/1",
@@ -3997,6 +4049,20 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
 	})
 
+	// Tunnel events are point-in-time (no disconnect event is ever
+	// reported), so despite having a NULL disconnect_time they must be
+	// excluded from both status filters.
+	log5 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-30 * time.Minute),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeTunnel,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
+	})
+
 	testCases := []struct {
 		name           string
 		params         database.GetConnectionLogsOffsetParams
@@ -4006,7 +4072,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			name:   "NoFilter",
 			params: database.GetConnectionLogsOffsetParams{},
 			expectedLogIDs: []uuid.UUID{
-				log1.ID, log2.ID, log3.ID, log4.ID,
+				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID,
 			},
 		},
 		{
@@ -4021,14 +4087,14 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwner: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
 		},
 		{
 			name: "WorkspaceOwnerID",
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwnerID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
 		},
 		{
 			name: "WorkspaceOwnerEmail",
@@ -4045,18 +4111,25 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
 		},
 		{
+			name: "TypeTunnel",
+			params: database.GetConnectionLogsOffsetParams{
+				Type: string(database.ConnectionTypeTunnel),
+			},
+			expectedLogIDs: []uuid.UUID{log5.ID},
+		},
+		{
 			name: "UserID",
 			params: database.GetConnectionLogsOffsetParams{
 				UserID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log5.ID},
 		},
 		{
 			name: "Username",
 			params: database.GetConnectionLogsOffsetParams{
 				Username: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log5.ID},
 		},
 		{
 			name: "UserEmail",
@@ -4070,7 +4143,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				ConnectedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID},
+			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID},
 		},
 		{
 			name: "ConnectedBefore",
