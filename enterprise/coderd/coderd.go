@@ -530,6 +530,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				})
 			})
 		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/export", api.exportOrganizationAISpend)
+		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
@@ -621,6 +632,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 						api.RequireFeatureMW(codersdk.FeatureAIBridge),
 					)
 					r.Get("/", api.groupMembersAISpend)
+				})
+				r.Route("/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+						httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupAISpend)
 				})
 				r.Route("/ai/budget", func(r chi.Router) {
 					// AI cost controls are a paid feature (AI Governance add-on).
