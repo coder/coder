@@ -1689,6 +1689,40 @@ test-tailnet-integration:
 			./tailnet/test/integration
 .PHONY: test-tailnet-integration
 
+test-timings:
+	@tmp_json="$$(mktemp)"; \
+	trap 'rm -f "$$tmp_json"' EXIT; \
+	set +e; \
+	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		$(GOTEST_FLAGS); \
+	test_status=$$?; \
+	jq -r -s '
+		[
+			["package", "test", "status", "elapsed_ms"],
+			(
+				map(select(
+					(.Test // "") != "" and
+					(.Action == "pass" or .Action == "fail" or .Action == "skip")
+				))
+				| sort_by([.Package, .Test])
+				| group_by([.Package, .Test])
+				| map(last)
+				| sort_by([(-(.Elapsed // 0)), .Package, .Test])
+				| .[]
+				| [.Package, .Test, .Action, ((.Elapsed // 0) * 1000)]
+			)
+		]
+		| .[]
+		| @tsv
+	' "$$tmp_json" > "$(or $(TEST_TIMINGS_OUTPUT),test-timings.tsv)"; \
+	report_status=$$?; \
+	if [[ $$test_status -ne 0 ]]; then exit $$test_status; fi; \
+	exit $$report_status
+.PHONY: test-timings
+
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
 # instead. Keeping it here for convenience.

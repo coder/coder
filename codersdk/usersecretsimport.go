@@ -33,7 +33,9 @@ type secretEntry struct {
 
 // ParseSecretsFile parses a secrets file into CreateUserSecretRequests.
 // It checks structure and duplicate keys; per-entry validation is left to
-// ValidateCreateUserSecretRequest.
+// ValidateCreateUserSecretRequest. EnvName is set only when the key passes
+// env-name validation (best-effort; keys like MY-TOKEN or PATH get an empty
+// EnvName so they are still imported without env injection).
 func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSecretRequest, error) {
 	if len(content) > MaxSecretsFileBytes {
 		return nil, xerrors.Errorf("secrets file exceeds the maximum allowed size of %d bytes", MaxSecretsFileBytes)
@@ -80,15 +82,27 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 
 	reqs := make([]CreateUserSecretRequest, 0, len(entries))
 	for _, e := range entries {
-		reqs = append(reqs, CreateUserSecretRequest{
-			Name:    e.key,
-			EnvName: e.key,
-			Value:   e.value,
-		})
+		req := CreateUserSecretRequest{Name: e.key, Value: e.value}
+		// env_name uses a partial unique index (WHERE env_name != ''),
+		// so multiple empty env_names are allowed.
+		if UserSecretEnvNameValid(e.key) == nil {
+			req.EnvName = e.key
+		} else {
+			// Keys that cannot be env-injected (reserved names, invalid
+			// identifiers) are imported without an injection target, so
+			// they must be disabled: an enabled secret always has at
+			// least one of env_name or file_path set. The user can add
+			// a target and re-enable the secret afterwards.
+			disabled := false
+			req.Enabled = &disabled
+		}
+		reqs = append(reqs, req)
 	}
 	return reqs, nil
 }
 
+// Duplicate keys are rejected up front (citing the line for env files)
+// instead of surfacing as a per-row uniqueness violation later.
 func detectDuplicateKeys(entries []secretEntry) error {
 	seen := make(map[string]struct{}, len(entries))
 	for _, e := range entries {
@@ -185,11 +199,7 @@ func parseEnvValue(rhs string, lineNum int) (string, error) {
 		}
 		return unescapeDoubleQuoted(inner), nil
 	case '\'':
-		inner, ok := quotedInner(v, '\'')
-		if !ok {
-			return "", xerrors.Errorf("line %d: missing closing single quote", lineNum)
-		}
-		return inner, nil
+		return singleQuotedInner(v, lineNum)
 	default:
 		return strings.TrimSpace(v), nil
 	}
@@ -216,12 +226,21 @@ func hasOddBackslashRun(s string, before int) bool {
 	return count%2 == 1
 }
 
-func quotedInner(v string, quote byte) (string, bool) {
-	trimmed := strings.TrimRight(v, " \t")
-	if len(trimmed) < 2 || trimmed[len(trimmed)-1] != quote {
-		return "", false
+// singleQuotedInner returns the content between the opening single
+// quote at index 0 and the first closing single quote. Single quotes
+// have no escape sequences, so the first quote after the opener always
+// closes the value. Only whitespace may follow the closing quote.
+func singleQuotedInner(v string, lineNum int) (string, error) {
+	for i := 1; i < len(v); i++ {
+		if v[i] != '\'' {
+			continue
+		}
+		if strings.Trim(v[i+1:], " \t") != "" {
+			return "", xerrors.Errorf("line %d: unexpected data after closing single quote", lineNum)
+		}
+		return v[1:i], nil
 	}
-	return trimmed[1 : len(trimmed)-1], true
+	return "", xerrors.Errorf("line %d: missing closing single quote", lineNum)
 }
 
 func unescapeDoubleQuoted(s string) string {

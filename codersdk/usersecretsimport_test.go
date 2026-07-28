@@ -29,6 +29,11 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		`DQ_CARRIAGE="a\rb"`,
 		`DQ_UNKNOWN="x\zy"`,
 		`SQUOTED='literal \n no escape'`,
+		"SQ_TRAILING_WS='abc'  \t",
+		"SQ_EMPTY=''",
+		`SQ_DOUBLE_INSIDE='a"b'`,
+		`SQ_HASH='#not a comment'`,
+		"SQ_UNICODE='héllo 世界'",
 		"EQ_IN_VALUE=a=b=c",
 		"HASH=value # kept literal",
 		"UNICODE=héllo 世界 café",
@@ -54,6 +59,11 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		{Name: "DQ_CARRIAGE", EnvName: "DQ_CARRIAGE", Value: "a\rb"},
 		{Name: "DQ_UNKNOWN", EnvName: "DQ_UNKNOWN", Value: `x\zy`},
 		{Name: "SQUOTED", EnvName: "SQUOTED", Value: `literal \n no escape`},
+		{Name: "SQ_TRAILING_WS", EnvName: "SQ_TRAILING_WS", Value: "abc"},
+		{Name: "SQ_EMPTY", EnvName: "SQ_EMPTY", Value: ""},
+		{Name: "SQ_DOUBLE_INSIDE", EnvName: "SQ_DOUBLE_INSIDE", Value: `a"b`},
+		{Name: "SQ_HASH", EnvName: "SQ_HASH", Value: "#not a comment"},
+		{Name: "SQ_UNICODE", EnvName: "SQ_UNICODE", Value: "héllo 世界"},
 		{Name: "EQ_IN_VALUE", EnvName: "EQ_IN_VALUE", Value: "a=b=c"},
 		{Name: "HASH", EnvName: "HASH", Value: "value # kept literal"},
 		{Name: "UNICODE", EnvName: "UNICODE", Value: "héllo 世界 café"},
@@ -92,7 +102,15 @@ func TestParseSecretsFileEnvErrors(t *testing.T) {
 		{name: "UnterminatedDouble", content: `KEY="oops`, errMsgs: []string{"missing closing double quote"}},
 		{name: "EscapedDoubleQuoteNotClosing", content: `KEY="oops\"`, errMsgs: []string{"missing closing double quote"}},
 		{name: "DoubleQuoteTrailingData", content: `KEY="ok" # comment`, errMsgs: []string{"unexpected data after closing double quote"}},
-		{name: "UnterminatedSingle", content: `KEY='oops`, errMsgs: []string{"missing closing single quote"}},
+		{name: "UnterminatedSingle", content: `KEY='oops`, errMsgs: []string{"missing closing single quote", "line 1"}},
+		{name: "SingleQuoteOnly", content: `KEY='`, errMsgs: []string{"missing closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingComment", content: `KEY='abc' # 'note'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteEmbeddedQuote", content: `KEY='a'b'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuotePairAfterClose", content: `KEY='a' 'b'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingData", content: `KEY='abc' extra`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteAdjacentQuoted", content: `KEY='it''s'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingDataNoSpace", content: `KEY=''extra`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteErrorOnLaterLine", content: "OK=fine\nKEY='abc' extra", errMsgs: []string{"unexpected data after closing single quote", "line 2"}},
 		{name: "DuplicateKey", content: "DUP=a\nDUP=b", errMsgs: []string{"duplicate key", "line 2"}},
 	}
 	for _, tt := range tests {
@@ -234,8 +252,8 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 // FuzzParseSecretsFile checks two invariants: (1) the parser never panics
 // regardless of input (the fuzz engine catches panics automatically); (2) on
 // success the result is well-formed: at least one entry, at most
-// MaxUserSecretsPerUserCount entries, EnvName == Name for every entry,
-// and all keys unique. On error the returned slice must be nil/empty.
+// MaxUserSecretsPerUserCount entries, EnvName is empty or equals Name for every
+// entry, and all keys unique. On error the returned slice must be nil/empty.
 func FuzzParseSecretsFile(f *testing.F) {
 	// env - valid
 	f.Add("env", "KEY=value")
@@ -254,6 +272,7 @@ func FuzzParseSecretsFile(f *testing.F) {
 	f.Add("env", "NOEQUALS")
 	f.Add("env", "=value")
 	f.Add("env", `KEY="ok" # trailing`)
+	f.Add("env", `KEY='ok' extra`)
 	f.Add("env", "DUP=a\nDUP=b")
 	// json - valid
 	f.Add("json", `{"A":"1","B":"two"}`)
@@ -295,7 +314,7 @@ func FuzzParseSecretsFile(f *testing.F) {
 
 		seen := make(map[string]struct{}, len(reqs))
 		for _, req := range reqs {
-			require.Equal(t, req.Name, req.EnvName)
+			require.True(t, req.EnvName == "" || req.EnvName == req.Name, "EnvName must be empty or equal to Name")
 			_, dup := seen[req.Name]
 			require.False(t, dup, "duplicate key %q in result", req.Name)
 			seen[req.Name] = struct{}{}
@@ -367,6 +386,34 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 			_, err := codersdk.ParseSecretsFile(tt.format, tt.content)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "no secrets found")
+		})
+	}
+}
+
+func TestParseSecretsFileBestEffortEnvName(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		format  codersdk.SecretsFileFormat
+		content string
+	}{
+		{format: codersdk.SecretsFileFormatEnv, content: "PATH=value"},
+		{format: codersdk.SecretsFileFormatJSON, content: `{"PATH":"value"}`},
+		{format: codersdk.SecretsFileFormatYAML, content: "PATH: value"},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.format), func(t *testing.T) {
+			t.Parallel()
+			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
+			require.NoError(t, err)
+			// Reserved keys cannot be env-injected, so they are imported
+			// without an injection target and therefore disabled.
+			disabled := false
+			require.Equal(t, []codersdk.CreateUserSecretRequest{{
+				Name:    "PATH",
+				Value:   "value",
+				Enabled: &disabled,
+			}}, reqs)
 		})
 	}
 }

@@ -929,17 +929,29 @@ func (p *Server) subagentTools(
 					}
 					if errStatus, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
 						errChat := errStatus.chat
-						lastError := subagentLastErrorMessage(errChat.LastError)
+						decoded, lastError := subagentLastError(errChat.LastError)
 						if lastError == "" {
 							lastError = errStatus.reason
 						}
-						return toolJSONResponse(withSubagentType(map[string]any{
+						payload := map[string]any{
 							"chat_id":    errChat.ID.String(),
 							"title":      errChat.Title,
 							"status":     string(errChat.Status),
 							"last_error": lastError,
 							"report":     errStatus.report,
-						}, errChat)), nil
+						}
+						if decoded != nil {
+							kind := decoded.Kind
+							if kind == "" {
+								kind = codersdk.ChatErrorKindGeneric
+							}
+							payload["last_error_kind"] = string(kind)
+							payload["last_error_retryable"] = decoded.Retryable
+							if decoded.Detail != "" {
+								payload["last_error_detail"] = decoded.Detail
+							}
+						}
+						return toolJSONResponse(withSubagentType(payload, errChat)), nil
 					}
 					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
@@ -1501,18 +1513,35 @@ func handleSubagentDone(
 	return chat, report, nil
 }
 
-// subagentLastErrorMessage extracts the normalized, user-facing message
-// from a chat's last_error payload, falling back to the raw JSON when the
-// payload is not a recognized ChatError.
-func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
+// subagentGenericErrorMessage matches the normalized fallback that
+// chaterror and db2sdk emit for unclassifiable failures. It carries no
+// actionable information, so a provider detail replaces it entirely.
+const subagentGenericErrorMessage = "The chat request failed unexpectedly."
+
+// subagentLastError decodes a chat's last_error payload and builds the
+// message surfaced to the parent model, preferring the actionable
+// provider detail. The content mirrors what the chat UI renders from
+// the same payload. An unrecognized payload yields an empty message so
+// the caller falls back to its own status reason instead of exposing
+// raw stored bytes.
+func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) {
 	if !raw.Valid {
-		return ""
+		return nil, ""
 	}
 	var payload codersdk.ChatError
-	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
-		return payload.Message
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return nil, ""
 	}
-	return string(raw.RawMessage)
+	switch {
+	case payload.Message == "" && payload.Detail == "":
+		return nil, ""
+	case payload.Detail == "":
+		return &payload, payload.Message
+	case payload.Message == "" || payload.Message == subagentGenericErrorMessage:
+		return &payload, payload.Detail
+	default:
+		return &payload, payload.Message + " (" + payload.Detail + ")"
+	}
 }
 
 // waitAgentSuccessResponse stops and stores the recording (if active) and

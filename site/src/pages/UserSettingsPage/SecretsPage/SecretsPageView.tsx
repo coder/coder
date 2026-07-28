@@ -7,7 +7,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -37,6 +36,10 @@ type SecretsPageViewProps = {
 		request: UpdateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
 	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
+	onToggleSecretEnabled: (
+		secret: UserSecret,
+		enabled: boolean,
+	) => Promise<void> | void;
 };
 
 type SecretDialogState =
@@ -56,6 +59,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	onCreateSecret,
 	onUpdateSecret,
 	onDeleteSecret,
+	onToggleSecretEnabled,
 }) => {
 	const [dialogState, setDialogState] = useState<SecretDialogState>({
 		mode: "add",
@@ -99,11 +103,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					</div>
 				}
 			>
-				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="beta" size="md" />}
-				>
-					Secrets
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Secrets with an environment variable or file path are injected into
 					workspaces you own when they start. Each environment variable and file
@@ -148,6 +148,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					onAddSecret={openAddSecret}
 					onEditSecret={openEditSecret}
 					onDeleteSecret={onDeleteSecret}
+					onToggleEnabled={onToggleSecretEnabled}
 				/>
 			</section>
 		</div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -34,12 +35,14 @@ type AIGroupBudget struct {
 	LimitSource      AIBudgetLimitSource `json:"limit_source"`
 }
 
-// UserAIBudgetSummary is the effective AI budget for a user. When no
-// budget applies, all fields except UserID are null.
+// UserAIBudgetSummary is the effective AI budget for a user. When no budget
+// applies, the effective group falls back to the Everyone group with a null
+// limit and source.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the group the spend is attributed to. Null when
-	// no budget applies.
+	// EffectiveGroupID is the group the spend is attributed to, falling back to
+	// the Everyone group when no budget applies. Null only when the user has no
+	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// SpendLimitMicros is the effective spend limit in micro-units.
 	// Null when no budget applies to the user (unlimited).
@@ -89,6 +92,13 @@ type OrganizationGroupAISpend struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// GroupAISpend is the current AI spend snapshot for a single group within
+// the active budget period.
+type GroupAISpend struct {
+	AISpendPeriodWindow
+	OrganizationGroupAISpend
+}
+
 // GroupMembersAISpend reports per-member AI spend attributed to a specific
 // group in the active budget period.
 type GroupMembersAISpend struct {
@@ -101,9 +111,9 @@ type GroupMembersAISpend struct {
 type GroupMemberAISpend struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the user's effective budget group within the queried
-	// group's organization. Null when no effective budget group is visible in
-	// this organization, including when the user's budget resolves to a group
-	// in another organization.
+	// group's organization, falling back to the Everyone group when no budget
+	// applies. Null when the effective group belongs to a different organization
+	// than the queried group.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// GroupBudget is the budget when the queried group is this user's
 	// effective budget source. Null when the user's budget resolves to another
@@ -366,6 +376,36 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, json.NewDecoder(res.Body).Decode(&clients)
 }
 
+// ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
+// per-provider AI spend for the organization over the requested period. Both
+// bounds are optional and interpreted as UTC, and zero values fall back to the
+// current budget period on the server. The caller is responsible for closing
+// the returned ReadCloser.
+func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			if !opts.PeriodStart.IsZero() {
+				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
+			}
+			if !opts.PeriodEnd.IsZero() {
+				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
+			}
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, ReadBodyAsError(res)
+	}
+	return res.Body, nil
+}
+
 type GroupAIBudget struct {
 	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
 	SpendLimitMicros int64     `json:"spend_limit_micros"`
@@ -541,6 +581,25 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupAISpend returns AI spend for the given group within the active budget
+// period.
+func (c *Client) GroupAISpend(ctx context.Context, group uuid.UUID) (GroupAISpend, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/ai/spend", group.String()),
+		nil,
+	)
+	if err != nil {
+		return GroupAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupAISpend
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

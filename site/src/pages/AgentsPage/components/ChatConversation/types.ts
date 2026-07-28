@@ -73,7 +73,6 @@ export type RetryState = {
 	error: string;
 	kind: TypesGen.ChatErrorKind;
 	provider?: string;
-	delayMs?: number;
 	retryingAt?: string;
 };
 

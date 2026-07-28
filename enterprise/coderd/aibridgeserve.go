@@ -138,12 +138,14 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		Store:               api.Database,
 		Pubsub:              api.AGPL.Pubsub,
 		AISeatTracker:       api.AGPL.AISeatTracker,
+		Enqueuer:            api.AGPL.NotificationsEnqueuer,
 		AccessURL:           api.AccessURL.String(),
 		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
 		ExternalAuthConfigs: api.ExternalAuthConfigs,
 		Experiments:         api.AGPL.Experiments,
 		Logger:              logger,
 		Clock:               api.AGPL.Clock,
+		Metrics:             api.AGPL.AIGatewayServerMetrics,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

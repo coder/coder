@@ -91,17 +91,9 @@ export const chatMessagesEqualByValue = (
 export const chatQueuedMessagesEqualByID = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean => {
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index]?.id !== right[index]?.id) {
-			return false;
-		}
-	}
-	return true;
-};
+): boolean =>
+	left.length === right.length &&
+	left.every((message, index) => message.id === right[index].id);
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -118,7 +110,6 @@ const retryStatesEqual = (
 		left.error === right.error &&
 		left.kind === right.kind &&
 		left.provider === right.provider &&
-		left.delayMs === right.delayMs &&
 		left.retryingAt === right.retryingAt
 	);
 };

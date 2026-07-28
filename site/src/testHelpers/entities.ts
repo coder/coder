@@ -578,6 +578,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used by example templates.",
 		env_name: "EXAMPLE_TOKEN",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-04-28T16:30:00Z",
 		updated_at: "2026-04-30T16:30:00Z",
 	},
@@ -587,6 +588,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Mounted as a workspace file.",
 		env_name: "",
 		file_path: "~/.config/example/config.json",
+		enabled: true,
 		created_at: "2026-04-29T16:30:00Z",
 		updated_at: "2026-05-01T16:30:00Z",
 	},
@@ -596,15 +598,20 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Available as an environment variable and file.",
 		env_name: "SERVICE_API_KEY",
 		file_path: "/var/run/secrets/service-api-key",
+		enabled: true,
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 	},
 	{
+		// Mirrors a pre-migration secret that had both env_name and
+		// file_path empty. The migration flips such rows to
+		// enabled: false, so this is the shape they have after upgrade.
 		id: "secret-not-injected",
 		name: "SERVICE_PASSWORD",
 		description: "",
 		env_name: "",
 		file_path: "",
+		enabled: false,
 		created_at: "2026-05-01T16:30:00Z",
 		updated_at: "2026-05-03T16:30:00Z",
 	},
@@ -614,6 +621,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used to exercise duplicate validation.",
 		env_name: "DUPLICATE_API_KEY",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
 	},
@@ -1830,12 +1838,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 			},
 		],
 	},
-};
-
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
 };
 
 // just over one page of workspaces
@@ -3243,7 +3245,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,

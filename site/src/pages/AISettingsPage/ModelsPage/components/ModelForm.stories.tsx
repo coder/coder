@@ -280,6 +280,24 @@ export const EditUpdateDisabledUntilDirty: Story = {
 	},
 };
 
+// Changing only the provider dropdown does not dirty the formik state
+// (providerKeyOverride lives outside form.values), so a naive form.dirty
+// gate leaves the save button disabled. `canSubmit` OR's in
+// `hasProviderChange` to fix this. Stripping that clause flips this story
+// red.
+export const EditUpdateEnabledOnProviderChange: Story = {
+	args: {
+		editingModel: mockGPT5,
+		selectedProviderState: MockAnthropicProviderState,
+		onDeleteModel: fn(async () => undefined),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const save = canvas.getByRole("button", { name: /^update model$/i });
+		await expect(save).toBeEnabled();
+	},
+};
+
 export const ReasoningEffortInProviderConfiguration: Story = {
 	args: {
 		selectedProviderState: MockAnthropicProviderState,

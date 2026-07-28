@@ -117,17 +117,15 @@ coder:
       memory: 1Gi
 
   # coder.startupProbe -- Startup probe configuration for the AI Gateway.
-  # Enable this with a failure threshold long enough for initial provider load
-  # before enabling the liveness probe.
   startupProbe:
     enabled: false
     initialDelaySeconds: 0
 
   # coder.livenessProbe -- Liveness probe configuration for the AI Gateway.
-  # Without this probe, Kubernetes does not restart a running but unresponsive
-  # Gateway. Enable and tune the startup probe before enabling this probe.
+  # This checks HTTP server responsiveness. Readiness reflects the established
+  # connection to coderd and initial provider configuration loaded.
   livenessProbe:
-    enabled: false
+    enabled: true
     initialDelaySeconds: 0
 
   # coder.readinessProbe -- Readiness probe configuration for the AI Gateway.
@@ -190,7 +188,9 @@ aigateway:
     name: ""
     certKey: tls.crt
     keyKey: tls.key
-  # This must exceed the application's 300-second shutdown timeout.
+  # Allow 5 seconds for provider reload shutdown, 300 seconds for HTTP
+  # draining, 5 seconds for daemon shutdown, 5 seconds for tracing shutdown,
+  # and 15 seconds of termination headroom.
   terminationGracePeriodSeconds: 330
 
 # Stable data-plane Service fronting the container's port 4001 listener.
