@@ -8,7 +8,6 @@ import {
 	MockBedrockProviderState,
 	MockDisabledProviderState,
 	MockOpenAIProviderState,
-	MockOrphanedProviderState,
 	mockBedrockClaude,
 	mockClaude,
 	mockDisabledModel,
@@ -148,17 +147,17 @@ export const DisabledProviderModelsStillListed: Story = {
 };
 
 // An orphaned model is one whose ai_provider_id references a provider row
-// that has been deleted. This is the case the PR exists for: the row must
-// display "Unset" and force "Disabled" through the full ModelsPageView
-// derivation, not through props hardcoded in a lower-level story.
+// that has been deleted. In production `deriveProviderStates` drops such
+// models entirely, so the row reaches "Unset" via a map-miss and the
+// `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
+// here: the model appears in `models` but is not present in any
+// providerState.modelConfigs, so a `?? true` regression would flip this
+// story to "Enabled" and be caught.
 export const OrphanedModelShowsUnset: Story = {
 	args: {
 		models: [mockGPT5, mockOrphanedModel],
-		providerStates: [MockOpenAIProviderState, MockOrphanedProviderState],
-		providerTypeByID: new Map<string, string>([
-			["prov-openai", "openai"],
-			["prov-orphaned", "openai"],
-		]),
+		providerStates: [MockOpenAIProviderState],
+		providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
