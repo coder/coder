@@ -27,6 +27,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	agplaibridge "github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
@@ -11617,29 +11618,38 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	})
 }
 
+// seedChatGatewayRequest records one finished Coder Agents gateway request
+// under sessionChatID, mirroring what aibridged persists for chatd traffic:
+// the interception's session ID is the chat that spawned the request.
+func seedChatGatewayRequest(t *testing.T, db database.Store, initiatorID, sessionChatID uuid.UUID, usage database.InsertAIBridgeTokenUsageParams) {
+	t.Helper()
+
+	now := dbtime.Now()
+	endedAt := now.Add(time.Second)
+	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:     initiatorID,
+		Provider:        "anthropic",
+		Model:           "claude-4",
+		StartedAt:       now,
+		Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+		ClientSessionID: sql.NullString{String: sessionChatID.String(), Valid: true},
+	}, &endedAt)
+
+	usage.InterceptionID = interception.ID
+	usage.CreatedAt = now
+	dbgen.AIBridgeTokenUsage(t, db, usage)
+}
+
 func TestGetChatCost(t *testing.T) {
 	t.Parallel()
 
-	t.Run("BasicCost", func(t *testing.T) {
-		t.Parallel()
-
-		f := seedChatCostFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		cost, err := f.Client.GetChatCost(ctx, f.ChatID)
-		require.NoError(t, err)
-		require.Equal(t, f.ChatID, cost.ChatID)
-		require.Equal(t, int64(1000), cost.TotalCostMicros)
-		require.Equal(t, int64(2), cost.PricedMessageCount)
-		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
-	})
-
-	t.Run("RollsUpSubtree", func(t *testing.T) {
+	t.Run("RollsUpChatTree", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
+		everyoneGroup := uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true}
 
 		rootChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
@@ -11647,13 +11657,6 @@ func TestGetChatCost(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "root chat",
 		})
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          rootChat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-		})
-
 		childChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -11662,15 +11665,6 @@ func TestGetChatCost(t *testing.T) {
 			ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		})
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          childChat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			TotalCostMicros: sql.NullInt64{Int64: 250, Valid: true},
-		})
-
-		// root_chat_id is flattened to the top-level root at any depth,
-		// so subtree traversal must follow parent_chat_id instead.
 		grandchildChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -11679,39 +11673,66 @@ func TestGetChatCost(t *testing.T) {
 			ParentChatID:      uuid.NullUUID{UUID: childChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		})
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          grandchildChat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+
+		// A subagent's requests carry the spawning chat's ID, so the child's
+		// spend lands on the root session and the grandchild's on the child.
+		seedChatGatewayRequest(t, db, firstUser.UserID, rootChat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 500, Valid: true},
+		})
+		seedChatGatewayRequest(t, db, firstUser.UserID, rootChat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 250, Valid: true},
+		})
+		seedChatGatewayRequest(t, db, firstUser.UserID, childChat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 100, Valid: true},
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// The root rolls up every descendant's cost.
-		rootCost, err := client.GetChatCost(ctx, rootChat.ID)
-		require.NoError(t, err)
-		require.Equal(t, rootChat.ID, rootCost.ChatID)
-		require.Equal(t, int64(850), rootCost.TotalCostMicros)
-		require.Equal(t, int64(3), rootCost.PricedMessageCount)
-
-		// A subagent reports only its own subtree: itself plus the
-		// nested subagents it spawned, excluding the parent's spend.
-		childCost, err := client.GetChatCost(ctx, childChat.ID)
-		require.NoError(t, err)
-		require.Equal(t, childChat.ID, childCost.ChatID)
-		require.Equal(t, int64(350), childCost.TotalCostMicros)
-		require.Equal(t, int64(2), childCost.PricedMessageCount)
-
-		// A leaf subagent reports only its own spend.
-		grandchildCost, err := client.GetChatCost(ctx, grandchildChat.ID)
-		require.NoError(t, err)
-		require.Equal(t, grandchildChat.ID, grandchildCost.ChatID)
-		require.Equal(t, int64(100), grandchildCost.TotalCostMicros)
-		require.Equal(t, int64(1), grandchildCost.PricedMessageCount)
+		for _, chatID := range []uuid.UUID{rootChat.ID, childChat.ID, grandchildChat.ID} {
+			cost, err := client.GetChatCost(ctx, chatID)
+			require.NoError(t, err)
+			require.Equal(t, chatID, cost.ChatID)
+			require.Equal(t, int64(850), cost.TotalCostMicros)
+			require.Equal(t, int64(3), cost.RequestCount)
+			require.Equal(t, int64(0), cost.UnpricedRequestCount)
+		}
 	})
 
-	t.Run("UnpricedMessages", func(t *testing.T) {
+	t.Run("UnpricedRequests", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		everyoneGroup := uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true}
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "unpriced chat",
+		})
+		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 400, Valid: true},
+		})
+		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(400), cost.TotalCostMicros)
+		require.Equal(t, int64(2), cost.RequestCount)
+		require.Equal(t, int64(1), cost.UnpricedRequestCount)
+	})
+
+	t.Run("ExcludesUnattributedUsage", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := newChatClientWithDatabase(t)
@@ -11722,30 +11743,74 @@ func TestGetChatCost(t *testing.T) {
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "unpriced chat",
+			Title:             "legacy chat",
 		})
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          chat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			TotalCostMicros: sql.NullInt64{Int64: 400, Valid: true},
-		})
-		// Token usage but no cost (no model pricing) counts as unpriced.
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:        chat.ID,
-			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:          database.ChatMessageRoleAssistant,
-			InputTokens:   sql.NullInt64{Int64: 100, Valid: true},
-			OutputTokens:  sql.NullInt64{Int64: 50, Valid: true},
+		// Usage recorded before group attribution existed never reached
+		// ai_user_daily_spend, so it must not appear as chat spend either.
+		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID, database.InsertAIBridgeTokenUsageParams{
+			CostMicros: sql.NullInt64{Int64: 900, Valid: true},
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		cost, err := client.GetChatCost(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, int64(400), cost.TotalCostMicros)
-		require.Equal(t, int64(1), cost.PricedMessageCount)
-		require.Equal(t, int64(1), cost.UnpricedMessagesHavingUsageCount)
+		require.Equal(t, int64(0), cost.TotalCostMicros)
+		require.Equal(t, int64(0), cost.RequestCount)
+	})
+
+	t.Run("ExcludesForeignAndUnfinishedRequests", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		modelConfig := createChatModelConfig(t, client)
+		everyoneGroup := uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true}
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "owner chat",
+		})
+
+		seedChatGatewayRequest(t, db, otherUser.ID, chat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 700, Valid: true},
+		})
+
+		foreignEndedAt := dbtime.Now().Add(time.Second)
+		foreignInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       dbtime.Now(),
+			Client:          sql.NullString{String: string(agplaibridge.ClientClaudeCode), Valid: true},
+			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
+		}, &foreignEndedAt)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   foreignInterception.ID,
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 800, Valid: true},
+		})
+
+		unfinishedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       dbtime.Now(),
+			Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   unfinishedInterception.ID,
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 600, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), cost.TotalCostMicros)
+		require.Equal(t, int64(0), cost.RequestCount)
 	})
 
 	t.Run("MemberCannotReadOtherUsersChat", func(t *testing.T) {
@@ -11773,15 +11838,15 @@ func TestGetChatCost(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	t.Run("ZeroMessages", func(t *testing.T) {
+	t.Run("ZeroRequests", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// No assistant messages must still return one zero-total row; a COALESCE
-		// or :one regression would surface as sql.ErrNoRows -> 500.
+		// An ungrouped aggregate always returns a row, so a chat with no
+		// gateway requests reports zeros instead of failing.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -11795,43 +11860,8 @@ func TestGetChatCost(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, cost.ChatID)
 		require.Equal(t, int64(0), cost.TotalCostMicros)
-		require.Equal(t, int64(0), cost.PricedMessageCount)
-		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
-	})
-
-	t.Run("ExcludesNonAssistantMessages", func(t *testing.T) {
-		t.Parallel()
-
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "mixed-role chat",
-		})
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          chat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			TotalCostMicros: sql.NullInt64{Int64: 600, Valid: true},
-		})
-		// User-role cost must be excluded; the query bills only assistant messages.
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          chat.ID,
-			Role:            database.ChatMessageRoleUser,
-			TotalCostMicros: sql.NullInt64{Int64: 999, Valid: true},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		cost, err := client.GetChatCost(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, int64(600), cost.TotalCostMicros)
-		require.Equal(t, int64(1), cost.PricedMessageCount)
-		require.Equal(t, int64(0), cost.UnpricedMessagesHavingUsageCount)
+		require.Equal(t, int64(0), cost.RequestCount)
+		require.Equal(t, int64(0), cost.UnpricedRequestCount)
 	})
 }
 

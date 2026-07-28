@@ -1990,15 +1990,15 @@ type ChatCostChatBreakdown struct {
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
-// ChatCost is the cumulative cost for a selected chat's subtree: the
-// chat itself plus every descendant (subagent) chat it spawned. A root
-// chat therefore reports its whole tree, while a subagent reports only
-// its own spend plus any nested subagents.
+// ChatCost is the AI Gateway cost for the requested chat's whole tree. AI
+// Gateway attributes a subagent's requests to the chat that spawned it, so
+// every chat in a tree reports the same total. UnpricedRequestCount counts
+// requests whose model had no recorded price, so the total excludes them.
 type ChatCost struct {
-	ChatID                           uuid.UUID `json:"chat_id" format:"uuid"`
-	TotalCostMicros                  int64     `json:"total_cost_micros"`
-	PricedMessageCount               int64     `json:"priced_message_count"`
-	UnpricedMessagesHavingUsageCount int64     `json:"unpriced_messages_having_usage_count"`
+	ChatID               uuid.UUID `json:"chat_id" format:"uuid"`
+	TotalCostMicros      int64     `json:"total_cost_micros"`
+	RequestCount         int64     `json:"request_count"`
+	UnpricedRequestCount int64     `json:"unpriced_request_count"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
@@ -2592,7 +2592,8 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 
-// GetChatCost returns the cumulative cost for a single chat.
+// GetChatCost returns the AI Gateway cost for the whole chat tree that
+// contains chatID.
 func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
 	if err != nil {

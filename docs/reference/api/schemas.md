@@ -2558,20 +2558,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "priced_message_count": 0,
+  "request_count": 0,
   "total_cost_micros": 0,
-  "unpriced_messages_having_usage_count": 0
+  "unpriced_request_count": 0
 }
 ```
 
 ### Properties
 
-| Name                                   | Type    | Required | Restrictions | Description |
-|----------------------------------------|---------|----------|--------------|-------------|
-| `chat_id`                              | string  | false    |              |             |
-| `priced_message_count`                 | integer | false    |              |             |
-| `total_cost_micros`                    | integer | false    |              |             |
-| `unpriced_messages_having_usage_count` | integer | false    |              |             |
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `chat_id`                | string  | false    |              |             |
+| `request_count`          | integer | false    |              |             |
+| `total_cost_micros`      | integer | false    |              |             |
+| `unpriced_request_count` | integer | false    |              |             |
 
 ## codersdk.ChatDiffContents
 

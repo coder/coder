@@ -295,6 +295,14 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	// AI Gateway cost for one chat tree: the root chat plus every subagent chat
+	// beneath it. Coder Agents traffic records the spawning chat's ID as the
+	// interception session ID (chatprovider.CoderHeaders), so a subagent's
+	// requests are attributed to its parent and only the whole tree can be
+	// summed. The owner check guards against session-id collisions from other
+	// users. Usage without an effective group never reaches ai_user_daily_spend,
+	// so excluding it keeps this total consistent with AI budget spend.
+	GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (GetAIBridgeChatCostRow, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	// Look up the parent interception and the root of the thread by finding
 	// which interception recorded a tool usage with the given tool call ID.

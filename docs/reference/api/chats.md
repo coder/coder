@@ -1298,6 +1298,11 @@ curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/cost \
 
 Experimental: this endpoint is subject to change.
 
+Cost covers the whole chat tree: the root chat plus every
+subagent chat beneath it. Requesting a subagent chat returns
+that same tree total, because AI Gateway attributes a
+subagent's requests to the chat that spawned it.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -1311,9 +1316,9 @@ Experimental: this endpoint is subject to change.
 ```json
 {
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "priced_message_count": 0,
+  "request_count": 0,
   "total_cost_micros": 0,
-  "unpriced_messages_having_usage_count": 0
+  "unpriced_request_count": 0
 }
 ```
 

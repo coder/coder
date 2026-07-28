@@ -23,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// ExtractChatParam authorizes the read, then GetChatModelUsageCostByChatID
-// authorizes it again. A denial on the second check means the ACL changed in
-// between (a read-authz race). Assert it surfaces as 404, not 500.
+// ExtractChatParam authorizes the read, then GetAIBridgeChatCost authorizes it
+// again. A denial on the second check means the ACL changed in between (a
+// read-authz race). Assert it surfaces as 404, not 500.
 func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
 	t.Parallel()
 
@@ -38,8 +38,8 @@ func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-	dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), chat.ID).Return(
-		database.GetChatModelUsageCostByChatIDRow{},
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(
+		database.GetAIBridgeChatCostRow{},
 		dbauthz.NotAuthorizedError{Err: sql.ErrNoRows},
 	)
 
@@ -56,9 +56,9 @@ func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
-// A subagent chat's cost is scoped to its own subtree, so the handler
-// must query the requested chat ID rather than resolving to the root.
-func TestGetChatCostQueriesRequestedChat(t *testing.T) {
+// AI Gateway attributes a subagent's requests to the chat that spawned it, so
+// a subagent request must be answered with its root chat's tree cost.
+func TestGetChatCostQueriesRootChat(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -73,11 +73,10 @@ func TestGetChatCostQueriesRequestedChat(t *testing.T) {
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
-	dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), child.ID).Return(
-		database.GetChatModelUsageCostByChatIDRow{
-			ChatID:             child.ID,
-			TotalCostMicros:    250,
-			PricedMessageCount: 1,
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), rootID).Return(
+		database.GetAIBridgeChatCostRow{
+			TotalCostMicros: 250,
+			RequestCount:    1,
 		},
 		nil,
 	)
@@ -97,7 +96,7 @@ func TestGetChatCostQueriesRequestedChat(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
 	require.Equal(t, child.ID, cost.ChatID)
 	require.Equal(t, int64(250), cost.TotalCostMicros)
-	require.Equal(t, int64(1), cost.PricedMessageCount)
+	require.Equal(t, int64(1), cost.RequestCount)
 }
 
 func TestEnrichMissingChatAgentIDs(t *testing.T) {

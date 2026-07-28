@@ -93,13 +93,31 @@ export const CostError: Story = {
 };
 
 export const PartialCost: Story = {
-	args: { costMicros: 0, unpricedMessagesHavingUsageCount: 3 },
+	args: { costMicros: 0, unpricedRequestCount: 3 },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText(
-				"Excludes 3 messages with usage but without model pricing.",
-			),
+			canvas.getByText("Excludes 3 requests without model pricing."),
 		).toBeInTheDocument();
+	},
+};
+
+export const SubagentTreeCost: Story = {
+	args: { isSubagent: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Cost covers this agent's whole chat/),
+		).toBeInTheDocument();
+	},
+};
+
+export const CostHidden: Story = {
+	args: { showCost: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
+		await expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("$1.25")).not.toBeInTheDocument();
 	},
 };

@@ -10,8 +10,16 @@ import { ChatSummaryPanel } from "./ChatSummaryPanel";
 const mockCost: TypesGen.ChatCost = {
 	chat_id: MockChat.id,
 	total_cost_micros: 1_250_000,
-	priced_message_count: 8,
-	unpriced_messages_having_usage_count: 0,
+	request_count: 8,
+	unpriced_request_count: 0,
+};
+
+const aiCostControl: {
+	features: TypesGen.FeatureName[];
+	experiments: TypesGen.Experiment[];
+} = {
+	features: ["aibridge"],
+	experiments: ["ai-gateway-cost-control"],
 };
 
 type MockRequestOptions = {
@@ -53,6 +61,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	title: "pages/AgentsPage/ChatSummaryPanel",
 	component: ChatSummaryPanel,
 	decorators: [PanelFrame, withDashboardProvider],
+	parameters: aiCostControl,
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
@@ -115,5 +124,18 @@ export const NotVisible: Story = {
 			canvas.queryByText("Should never be fetched."),
 		).not.toBeInTheDocument();
 		expect(canvas.queryByText("No summary yet.")).not.toBeInTheDocument();
+	},
+};
+
+export const GatewayUnavailable: Story = {
+	parameters: { features: [], experiments: [] },
+	beforeEach: () => mockRequests({ summary: "Gateway is off here." }),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Gateway is off here.")).toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
+		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 	},
 };

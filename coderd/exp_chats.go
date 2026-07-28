@@ -2472,16 +2472,26 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ChatCost
 // @Router /api/experimental/chats/{chat}/cost [get]
 // @Description Experimental: this endpoint is subject to change.
+// @Description
+// @Description Cost covers the whole chat tree: the root chat plus every
+// @Description subagent chat beneath it. Requesting a subagent chat returns
+// @Description that same tree total, because AI Gateway attributes a
+// @Description subagent's requests to the chat that spawned it.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// The query rolls up the requested chat's subtree, so a root chat
-	// reports itself plus all subagents while a subagent reports only
-	// its own spend (plus any nested subagents it spawned).
-	row, err := api.Database.GetChatModelUsageCostByChatID(ctx, chat.ID)
+	// AI Gateway attributes a subagent's requests to the chat that spawned
+	// it, so cost is only meaningful for a whole chat tree. Resolve the root
+	// chat and report the tree total, including for subagent chats.
+	rootChatID := chat.ID
+	if chat.RootChatID.Valid {
+		rootChatID = chat.RootChatID.UUID
+	}
+
+	row, err := api.Database.GetAIBridgeChatCost(ctx, rootChatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -2495,10 +2505,10 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCost{
-		ChatID:                           row.ChatID,
-		TotalCostMicros:                  row.TotalCostMicros,
-		PricedMessageCount:               row.PricedMessageCount,
-		UnpricedMessagesHavingUsageCount: row.UnpricedMessagesHavingUsageCount,
+		ChatID:               chat.ID,
+		TotalCostMicros:      row.TotalCostMicros,
+		RequestCount:         row.RequestCount,
+		UnpricedRequestCount: row.UnpricedRequestCount,
 	})
 }
 

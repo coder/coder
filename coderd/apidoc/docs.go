@@ -582,7 +582,7 @@ const docTemplate = `{
         },
         "/api/experimental/chats/{chat}/cost": {
             "get": {
-                "description": "Experimental: this endpoint is subject to change.",
+                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting a subagent chat returns\nthat same tree total, because AI Gateway attributes a\nsubagent's requests to the chat that spawned it.",
                 "produces": [
                     "application/json"
                 ],
@@ -17504,13 +17504,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "priced_message_count": {
+                "request_count": {
                     "type": "integer"
                 },
                 "total_cost_micros": {
                     "type": "integer"
                 },
-                "unpriced_messages_having_usage_count": {
+                "unpriced_request_count": {
                     "type": "integer"
                 }
             }

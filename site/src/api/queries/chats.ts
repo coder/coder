@@ -1966,17 +1966,18 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostKey = (chatId: string) =>
-	[...chatsKey, chatId, "cost"] as const;
+// Cost covers the whole chat tree, so callers key this by the root chat.
+export const chatCostKey = (rootChatId: string) =>
+	[...chatsKey, rootChatId, "cost"] as const;
 
-// Chat cost changes only when a new assistant message is priced, so a short
-// stale window refreshes the sidebar without refetching on every render.
-const ASSISTANT_MESSAGE_PRICING_STALE_MS = 30_000;
+// Chat cost changes only when a gateway request completes, so a short stale
+// window refreshes the sidebar without refetching on every render.
+const GATEWAY_REQUEST_STALE_MS = 30_000;
 
-export const chatCost = (chatId: string) => ({
-	queryKey: chatCostKey(chatId),
-	queryFn: () => API.experimental.getChatCost(chatId),
-	staleTime: ASSISTANT_MESSAGE_PRICING_STALE_MS,
+export const chatCost = (rootChatId: string) => ({
+	queryKey: chatCostKey(rootChatId),
+	queryFn: () => API.experimental.getChatCost(rootChatId),
+	staleTime: GATEWAY_REQUEST_STALE_MS,
 });
 
 interface PaginatedChatCostUsersPayload {

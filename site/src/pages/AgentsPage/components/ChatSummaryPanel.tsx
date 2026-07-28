@@ -2,6 +2,8 @@ import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
@@ -14,10 +16,24 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
+	const { experiments } = useDashboard();
+	// Cost is derived from AI Gateway interception data, so it is unavailable
+	// when the gateway is off or unlicensed.
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
+	const showCost =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
-	const costQuery = useQuery({ ...chatCost(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
+	// Cost covers the whole chat tree, so every chat in a tree shares one
+	// cache entry keyed by the root. Waiting for the chat keeps a subagent
+	// from caching the tree total under its own id.
+	const rootChatId = chatData?.root_chat_id ?? chatId;
+	const costQuery = useQuery({
+		...chatCost(rootChatId),
+		enabled: isVisible && showCost && chatData !== undefined,
+	});
 
 	let content: ReactNode = null;
 	if (chatQuery.isError) {
@@ -30,9 +46,8 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 				createdAt={chatData.created_at}
 				updatedAt={chatData.updated_at}
 				costMicros={costQuery.data?.total_cost_micros}
-				unpricedMessagesHavingUsageCount={
-					costQuery.data?.unpriced_messages_having_usage_count
-				}
+				unpricedRequestCount={costQuery.data?.unpriced_request_count}
+				showCost={showCost}
 				isCostLoading={costQuery.isLoading}
 				costError={costQuery.isError}
 			/>

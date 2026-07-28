@@ -2155,16 +2155,16 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
- * ChatCost is the cumulative cost for a selected chat's subtree: the
- * chat itself plus every descendant (subagent) chat it spawned. A root
- * chat therefore reports its whole tree, while a subagent reports only
- * its own spend plus any nested subagents.
+ * ChatCost is the AI Gateway cost for the requested chat's whole tree. AI
+ * Gateway attributes a subagent's requests to the chat that spawned it, so
+ * every chat in a tree reports the same total. UnpricedRequestCount counts
+ * requests whose model had no recorded price, so the total excludes them.
  */
 export interface ChatCost {
 	readonly chat_id: string;
 	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
+	readonly request_count: number;
+	readonly unpriced_request_count: number;
 }
 
 // From codersdk/chats.go
