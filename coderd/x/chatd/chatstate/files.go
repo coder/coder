@@ -10,13 +10,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// LinkFiles records chat_file_links rows for the given uploaded files.
-// It must run on the same transaction that persists the message content
-// referencing the files, so a cap rejection or database error rolls
-// back the message too and purge never sees a live message referencing
-// an unlinked file. Returns ErrChatFileCapExceeded when the per-chat
-// cap (codersdk.MaxChatFileIDs) would be exceeded; already-linked files
-// do not count as new.
+// LinkFiles links files without exceeding the chat attachment cap.
+// Call it in the message transaction so link failures roll back the message.
+// Existing links do not consume additional cap slots.
 func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, fileIDs []uuid.UUID) error {
 	if len(fileIDs) == 0 {
 		return nil

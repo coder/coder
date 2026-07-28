@@ -8229,9 +8229,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		// Sending a message with the extra file fails with 400 and
-		// persists nothing: linking runs in the same transaction as
-		// message persistence.
 		messagesBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
@@ -8254,8 +8251,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
 			"file count should not exceed the cap")
 
-		// Re-referencing an already-linked file is deduped and does
-		// not count against the cap.
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
@@ -8297,7 +8292,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// The rejected create must not leave a chat behind.
 		chats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
 		require.Empty(t, chats, "rejected create should not persist a chat")
@@ -8742,7 +8736,6 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// The rejected edit must not replace the message.
 		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		var found bool

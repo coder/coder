@@ -1507,8 +1507,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-read the chat so the response reflects the authoritative
-	// database state (file links are deduped in the join table).
 	chat, err = api.Database.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6104,9 +6102,6 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-// writeChatFileCapExceeded writes the 400 response for message
-// operations rejected because the chat is at its attachment cap.
-// Returns false when err is not a cap error.
 func writeChatFileCapExceeded(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	if !errors.Is(err, chatstate.ErrChatFileCapExceeded) {
 		return false

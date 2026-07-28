@@ -1683,7 +1683,6 @@ func TestMessageFileLinking(t *testing.T) {
 	fileQueued := insertFile("queued.png")
 	fileEdit := insertFile("edit.png")
 
-	// Create links the initial message's files in the same transaction.
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
@@ -1697,7 +1696,6 @@ func TestMessageFileLinking(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, linkedFileIDs(chat.ID), fileCreate)
 
-	// Immediate send links the message's files.
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
 		Status: database.ChatStatusWaiting,
@@ -1714,7 +1712,6 @@ func TestMessageFileLinking(t *testing.T) {
 	require.False(t, sendResult.Queued)
 	require.Contains(t, linkedFileIDs(chat.ID), fileSend)
 
-	// Edit links the replacement message's files.
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
 		Status: database.ChatStatusWaiting,
@@ -1786,7 +1783,6 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Fill the chat to its attachment cap.
 	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
 	for i := range codersdk.MaxChatFileIDs {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
@@ -1827,8 +1823,6 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// The over-cap send rolls back entirely: no message row and no
-	// link row survive.
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID: chat.ID,
 		Content: []codersdk.ChatMessagePart{

@@ -2662,9 +2662,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
-				// File D: 31 days old, in a chat archived 31 days ago.
-				// DeleteOldChats removes that chat in the same tick, so
-				// the file is deleted too.
+				// File D becomes orphaned when the expired chat is purged first.
 				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
@@ -2678,8 +2676,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
 				require.NoError(t, err)
 
-				// File E: 31 days old, in a chat archived 10 days ago.
-				// The chat survives retention, so the file is retained.
+				// File E stays linked because its recently archived chat is retained.
 				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
@@ -2731,10 +2728,8 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		{
 			name: "UnarchiveAfterFilePurge",
 			run: func(t *testing.T) {
-				// Validates that when dbpurge deletes chat_files rows,
-				// the FK cascade on chat_file_links automatically
-				// removes the stale links. Unarchiving a chat after
-				// file purge should show only surviving files.
+				// Deleting chat files cascades their links, so unarchiving
+				// exposes only surviving attachments.
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				deps := setupChatDeps(t, db)
@@ -2756,9 +2751,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				// Simulate dbpurge deleting files A and B. The FK
-				// cascade on chat_file_links_file_id_fkey should
-				// automatically remove the corresponding link rows.
+				// Direct file deletion must cascade the corresponding link rows.
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
 				require.NoError(t, err)
 

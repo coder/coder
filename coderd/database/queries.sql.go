@@ -5791,12 +5791,9 @@ type DeleteOldChatFilesParams struct {
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
-// Deletes chat files that are older than the given threshold and are
-// not linked to any existing chat. Linked files are retained until
-// every linking chat row is deleted; DeleteOldChats runs first in the
-// same purge transaction and its ON DELETE CASCADE clears
-// chat_file_links, so an archived chat's old files are deleted in
-// the same tick as the chat. Never-linked uploads age out here.
+// Deletes files older than the threshold only after all chat links are gone.
+// The purge transaction removes eligible chats first, and cascades clear
+// their file links.
 func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
@@ -10963,10 +10960,6 @@ FROM chats_expanded
 ORDER BY (chats_expanded.id = $1::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC
 `
 
-// Unarchives a chat (and its children). Stale file references are
-// handled automatically by FK cascades on chat_file_links: when
-// dbpurge deletes a chat_files row, the corresponding
-// chat_file_links rows are cascade-deleted by PostgreSQL.
 func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
 	if err != nil {
