@@ -1415,8 +1415,7 @@ type FinishErrorInput struct {
 type FinishErrorResult struct{}
 
 // FinishError parks the chat in error with the supplied last_error.
-// Allowed from running chats by the chat worker and from waiting chats
-// when admission-time work fails; it does not require runner ownership.
+// It is allowed when an unarchived chat is waiting or running.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
 	if err != nil {
