@@ -2103,6 +2103,10 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, func(p *database.CreateUserSecretParams) {
 			p.EnvName = ""
 			p.FilePath = ""
+			// A target-less secret must be disabled to satisfy the
+			// user_secrets_enabled_requires_target constraint. Disabled
+			// secrets are still counted in the telemetry breakdown.
+			p.Enabled = false
 		})
 
 		_, snap := collectSnapshot(ctx, t, db, nil)
@@ -2149,9 +2153,12 @@ func TestUserSecretsTelemetry(t *testing.T) {
 					// Clear EnvName and FilePath so the unique
 					// (user_id, env_name) and (user_id, file_path)
 					// indexes don't collide across multiple secrets
-					// for the same user.
+					// for the same user. Target-less secrets must be
+					// disabled to satisfy the
+					// user_secrets_enabled_requires_target constraint.
 					p.EnvName = ""
 					p.FilePath = ""
+					p.Enabled = false
 				})
 			}
 		}
@@ -2261,6 +2268,9 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, func(p *database.CreateUserSecretParams) {
 			p.EnvName = ""
 			p.FilePath = ""
+			// Target-less secrets must be disabled to satisfy the
+			// user_secrets_enabled_requires_target constraint.
+			p.Enabled = false
 		})
 
 		clock := quartz.NewMock(t)

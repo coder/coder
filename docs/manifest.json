@@ -1318,6 +1318,12 @@
 									"state": ["ai governance add-on"]
 								},
 								{
+									"title": "Cost Controls",
+									"description": "Manage AI Gateway spend with budgets, spend limits, and budget notifications.",
+									"path": "./ai-coder/ai-gateway/cost-controls.md",
+									"state": ["ai governance add-on"]
+								},
+								{
 									"title": "Reference",
 									"description": "Technical reference for AI Gateway, including the aibridged component that runs inside coderd.",
 									"path": "./ai-coder/ai-gateway/reference.md",
@@ -2146,6 +2152,11 @@
 							"title": "secret update",
 							"description": "Update a secret",
 							"path": "reference/cli/secret_update.md"
+						},
+						{
+							"title": "secret import",
+							"description": "Import secrets from a file",
+							"path": "reference/cli/secret_import.md"
 						},
 						{
 							"title": "secret list",

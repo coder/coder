@@ -65,6 +65,26 @@ const SecretsPage: FC = () => {
 					throw error;
 				}
 			}}
+			onToggleSecretEnabled={async (secret, enabled) => {
+				try {
+					await updateSecretMutation.mutateAsync({
+						name: secret.name,
+						request: { enabled },
+					});
+					toast.success(
+						`${enabled ? "Enabled" : "Disabled"} secret "${secret.name}".`,
+					);
+				} catch (error) {
+					toast.error(
+						getErrorMessage(
+							error,
+							`Failed to ${enabled ? "enable" : "disable"} secret.`,
+						),
+						{ description: getErrorDetail(error) },
+					);
+					throw error;
+				}
+			}}
 		/>
 	);
 };
