@@ -120,17 +120,17 @@ describe("groupSequentialReadFileBlocks", () => {
 		);
 
 		expect(result).toEqual([
-			{ type: "tool-group", tools: [tool("read-1"), tool("read-2")] },
+			{ type: "read-files", tools: [tool("read-1"), tool("read-2")] },
 		]);
 	});
 
-	it("leaves a single read_file tool block ungrouped", () => {
+	it("emits a single read_file tool block as a one-file group", () => {
 		const result = groupSequentialReadFileBlocks(
 			[{ type: "tool", id: "read-1" }],
 			tools,
 		);
 
-		expect(result).toEqual([{ type: "tool", tool: tool("read-1") }]);
+		expect(result).toEqual([{ type: "read-files", tools: [tool("read-1")] }]);
 	});
 
 	it.each([
@@ -142,9 +142,9 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "read-2" },
 			],
 			[
-				{ type: "tool", tool: tool("read-1") },
+				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "response", text: "middle" },
-				{ type: "tool", tool: tool("read-2") },
+				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
 		[
@@ -155,9 +155,9 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "read-2" },
 			],
 			[
-				{ type: "tool", tool: tool("read-1") },
+				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "tool", tool: tool("execute-1", "execute") },
-				{ type: "tool", tool: tool("read-2") },
+				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
 		[
@@ -168,8 +168,8 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "read-2" },
 			],
 			[
-				{ type: "tool", tool: tool("read-1") },
-				{ type: "tool", tool: tool("read-2") },
+				{ type: "read-files", tools: [tool("read-1")] },
+				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
 	] satisfies Array<

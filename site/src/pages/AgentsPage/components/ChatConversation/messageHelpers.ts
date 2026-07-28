@@ -26,11 +26,6 @@ type MessageEntryInput = {
 	parsed: ParsedMessageContent;
 };
 
-type HiddenTimelineEntryReason =
-	| "tool-result"
-	| "metadata-only"
-	| "empty-non-user";
-
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
@@ -92,33 +87,20 @@ const isToolResultOnlyEntry = ({
 	parsed.markdown === "" &&
 	parsed.reasoning === "";
 
-const getHiddenTimelineEntryReason = ({
+const shouldHideTimelineEntry = ({
 	message,
 	parsed,
-}: MessageEntryInput): HiddenTimelineEntryReason | undefined => {
+}: MessageEntryInput): boolean => {
 	const parts = message.content ?? [];
 	const { hasRenderableContent } = getRenderableContentState(parsed);
 
-	if (
+	return (
 		isToolResultOnlyEntry({ message, parsed }) ||
-		isProviderToolResultOnlyMessage(parts)
-	) {
-		return "tool-result";
-	}
-
-	if (isMetadataOnlyMessage(parts)) {
-		return "metadata-only";
-	}
-
-	if (message.role !== "user" && !hasRenderableContent) {
-		return "empty-non-user";
-	}
-
-	return undefined;
+		isProviderToolResultOnlyMessage(parts) ||
+		isMetadataOnlyMessage(parts) ||
+		(message.role !== "user" && !hasRenderableContent)
+	);
 };
-
-const shouldHideTimelineEntry = (entry: MessageEntryInput): boolean =>
-	getHiddenTimelineEntryReason(entry) !== undefined;
 
 export const deriveMessageDisplayState = ({
 	message,

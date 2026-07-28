@@ -297,13 +297,6 @@ export const BlockList: FC<{
 		isStreaming,
 	);
 
-	// A thinking block is actively streaming only when it is the
-	// very last block in the list. Once newer content arrives
-	// (response, tool call, etc.) the thinking phase is over.
-	const lastDisplayBlockIsThinking =
-		displayBlocks.length > 0 &&
-		displayBlocks[displayBlocks.length - 1].type === "thinking";
-
 	return (
 		<>
 			{displayBlocks.map((block, index) => {
@@ -337,9 +330,8 @@ export const BlockList: FC<{
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
 								isStreaming={
-									isStreaming &&
-									lastDisplayBlockIsThinking &&
-									index === displayBlocks.length - 1
+									// A thinking block is done once newer content follows it.
+									isStreaming && index === displayBlocks.length - 1
 								}
 								urlTransform={urlTransform}
 								thinkingDisplayMode={thinkingDisplayMode}
@@ -359,7 +351,7 @@ export const BlockList: FC<{
 								</span>
 							</div>
 						);
-					case "tool-group":
+					case "read-files":
 						return (
 							<ReadFileTimelineBlock
 								key={block.tools[0].id}
@@ -368,9 +360,6 @@ export const BlockList: FC<{
 						);
 					case "tool": {
 						const tool = block.tool;
-						if (tool.name === "read_file") {
-							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
-						}
 						return (
 							<Tool
 								key={tool.id}

@@ -34,7 +34,7 @@ export const appendTextBlock = (
 type TimelineBlock =
 	| Exclude<RenderBlock, { type: "tool" }>
 	| { type: "tool"; tool: MergedTool }
-	| { type: "tool-group"; tools: readonly [MergedTool, ...MergedTool[]] };
+	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
 // An id with no tool means its call has not arrived: pending while streaming,
 // dropped once settled.
@@ -52,11 +52,7 @@ export const groupSequentialReadFileBlocks = (
 		if (!first) {
 			return;
 		}
-		grouped.push(
-			rest.length === 0
-				? { type: "tool", tool: first }
-				: { type: "tool-group", tools: [first, ...rest] },
-		);
+		grouped.push({ type: "read-files", tools: [first, ...rest] });
 		readFileRun = [];
 	};
 
