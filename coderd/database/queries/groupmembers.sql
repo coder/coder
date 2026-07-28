@@ -45,11 +45,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN @search :: text != '' THEN (
 			user_email ILIKE concat('%', @search, '%')
 			OR user_username ILIKE concat('%', @search, '%')
+			OR user_name ILIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END
