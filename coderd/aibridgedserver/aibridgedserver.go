@@ -115,6 +115,7 @@ type Server struct {
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	experiments       codersdk.Experiments
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
@@ -167,6 +168,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
 		aiSeatTracker:       opts.AISeatTracker,
+		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
 		clock:               opts.Clock,
@@ -269,8 +271,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
+		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	}
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
