@@ -1518,6 +1518,8 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
+// checkUsageLimit is a no-op. Usage limits (a.k.a. "Budgets") are now enforced 
+// by AI Gateway.
 func (*Server) checkUsageLimit(_ context.Context, _ database.Store, _ uuid.UUID, _ uuid.NullUUID) error {
 	return nil
 }
