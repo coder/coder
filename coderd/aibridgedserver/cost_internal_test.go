@@ -2,6 +2,8 @@ package aibridgedserver
 
 import (
 	"database/sql"
+	"errors"
+	"math"
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -17,6 +19,7 @@ func TestComputeCost(t *testing.T) {
 		price                                                        database.AIModelPrice
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
 		want                                                         int64
+		wantOutOfRange                                               bool
 	}{
 		{
 			name: "all priced",
@@ -109,13 +112,61 @@ func TestComputeCost(t *testing.T) {
 			inputTokens: 122_000_000_000, // 122e9 * 75e6 = 9.15e18 < int64 max
 			want:        9_150_000_000_000,
 		},
+		{
+			name: "cost exactly at the column ceiling is in range",
+			price: database.AIModelPrice{
+				// 1 micro-unit per token, so cost equals the token count.
+				InputPrice: nullInt64(1_000_000),
+			},
+			inputTokens: math.MaxInt64,
+			want:        math.MaxInt64,
+		},
+		{
+			name: "cost above the column ceiling is out of range",
+			price: database.AIModelPrice{
+				InputPrice: nullInt64(2_000_000), // 2 micro-units per token
+			},
+			inputTokens:    math.MaxInt64, // 2 * int64 max
+			wantOutOfRange: true,
+		},
+		{
+			// Each category fits on its own; only their sum exceeds the column,
+			// so the range check has to run on the total.
+			name: "sum of in-range categories above the ceiling is out of range",
+			price: database.AIModelPrice{
+				InputPrice:  nullInt64(1_000_000),
+				OutputPrice: nullInt64(1_000_000),
+			},
+			inputTokens:    math.MaxInt64/2 + 1,
+			outputTokens:   math.MaxInt64/2 + 1,
+			wantOutOfRange: true,
+		},
+		{
+			// The cost column forbids negatives, so an implausible token count
+			// is rejected here rather than failing the insert.
+			name: "negative cost is out of range",
+			price: database.AIModelPrice{
+				InputPrice: nullInt64(3_000_000),
+			},
+			inputTokens:    -1_000_000,
+			wantOutOfRange: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := computeCost(tt.price, tt.inputTokens, tt.outputTokens, tt.cacheReadTokens, tt.cacheWriteTokens)
+			got, err := computeCost(tt.price, tt.inputTokens, tt.outputTokens, tt.cacheReadTokens, tt.cacheWriteTokens)
+			if tt.wantOutOfRange {
+				if !errors.Is(err, errCostOutOfRange) {
+					t.Fatalf("computeCost error = %v, want errCostOutOfRange", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("computeCost error = %v, want nil", err)
+			}
 			if got != tt.want {
 				t.Fatalf("computeCost = %d, want %d", got, tt.want)
 			}

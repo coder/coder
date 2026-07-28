@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -15,9 +17,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// tokensPerMillion is the divisor for prices, which are quoted per million
-// tokens.
-const tokensPerMillion = 1_000_000
+var (
+	// tokensPerMillion is the divisor for prices, which are quoted per million
+	// tokens.
+	tokensPerMillion = decimal.NewFromInt(1_000_000)
+	// maxCostMicros is the largest cost the database column can hold.
+	maxCostMicros = decimal.NewFromInt(math.MaxInt64)
+)
+
+// errCostOutOfRange reports a cost that cannot be stored in the database column.
+// Real usage cannot reach it, so it means a wrong price row or implausible
+// provider-reported token counts.
+var errCostOutOfRange = xerrors.New("computed cost is out of range")
 
 // tokenUsageCost holds the cost-attribution columns snapshotted onto a token
 // usage record. A field left unset (Valid == false) is recorded as SQL NULL; a
@@ -34,10 +45,10 @@ type tokenUsageCost struct {
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
-// interception and computes its cost. Two independent conditions yield a NULL
-// column rather than an error: an unresolved effective group (the user has no
-// org membership), and a model absent from the price table leaves prices and
-// cost NULL (a NULL cost unambiguously means "model not priced").
+// interception and computes its cost. Three conditions yield a NULL column
+// rather than an error: an unresolved effective group (the user has no org
+// membership), a model absent from the price table, and a cost outside the
+// maxCostMicros range. A NULL cost means the cost is unknown.
 // Any other error is returned.
 func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBridgeInterception, in *proto.RecordTokenUsageRequest) (tokenUsageCost, error) {
 	var result tokenUsageCost
@@ -85,12 +96,24 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	result.outputPriceMicros = price.OutputPrice
 	result.cacheReadPriceMicros = price.CacheReadPrice
 	result.cacheWritePriceMicros = price.CacheWritePrice
-	result.costMicros = sql.NullInt64{
-		Int64: computeCost(price,
-			in.GetInputTokens(), in.GetOutputTokens(),
-			in.GetCacheReadInputTokens(), in.GetCacheWriteInputTokens()),
-		Valid: true,
+
+	costMicros, err := computeCost(price,
+		in.GetInputTokens(), in.GetOutputTokens(),
+		in.GetCacheReadInputTokens(), in.GetCacheWriteInputTokens())
+	if err != nil {
+		// No trustworthy cost exists, so record it as unknown rather than
+		// storing a figure derived from bad inputs. The token counts are logged
+		// because the range error alone does not say which input was wrong.
+		s.logger.Error(ctx, "cost out of range, recording token usage with NULL cost",
+			slog.F("provider", intc.Provider), slog.F("model", intc.Model),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
+			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.Error(err))
+		return result, nil
 	}
+	result.costMicros = sql.NullInt64{Int64: costMicros, Valid: true}
 	return result, nil
 }
 
@@ -98,17 +121,27 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 // the per-token prices from the price table. Prices are expressed per million
 // tokens; a NULL price column is treated as zero (e.g. providers that do not
 // charge for cache writes).
-func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) int64 {
-	return tokenCost(inputTokens, price.InputPrice) +
-		tokenCost(outputTokens, price.OutputPrice) +
-		tokenCost(cacheReadTokens, price.CacheReadPrice) +
-		tokenCost(cacheWriteTokens, price.CacheWritePrice)
+func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) (int64, error) {
+	total := tokenCost(inputTokens, price.InputPrice).
+		Add(tokenCost(outputTokens, price.OutputPrice)).
+		Add(tokenCost(cacheReadTokens, price.CacheReadPrice)).
+		Add(tokenCost(cacheWriteTokens, price.CacheWritePrice))
+
+	// Rejecting the negative case here keeps it from reaching the
+	// cost_micros >= 0 check constraint, which would discard the whole record.
+	if total.IsNegative() || total.GreaterThan(maxCostMicros) {
+		return 0, xerrors.Errorf("cost %s micro-units: %w", total.String(), errCostOutOfRange)
+	}
+	return total.IntPart(), nil
 }
 
 // tokenCost returns tokens * price / 1,000,000, treating a NULL price as zero.
-func tokenCost(tokens int64, pricePerMillion sql.NullInt64) int64 {
+func tokenCost(tokens int64, pricePerMillion sql.NullInt64) decimal.Decimal {
 	if !pricePerMillion.Valid {
-		return 0
+		return decimal.Zero
 	}
-	return tokens * pricePerMillion.Int64 / tokensPerMillion
+	return decimal.NewFromInt(tokens).
+		Mul(decimal.NewFromInt(pricePerMillion.Int64)).
+		Div(tokensPerMillion).
+		Truncate(0)
 }
