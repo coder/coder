@@ -18,7 +18,7 @@ These logs and metrics can be used to determine usage patterns, track costs, and
 
 ## Prometheus metrics
 
-The embedded Gateway and [standalone Gateway](./standalone.md) export the same AI Gateway metrics.
+The embedded Gateway and [standalone Gateway](./standalone.md) export the same AI Gateway request metrics.
 Each process exports metrics for the traffic that it handles:
 
 - The Coder control plane (`coderd`) Prometheus listener exports metrics for the embedded Gateway.
@@ -49,6 +49,19 @@ Refer to [provider configuration](./providers.md) for the provider reload lifecy
 
 Histograms also emit the standard `_bucket`, `_sum`, and `_count` series.
 
+### Cost control metrics
+
+Budget enforcement runs in `coderd`.
+Cost control metrics are exported only from the `coderd` Prometheus listener.
+Standalone replicas do not export them.
+
+| Metric                                                             | Type      | Labels              | Purpose                                                                                  |
+|--------------------------------------------------------------------|-----------|---------------------|------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_cost_control_blocked_requests_total`             | counter   | `group_id`          | AI requests blocked because the initiator's budget was exceeded.                         |
+| `coder_ai_gateway_cost_control_blocked_users`                      | gauge     | `group_id`          | Users currently over their AI budget.                                                    |
+| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | histogram | `outcome`           | Duration of AI budget enforcement checks. `outcome` is `allowed`, `blocked`, or `error`. |
+| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | counter   | `model`, `provider` | Recorded token-usage records for which no model price was found.                         |
+
 ### AI Gateway Proxy metrics
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
@@ -70,6 +83,7 @@ Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for 
 > [!IMPORTANT]
 > The embedded Gateway metric prefix changed from `coder_aibridged_*` to `coder_ai_gateway_*`, and the proxy prefix changed from `coder_aibridgeproxyd_*` to `coder_ai_gateway_proxy_*`.
 > The embedded Gateway and AI Gateway Proxy emit the legacy names with identical values during the v2.35 and v2.36 deprecation window, and the legacy names are planned for removal in v2.37.
+> The cost control metrics were added after the rename and have no legacy alias.
 > The standalone Gateway emits only the current `coder_ai_gateway_*` names.
 > Migrate dashboards and alerts to the new names.
 > Do not relabel new names back to old names while both are emitted because this creates duplicate legacy series in the same scrape.
@@ -227,8 +241,8 @@ Standalone spans are emitted independently by every replica with the service nam
 
 ### Enable tracing
 
-AI Gateway exports spans over OTLP/gRPC by default.
-The `CODER_TRACE_DATADOG` and `CODER_TRACE_HONEYCOMB_API_KEY` options select other exporters.
+AI Gateway exports spans over OTLP/gRPC, honoring `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
+Setting `CODER_TRACE_HONEYCOMB_API_KEY` adds a Honeycomb exporter alongside it rather than replacing it.
 
 The embedded and standalone Gateways share the same tracing options.
 Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded Gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
