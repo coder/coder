@@ -276,7 +276,7 @@ an API key.
 ## Provider lifecycle
 
 Every provider carries an explicit status, surfaced through the
-[`provider_info`](./monitoring.md#provider-metrics) metric and the API:
+[`provider_info`](./monitoring.md#prometheus-metrics) metric and the API:
 
 | Status     | Meaning                                                                       | Effect on requests                               |
 |------------|-------------------------------------------------------------------------------|--------------------------------------------------|
@@ -302,7 +302,7 @@ the same pair under the `coder_ai_gateway_proxy_` prefix.
 A growing gap between the attempt and success timestamps means reloads
 are firing but failing to apply. Alert on that gap rather than on a
 single failure, which may resolve on the next change. See
-[Monitoring](./monitoring.md#provider-metrics) for the full metric list
+[Monitoring](./monitoring.md#prometheus-metrics) for the full metric list
 and sample alert queries.
 
 ## Key failover
