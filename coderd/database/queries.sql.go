@@ -24212,7 +24212,7 @@ WHERE
 	(
 		(
 			$2 :: bool = true AND
-			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]%)*'
 		) OR
 		(
 			$3 :: bool = true AND
