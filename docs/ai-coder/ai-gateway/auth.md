@@ -89,9 +89,10 @@ coder ai-gateway keys create standalone-production
 
 The command displays the plaintext key once.
 Save it immediately in your secret manager because Coder cannot retrieve it later.
-Coder never stores the secret itself, only a visible prefix for display and a SHA-256 hash used for authentication.
+Coder stores only a short prefix of the key for display and a SHA-256 hash for authentication, never the full secret.
 
-Names must be unique, 64 characters or fewer, and use only lowercase letters, numbers, and non-consecutive hyphens.
+Names must be unique, 64 characters or fewer, and use only lowercase letters, numbers, and hyphens.
+A name cannot start or end with a hyphen or contain consecutive hyphens.
 Gateway keys do not expire and cannot be scoped or restricted.
 
 Configure the standalone process with either of the following options, but not both:
