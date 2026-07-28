@@ -44,9 +44,8 @@ export interface ConfirmDialogProps {
 	readonly confirmLoading?: boolean;
 	readonly disabled?: boolean;
 	/**
-	 * Reused as the confirm handler when omitted, so a `delete` dialog with no
-	 * `onConfirm` shows a destructive confirm button that only closes the dialog
-	 * and deletes nothing.
+	 * When omitted, `onClose` doubles as the confirm handler, so a `delete`
+	 * dialog without `onConfirm` closes without deleting anything.
 	 */
 	readonly onConfirm?: () => void;
 	readonly type?: ConfirmDialogType;

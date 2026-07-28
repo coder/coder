@@ -56,10 +56,7 @@ export const UpdateBuildParametersDialog: FC<
 				}
 			}}
 		>
-			<DialogContent
-				className="max-w-md max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]"
-				data-testid="dialog"
-			>
+			<DialogContent className="max-w-md" data-testid="dialog">
 				<DialogHeader>
 					<DialogTitle>Workspace parameters</DialogTitle>
 					<DialogDescription>
@@ -68,34 +65,32 @@ export const UpdateBuildParametersDialog: FC<
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="min-h-0 overflow-y-auto">
-					<VerticalForm onSubmit={form.handleSubmit} id="updateParameters">
-						{missedParameters && (
-							<FormFields>
-								{missedParameters.map((parameter, index) => {
-									return (
-										<RichParameterInput
-											{...getFieldHelpers(
-												`rich_parameter_values[${index}].value`,
-											)}
-											key={parameter.name}
-											parameter={parameter}
-											onChange={async (value) => {
-												await form.setFieldValue(
-													`rich_parameter_values.${index}`,
-													{
-														name: parameter.name,
-														value: value,
-													},
-												);
-											}}
-										/>
-									);
-								})}
-							</FormFields>
-						)}
-					</VerticalForm>
-				</div>
+				<VerticalForm onSubmit={form.handleSubmit} id="updateParameters">
+					{missedParameters && (
+						<FormFields>
+							{missedParameters.map((parameter, index) => {
+								return (
+									<RichParameterInput
+										{...getFieldHelpers(
+											`rich_parameter_values[${index}].value`,
+										)}
+										key={parameter.name}
+										parameter={parameter}
+										onChange={async (value) => {
+											await form.setFieldValue(
+												`rich_parameter_values.${index}`,
+												{
+													name: parameter.name,
+													value: value,
+												},
+											);
+										}}
+									/>
+								);
+							})}
+						</FormFields>
+					)}
+				</VerticalForm>
 
 				<DialogFooter>
 					<Button variant="outline" type="button" onClick={onClose}>

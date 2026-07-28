@@ -52,8 +52,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				}
 			}}
 		>
-			{/* Mirrors the real banner's fixed position so edits preview in place.
-				   z-[60] sits one step above the Dialog primitive's z-50 overlay. */}
+			{/* Banner preview */}
 			<div className="fixed top-0 left-0 right-0 z-[60]">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
