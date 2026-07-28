@@ -313,7 +313,9 @@ type sqlcQuerier interface {
 	// interception's seq) within the same firewall session. The exclusive lower
 	// bound drops the interception's own LLM-provider call. next_seq considers all
 	// interceptions in the firewall session so windows never bleed across AI
-	// sessions that share one firewall session.
+	// sessions that share one firewall session, and falls back to the maximum
+	// sequence_number for the last interception so the window stays an
+	// index-satisfiable range.
 	GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAIBridgeSessionTopDomainsParams) ([]GetAIBridgeSessionTopDomainsRow, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
