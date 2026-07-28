@@ -1389,43 +1389,27 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 }
 
-// logTunnelConnection records a connection log entry for a tunnel to a
-// workspace agent so that enterprise auditors can attribute subsequent
-// SSH/IDE activity inside the workspace back to the Coder user and
-// client that established it. The agent-reported SSH connection log
-// rows do not have this information (see
-// coderd/agentapi/connectionlog.go). We only log when the caller is an
-// authenticated user; requests proxied by a workspace proxy carry no
-// API key on this route.
+// logTunnelConnection records a connection log entry attributing a
+// tunnel to the authenticated user who opened it. Agent-reported rows
+// cannot identify the user (see coderd/agentapi/connectionlog.go), and
+// workspace-proxy-authenticated requests carry no API key and are
+// skipped.
 func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
 	apiKey, ok := httpmw.APIKeyOptional(r)
 	if !ok {
 		return
 	}
-	// Bound the writes so that connection log backpressure (e.g. a
-	// wedged database write) cannot stall tunnel establishment. Losing
-	// a log row under extreme backpressure is preferable to refusing
-	// tunnels; the errors below record the loss. Both writes share
-	// this budget: if the session upsert consumes it, the log row is
-	// dropped and not retried until the session goes stale.
+	// Bounded so log backpressure cannot stall tunnel establishment.
 	writeCtx, writeCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer writeCancel()
 	userAgent := r.UserAgent()
 	now := dbtime.Now()
 
-	// Clients automatically re-dial the coordinate endpoint after
-	// network blips, load balancer timeouts, and coderd restarts, so a
-	// row per handshake would flood the connection log with reconnect
-	// noise. Deduplicate through the same audit session mechanism used
-	// by workspace apps: only log when there is no active session for
-	// this (agent, user, IP, client) key. Tunnel sessions use uuid.Nil
-	// for app_id and an empty slug like port forwarding does. The
-	// status code is part of the session unique key: app and port
-	// forwarding sessions record the HTTP status of the token
-	// authorization (200, 4xx, ...), never 101, while tunnel sessions
-	// always record 101 (the WebSocket upgrade), so a tunnel session
-	// can never upsert into an app session row even when the agent,
-	// user, IP, and user agent all match.
+	// Clients re-dial automatically, so dedupe reconnects through the
+	// same audit session mechanism as workspace apps, keyed on
+	// (agent, user, IP, user agent). Status 101 and the empty slug
+	// keep tunnel sessions from ever colliding with app or
+	// port-forwarding sessions.
 	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
 	if staleInterval == 0 {
 		staleInterval = time.Hour
@@ -1448,19 +1432,16 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		UpdatedAt:  now,
 	})
 	if err != nil {
+		// Skip logging rather than risk spamming the connection log.
 		api.Logger.Error(ctx, "upsert tunnel audit session",
 			slog.F("workspace_id", waws.WorkspaceTable.ID),
 			slog.F("user_id", apiKey.UserID),
 			slog.Error(err),
 		)
-		// Avoid spamming the connection log if deduplication failed;
-		// this should only happen if there are problems communicating
-		// with the database.
 		return
 	}
 	if !newSession {
-		// An active session for this key was already logged; this
-		// handshake is a reconnection.
+		// Reconnection of an already-logged session.
 		return
 	}
 
@@ -1481,10 +1462,8 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		},
 		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
 		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
-		// ConnectionID is intentionally left unset so that each
-		// new or stale audit session produces its own row. Reusing
-		// peerID here would cause resume_token reconnects to upsert
-		// into the existing row without updating ip/user_agent.
+		// Left unset so each session gets its own row; reusing peerID
+		// would make resume_token reconnects upsert into a stale row.
 		ConnectionID:     uuid.NullUUID{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		// N/A
