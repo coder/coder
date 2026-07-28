@@ -35,6 +35,9 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// FileIDs are the uploaded files referenced by the initial
+	// messages, linked in the same transaction via [LinkFiles].
+	FileIDs []uuid.UUID
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -130,6 +133,9 @@ func insertChat(
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
+		}
+		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
+			return err
 		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {

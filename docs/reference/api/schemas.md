@@ -2229,9 +2229,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -2323,9 +2320,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -2365,7 +2359,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatACL
@@ -4152,9 +4145,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": [
-      "string"
-    ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "kind": "status_change",
@@ -4807,10 +4797,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
-  },
-  "warnings": [
-    "string"
-  ]
+  }
 }
 ```
 
@@ -4822,7 +4809,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
 | `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
-| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
 ## codersdk.CreateChatRequest
 
@@ -7442,9 +7428,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "total_tokens": 0
       }
     }
-  ],
-  "warnings": [
-    "string"
   ]
 }
 ```
@@ -7456,7 +7439,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deleted_message_ids` | array of integer                                      | false    |              | Deleted message ids holds the IDs of previously visible messages the edit removed, including stale hook notices from the edited turn. Clients should drop them from local caches. |
 | `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
-| `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
 
 ## codersdk.Entitlement
 

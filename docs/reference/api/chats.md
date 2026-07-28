@@ -125,9 +125,6 @@ Experimental: this endpoint is subject to change.
     "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": [
-      "string"
-    ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   }
 ]
@@ -222,7 +219,6 @@ Status Code **200**
 | `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» warnings`              | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
@@ -402,9 +398,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -496,9 +489,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -747,9 +737,6 @@ Experimental: this endpoint is subject to change.
     "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": [
-      "string"
-    ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "kind": "status_change",
@@ -895,9 +882,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -989,9 +973,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -1174,9 +1155,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -1268,9 +1246,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -1503,9 +1478,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -1597,9 +1569,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -2097,10 +2066,7 @@ Experimental: this endpoint is subject to change.
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
-  },
-  "warnings": [
-    "string"
-  ]
+  }
 }
 ```
 
@@ -2328,9 +2294,6 @@ Experimental: this endpoint is subject to change.
         "total_tokens": 0
       }
     }
-  ],
-  "warnings": [
-    "string"
   ]
 }
 ```
@@ -2518,9 +2481,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -2612,9 +2572,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -3120,9 +3077,6 @@ Experimental: this endpoint is subject to change.
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -3214,9 +3168,6 @@ Experimental: this endpoint is subject to change.
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```

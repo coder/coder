@@ -49,6 +49,13 @@ var (
 	// wraps this sentinel.
 	ErrMessageQueueFull = xerrors.New("chat message queue is full")
 
+	// ErrChatFileCapExceeded is returned by [LinkFiles] when linking
+	// would push a chat past its per-chat attachment cap. Callers run
+	// LinkFiles inside the message-persisting transaction, so the
+	// whole operation rolls back and no persisted message references
+	// an unlinked file.
+	ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
+
 	// ErrToolResultDuplicate is returned by [Tx.CompleteRequiresAction]
 	// when the same tool_call_id appears more than once in the
 	// submitted results.
