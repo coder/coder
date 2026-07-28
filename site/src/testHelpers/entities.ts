@@ -1832,12 +1832,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
-};
-
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({

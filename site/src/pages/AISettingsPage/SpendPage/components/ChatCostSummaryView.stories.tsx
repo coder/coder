@@ -10,7 +10,7 @@ const buildSummary = (
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 1_500_000,
 	priced_message_count: 12,
-	unpriced_message_count: 0,
+	unpriced_messages_having_usage_count: 0,
 	total_input_tokens: 123_456,
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
@@ -50,7 +50,7 @@ const buildSummary = (
 const emptySummary = buildSummary({
 	total_cost_micros: 0,
 	priced_message_count: 0,
-	unpriced_message_count: 0,
+	unpriced_messages_having_usage_count: 0,
 	total_input_tokens: 0,
 	total_output_tokens: 0,
 	by_model: [],
@@ -110,7 +110,7 @@ export const WithData: Story = {
 export const UnpricedWarning: Story = {
 	args: {
 		summary: buildSummary({
-			unpriced_message_count: 2,
+			unpriced_messages_having_usage_count: 2,
 		}),
 	},
 };

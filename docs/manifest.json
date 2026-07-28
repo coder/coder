@@ -401,8 +401,7 @@
 					"title": "User secrets",
 					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
-					"icon_path": "./images/icons/secrets.svg",
-					"state": ["beta"]
+					"icon_path": "./images/icons/secrets.svg"
 				}
 			]
 		},
@@ -1316,6 +1315,12 @@
 									"title": "Monitoring",
 									"description": "Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.",
 									"path": "./ai-coder/ai-gateway/monitoring.md",
+									"state": ["ai governance add-on"]
+								},
+								{
+									"title": "Cost Controls",
+									"description": "Manage AI Gateway spend with budgets, spend limits, and budget notifications.",
+									"path": "./ai-coder/ai-gateway/cost-controls.md",
 									"state": ["ai governance add-on"]
 								},
 								{
