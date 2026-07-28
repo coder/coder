@@ -402,6 +402,8 @@ ORDER BY
     id ASC;
 
 -- name: GetChatMessagesByRevisionForStream :many
+-- Ordered by id so incremental stream updates agree with the full history
+-- snapshot from GetChatMessagesByChatID, which the same socket emits on reset.
 SELECT
     *
 FROM
@@ -411,7 +413,7 @@ WHERE
     AND revision > @after_revision::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
-    created_at ASC, id ASC;
+    id ASC;
 
 -- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
@@ -1973,6 +1975,8 @@ SET created_at = (
 WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
+-- Ordered by id because callers use the returned id as an id cursor, both as
+-- AfterID for GetChatMessagesByChatID and as chats.last_read_message_id.
 SELECT
     *
 FROM
@@ -1982,7 +1986,7 @@ WHERE
     AND role = @role::chat_message_role
     AND deleted = false
 ORDER BY
-    created_at DESC, id DESC
+    id DESC
 LIMIT
     1;
 

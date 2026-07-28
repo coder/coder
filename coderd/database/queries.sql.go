@@ -8348,7 +8348,7 @@ WHERE
     AND revision > $2::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
-    created_at ASC, id ASC
+    id ASC
 `
 
 type GetChatMessagesByRevisionForStreamParams struct {
@@ -8356,6 +8356,8 @@ type GetChatMessagesByRevisionForStreamParams struct {
 	AfterRevision int64     `db:"after_revision" json:"after_revision"`
 }
 
+// Ordered by id so incremental stream updates agree with the full history
+// snapshot from GetChatMessagesByChatID, which the same socket emits on reset.
 func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesByRevisionForStream, arg.ChatID, arg.AfterRevision)
 	if err != nil {
@@ -9870,7 +9872,7 @@ WHERE
     AND role = $2::chat_message_role
     AND deleted = false
 ORDER BY
-    created_at DESC, id DESC
+    id DESC
 LIMIT
     1
 `
@@ -9880,6 +9882,8 @@ type GetLastChatMessageByRoleParams struct {
 	Role   ChatMessageRole `db:"role" json:"role"`
 }
 
+// Ordered by id because callers use the returned id as an id cursor, both as
+// AfterID for GetChatMessagesByChatID and as chats.last_read_message_id.
 func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, getLastChatMessageByRole, arg.ChatID, arg.Role)
 	var i ChatMessage
