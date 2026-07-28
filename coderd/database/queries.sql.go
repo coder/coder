@@ -8462,9 +8462,8 @@ ORDER BY
     id ASC
 `
 
-// Ordered by id throughout: the boundary row below is compared with id, and the
-// prompt must present roles in append order so tool results follow the assistant
-// message that requested them.
+// The compaction boundary and final ordering must use the same key so tool
+// results remain after their assistant calls.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {

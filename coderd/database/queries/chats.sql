@@ -484,9 +484,8 @@ LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
 -- name: GetChatMessagesForPromptByChatID :many
--- Ordered by id throughout: the boundary row below is compared with id, and the
--- prompt must present roles in append order so tool results follow the assistant
--- message that requested them.
+-- The compaction boundary and final ordering must use the same key so tool
+-- results remain after their assistant calls.
 WITH latest_compressed_summary AS (
     SELECT
         id
