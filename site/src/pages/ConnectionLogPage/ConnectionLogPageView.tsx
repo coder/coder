@@ -1,7 +1,6 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -50,7 +49,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	const isEmpty = !isLoading && connectionLogs?.length === 0;
 
 	return (
-		<Margins className="pb-12">
+		<>
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
@@ -91,7 +90,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					documentationLink={docs("/admin/monitoring/connection-logs")}
 				/>
 			)}
-		</Margins>
+		</>
 	);
 };
 

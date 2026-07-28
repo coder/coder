@@ -57,7 +57,7 @@ export const OrganizationProvisionersPageView: FC<
 	onRetry,
 }) => {
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
+		<section className="w-full pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

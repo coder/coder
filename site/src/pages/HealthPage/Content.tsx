@@ -16,8 +16,6 @@ import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
-const CONTENT_PADDING = 36;
-
 export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
 	className,
 	style,
@@ -26,8 +24,8 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => {
 	return (
 		<header
-			className={cn("flex items-center justify-between", className)}
-			style={{ padding: `36px ${CONTENT_PADDING}px`, ...style }}
+			className={cn("flex items-center justify-between pb-9", className)}
+			style={style}
 			{...props}
 		>
 			{children}
@@ -98,11 +96,8 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => {
 	return (
 		<div
-			className={cn("flex flex-col gap-9", className)}
-			style={{
-				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
-				...style,
-			}}
+			className={cn("flex flex-col gap-9 pb-9", className)}
+			style={style}
 			{...props}
 		>
 			{children}

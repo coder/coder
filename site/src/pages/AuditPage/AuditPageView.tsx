@@ -1,7 +1,6 @@
 import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -51,7 +50,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	const isEmpty = !isLoading && auditLogs?.length === 0;
 
 	return (
-		<Margins className="pb-12">
+		<>
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
@@ -91,7 +90,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					documentationLink={docs("/admin/security/audit-logs")}
 				/>
 			)}
-		</Margins>
+		</>
 	);
 };
 

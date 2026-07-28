@@ -37,7 +37,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	selectProxyError,
 }) => {
 	return (
-		<div className="flex flex-col gap-4">
+		<div>
 			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

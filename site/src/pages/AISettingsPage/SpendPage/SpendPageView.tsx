@@ -231,7 +231,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 					onUpsertOverride={onUpsertOverride}
 				>
 					{(userCtrl) => (
-						<div className="flex max-w-[1100px] flex-col gap-8">
+						<div className="max-w-[1100px]">
 							<SettingsHeader>
 								<SettingsHeaderTitle>
 									Spend limits and usage

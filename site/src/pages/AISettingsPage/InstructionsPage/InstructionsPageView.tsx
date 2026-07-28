@@ -141,7 +141,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 	const isDisabled = isSaving || form.isSubmitting;
 
 	return (
-		<div className="flex max-w-4xl flex-col gap-8">
+		<div>
 			<SettingsHeader>
 				<SettingsHeaderTitle>Instructions</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

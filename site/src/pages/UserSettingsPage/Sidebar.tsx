@@ -1,7 +1,4 @@
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem,
-} from "#/components/Sidebar/Sidebar";
+import { Sidebar as BaseSidebar, SidebarNavItem } from "#/components/Sidebar";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
@@ -15,34 +12,24 @@ export const Sidebar: React.FC = () => {
 	return (
 		<BaseSidebar>
 			<div className="flex flex-col gap-1">
-				<SettingsSidebarNavItem href="account">Account</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="appearance">
-					Appearance
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="external-auth">
+				<SidebarNavItem href="account">Account</SidebarNavItem>
+				<SidebarNavItem href="appearance">Appearance</SidebarNavItem>
+				<SidebarNavItem href="external-auth">
 					External Authentication
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
 				{showOAuth2Page && (
-					<SettingsSidebarNavItem href="oauth2-provider">
+					<SidebarNavItem href="oauth2-provider">
 						OAuth2 Applications
-					</SettingsSidebarNavItem>
+					</SidebarNavItem>
 				)}
 				{showSchedulePage && (
-					<SettingsSidebarNavItem href="schedule">
-						Schedule
-					</SettingsSidebarNavItem>
+					<SidebarNavItem href="schedule">Schedule</SidebarNavItem>
 				)}
-				<SettingsSidebarNavItem href="security">
-					Security
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="secrets">Secrets</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="notifications">
-					Notifications
-				</SettingsSidebarNavItem>
+				<SidebarNavItem href="security">Security</SidebarNavItem>
+				<SidebarNavItem href="ssh-keys">SSH Keys</SidebarNavItem>
+				<SidebarNavItem href="tokens">Tokens</SidebarNavItem>
+				<SidebarNavItem href="secrets">Secrets</SidebarNavItem>
+				<SidebarNavItem href="notifications">Notifications</SidebarNavItem>
 			</div>
 		</BaseSidebar>
 	);

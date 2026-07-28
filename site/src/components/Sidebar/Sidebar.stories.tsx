@@ -1,14 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+	BotIcon,
 	CalendarCogIcon,
 	FingerprintIcon,
 	KeyIcon,
 	LockIcon,
+	SettingsIcon,
 	UserIcon,
 } from "lucide-react";
 import { Outlet } from "react-router";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
+import {
+	Sidebar,
+	SidebarGroup,
+	SidebarHeader,
+	SidebarNavItem,
+} from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {
 	title: "components/Sidebar",
@@ -85,6 +92,46 @@ export const Default: Story = {
 						},
 					],
 				},
+			],
+		},
+	},
+};
+
+export const WithGroups: Story = {
+	render: () => (
+		<Sidebar>
+			<SidebarGroup
+				icon={SettingsIcon}
+				label="General"
+				href="/deployment/overview"
+			>
+				<SidebarNavItem href="/deployment/overview">Overview</SidebarNavItem>
+				<SidebarNavItem href="/deployment/licenses">Licenses</SidebarNavItem>
+			</SidebarGroup>
+			<SidebarGroup
+				icon={BotIcon}
+				label="Coder Agents"
+				href="/ai/settings/coder-agents"
+			>
+				<SidebarNavItem end href="/ai/settings/coder-agents">
+					Overview
+				</SidebarNavItem>
+				<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
+				<SidebarNavItem href="/ai/settings/mcp-servers">
+					MCP servers
+				</SidebarNavItem>
+			</SidebarGroup>
+		</Sidebar>
+	),
+	parameters: {
+		reactRouter: {
+			location: { path: "/ai/settings/models" },
+			routing: [
+				{ path: "/deployment/overview", useStoryElement: true },
+				{ path: "/deployment/licenses", useStoryElement: true },
+				{ path: "/ai/settings/coder-agents", useStoryElement: true },
+				{ path: "/ai/settings/models", useStoryElement: true },
+				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
 			],
 		},
 	},

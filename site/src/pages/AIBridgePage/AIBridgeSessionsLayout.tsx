@@ -1,7 +1,6 @@
 import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
 import { Link } from "#/components/Link/Link";
-import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -11,7 +10,7 @@ import { docs } from "#/utils/docs";
 
 const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 	return (
-		<Margins className="pb-12">
+		<>
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
@@ -31,7 +30,7 @@ const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 				</PageHeaderSubtitle>
 			</PageHeader>
 			<Outlet />
-		</Margins>
+		</>
 	);
 };
 

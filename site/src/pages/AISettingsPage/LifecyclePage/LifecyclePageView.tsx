@@ -101,7 +101,7 @@ export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
 	isSaveDebugLoggingError,
 }) => {
 	return (
-		<div className="flex max-w-[1100px] flex-col gap-4">
+		<div className="max-w-[1100px]">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Lifecycle</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

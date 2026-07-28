@@ -23,7 +23,7 @@ export const AIGovernanceSettingsPageView: FC<
 	AIGovernanceSettingsPageViewProps
 > = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (
-		<div className="flex flex-col gap-12">
+		<div>
 			<SettingsHeader>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>

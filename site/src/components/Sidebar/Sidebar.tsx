@@ -1,5 +1,6 @@
-import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router";
+import type { LucideIcon } from "lucide-react";
+import { Children, type FC, isValidElement, type ReactNode } from "react";
+import { Link, matchPath, NavLink, useLocation } from "react-router";
 import { cn } from "#/utils/cn";
 
 interface SidebarProps {
@@ -52,16 +53,18 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	);
 };
 
-interface SettingsSidebarNavItemProps {
+interface SidebarNavItemProps {
 	children?: ReactNode;
 	href: string;
 	end?: boolean;
+	icon?: LucideIcon;
 }
 
-export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
+export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 	children,
 	href,
 	end,
+	icon: Icon,
 }) => {
 	return (
 		<NavLink
@@ -69,44 +72,65 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 			to={href}
 			className={({ isActive }) =>
 				cn(
-					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+					"relative flex items-center gap-2 text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
 					isActive && "font-semibold text-content-primary",
 				)
 			}
 		>
+			{Icon && <Icon className="size-4 flex-shrink-0" />}
 			{children}
 		</NavLink>
 	);
 };
 
-interface SidebarNavItemProps {
-	children?: ReactNode;
-	icon: ElementType;
+interface SidebarGroupProps {
+	icon: LucideIcon;
+	label: string;
+	/** Section overview route the header navigates to. */
 	href: string;
+	children?: ReactNode;
 }
 
-export const SidebarNavItem: FC<SidebarNavItemProps> = ({
+const collectNavHrefs = (children: ReactNode): string[] => {
+	return Children.toArray(children).flatMap((child) => {
+		if (!isValidElement(child)) {
+			return [];
+		}
+		const { href } = child.props as { href?: unknown };
+		return typeof href === "string" ? [href] : [];
+	});
+};
+
+/**
+ * Always-open settings nav group: icon + label header linking to the
+ * section overview, with indented `SidebarNavItem` children. The header
+ * highlights when the overview or any child route is active.
+ */
+export const SidebarGroup: FC<SidebarGroupProps> = ({
+	icon: Icon,
+	label,
 	children,
 	href,
-	icon: Icon,
 }) => {
+	const location = useLocation();
+	const isActive = [href, ...collectNavHrefs(children)].some(
+		(path) => matchPath({ path, end: true }, location.pathname) != null,
+	);
+
 	return (
-		<NavLink
-			end
-			to={href}
-			className={({ isActive }) =>
-				cn(
-					"block relative text-sm text-inherit mb-px p-3 pl-4 rounded-sm",
-					"transition-colors no-underline hover:bg-surface-secondary",
-					isActive &&
-						"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
-				)
-			}
-		>
-			<div className="flex flex-row gap-3 items-center">
-				<Icon className="size-4" />
-				{children}
-			</div>
-		</NavLink>
+		<div className="flex flex-col gap-1">
+			<NavLink
+				end
+				to={href}
+				className={cn(
+					"flex items-center gap-2 px-3 py-2 h-10 rounded-md text-content-secondary no-underline hover:bg-surface-secondary transition ease-in-out duration-150",
+					isActive && "font-semibold text-content-primary",
+				)}
+			>
+				<Icon className="size-4 flex-shrink-0" />
+				<span className="text-sm font-medium whitespace-nowrap">{label}</span>
+			</NavLink>
+			<div className="flex flex-col gap-1 pl-6 ml-0.5">{children}</div>
+		</div>
 	);
 };

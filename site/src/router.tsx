@@ -417,6 +417,12 @@ const AIBridgeListSessionsPage = lazy(
 const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
+const LogsLayout = lazy(() => import("./pages/LogsPage/LogsLayout"));
+const LogsIndexRedirect = lazy(() =>
+	import("./pages/LogsPage/LogsLayout").then((module) => ({
+		default: module.LogsIndexRedirect,
+	})),
+);
 
 const AISettingsLayout = lazy(
 	() => import("./pages/AISettingsPage/AISettingsLayout"),
@@ -608,9 +614,23 @@ export const router = createBrowserRouter(
 						element={<Navigate to="/deployment/groups" replace />}
 					/>
 
-					<Route path="/audit" element={<AuditPage />} />
-
-					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+					<Route element={<LogsLayout />}>
+						{/* /logs only redirects to the first permitted log page;
+						    the sidebar handles navigation between log pages. */}
+						<Route path="/logs" element={<LogsIndexRedirect />} />
+						<Route path="/audit" element={<AuditPage />} />
+						<Route path="/connectionlog" element={<ConnectionLogPage />} />
+						<Route
+							path="/ai-gateway/sessions"
+							element={<AIBridgeSessionsLayout />}
+						>
+							<Route index element={<AIBridgeListSessionsPage />} />
+							<Route
+								path=":sessionId"
+								element={<AIBridgeSessionThreadsPage />}
+							/>
+						</Route>
+					</Route>
 
 					<Route path="/tasks" element={<TasksPage />} />
 
@@ -734,14 +754,6 @@ export const router = createBrowserRouter(
 							index
 							element={<Navigate to="/ai-gateway/sessions" replace />}
 						/>
-					</Route>
-
-					<Route
-						path="/ai-gateway/sessions"
-						element={<AIBridgeSessionsLayout />}
-					>
-						<Route index element={<AIBridgeListSessionsPage />} />
-						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
 
 					{/* Legacy /aibridge routes redirect to /ai-gateway */}

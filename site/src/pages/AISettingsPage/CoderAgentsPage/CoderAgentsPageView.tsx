@@ -136,7 +136,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 		isSaveGeneralModelOverrideError;
 
 	return (
-		<div className="flex max-w-4xl flex-col gap-8">
+		<div>
 			<SettingsHeader>
 				<SettingsHeaderTitle>Coder Agents</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

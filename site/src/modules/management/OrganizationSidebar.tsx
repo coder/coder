@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { Sidebar as BaseSidebar } from "#/components/Sidebar/Sidebar";
+import { Sidebar as BaseSidebar } from "#/components/Sidebar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { OrganizationSidebarView } from "./OrganizationSidebarView";

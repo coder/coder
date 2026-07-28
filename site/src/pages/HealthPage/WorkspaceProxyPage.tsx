@@ -1,9 +1,9 @@
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
-import { useOutletContext } from "react-router";
-import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,9 +22,19 @@ import {
 	Pill,
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
+import { useHealthStatus } from "./useHealthStatus";
 
 const WorkspaceProxyPage: FC = () => {
-	const healthStatus = useOutletContext<HealthcheckReport>();
+	const { data: healthStatus, isLoading, error } = useHealthStatus();
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (error || !healthStatus) {
+		return <ErrorAlert error={error} />;
+	}
+
 	const { workspace_proxy } = healthStatus;
 	const { regions } = workspace_proxy.workspace_proxies;
 

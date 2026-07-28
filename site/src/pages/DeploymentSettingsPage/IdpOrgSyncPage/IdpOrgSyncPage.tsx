@@ -10,6 +10,11 @@ import {
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { docs } from "#/utils/docs";
@@ -61,52 +66,49 @@ const IdpOrgSyncPage: FC = () => {
 		<>
 			<title>{pageTitle("Organization IdP Sync")}</title>
 
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Organization IdP Sync</h1>
-						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
-							Automatically assign users to an organization based on their IdP
-							claims.
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-								View docs
-							</Link>
-						</p>
-					</div>
-					<ExportPolicyButton syncSettings={settingsQuery.data} />
-				</header>
-				{!isIdpSyncEnabled ? (
-					<PaywallPremium
-						message="IdP Organization Sync"
-						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/users/idp-sync")}
-					/>
-				) : (
-					<IdpOrgSyncPageView
-						organizationSyncSettings={settingsQuery.data}
-						claimFieldValues={fieldValuesQuery.data}
-						organizations={organizations}
-						onSyncFieldChange={setField}
-						onSubmit={async (data) => {
-							try {
-								await patchOrganizationSyncSettingsMutation.mutateAsync(data);
-								toast.success("Organization sync settings updated.");
-							} catch (error) {
-								toast.error(
-									getErrorMessage(
-										error,
-										"Failed to update organization IdP sync settings.",
-									),
-									{
-										description: getErrorDetail(error),
-									},
-								);
-							}
-						}}
-						error={settingsQuery.error || fieldValuesQuery.error}
-					/>
-				)}
-			</div>
+			<SettingsHeader
+				actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
+			>
+				<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Automatically assign users to an organization based on their IdP
+					claims.{" "}
+					<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+						View docs
+					</Link>
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			{!isIdpSyncEnabled ? (
+				<PaywallPremium
+					message="IdP Organization Sync"
+					description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/users/idp-sync")}
+				/>
+			) : (
+				<IdpOrgSyncPageView
+					organizationSyncSettings={settingsQuery.data}
+					claimFieldValues={fieldValuesQuery.data}
+					organizations={organizations}
+					onSyncFieldChange={setField}
+					onSubmit={async (data) => {
+						try {
+							await patchOrganizationSyncSettingsMutation.mutateAsync(data);
+							toast.success("Organization sync settings updated.");
+						} catch (error) {
+							toast.error(
+								getErrorMessage(
+									error,
+									"Failed to update organization IdP sync settings.",
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
+						}
+					}}
+					error={settingsQuery.error || fieldValuesQuery.error}
+				/>
+			)}
 		</>
 	);
 };

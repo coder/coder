@@ -1,4 +1,13 @@
-import { CheckIcon, PlusIcon } from "lucide-react";
+import {
+	CheckIcon,
+	NetworkIcon,
+	PlusIcon,
+	RepeatIcon,
+	SettingsIcon,
+	ShieldIcon,
+	UserIcon,
+	WebhookIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
@@ -19,7 +28,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
+import { SidebarGroup, SidebarNavItem } from "#/components/Sidebar";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
@@ -63,7 +72,7 @@ export const OrganizationSidebarView: FC<
 					<Button
 						variant="outline"
 						aria-expanded={isPopoverOpen}
-						className="w-60 gap-2 justify-start"
+						className="w-full gap-2 justify-start"
 					>
 						{activeOrganization ? (
 							<>
@@ -82,7 +91,10 @@ export const OrganizationSidebarView: FC<
 						<ChevronDownIcon className="ml-auto !size-icon-sm" />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent align="start" className="w-60">
+				<PopoverContent
+					align="start"
+					className="w-[var(--radix-popover-trigger-width)]"
+				>
 					<Command loop>
 						<CommandInput placeholder="Find organization" />
 						<CommandList>
@@ -165,56 +177,69 @@ const OrganizationSettingsNavigation: FC<
 > = ({ organization, orgPermissions }) => {
 	return (
 		<div className="flex flex-col gap-1 my-2">
-			<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
+			<SidebarNavItem
+				end
+				icon={UserIcon}
+				href={urlForSubpage(organization.name)}
+			>
 				Members
-			</SettingsSidebarNavItem>
+			</SidebarNavItem>
 			{orgPermissions.viewGroups && (
-				<SettingsSidebarNavItem
+				<SidebarNavItem
+					icon={NetworkIcon}
 					href={urlForSubpage(organization.name, "groups")}
 				>
 					Groups
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
 			)}
 			{orgPermissions.viewOrgRoles && (
-				<SettingsSidebarNavItem
+				<SidebarNavItem
+					icon={ShieldIcon}
 					href={urlForSubpage(organization.name, "roles")}
 				>
 					Roles
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
 			)}
 			{orgPermissions.viewProvisioners &&
 				orgPermissions.viewProvisionerJobs && (
-					<>
-						<SettingsSidebarNavItem
+					<SidebarGroup
+						icon={WebhookIcon}
+						label="Provisioners"
+						href={urlForSubpage(organization.name, "provisioners")}
+					>
+						<SidebarNavItem
+							end
 							href={urlForSubpage(organization.name, "provisioners")}
 						>
-							Provisioners
-						</SettingsSidebarNavItem>
-						<SettingsSidebarNavItem
+							Overview
+						</SidebarNavItem>
+						<SidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-keys")}
 						>
-							Provisioner Keys
-						</SettingsSidebarNavItem>
-						<SettingsSidebarNavItem
+							Keys
+						</SidebarNavItem>
+						<SidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-jobs")}
 						>
-							Provisioner Jobs
-						</SettingsSidebarNavItem>
-					</>
+							Jobs
+						</SidebarNavItem>
+					</SidebarGroup>
 				)}
 			{orgPermissions.viewIdpSyncSettings && (
-				<SettingsSidebarNavItem
+				<SidebarNavItem
+					icon={RepeatIcon}
 					href={urlForSubpage(organization.name, "idp-sync")}
 				>
-					IdP Sync
-				</SettingsSidebarNavItem>
+					IdP sync
+				</SidebarNavItem>
 			)}
 			{orgPermissions.editSettings && (
-				<SettingsSidebarNavItem
+				<SidebarNavItem
+					icon={SettingsIcon}
 					href={urlForSubpage(organization.name, "settings")}
 				>
 					Settings
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
 			)}
 		</div>
 	);

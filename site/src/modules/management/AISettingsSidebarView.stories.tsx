@@ -60,6 +60,24 @@ export const LifecycleActive: Story = {
 	},
 };
 
+export const GovernanceActive: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/governance" },
+			routing: [{ path: "/ai/settings/governance", useStoryElement: true }],
+		}),
+	},
+};
+
+export const GatewayKeysActive: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/gateway-keys" },
+			routing: [{ path: "/ai/settings/gateway-keys", useStoryElement: true }],
+		}),
+	},
+};
+
 export const ProvidersActive: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({

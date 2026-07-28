@@ -1,13 +1,14 @@
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link, useOutletContext, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import type {
 	DERPNodeReport,
 	DERPRegionReport,
-	HealthcheckReport,
 	HealthSeverity,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Table,
 	TableBody,
@@ -33,6 +34,7 @@ import {
 	Pill,
 	StatusIcon,
 } from "./Content";
+import { useHealthStatus } from "./useHealthStatus";
 
 interface NodeCheckRow {
 	label: string;
@@ -41,9 +43,18 @@ interface NodeCheckRow {
 }
 
 const DERPRegionPage: FC = () => {
-	const healthStatus = useOutletContext<HealthcheckReport>();
+	const { data: healthStatus, isLoading, error } = useHealthStatus();
 	const params = useParams() as { regionId: string };
 	const regionId = Number(params.regionId);
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (error || !healthStatus) {
+		return <ErrorAlert error={error} />;
+	}
+
 	const {
 		region,
 		node_reports: reports,
