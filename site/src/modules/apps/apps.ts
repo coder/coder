@@ -123,7 +123,7 @@ export const getAppHref = (
 				new URL(app.url).protocol,
 			);
 		} catch {
-			// The URL is unparseable. Leave isAllowedProtocol false and return
+			// The URL is unparsable. Leave isAllowedProtocol false and return
 			// the raw URL. Consumers disable the button via
 			// isAppUrlValid, so the href is never followed.
 		}
@@ -188,7 +188,7 @@ export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 
 /**
  * True when an app is not an external app, or is an external app whose URL can
- * be parsed by the URL constructor. External apps with an unparseable URL
+ * be parsed by the URL constructor. External apps with an unparsable URL
  * cannot be launched. Template authors sometimes set a bare string with no
  * scheme, which would otherwise crash the page during render.
  */

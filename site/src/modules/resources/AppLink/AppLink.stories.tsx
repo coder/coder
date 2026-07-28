@@ -97,7 +97,7 @@ export const InvalidExternalAppUrl: Story = {
 		app: {
 			...MockWorkspaceApp,
 			external: true,
-			// A bare string with no scheme is unparseable by the URL constructor.
+			// A bare string with no scheme is unparsable by the URL constructor.
 			url: "my-repo",
 		},
 		agent: MockWorkspaceAgent,
