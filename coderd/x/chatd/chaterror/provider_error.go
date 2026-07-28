@@ -1,9 +1,11 @@
 package chaterror
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime"
 	"net/http"
 	"regexp"
@@ -61,39 +63,29 @@ func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
-	headers, body := splitResponseDump(responseDump)
+	body, textPlain := readResponseDump(responseDump)
 	if msg := unwrapTransportErrorMessage(jsonErrorMessage(body)); msg != "" {
 		return msg
 	}
-	return unwrapTransportErrorMessage(plainTextErrorMessage(headers, body))
+	if !textPlain {
+		// The plain-text fallback surfaces in the user-facing detail, so
+		// only text/plain bodies qualify; proxy HTML and other opaque
+		// bodies stay out.
+		return ""
+	}
+	return unwrapTransportErrorMessage(plainTextErrorMessage(body))
 }
 
 // plainTextErrorMessage returns the trimmed first line of a plain-text
-// error body. The result is user-facing, so it requires a text/plain
-// Content-Type (excluding proxy HTML and other opaque bodies) and rejects
-// valid JSON (which jsonErrorMessage already handled; passing it through
-// would leak raw JSON).
-func plainTextErrorMessage(headers, body []byte) string {
-	if !headersDeclareTextPlain(headers) || json.Valid(body) {
+// error body. It rejects valid JSON, which jsonErrorMessage already
+// handled; passing it through would leak raw JSON into the user-facing
+// detail.
+func plainTextErrorMessage(body []byte) string {
+	if json.Valid(body) {
 		return ""
 	}
 	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
 	return strings.TrimSpace(line)
-}
-
-// headersDeclareTextPlain reports whether a dumped HTTP header block
-// declares Content-Type text/plain, ignoring media-type parameters such
-// as charset.
-func headersDeclareTextPlain(headers []byte) bool {
-	for line := range strings.Lines(string(headers)) {
-		name, value, ok := strings.Cut(line, ":")
-		if !ok || !strings.EqualFold(strings.TrimSpace(name), "Content-Type") {
-			continue
-		}
-		mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
-		return err == nil && mediaType == "text/plain"
-	}
-	return false
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an
@@ -149,21 +141,25 @@ func jsonErrorMessage(body []byte) string {
 	return strings.TrimSpace(env.Message)
 }
 
-// splitResponseDump separates a dumped HTTP response into its header block
-// and body. It returns non-dump payloads whole as the body: fantasy's
-// Google adapter stores a raw message in ResponseBody, and a blank line
-// inside that message is not a header/body separator.
-func splitResponseDump(responseDump []byte) (headers, body []byte) {
-	if !bytes.HasPrefix(responseDump, []byte("HTTP/")) {
-		return nil, responseDump
+// readResponseDump parses a dumped HTTP response into its body, removing
+// the status line, headers, and any chunk framing, and reports whether the
+// response declares Content-Type text/plain (ignoring media-type
+// parameters such as charset). Payloads that do not parse as an HTTP
+// response, such as the raw message fantasy's Google adapter stores in
+// ResponseBody, are returned whole.
+func readResponseDump(responseDump []byte) (body []byte, textPlain bool) {
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(responseDump)), nil)
+	if err != nil {
+		return responseDump, false
 	}
-	if h, b, ok := bytes.Cut(responseDump, []byte("\r\n\r\n")); ok {
-		return h, b
+	defer resp.Body.Close()
+	// The dump is already bounded to 64KB; the limit is defense in depth.
+	body, err = io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return responseDump, false
 	}
-	if h, b, ok := bytes.Cut(responseDump, []byte("\n\n")); ok {
-		return h, b
-	}
-	return nil, responseDump
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	return body, err == nil && mediaType == "text/plain"
 }
 
 func retryAfterFromHeaders(headers map[string]string) time.Duration {

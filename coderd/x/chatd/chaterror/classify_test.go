@@ -1535,6 +1535,26 @@ func TestClassify_PlainTextQuotaBodyOn503(t *testing.T) {
 	require.False(t, classified.Retryable)
 }
 
+func TestClassify_DechunksPlainTextDump(t *testing.T) {
+	t.Parallel()
+
+	// A dump of a chunked response keeps the chunk framing. Parsing the
+	// dump as an HTTP response removes it, so the detail is the joined
+	// body, not a hex chunk-size line.
+	part1, part2 := "AI budget of US$10.00 ", "exceeded."
+	dump := "HTTP/1.1 403 Forbidden\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"Transfer-Encoding: chunked\r\n" +
+		"\r\n" +
+		fmt.Sprintf("%x\r\n%s\r\n", len(part1), part1) +
+		fmt.Sprintf("%x\r\n%s\r\n", len(part2), part2) +
+		"0\r\n\r\n"
+	classified := chaterror.Classify(testProviderError("", 403, nil, []byte(dump)))
+
+	require.Equal(t, "AI budget of US$10.00 exceeded.", classified.Detail)
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+}
+
 func TestClassify_GoogleRawMessageWithBlankLine(t *testing.T) {
 	t.Parallel()
 
