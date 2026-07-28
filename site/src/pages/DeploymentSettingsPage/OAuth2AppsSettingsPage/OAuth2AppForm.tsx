@@ -1,13 +1,21 @@
-import { type FC, type ReactNode, useId } from "react";
-import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { Link } from "react-router";
+import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
+import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
+import {
+	getFormHelpers,
+	iconValidator,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
-type OAuth2AppFormValues = {
+export type OAuth2AppFormValues = {
 	name: string;
 	callback_url: string;
 	icon: string;
@@ -18,130 +26,94 @@ type OAuth2AppFormProps = {
 	onSubmit: (data: OAuth2AppFormValues) => void;
 	error?: unknown;
 	isUpdating: boolean;
-	actions?: ReactNode;
 	defaultValues?: OAuth2AppFormValues;
 	disabled: boolean;
+	onIconChange?: (icon: string) => void;
 };
 
-const formDataString = (formData: FormData, key: string): string => {
-	const value = formData.get(key);
-	return typeof value === "string" ? value : "";
-};
+const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-type AppFormFieldProps = {
-	id: string;
-	name: keyof OAuth2AppFormValues;
-	label: string;
-	defaultValue?: string;
-	errorMessage?: string;
-	helperText: string;
-	disabled: boolean;
-	autoFocus?: boolean;
-};
-
-const AppFormField: FC<AppFormFieldProps> = ({
-	id,
-	name,
-	label,
-	defaultValue,
-	errorMessage,
-	helperText,
-	disabled,
-	autoFocus,
-}) => {
-	const errorId = `${id}-error`;
-	const helperId = `${id}-helper`;
-	const hasError = Boolean(errorMessage);
-
-	return (
-		<div className="flex flex-col gap-2">
-			<Label htmlFor={id}>{label}</Label>
-			<Input
-				id={id}
-				name={name}
-				defaultValue={defaultValue}
-				disabled={disabled}
-				autoFocus={autoFocus}
-				aria-invalid={hasError}
-				aria-describedby={hasError ? errorId : helperId}
-				className={cn(hasError && "border-border-destructive")}
-			/>
-			<span
-				id={hasError ? errorId : helperId}
-				className={cn(
-					"text-xs",
-					hasError ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{errorMessage || helperText}
-			</span>
-		</div>
-	);
-};
+const validationSchema = Yup.object({
+	name: nameValidator("Name"),
+	callback_url: Yup.string()
+		.trim()
+		.required("Please enter a callback URL.")
+		.url("Callback URL must be a valid URL."),
+	icon: iconValidator,
+});
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	app,
 	onSubmit,
 	error,
 	isUpdating,
-	actions,
 	defaultValues,
 	disabled,
+	onIconChange,
 }) => {
-	const id = useId();
-	const apiValidationErrors = isApiValidationError(error)
-		? mapApiErrorToFieldErrors(error.response.data)
-		: undefined;
+	const form = useFormik<OAuth2AppFormValues>({
+		initialValues: {
+			name: app?.name ?? defaultValues?.name ?? "",
+			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
+			icon: app?.icon ?? defaultValues?.icon ?? "",
+		},
+		validationSchema,
+		validateOnMount: true,
+		onSubmit: (values) => {
+			onSubmit(values);
+		},
+	});
+	const getFieldHelpers = getFormHelpers(form, error);
+	const formDisabled = disabled || isUpdating;
+	const editing = Boolean(app);
+	const submitDisabled =
+		formDisabled || !form.isValid || (editing && !form.dirty);
 
 	return (
-		<form
-			className="mt-2.5"
-			onSubmit={(event) => {
-				event.preventDefault();
-				const formData = new FormData(event.currentTarget);
-				onSubmit({
-					name: formDataString(formData, "name"),
-					callback_url: formDataString(formData, "callback_url"),
-					icon: formDataString(formData, "icon"),
-				});
-			}}
-		>
+		<form onSubmit={form.handleSubmit}>
 			<div className="flex flex-col gap-5">
-				<AppFormField
-					id={`${id}-name`}
-					name="name"
-					label="Application name"
-					defaultValue={app?.name ?? defaultValues?.name}
-					errorMessage={apiValidationErrors?.name}
-					helperText="The name of your Coder app."
-					disabled={disabled}
+				<FormField
+					field={getFieldHelpers("name")}
+					label="Name"
+					description="The name of your Coder app."
+					disabled={formDisabled}
+					onChange={onChangeTrimmed(form)}
 					autoFocus
+					required
 				/>
-				<AppFormField
-					id={`${id}-callback-url`}
-					name="callback_url"
+				<FormField
+					field={getFieldHelpers("callback_url")}
 					label="Callback URL"
-					defaultValue={app?.callback_url ?? defaultValues?.callback_url}
-					errorMessage={apiValidationErrors?.callback_url}
-					helperText="The full URL to redirect to after a user authorizes an installation."
-					disabled={disabled}
+					description="The full URL to redirect to after a user authorizes an installation."
+					disabled={formDisabled}
+					required
 				/>
-				<AppFormField
-					id={`${id}-icon`}
-					name="icon"
-					label="Application icon"
-					defaultValue={app?.icon ?? defaultValues?.icon}
-					errorMessage={apiValidationErrors?.icon}
-					helperText="A full or relative URL to an icon."
-					disabled={disabled}
-				/>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="icon">Icon</Label>
+					<div className="text-xs text-content-secondary">
+						Optional. URL or emoji shown for this application.
+					</div>
+					<IconPickerField
+						id="icon"
+						value={form.values.icon}
+						disabled={formDisabled}
+						onChange={(value) => {
+							void form.setFieldValue("icon", value);
+							onIconChange?.(value);
+						}}
+					/>
+				</div>
 
-				<div className="flex flex-row gap-4">
-					<Button disabled={isUpdating || disabled} type="submit">
+				<div className="flex justify-end gap-4">
+					<Link to={BACK_HREF}>
+						<Button variant="outline" type="button">
+							Cancel
+						</Button>
+					</Link>
+					<Button disabled={submitDisabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}
 					</Button>
-					{actions}
 				</div>
 			</div>
 		</form>

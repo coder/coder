@@ -1,63 +1,86 @@
-import { ChevronLeftIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router";
-import type * as TypesGen from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ArrowLeftIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { postApp } from "#/api/queries/oauth2";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
+import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
-type CreateOAuth2AppProps = {
-	isUpdating: boolean;
-	createApp: (req: TypesGen.PostOAuth2ProviderAppRequest) => void;
-	error?: unknown;
-	defaultValues?: {
-		name: string;
-		callback_url: string;
-		icon: string;
-	};
-	canCreateApp: boolean;
-};
+const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
-	isUpdating,
-	createApp,
-	error,
-	defaultValues,
-	canCreateApp,
-}) => {
+export const CreateOAuth2AppPageView: FC = () => {
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const { permissions } = useAuthenticated();
+	const queryClient = useQueryClient();
+	const postAppMutation = useMutation(postApp(queryClient));
+
+	const defaultValues = {
+		name: searchParams.get("name") ?? "",
+		callback_url: searchParams.get("callback_url") ?? "",
+		icon: searchParams.get("icon") ?? "",
+	};
+	const [icon, setIcon] = useState(defaultValues.icon);
+
 	return (
 		<>
-			<div className="flex flex-row gap-4 items-baseline justify-between">
-				<SettingsHeader>
-					<SettingsHeaderTitle>Add an OAuth2 application</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Configure an application to use Coder as an OAuth2 provider.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
+			<title>{pageTitle("New OAuth2 Application")}</title>
 
-				<Button variant="outline" asChild>
-					<RouterLink to="/deployment/oauth2-provider/apps">
-						<ChevronLeftIcon />
-						All OAuth2 Applications
-					</RouterLink>
+			<Link to={BACK_HREF} className="-ml-3">
+				<Button variant="subtle">
+					<ArrowLeftIcon />
+					<span>Back to applications</span>
 				</Button>
-			</div>
+			</Link>
 
-			<div className="flex flex-col gap-4">
-				{error ? <ErrorAlert error={error} /> : undefined}
-				<OAuth2AppForm
-					onSubmit={createApp}
-					isUpdating={isUpdating}
-					error={error}
-					defaultValues={defaultValues}
-					disabled={!canCreateApp}
-				/>
+			<div className="flex flex-col gap-6 pt-6">
+				<div className="flex items-center gap-4 min-w-0">
+					<Avatar variant="icon" size="lg" src={icon} fallback="App" />
+					<SettingsHeaderTitle>Add an OAuth2 application</SettingsHeaderTitle>
+				</div>
+				<p className="text-sm text-content-secondary m-0">
+					Configure an application to use Coder as an OAuth2 provider.
+				</p>
+
+				<div className="border border-solid p-6 rounded-lg">
+					<OAuth2AppForm
+						onSubmit={(req) => {
+							postAppMutation.mutate(req, {
+								onSuccess: (app) => {
+									toast.success(
+										`OAuth2 application "${app.name}" created successfully.`,
+									);
+									void navigate(
+										`/deployment/oauth2-provider/apps/${app.id}?created=true`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to create "${req.name}" OAuth2 application.`,
+										),
+										{ description: getErrorDetail(error) },
+									);
+								},
+							});
+						}}
+						isUpdating={postAppMutation.isPending}
+						error={postAppMutation.error}
+						defaultValues={defaultValues}
+						disabled={!permissions.createOAuth2App}
+						onIconChange={setIcon}
+					/>
+				</div>
 			</div>
 		</>
 	);
 };
+
+export default CreateOAuth2AppPageView;

@@ -19,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
@@ -57,29 +58,37 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				)}
 			</div>
 
-			{error && <ErrorAlert error={error} />}
+			{error ? <ErrorAlert error={error} /> : undefined}
 
-			<Table className="mt-8">
+			<Table className="table-fixed" aria-label="OAuth2 applications">
 				<TableHeader>
 					<TableRow>
-						<TableHead>Name</TableHead>
-						<TableHead className="w-[1%]" />
+						<TableHead className="w-1/3">Name</TableHead>
+						<TableHead className="w-1/2">Callback URL</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open</span>
+						</TableHead>
 					</TableRow>
 				</TableHeader>
-				<TableBody>
+				<TableBody size="lg">
 					{isLoading && <TableLoader />}
-					{apps?.map((app) => (
-						<OAuth2AppRow key={app.id} app={app} />
-					))}
-					{apps?.length === 0 && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div className="text-center">
-									No OAuth2 applications have been configured.
-								</div>
-							</TableCell>
-						</TableRow>
+					{!isLoading && (!apps || apps.length === 0) && (
+						<TableEmpty
+							message="No OAuth2 applications have been configured."
+							cta={
+								canCreateApp ? (
+									<Button variant="outline" asChild>
+										<Link to="/deployment/oauth2-provider/apps/add">
+											<PlusIcon />
+											Add application
+										</Link>
+									</Button>
+								) : undefined
+							}
+						/>
 					)}
+					{!isLoading &&
+						apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)}
 				</TableBody>
 			</Table>
 		</>
@@ -97,17 +106,34 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 	});
 
 	return (
-		<TableRow key={app.id} data-testid={`app-${app.id}`} {...clickableProps}>
-			<TableCell>
+		<TableRow data-testid={`app-${app.id}`} {...clickableProps}>
+			<TableCell className="min-w-0 px-4 py-3">
 				<AvatarData
-					avatar={<Avatar variant="icon" src={app.icon} fallback={app.name} />}
+					avatar={
+						<Avatar
+							variant="icon"
+							size="lg"
+							src={app.icon}
+							fallback={app.name}
+						/>
+					}
 					title={app.name}
 				/>
 			</TableCell>
-
-			<TableCell>
-				<div className="flex pl-4">
-					<ChevronRightIcon className="size-icon-sm" />
+			<TableCell className="min-w-0">
+				<span
+					className="block truncate text-content-secondary"
+					title={app.callback_url}
+				>
+					{app.callback_url}
+				</span>
+			</TableCell>
+			<TableCell className="w-10 text-center">
+				<div className="flex justify-end items-center pr-4">
+					<ChevronRightIcon
+						aria-hidden
+						className="size-icon-md text-content-primary flex-shrink-0"
+					/>
 				</div>
 			</TableCell>
 		</TableRow>
