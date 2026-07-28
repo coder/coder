@@ -2819,6 +2819,97 @@ func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOr
 	return items, nil
 }
 
+const getOverBudgetUsersPerGroup = `-- name: GetOverBudgetUsersPerGroup :many
+WITH budgeted_users AS (
+	-- Users with an override or membership in a budgeted group.
+	SELECT user_id FROM user_ai_budget_overrides
+	UNION
+	SELECT DISTINCT member.user_id
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+),
+user_highest_group AS (
+	-- Per user, their highest-limit group ("highest" budget policy).
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM budgeted_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- An override wins over the highest-limit group, and users with neither drop.
+	SELECT
+		budgeted_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros
+	FROM budgeted_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = budgeted_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = budgeted_users.user_id
+	WHERE COALESCE(override.group_id, user_highest_group.group_id) IS NOT NULL
+),
+user_spend AS (
+	-- Each user's spend against their effective group since period_start.
+	SELECT
+		effective.user_id,
+		effective.effective_group_id,
+		effective.spend_limit_micros,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM effective
+	LEFT JOIN ai_user_daily_spend spend
+		ON spend.user_id = effective.user_id
+		AND spend.effective_group_id = effective.effective_group_id
+		AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY effective.user_id, effective.effective_group_id, effective.spend_limit_micros
+)
+SELECT
+	effective_group_id AS group_id,
+	COUNT(*)::BIGINT AS over_budget_users
+FROM user_spend
+WHERE current_spend_micros >= spend_limit_micros
+GROUP BY effective_group_id
+ORDER BY effective_group_id
+`
+
+type GetOverBudgetUsersPerGroupRow struct {
+	GroupID         uuid.UUID `db:"group_id" json:"group_id"`
+	OverBudgetUsers int64     `db:"over_budget_users" json:"over_budget_users"`
+}
+
+// Returns, per effective group, the number of users at or over their spend
+// limit since period_start. Only users with an enforceable limit (override or
+// budgeted group) count, and the unlimited Everyone fallback does not.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
+func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOverBudgetUsersPerGroup, periodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOverBudgetUsersPerGroupRow
+	for rows.Next() {
+		var i GetOverBudgetUsersPerGroupRow
+		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides

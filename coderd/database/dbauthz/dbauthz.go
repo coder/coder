@@ -4321,6 +4321,14 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
 }
 
+func (q *querier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
+	// Aggregates over-budget user counts per group for cost-control metrics.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetOverBudgetUsersPerGroup(ctx, periodStart)
+}
+
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {

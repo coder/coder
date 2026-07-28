@@ -7073,6 +7073,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
+	s.Run("GetOverBudgetUsersPerGroup", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		periodStart := time.Now().UTC().Truncate(24 * time.Hour)
+		dbm.EXPECT().GetOverBudgetUsersPerGroup(gomock.Any(), periodStart).
+			Return([]database.GetOverBudgetUsersPerGroupRow{}, nil).AnyTimes()
+		check.Args(periodStart).Asserts(rbac.ResourceGroup.All(), policy.ActionRead)
+	}))
+
 	s.Run("IncrementUserAIDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.IncrementUserAIDailySpendParams{
 			UserID:           uuid.New(),

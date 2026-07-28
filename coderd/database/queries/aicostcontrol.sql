@@ -243,3 +243,65 @@ GROUP BY
 	applied_budget.spend_limit_micros,
 	applied_budget.limit_source
 ORDER BY effective.user_id;
+
+-- name: GetOverBudgetUsersPerGroup :many
+-- Returns, per effective group, the number of users at or over their spend
+-- limit since period_start. Only users with an enforceable limit (override or
+-- budgeted group) count, and the unlimited Everyone fallback does not.
+-- TODO(AIGOV-527): unify effective group resolution in a single place.
+WITH budgeted_users AS (
+	-- Users with an override or membership in a budgeted group.
+	SELECT user_id FROM user_ai_budget_overrides
+	UNION
+	SELECT DISTINCT member.user_id
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+),
+user_highest_group AS (
+	-- Per user, their highest-limit group ("highest" budget policy).
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM budgeted_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- An override wins over the highest-limit group, and users with neither drop.
+	SELECT
+		budgeted_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros
+	FROM budgeted_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = budgeted_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = budgeted_users.user_id
+	WHERE COALESCE(override.group_id, user_highest_group.group_id) IS NOT NULL
+),
+user_spend AS (
+	-- Each user's spend against their effective group since period_start.
+	SELECT
+		effective.user_id,
+		effective.effective_group_id,
+		effective.spend_limit_micros,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM effective
+	LEFT JOIN ai_user_daily_spend spend
+		ON spend.user_id = effective.user_id
+		AND spend.effective_group_id = effective.effective_group_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY effective.user_id, effective.effective_group_id, effective.spend_limit_micros
+)
+SELECT
+	effective_group_id AS group_id,
+	COUNT(*)::BIGINT AS over_budget_users
+FROM user_spend
+WHERE current_spend_micros >= spend_limit_micros
+GROUP BY effective_group_id
+ORDER BY effective_group_id;
