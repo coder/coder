@@ -1427,7 +1427,6 @@ func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 
-	// The Message fallback applies only when the body yields nothing.
 	classified := chaterror.Classify(testProviderError(
 		"  image exceeds 5 MB maximum  ",
 		400,
@@ -1522,8 +1521,8 @@ func TestClassify_JSONBodyWithoutMessageFallsBackToMessage(t *testing.T) {
 func TestClassify_PlainTextQuotaBodyOn503(t *testing.T) {
 	t.Parallel()
 
-	// Intended: a plain-text body feeds the same pattern matching as a
-	// JSON message, so "quota" beats the 503 timeout signal.
+	// A plain-text body feeds the same pattern matching as a JSON
+	// message, so "quota" beats the 503 timeout signal.
 	classified := chaterror.Classify(testProviderError(
 		"",
 		503,

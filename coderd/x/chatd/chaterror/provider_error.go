@@ -58,7 +58,9 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // envelope. When the extracted message is itself an SDK-formatted transport
 // error wrapper, the clean inner provider message is returned. For
 // non-JSON text/plain bodies (e.g. aibridge's budget errors) it returns
-// the first line of the body.
+// the trimmed first line of the body; the result surfaces in the
+// user-facing detail, so other content types (proxy HTML, opaque bodies)
+// and valid JSON without an extractable message yield nothing.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
@@ -67,21 +69,7 @@ func providerErrorResponseMessage(responseDump []byte) string {
 	if msg := unwrapTransportErrorMessage(jsonErrorMessage(body)); msg != "" {
 		return msg
 	}
-	if !textPlain {
-		// The plain-text fallback surfaces in the user-facing detail, so
-		// only text/plain bodies qualify; proxy HTML and other opaque
-		// bodies stay out.
-		return ""
-	}
-	return unwrapTransportErrorMessage(plainTextErrorMessage(body))
-}
-
-// plainTextErrorMessage returns the trimmed first line of a plain-text
-// error body. It rejects valid JSON, which jsonErrorMessage already
-// handled; passing it through would leak raw JSON into the user-facing
-// detail.
-func plainTextErrorMessage(body []byte) string {
-	if json.Valid(body) {
+	if !textPlain || json.Valid(body) {
 		return ""
 	}
 	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
@@ -153,8 +141,8 @@ func readResponseDump(responseDump []byte) (body []byte, textPlain bool) {
 		return responseDump, false
 	}
 	defer resp.Body.Close()
-	// The dump is already bounded to 64KB; the limit is defense in depth.
-	body, err = io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	// The caller already bounds dumps at 64KB.
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return responseDump, false
 	}
