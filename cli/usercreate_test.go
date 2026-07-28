@@ -160,6 +160,21 @@ func TestUserCreate(t *testing.T) {
 			args: []string{"--service-account", "-u", "dean", "--password", "1n5ecureP4ssw0rd!"},
 			err:  "You cannot use --password with --service-account",
 		},
+		{
+			name: "DisableLogin",
+			args: []string{"--disable-login", "-u", "dean"},
+			err:  "--disable-login is deprecated. Use --service-account for machine-to-machine access.",
+		},
+		{
+			name: "LoginTypeNone",
+			args: []string{"--login-type", "none", "-u", "dean"},
+			err:  "Login type 'none' is deprecated. Use --service-account for machine-to-machine access.",
+		},
+		{
+			name: "DisableLoginWithLoginType",
+			args: []string{"--disable-login", "--login-type", "password", "-u", "dean"},
+			err:  "You cannot specify both --disable-login and --login-type",
+		},
 	}
 
 	for _, tt := range tests {

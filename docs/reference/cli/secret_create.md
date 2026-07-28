@@ -48,3 +48,12 @@ Name of the workspace environment variable that this secret will set.
 | Type | <code>string</code> |
 
 Workspace file path where this secret will be written. Must start with ~/ or /.
+
+### --enabled
+
+|         |                   |
+|---------|-------------------|
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Whether the secret is injected into workspaces. An enabled secret must set --env or --file; pass --enabled=false to store a secret without injecting it.

@@ -265,6 +265,11 @@ type sqlcQuerier interface {
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
 	// These were most likely created via 'coder login' as the prebuilds user.
 	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
+	// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+	// @organization_id over the [period_start, period_end) window. Spend is
+	// attributed through the token usage's effective group, and rows are bucketed
+	// by the token usage created_at, matching how ai_user_daily_spend is derived.
+	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error)
@@ -341,6 +346,13 @@ type sqlcQuerier interface {
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
+	// Returns the authorization roles (site and org-scoped, including implied
+	// member roles and organization default roles) and the group memberships
+	// for every active, non-deleted user who is neither a system user nor a
+	// service account, matching the GetActiveUserCount population.
+	// Must stay semantically in sync with GetAuthorizationUserRoles;
+	// TestGetActiveUsersAuthorizationRolesParity enforces this.
+	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
@@ -364,6 +376,9 @@ type sqlcQuerier interface {
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
+	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+	// (implied member roles, org default roles, groups);
+	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	// Returns read-only root chat candidates for state-machine-backed
 	// auto-archive. Activity is computed across the root family. The query
@@ -680,6 +695,11 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
+	// Returns, per effective group, the number of users at or over their spend
+	// limit since period_start. Only users with an enforceable limit (override or
+	// budgeted group) count, and the unlimited Everyone fallback does not.
+	// TODO(AIGOV-527): unify effective group resolution in a single place.
+	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)

@@ -1717,6 +1717,89 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	}
 }
 
+func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 554
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	legacyNoneID := uuid.New()
+	serviceAccountID := uuid.New()
+	systemID := uuid.New()
+	passwordID := uuid.New()
+
+	// A legacy machine user: login_type 'none', not a service account, not a
+	// system user. This is the only row the migration should convert.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		legacyNoneID, "legacy-none", "legacy-none@test.com", []byte{}, now, now, "active", pq.StringArray{}, "none", false, false)
+	require.NoError(t, err)
+
+	// A service account must keep login_type 'none' (a CHECK constraint requires
+	// service accounts to use 'none' and an empty email).
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		serviceAccountID, "service-account", "", []byte{}, now, now, "active", pq.StringArray{}, "none", true, false)
+	require.NoError(t, err)
+
+	// A system user must be left untouched.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		systemID, "system-user", "system@test.com", []byte{}, now, now, "active", pq.StringArray{}, "none", false, true)
+	require.NoError(t, err)
+
+	// An existing password user must be left untouched.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		passwordID, "password-user", "password@test.com", []byte("hashed"), now, now, "active", pq.StringArray{}, "password", false, false)
+	require.NoError(t, err)
+
+	migrationSQL, err := os.ReadFile("000555_legacy_none_login_to_password.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	getUser := func(t *testing.T, id uuid.UUID) (loginType, email string) {
+		t.Helper()
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT login_type::text, email FROM users WHERE id = $1`, id).Scan(&loginType, &email)
+		require.NoError(t, err)
+		return loginType, email
+	}
+
+	// The legacy machine user is converted to password auth with its email
+	// preserved.
+	gotLoginType, gotEmail := getUser(t, legacyNoneID)
+	require.Equal(t, "password", gotLoginType)
+	require.Equal(t, "legacy-none@test.com", gotEmail)
+
+	// Service accounts, system users, and existing password users are unchanged.
+	gotLoginType, _ = getUser(t, serviceAccountID)
+	require.Equal(t, "none", gotLoginType)
+	gotLoginType, _ = getUser(t, systemID)
+	require.Equal(t, "none", gotLoginType)
+	gotLoginType, _ = getUser(t, passwordID)
+	require.Equal(t, "password", gotLoginType)
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 
@@ -2167,4 +2250,101 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleText.ID}, matched,
 		"search must exclude deleted, model-only, and tool-role rows (%d %d %d)",
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
+}
+
+func TestMigration000556UserSecretsEnabled(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 556
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that adds the enabled
+	// column.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	userID := uuid.New()
+	envSecretID := uuid.New()
+	fileSecretID := uuid.New()
+	bothEmptySecretID := uuid.New()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userID, "user-secrets-enabled", "user-secrets-enabled@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		// env-only secret: should remain enabled after migration.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{envSecretID, userID, "env-secret", "", "v1", "ENV_SECRET", "", now, now},
+		},
+		// file-only secret: should remain enabled after migration.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{fileSecretID, userID, "file-secret", "", "v2", "", "/tmp/file-secret", now, now},
+		},
+		// Both env_name and file_path empty: silently skipped today by
+		// the agent manifest layer. Should be flipped to enabled=false
+		// by the migration so the behavior is preserved exactly under
+		// the new "always inject when enabled" rule.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{bothEmptySecretID, userID, "both-empty", "", "v3", "", "", now, now},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	getEnabled := func(t *testing.T, id uuid.UUID) bool {
+		t.Helper()
+		var enabled bool
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT enabled FROM user_secrets WHERE id = $1", id,
+		).Scan(&enabled)
+		require.NoError(t, err)
+		return enabled
+	}
+
+	require.True(t, getEnabled(t, envSecretID),
+		"env-only secret should remain enabled")
+	require.True(t, getEnabled(t, fileSecretID),
+		"file-only secret should remain enabled")
+	require.False(t, getEnabled(t, bothEmptySecretID),
+		"secret with both targets empty should be flipped to disabled "+
+			"to preserve the previous implicit-skip behavior")
 }

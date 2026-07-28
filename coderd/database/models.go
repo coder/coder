@@ -6247,6 +6247,7 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 type UserSkill struct {

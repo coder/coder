@@ -9,7 +9,8 @@
 		// static/*.html are Go templates with {{ }} directives that
 		// Biome's HTML parser does not support.
 		"includes": ["**", "!**/pnpm-lock.yaml", "!**/static/*.html"],
-		"ignoreUnknown": true
+		"ignoreUnknown": true,
+		"maxSize": 2097152
 	},
 	"linter": {
 		"rules": {

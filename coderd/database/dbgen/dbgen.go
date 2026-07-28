@@ -1963,6 +1963,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+		Enabled:     takeFirst(seed.Enabled, true),
 	}
 	for _, mut := range mutators {
 		mut(&params)

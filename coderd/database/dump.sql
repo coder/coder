@@ -3628,7 +3628,9 @@ CREATE TABLE user_secrets (
     file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    value_key_id text
+    value_key_id text,
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT user_secrets_enabled_requires_target CHECK (((NOT enabled) OR (env_name <> ''::text) OR (file_path <> ''::text)))
 );
 
 CREATE TABLE user_skills (
@@ -4701,6 +4703,8 @@ CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptio
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 

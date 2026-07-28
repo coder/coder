@@ -504,6 +504,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description": ActionTrack,
 		"env_name":    ActionTrack,
 		"file_path":   ActionTrack,
+		"enabled":     ActionTrack,
 
 		"value": ActionSecret,
 

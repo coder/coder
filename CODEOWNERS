@@ -12,7 +12,7 @@ vpn/version.go @spikecurtis @johnstcn
 coderd/files/ @aslilac
 
 coderd/dynamicparameters/ @Emyrk
-coderd/rbac/ @Emyrk
+coderd/rbac/policy.rego @Emyrk
 
 # Mainly dependent on coder/guts, which is maintained by @Emyrk
 scripts/apitypings/ @Emyrk

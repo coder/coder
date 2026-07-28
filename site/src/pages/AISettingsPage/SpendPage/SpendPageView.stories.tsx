@@ -301,6 +301,17 @@ export const SpendWithLimitsAndUsers: Story = {
 
 		await canvas.findByText("Spend limits and usage");
 		await expect(
+			canvas.getByText(
+				/Cost controls features will move to AI Governance in v2\.37\./,
+			),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /Read more here/ }),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining("/ai-coder/ai-gateway/cost-controls"),
+		);
+		await expect(
 			canvas.getByRole("switch", { name: "Spend limit" }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("Group limits")).toBeInTheDocument();
