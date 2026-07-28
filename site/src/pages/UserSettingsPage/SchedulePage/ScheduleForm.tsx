@@ -1,7 +1,5 @@
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
 	UpdateUserQuietHoursScheduleRequest,
@@ -11,6 +9,15 @@ import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
@@ -80,6 +87,9 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 		});
 	const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, submitError);
 	const browserLocale = navigator.language || "en-US";
+	const timezoneId = useId();
+	const timezoneField = getFieldHelpers("timezone");
+	const fieldsDisabled = isLoading || !initialValues.user_can_set;
 
 	return (
 		<Form onSubmit={form.handleSubmit}>
@@ -101,46 +111,63 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 					</Alert>
 				)}
 
-				<div className="flex flex-row gap-4">
-					<TextField
-						{...getFieldHelpers("time")}
-						disabled={isLoading || !initialValues.user_can_set}
+				<div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+					<FormField
+						field={getFieldHelpers("time")}
 						label="Start time"
 						type="time"
-						fullWidth
+						disabled={fieldsDisabled}
+						className="relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
 					/>
-					<TextField
-						{...getFieldHelpers("timezone")}
-						disabled={isLoading || !initialValues.user_can_set}
-						label="Timezone"
-						select
-						fullWidth
-					>
-						{timeZones.map((zone) => (
-							<MenuItem key={zone} value={zone}>
-								{zone}
-							</MenuItem>
-						))}
-					</TextField>
+					<div className="flex flex-col gap-2 min-w-0">
+						<Label htmlFor={timezoneId}>Timezone</Label>
+						<Select
+							value={form.values.timezone}
+							onValueChange={(value) => {
+								void form.setFieldValue("timezone", value);
+							}}
+							disabled={fieldsDisabled}
+						>
+							<SelectTrigger id={timezoneId}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{timeZones.map((zone) => (
+									<SelectItem key={zone} value={zone}>
+										{zone}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{timezoneField.error && (
+							<span className="text-xs text-content-destructive">
+								{timezoneField.helperText}
+							</span>
+						)}
+					</div>
+					<div className="sm:col-span-2">
+						<FormField
+							field={{
+								name: "nextOccurrence",
+								id: "nextOccurrence",
+								value: quietHoursDisplay(
+									browserLocale,
+									form.values.time,
+									form.values.timezone,
+									now,
+								),
+								onChange: () => {},
+								onBlur: () => {},
+								error: false,
+							}}
+							label="Next occurrence"
+							disabled
+						/>
+					</div>
 				</div>
 
-				<TextField
-					disabled
-					fullWidth
-					label="Next occurrence"
-					value={quietHoursDisplay(
-						browserLocale,
-						form.values.time,
-						form.values.timezone,
-						now,
-					)}
-				/>
-
-				<div>
-					<Button
-						disabled={isLoading || !initialValues.user_can_set}
-						type="submit"
-					>
+				<div className="flex justify-end">
+					<Button disabled={fieldsDisabled} type="submit">
 						<Spinner loading={isLoading} />
 						Update schedule
 					</Button>

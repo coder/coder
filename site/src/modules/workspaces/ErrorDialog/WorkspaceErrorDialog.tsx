@@ -15,7 +15,7 @@ interface WorkspaceErrorDialogProps {
 	open: boolean;
 	error?: unknown;
 	onClose: () => void;
-	showDetail: boolean;
+	showDetail?: boolean;
 	workspaceOwner: string;
 	workspaceName: string;
 	templateVersionId: string;
@@ -26,7 +26,7 @@ export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
 	open,
 	error,
 	onClose,
-	showDetail,
+	showDetail = false,
 	workspaceOwner,
 	workspaceName,
 	templateVersionId,

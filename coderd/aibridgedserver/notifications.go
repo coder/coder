@@ -2,6 +2,7 @@ package aibridgedserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // warningThresholdPercent triggers a warning notification; limitThresholdPercent
@@ -25,18 +27,27 @@ const (
 // budgetNotificationsCreatedBy records what enqueued AI budget notifications.
 const budgetNotificationsCreatedBy = "aigateway"
 
-// budgetThreshold pairs a percentage of the spend limit with the notification
-// template sent when a user's spend crosses it.
+// budgetThreshold pairs a percentage of the spend limit with the notifications
+// sent when a user's spend crosses it.
 type budgetThreshold struct {
-	percent              int
-	notificationTemplate uuid.UUID
+	percent                   int
+	userNotificationTemplate  uuid.UUID
+	adminNotificationTemplate uuid.UUID
 }
 
 // budgetThresholds are the thresholds evaluated on every priced interception,
 // ordered ascending. A single interception can cross more than one.
 var budgetThresholds = []budgetThreshold{
-	{percent: warningThresholdPercent, notificationTemplate: notifications.TemplateAIBudgetWarningUser},
-	{percent: limitThresholdPercent, notificationTemplate: notifications.TemplateAIBudgetLimitReachedUser},
+	{
+		percent:                   warningThresholdPercent,
+		userNotificationTemplate:  notifications.TemplateAIBudgetWarningUser,
+		adminNotificationTemplate: notifications.TemplateAIBudgetWarningAdmin,
+	},
+	{
+		percent:                   limitThresholdPercent,
+		userNotificationTemplate:  notifications.TemplateAIBudgetLimitReachedUser,
+		adminNotificationTemplate: notifications.TemplateAIBudgetLimitReachedAdmin,
+	},
 }
 
 // budgetThresholdCrossing describes a user crossing a budget threshold on a
@@ -44,11 +55,13 @@ var budgetThresholds = []budgetThreshold{
 // crossing is ever enqueued more than once, the payloads match and the
 // duplicate is dropped.
 type budgetThresholdCrossing struct {
-	userID               uuid.UUID
-	effectiveGroupID     uuid.UUID
-	spendLimitMicros     int64
-	thresholdPercent     int
-	notificationTemplate uuid.UUID
+	userID                    uuid.UUID
+	effectiveGroupID          uuid.UUID
+	spendLimitMicros          int64
+	thresholdPercent          int
+	userNotificationTemplate  uuid.UUID
+	adminNotificationTemplate uuid.UUID
+	limitSource               codersdk.AIBudgetLimitSource
 	// periodStart and periodEnd bound the budget period [start, end) the
 	// crossing occurred in.
 	periodStart time.Time
@@ -93,46 +106,100 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 		at := limit * int64(t.percent) / 100
 		if oldSpend < at && newSpend >= at {
 			crossings = append(crossings, budgetThresholdCrossing{
-				userID:               intc.InitiatorID,
-				effectiveGroupID:     cost.effectiveGroupID.UUID,
-				spendLimitMicros:     limit,
-				thresholdPercent:     t.percent,
-				notificationTemplate: t.notificationTemplate,
-				periodStart:          period.Start,
-				periodEnd:            period.End,
+				userID:                    intc.InitiatorID,
+				effectiveGroupID:          cost.effectiveGroupID.UUID,
+				spendLimitMicros:          limit,
+				thresholdPercent:          t.percent,
+				userNotificationTemplate:  t.userNotificationTemplate,
+				adminNotificationTemplate: t.adminNotificationTemplate,
+				limitSource:               cost.limitSource,
+				periodStart:               period.Start,
+				periodEnd:                 period.End,
 			})
 		}
 	}
 	return crossings, nil
 }
 
-// notifyBudgetThresholdCrossing enqueues the notification for the user who
-// crossed the threshold.
-func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing budgetThresholdCrossing) error {
-	group, err := s.store.GetGroupByID(ctx, crossing.effectiveGroupID)
-	if err != nil {
-		return xerrors.Errorf("look up group %q: %w", crossing.effectiveGroupID, err)
+// notifyBudgetThresholdCrossings enqueues user and admin notifications for the
+// thresholds crossed by a single interception. All crossings share the same
+// user and effective group, so the group, username, and admin recipients are
+// resolved once.
+func (s *Server) notifyBudgetThresholdCrossings(ctx context.Context, crossings []budgetThresholdCrossing) error {
+	if len(crossings) == 0 {
+		return nil
 	}
 
-	labels := map[string]string{
-		"threshold":            strconv.Itoa(crossing.thresholdPercent),
-		"limit":                formatSpendLimit(crossing.spendLimitMicros),
-		"period":               s.budgetPeriod.Adjective(),
-		"effective_group_name": group.Name,
-		// Both bounds carry the year so a period straddling a year boundary
-		// (e.g. December 1, 2026 - January 1, 2027) is unambiguous.
-		"period_start": crossing.periodStart.UTC().Format("January 2, 2006"),
-		"period_end":   crossing.periodEnd.UTC().Format("January 2, 2006"),
+	userID := crossings[0].userID
+	effectiveGroupID := crossings[0].effectiveGroupID
+
+	group, err := s.store.GetGroupByID(ctx, effectiveGroupID)
+	if err != nil {
+		return xerrors.Errorf("look up group %q: %w", effectiveGroupID, err)
+	}
+	user, err := s.store.GetUserByID(ctx, userID)
+	if err != nil {
+		return xerrors.Errorf("look up user %q: %w", userID, err)
+	}
+	admins, err := s.budgetNotificationAdmins(ctx, userID)
+	if err != nil {
+		return xerrors.Errorf("look up budget notification admins: %w", err)
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
-	if _, err := s.notifEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), crossing.userID, crossing.notificationTemplate,
-		labels, nil, budgetNotificationsCreatedBy,
-		crossing.effectiveGroupID,
-	); err != nil {
-		return xerrors.Errorf("enqueue notification: %w", err)
+	notifCtx := dbauthz.AsNotifier(ctx)
+
+	var errs []error
+	for _, c := range crossings {
+		labels := map[string]string{
+			"threshold":            strconv.Itoa(c.thresholdPercent),
+			"limit":                formatSpendLimit(c.spendLimitMicros),
+			"period":               s.budgetPeriod.Adjective(),
+			"limit_source":         string(c.limitSource),
+			"username":             user.Username,
+			"effective_group_name": group.Name,
+			// Both bounds carry the year so a period straddling a year boundary
+			// (e.g. December 1, 2026 - January 1, 2027) is unambiguous.
+			"period_start": c.periodStart.UTC().Format("January 2, 2006"),
+			"period_end":   c.periodEnd.UTC().Format("January 2, 2006"),
+		}
+
+		// Notify the user who crossed the threshold.
+		if _, err := s.notifEnqueuer.EnqueueWithData(notifCtx, userID, c.userNotificationTemplate,
+			labels, nil, budgetNotificationsCreatedBy, effectiveGroupID); err != nil {
+			errs = append(errs, xerrors.Errorf("enqueue user notification (threshold %d%%): %w", c.thresholdPercent, err))
+		}
+
+		// Notify admins, naming the affected user.
+		for _, admin := range admins {
+			if _, err := s.notifEnqueuer.EnqueueWithData(notifCtx, admin.ID, c.adminNotificationTemplate,
+				labels, nil, budgetNotificationsCreatedBy, userID, effectiveGroupID); err != nil {
+				errs = append(errs, xerrors.Errorf("enqueue admin notification (threshold %d%%, admin %q): %w", c.thresholdPercent, admin.ID, err))
+			}
+		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// budgetNotificationAdmins returns the users who should receive admin budget
+// notifications: deployment owners and user admins, excluding the affected
+// user, who receives the user-facing notification instead.
+func (s *Server) budgetNotificationAdmins(ctx context.Context, excludeUserID uuid.UUID) ([]database.GetUsersRow, error) {
+	admins, err := s.store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	recipients := make([]database.GetUsersRow, 0, len(admins))
+	for _, admin := range admins {
+		if admin.ID == excludeUserID {
+			continue
+		}
+		recipients = append(recipients, admin)
+	}
+	return recipients, nil
 }
 
 // formatSpendLimit renders a spend limit as a USD string.
