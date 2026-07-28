@@ -211,13 +211,10 @@ const SmoothedResponse = memo<{
 });
 
 const ReadFileTimelineBlock = memo<{
-	tools: readonly MergedTool[];
+	tools: readonly [MergedTool, ...MergedTool[]];
 }>(({ tools }) => {
 	const [expanded, setExpanded] = useState(false);
 	const [firstTool] = tools;
-	if (!firstTool) {
-		return null;
-	}
 
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
@@ -376,17 +373,16 @@ export const BlockList: FC<{
 							</div>
 						);
 					case "tool-group": {
-						const groupTools = block.ids
+						const [firstGroupTool, ...restGroupTools] = block.ids
 							.map((id) => toolByID.get(id))
 							.filter((tool) => tool !== undefined);
-						const [firstGroupTool] = groupTools;
 						if (!firstGroupTool) {
 							return null;
 						}
 						return (
 							<ReadFileTimelineBlock
 								key={firstGroupTool.id}
-								tools={groupTools}
+								tools={[firstGroupTool, ...restGroupTools]}
 							/>
 						);
 					}
@@ -469,8 +465,10 @@ export const BlockList: FC<{
 								sources={block.sources}
 							/>
 						);
-					default:
-						return null;
+					default: {
+						const _exhaustive: never = block;
+						return _exhaustive;
+					}
 				}
 			})}
 			{remainingTools.map((tool) => (

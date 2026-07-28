@@ -14068,6 +14068,197 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 	}
 }
 
+func TestGetOverBudgetUsersPerGroup(t *testing.T) {
+	t.Parallel()
+
+	periodStart := dbtime.Now().UTC().Truncate(24 * time.Hour)
+
+	// seedSpendOnDay attributes micros of spend to (user, effectiveGroup) on a
+	// specific day.
+	seedSpendOnDay := func(t *testing.T, ctx context.Context, db database.Store, userID, effectiveGroupID uuid.UUID, day time.Time, micros int64) {
+		t.Helper()
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           userID,
+			EffectiveGroupID: effectiveGroupID,
+			Day:              day,
+			CostMicros:       micros,
+		})
+		require.NoError(t, err)
+	}
+
+	// seedSpend attributes micros of spend to (user, effectiveGroup) within the
+	// current period.
+	seedSpend := func(t *testing.T, ctx context.Context, db database.Store, userID, effectiveGroupID uuid.UUID, micros int64) {
+		t.Helper()
+		seedSpendOnDay(t, ctx, db, userID, effectiveGroupID, periodStart, micros)
+	}
+
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow
+	}{
+		{
+			// A user whose spend exceeds their group budget is counted.
+			name: "OverBudgetCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				seedSpend(t, ctx, db, user.ID, group.ID, 1_500_000)
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A user under their group budget is not counted.
+			name: "UnderBudgetNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				seedSpend(t, ctx, db, user.ID, group.ID, 500_000)
+				return nil
+			},
+		},
+		{
+			// Spend exactly at the limit counts, since the check is inclusive.
+			name: "AtLimitCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				seedSpend(t, ctx, db, user.ID, group.ID, 1_000_000)
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A zero limit blocks a user with no spend, since zero spend is at the
+			// limit.
+			name: "ZeroLimitCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 0})
+				require.NoError(t, err)
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A per-user override overrides the group budget, both for the limit
+			// and the group the spend is attributed to.
+			name: "OverrideWins",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				overrideGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: overrideGroup.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{UserID: user.ID, GroupID: overrideGroup.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				// Over the override limit but under the group limit.
+				seedSpend(t, ctx, db, user.ID, overrideGroup.ID, 1_500_000)
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: overrideGroup.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A user in multiple budgeted groups is attributed to their
+			// highest-limit group.
+			name: "HighestGroupWins",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				lower := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				higher := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: lower.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: higher.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lower.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
+				require.NoError(t, err)
+				seedSpend(t, ctx, db, user.ID, higher.ID, 2_000_000)
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: higher.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A user with only the unlimited Everyone fallback is never counted.
+			name: "EveryoneFallbackNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				// Spend attributed to the Everyone group (id == organization_id).
+				seedSpend(t, ctx, db, user.ID, org.ID, 9_000_000)
+				return nil
+			},
+		},
+		{
+			// Multiple over-budget users in the same group are summed.
+			name: "AggregatesUsersPerGroup",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				for range 2 {
+					user := dbgen.User(t, db, database.User{})
+					dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+					dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+					seedSpend(t, ctx, db, user.ID, group.ID, 2_000_000)
+				}
+				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 2}}
+			},
+		},
+		{
+			// Spend on days before the period start is excluded, so a user whose
+			// only over-limit spend predates the period is not counted.
+			name: "SpendBeforePeriodNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				seedSpendOnDay(t, ctx, db, user.ID, group.ID, periodStart.AddDate(0, 0, -1), 1_500_000)
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			want := tt.setup(t, ctx, db)
+			got, err := db.GetOverBudgetUsersPerGroup(ctx, periodStart)
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
+	}
+}
+
 func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 	t.Parallel()
 
@@ -17888,5 +18079,94 @@ func requireAIGatewayKeysViolation(
 		require.True(t, database.IsCheckViolation(err, checkConstraint), "expected %q check violation, got %v", checkConstraint, err)
 	default:
 		require.FailNow(t, "test case must expect a constraint error")
+	}
+}
+
+// TestGetActiveUsersAuthorizationRolesParity verifies that the bulk
+// GetActiveUsersAuthorizationRoles query returns, for every eligible
+// user, the same roles and groups as the per-user
+// GetAuthorizationUserRoles query. The two queries encode the implied
+// member roles, organization default roles, and group memberships
+// independently and must not drift.
+func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	orgA := dbgen.Organization(t, db, database.Organization{})
+	orgB := dbgen.Organization(t, db, database.Organization{})
+
+	activeUser := func(seed database.User) database.User {
+		seed.Status = database.UserStatusActive
+		return dbgen.User(t, db, seed)
+	}
+	member := func(orgID uuid.UUID, user database.User, roles ...string) {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			Roles:          roles,
+		})
+	}
+
+	// Site-wide role, zero org memberships.
+	owner := activeUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
+
+	// Plain single-org member; effective roles come from the implied
+	// member role plus the org's default member roles.
+	plain := activeUser(database.User{})
+	member(orgA.ID, plain)
+
+	// Explicit org roles across two organizations.
+	multiOrg := activeUser(database.User{})
+	member(orgA.ID, multiOrg, rbac.RoleOrgAdmin())
+	member(orgB.ID, multiOrg)
+
+	// Custom org role.
+	customRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:           "parity-role",
+		DisplayName:    "Parity Role",
+		OrganizationID: uuid.NullUUID{UUID: orgA.ID, Valid: true},
+		OrgPermissions: []database.CustomRolePermission{{
+			ResourceType: rbac.ResourceWorkspace.Type,
+			Action:       policy.ActionCreate,
+		}},
+	})
+	require.NoError(t, err)
+	custom := activeUser(database.User{})
+	member(orgA.ID, custom, customRole.Name)
+
+	// Group memberships.
+	grouped := activeUser(database.User{})
+	member(orgA.ID, grouped)
+	for range 2 {
+		group := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  grouped.ID,
+			GroupID: group.ID,
+		})
+	}
+
+	// Excluded from the bulk query: service accounts and non-active
+	// users.
+	sa := activeUser(database.User{IsServiceAccount: true})
+	member(orgA.ID, sa)
+	suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+	member(orgA.ID, suspended)
+
+	rows, err := db.GetActiveUsersAuthorizationRoles(ctx)
+	require.NoError(t, err)
+
+	gotIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		gotIDs = append(gotIDs, row.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, custom.ID, grouped.ID}, gotIDs)
+
+	for _, row := range rows {
+		single, err := db.GetAuthorizationUserRoles(ctx, row.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, single.Roles, row.Roles, "roles diverged for user %s", row.ID)
+		require.ElementsMatch(t, single.Groups, row.Groups, "groups diverged for user %s", row.ID)
 	}
 }

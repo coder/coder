@@ -56,7 +56,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	parsedCommands,
 	shellToolDisplayMode,
 }) => {
-	const hasCommand = command.trim().length > 0;
 	const hasTranscriptBlocks = transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
 		hasTranscriptBlocks ||
@@ -77,10 +76,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		shellToolDisplayMode,
 		autoDisplayState,
 	);
-
-	if (!hasCommand) {
-		return null;
-	}
 
 	return (
 		<ToolCall.Root
