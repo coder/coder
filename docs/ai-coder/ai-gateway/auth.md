@@ -197,5 +197,6 @@ For a standalone Gateway, set the option on each replica:
 CODER_AI_GATEWAY_ALLOW_BYOK=false coder ai-gateway start
 ```
 
-Keep this setting consistent across replicas.
+Each replica enforces its own local value, which governs only the traffic that replica handles.
+The standalone process does not receive the `coderd` value, so set the option on every replica that should reject BYOK requests.
 When disabled, BYOK requests are rejected with a `403 Forbidden` response, and only centralized provider credentials are permitted.
