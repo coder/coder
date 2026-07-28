@@ -416,5 +416,3 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 		</TableRow>
 	);
 };
-
-export default EditOAuth2AppPageView;

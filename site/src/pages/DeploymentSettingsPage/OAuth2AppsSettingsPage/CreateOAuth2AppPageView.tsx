@@ -82,5 +82,3 @@ export const CreateOAuth2AppPageView: FC = () => {
 		</>
 	);
 };
-
-export default CreateOAuth2AppPageView;

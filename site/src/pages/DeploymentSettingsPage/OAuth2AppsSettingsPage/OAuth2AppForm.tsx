@@ -15,7 +15,7 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-export type OAuth2AppFormValues = {
+type OAuth2AppFormValues = {
 	name: string;
 	callback_url: string;
 	icon: string;
