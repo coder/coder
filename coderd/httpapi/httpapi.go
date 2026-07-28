@@ -239,6 +239,13 @@ func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value in
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  err.Error(),
+			})
+			return false
+		}
 		Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),

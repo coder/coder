@@ -1832,12 +1832,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
-};
-
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -3243,7 +3237,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,

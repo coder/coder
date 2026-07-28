@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { groupById } from "#/api/queries/groups";
 import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
 import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Badge } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
@@ -16,8 +17,8 @@ const OTHER_ORG_MESSAGE =
 	"This user's AI budget is managed by a group in another organization and isn't visible here.";
 
 /**
- * The AI budget and Budget group cells for a group member. Spend only counts
- * against the viewed group; another group's budget shows as unattributed.
+ * The AI budget and Budget group cells for a group member. Spend is scoped to
+ * the viewed group; the limit comes from the member's effective group.
  */
 export const GroupMemberBudgetCells: FC<{
 	group: Group;
@@ -50,7 +51,15 @@ export const GroupMemberBudgetCells: FC<{
 			budgetGroup = EM_DASH;
 			break;
 		case "everyone":
-			budgetGroup = <Badge size="sm">Everyone (not allocated)</Badge>;
+			// A populated budget means the Everyone group's own budget applies,
+			// so it isn't the unallocated fallback.
+			budgetGroup = (
+				<Badge size="sm">
+					{spend?.group_budget
+						? badgeName("Everyone")
+						: "Everyone (not allocated)"}
+				</Badge>
+			);
 			break;
 		case "this":
 			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
@@ -91,11 +100,11 @@ export const GroupMemberBudgetCells: FC<{
 						<StatusIconTooltip
 							message={
 								<>
-									None of this user's spend counts against the{" "}
+									The amount shown is this user's spend in the{" "}
 									<span className="font-medium text-content-primary">
 										{groupName}
 									</span>{" "}
-									group. It is managed by the{" "}
+									group. Their AI budget is currently managed by the{" "}
 									<span className="font-medium text-content-primary">
 										{effectiveGroupName}
 									</span>{" "}
@@ -105,7 +114,7 @@ export const GroupMemberBudgetCells: FC<{
 						/>
 					</span>
 					<span className="text-xs text-content-secondary">
-						Not attributed to this group
+						Budget managed by another group
 					</span>
 				</div>
 			);
@@ -116,16 +125,13 @@ export const GroupMemberBudgetCells: FC<{
 			// The effective group has no budget, so no limit applies.
 			budget = (
 				<LabelWithInfo
-					label="Unlimited"
+					label={
+						<AIBudgetUsage
+							currentSpend={spend.group_spend_micros}
+							spendLimit={null}
+						/>
+					}
 					message="None of this user's groups have an AI budget configured, so their AI usage isn't restricted."
-				/>
-			);
-		} else if (limit === 0) {
-			// A $0 budget disables spending, distinct from no budget configured.
-			budget = (
-				<LabelWithInfo
-					label="None"
-					message="This user's group(s) have an AI budget of $0, so they have no AI spending allowance."
 				/>
 			);
 		} else {

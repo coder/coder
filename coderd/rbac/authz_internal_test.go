@@ -817,6 +817,67 @@ func TestAuthorizeUserACLOrgMembership(t *testing.T) {
 	})
 }
 
+// TestAuthorizeWorkspaceAccessCreationBan tests a user who is a member of a
+// single organization and holds both organization-workspace-access and
+// organization-workspace-creation-ban in that organization. The ban's
+// negative permissions must override the workspace create elevation granted
+// by workspace-access. Because the ban denies creation in the user's only
+// organization, the any_org check used by the UI must also deny creation.
+func TestAuthorizeWorkspaceAccessCreationBan(t *testing.T) {
+	t.Parallel()
+	defOrg := uuid.New()
+
+	user := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+		},
+	}
+
+	testAuthorize(t, "WorkspaceAccessWithCreationBan", user, []authTestCase{
+		// any_org create is denied: the only organization vote is the ban's
+		// negative, so the max vote across all organizations is a deny.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: false},
+
+		// The banned actions are denied directly in the organization too.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Non-banned workspace actions granted by workspace-access remain.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionRead, policy.ActionUpdate}, allow: true},
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}, allow: true},
+	})
+
+	// The same user, now also a member of a second organization with
+	// workspace-access and no ban. One permissible organization out of two
+	// is enough for any_org to allow creation.
+	secondOrg := uuid.New()
+	userTwoOrgs := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(secondOrg))),
+		},
+	}
+
+	testAuthorize(t, "BannedInOneOfTwoOrgs", userTwoOrgs, []authTestCase{
+		// any_org create is allowed: the second organization votes to allow,
+		// and the max vote across all organizations wins.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
+
+		// The ban still denies creation in the banned organization.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Creation is allowed in the organization without the ban.
+		{resource: ResourceWorkspace.InOrg(secondOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: true},
+	})
+}
+
 // TestAuthorizeLevels ensures level overrides are acting appropriately
 func TestAuthorizeLevels(t *testing.T) {
 	t.Parallel()

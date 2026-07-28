@@ -89,6 +89,14 @@
   },
   {
     "provider": "anthropic",
+    "model": "claude-opus-5",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "anthropic",
     "model": "claude-sonnet-4-5",
     "input_price": 3000000,
     "output_price": 15000000,
@@ -217,22 +225,6 @@
   },
   {
     "provider": "openai",
-    "model": "gpt-5-chat-latest",
-    "input_price": 1250000,
-    "output_price": 10000000,
-    "cache_read_price": 125000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-5-codex",
-    "input_price": 1250000,
-    "output_price": 10000000,
-    "cache_read_price": 125000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
     "model": "gpt-5-mini",
     "input_price": 250000,
     "output_price": 2000000,
@@ -265,38 +257,6 @@
   },
   {
     "provider": "openai",
-    "model": "gpt-5.1-chat-latest",
-    "input_price": 1250000,
-    "output_price": 10000000,
-    "cache_read_price": 125000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-5.1-codex",
-    "input_price": 1250000,
-    "output_price": 10000000,
-    "cache_read_price": 125000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-5.1-codex-max",
-    "input_price": 1250000,
-    "output_price": 10000000,
-    "cache_read_price": 125000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-5.1-codex-mini",
-    "input_price": 250000,
-    "output_price": 2000000,
-    "cache_read_price": 25000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
     "model": "gpt-5.2",
     "input_price": 1750000,
     "output_price": 14000000,
@@ -306,14 +266,6 @@
   {
     "provider": "openai",
     "model": "gpt-5.2-chat-latest",
-    "input_price": 1750000,
-    "output_price": 14000000,
-    "cache_read_price": 175000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-5.2-codex",
     "input_price": 1750000,
     "output_price": 14000000,
     "cache_read_price": 175000,
@@ -441,6 +393,14 @@
   },
   {
     "provider": "openai",
+    "model": "gpt-realtime-2.1",
+    "input_price": 4000000,
+    "output_price": 24000000,
+    "cache_read_price": 400000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
     "model": "o1",
     "input_price": 15000000,
     "output_price": 60000000,
@@ -465,14 +425,6 @@
   },
   {
     "provider": "openai",
-    "model": "o3-deep-research",
-    "input_price": 10000000,
-    "output_price": 40000000,
-    "cache_read_price": 2500000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
     "model": "o3-mini",
     "input_price": 1100000,
     "output_price": 4400000,
@@ -493,14 +445,6 @@
     "input_price": 1100000,
     "output_price": 4400000,
     "cache_read_price": 275000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "o4-mini-deep-research",
-    "input_price": 2000000,
-    "output_price": 8000000,
-    "cache_read_price": 500000,
     "cache_write_price": null
   },
   {

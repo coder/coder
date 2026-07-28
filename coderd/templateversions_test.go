@@ -1047,6 +1047,105 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		require.True(t, providers[0].Authenticated)
 		require.True(t, providers[0].Optional)
 	})
+	t.Run("ForAnotherUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
+					},
+				},
+			}},
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Empty(t, version.Job.Error)
+		// Publish a template so the org admin can read the version.
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// The requester is an org admin who can create workspaces for other users
+		// but does not have personal read access to them. The target user
+		// authenticates with the provider.
+		adminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// The requesting admin has not authenticated, so their own state is
+		// unauthenticated.
+		self, err := adminClient.TemplateVersionExternalAuth(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, self, 1)
+		require.False(t, self[0].Authenticated)
+
+		// The reported state is the target user's, not the requesting admin's:
+		// the admin is unauthenticated but the target shows authenticated.
+		forOwner, err := adminClient.TemplateVersionExternalAuth(ctx, version.ID,
+			codersdk.WithQueryParam("user_id", member.ID.String()))
+		require.NoError(t, err)
+		require.Len(t, forOwner, 1)
+		require.True(t, forOwner[0].Authenticated)
+	})
+	t.Run("ForAnotherUserUnauthorized", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
+					},
+				},
+			}},
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Empty(t, version.Job.Error)
+		// Publish a template so org members can read the version.
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		requesterClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, target := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// A plain member cannot view another user's external auth state, because
+		// they cannot create a workspace on that user's behalf.
+		_, err := requesterClient.TemplateVersionExternalAuth(ctx, version.ID,
+			codersdk.WithQueryParam("user_id", target.ID.String()))
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
 }
 
 func TestTemplateVersionResources(t *testing.T) {
