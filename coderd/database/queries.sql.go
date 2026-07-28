@@ -2035,7 +2035,7 @@ SELECT
 	bl.created_at
 FROM aibridge_interceptions afi
 LEFT JOIN LATERAL (
-	SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+	SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
 	FROM aibridge_interceptions nxt
 	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
 		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
@@ -2043,7 +2043,7 @@ LEFT JOIN LATERAL (
 JOIN boundary_logs bl
 	ON bl.session_id = afi.agent_firewall_session_id
 	AND bl.sequence_number > afi.agent_firewall_sequence_number
-	AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+	AND bl.sequence_number < w.next_seq
 WHERE afi.session_id = $1::text
 	AND afi.ended_at IS NOT NULL
 	AND afi.agent_firewall_session_id IS NOT NULL
@@ -2076,7 +2076,9 @@ type ListAIBridgeSessionNetworkCallsRow struct {
 // interception's seq) within the same firewall session. The exclusive lower
 // bound drops the interception's own LLM-provider call. next_seq considers all
 // interceptions in the firewall session so windows never bleed across AI
-// sessions that share one firewall session.
+// sessions that share one firewall session, and falls back to the maximum
+// sequence_number for the last interception so the window stays an
+// index-satisfiable range.
 func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]ListAIBridgeSessionNetworkCallsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionNetworkCalls, arg.SessionID, arg.Limit)
 	if err != nil {

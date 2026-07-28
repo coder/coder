@@ -1264,7 +1264,9 @@ type sqlcQuerier interface {
 	// interception's seq) within the same firewall session. The exclusive lower
 	// bound drops the interception's own LLM-provider call. next_seq considers all
 	// interceptions in the firewall session so windows never bleed across AI
-	// sessions that share one firewall session.
+	// sessions that share one firewall session, and falls back to the maximum
+	// sequence_number for the last interception so the window stays an
+	// index-satisfiable range.
 	ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]ListAIBridgeSessionNetworkCallsRow, error)
 	// Returns all interceptions belonging to paginated threads within a session.
 	// Threads are paginated by (started_at, thread_id) cursor.
