@@ -124,9 +124,9 @@ WHERE user_id = @user_id
 -- Returns AI spend limits and aggregate spend for groups in @group_ids that
 -- belong to @organization_id, on or after period_start until NOW.
 -- spend_limit_micros is the per-member limit, null when the group has no budget.
--- total_spend_limit_micros is the per-member limit applied to the members
--- attributed to the group, replaced by their override where one exists. It is
--- null when the group has no budget, because those members spend without a cap.
+-- total_spend_limit_micros is the combined budget of the members attributed to
+-- the group, with each member's override replacing their share. It is null when
+-- the group has no budget.
 -- The period_start parameter is normalized to its UTC calendar day.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH queried_groups AS (
@@ -137,9 +137,8 @@ WITH queried_groups AS (
 		AND groups.id = ANY(@group_ids::uuid[])
 ),
 candidate_users AS (
-	-- Members of the queried groups. Narrowing to members loses nobody, because a
-	-- user's effective group is always a group they belong to. Uses
-	-- group_members_expanded so the implicit Everyone group counts.
+	-- Members of the queried groups. Uses group_members_expanded so the implicit
+	-- Everyone group counts.
 	SELECT DISTINCT member.user_id
 	FROM group_members_expanded member
 	WHERE member.group_id IN (SELECT id FROM queried_groups)
@@ -163,8 +162,8 @@ user_highest_group AS (
 ),
 effective AS (
 	-- Effective budget group per user: an override wins over the highest-limit
-	-- group they belong to. Users with neither spend without a cap, and the
-	-- unbudgeted group they fall back to reports unlimited regardless.
+	-- group they belong to. Users with neither are left out, since the group they
+	-- fall back to has no budget and reports null.
 	SELECT
 		candidate_users.user_id,
 		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,

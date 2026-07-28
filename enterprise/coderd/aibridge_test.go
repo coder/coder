@@ -3668,6 +3668,7 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		require.Len(t, got.Groups, 1)
 		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.Groups[0].SpendLimitMicros)
 		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.Groups[0].TotalSpendLimitMicros)
+		require.Equal(t, int64(0), got.Groups[0].CurrentSpendMicros)
 	})
 }
 
@@ -4817,6 +4818,7 @@ func TestGroupAISpend(t *testing.T) {
 		// Then: the total covers both members while the per-member limit is unchanged.
 		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.SpendLimitMicros)
 		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.TotalSpendLimitMicros)
+		require.Equal(t, int64(0), got.CurrentSpendMicros)
 	})
 }
 
