@@ -467,8 +467,7 @@ type sqlcQuerier interface {
 	GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
-	// Ordered by id so incremental stream updates agree with the full history
-	// snapshot from GetChatMessagesByChatID, which the same socket emits on reset.
+	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
@@ -642,8 +641,8 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
-	// Ordered by id because callers use the returned id as an id cursor, both as
-	// AfterID for GetChatMessagesByChatID and as chats.last_read_message_id.
+	// The returned id becomes both an AfterID cursor and last_read_message_id, so
+	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)

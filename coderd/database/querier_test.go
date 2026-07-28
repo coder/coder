@@ -12212,9 +12212,8 @@ func TestInsertChatMessages(t *testing.T) {
 	})
 }
 
-// insertChatMessagesInvertedTimestamps inserts roles as one batch, then rewrites
-// created_at to run opposite to id order, so a reader that leads with created_at
-// returns the batch backwards. Returned ids are in input order.
+// The returned ids are in insert order, which the inverted created_at values
+// deliberately contradict.
 func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB *sql.DB, roles []database.ChatMessageRole) (database.Chat, []int64) {
 	t.Helper()
 
@@ -12232,11 +12231,6 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 	})
 
 	count := len(roles)
-	content := make([]string, count)
-	for i := range content {
-		content[i] = fmt.Sprintf(`"message-%d"`, i)
-	}
-
 	inserted, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
 		CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
@@ -12244,7 +12238,7 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 		Role:                roles,
 		ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
 		Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
-		Content:             content,
+		Content:             slices.Repeat([]string{`"message"`}, count),
 		InputTokens:         make([]int64, count),
 		OutputTokens:        make([]int64, count),
 		TotalTokens:         make([]int64, count),
@@ -12330,10 +12324,9 @@ func TestGetLastChatMessageByRoleOrdersByID(t *testing.T) {
 	require.Equal(t, insertedIDs[len(insertedIDs)-1], last.ID)
 }
 
-// TestChatMessagesSequenceCacheIsOne guards the cross-batch half of the id
-// ordering guarantee. Sequence cache blocks are handed out per session, so with
-// a cache above one a session that takes the chat row lock second can still
-// commit lower ids than the session that locked first.
+// Sequence cache blocks are handed out per session, so above cache 1 a backend
+// holding stale cached values can take the chat row lock second and still commit
+// lower ids. Bumping a sequence cache is an ordinary throughput tweak.
 func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
 	t.Parallel()
 
@@ -12345,8 +12338,7 @@ func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
 		"SELECT cache_size FROM pg_sequences WHERE sequencename = 'chat_messages_id_seq'").
 		Scan(&cacheSize)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), cacheSize,
-		"chat_messages ids must be allocated one at a time so they follow chat row lock order")
+	require.Equal(t, int64(1), cacheSize, "chat_messages_id_seq must use cache 1")
 }
 
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {

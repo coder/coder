@@ -8356,8 +8356,7 @@ type GetChatMessagesByRevisionForStreamParams struct {
 	AfterRevision int64     `db:"after_revision" json:"after_revision"`
 }
 
-// Ordered by id so incremental stream updates agree with the full history
-// snapshot from GetChatMessagesByChatID, which the same socket emits on reset.
+// Stream deltas and reset snapshots must use the same message order.
 func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesByRevisionForStream, arg.ChatID, arg.AfterRevision)
 	if err != nil {
@@ -9882,8 +9881,8 @@ type GetLastChatMessageByRoleParams struct {
 	Role   ChatMessageRole `db:"role" json:"role"`
 }
 
-// Ordered by id because callers use the returned id as an id cursor, both as
-// AfterID for GetChatMessagesByChatID and as chats.last_read_message_id.
+// The returned id becomes both an AfterID cursor and last_read_message_id, so
+// "last" must use id order.
 func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, getLastChatMessageByRole, arg.ChatID, arg.Role)
 	var i ChatMessage

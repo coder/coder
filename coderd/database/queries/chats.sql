@@ -402,8 +402,7 @@ ORDER BY
     id ASC;
 
 -- name: GetChatMessagesByRevisionForStream :many
--- Ordered by id so incremental stream updates agree with the full history
--- snapshot from GetChatMessagesByChatID, which the same socket emits on reset.
+-- Stream deltas and reset snapshots must use the same message order.
 SELECT
     *
 FROM
@@ -1975,8 +1974,8 @@ SET created_at = (
 WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
--- Ordered by id because callers use the returned id as an id cursor, both as
--- AfterID for GetChatMessagesByChatID and as chats.last_read_message_id.
+-- The returned id becomes both an AfterID cursor and last_read_message_id, so
+-- "last" must use id order.
 SELECT
     *
 FROM
