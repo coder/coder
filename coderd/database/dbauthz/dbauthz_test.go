@@ -6738,13 +6738,25 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 
 // TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied mechanically
 // checks the invariant the query's authz gate relies on: it exposes a
-// deployment-wide aggregate behind usage_event create, which roles.go
-// excludes from every human-assignable role (including owner) via
-// allPermsExcept. If that grant ever widens, this test fails.
+// deployment-wide aggregate behind usage_event create at site scope, which no
+// human-assignable role holds. Owner is excluded from usage_event via
+// allPermsExcept in roles.go; org roles such as org-admin do carry
+// usage_event permissions, but only at org scope, which cannot satisfy a
+// site-scoped check. If either of those ever changes, this test fails.
 func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
 	t.Parallel()
 
-	for _, role := range []rbac.RoleIdentifier{rbac.RoleOwner(), rbac.RoleMember()} {
+	orgID := uuid.New()
+	var roles []rbac.RoleIdentifier
+	for _, role := range rbac.SiteBuiltInRoles() {
+		roles = append(roles, role.Identifier)
+	}
+	for _, role := range rbac.OrganizationRoles(orgID) {
+		roles = append(roles, role.Identifier)
+	}
+	require.NotEmpty(t, roles)
+
+	for _, role := range roles {
 		subj := rbac.Subject{
 			ID:    uuid.NewString(),
 			Roles: rbac.RoleIdentifiers{role},

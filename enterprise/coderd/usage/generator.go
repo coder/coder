@@ -36,6 +36,10 @@ const (
 	// agentRuntimeJitter staggers replicas after each hour boundary so one
 	// is likely to complete the work before others attempt it.
 	agentRuntimeJitter = 4 * time.Minute
+	// agentRuntimeStartupDelay is the floor on the first pass after start,
+	// giving the deployment time to finish booting before the generator
+	// competes for database work. Jitter is added on top of it.
+	agentRuntimeStartupDelay = time.Minute
 	// generatorTimerName tags the quartz timer so tests can trap it.
 	generatorTimerName = "agent-runtime-generator"
 )
@@ -100,7 +104,7 @@ func (g *Generator) run(ctx context.Context) {
 
 	// The random initial delay staggers replicas that start simultaneously.
 	//nolint:gosec // Jitter does not need cryptographic randomness.
-	delay := time.Minute + time.Duration(rand.Int63n(int64(agentRuntimeJitter)))
+	delay := agentRuntimeStartupDelay + time.Duration(rand.Int63n(int64(agentRuntimeJitter)))
 	for {
 		timer := g.clock.NewTimer(delay, generatorTimerName)
 
@@ -150,11 +154,24 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("list existing agent runtime events: %w", err)
 	}
-	// A row marks its bucket complete regardless of publish outcome. If
-	// Tallyman permanently rejects an event, its bucket is never
-	// regenerated (a re-insert under the deterministic ID would be a no-op
-	// anyway); recovery is manual. The release gate (Tallyman must accept
-	// this event type before coderd ships it) is what keeps permanent
+	// A row marks its bucket complete regardless of publish outcome, so a
+	// bucket whose event Tallyman permanently rejected is never
+	// regenerated (re-inserting under the deterministic ID is a no-op via
+	// ON CONFLICT (id) DO NOTHING).
+	//
+	// The runtime is not lost locally: the row still holds it, and the
+	// event can be re-queued for publishing with
+	//
+	//	UPDATE usage_events
+	//	SET published_at = NULL, publish_started_at = NULL, failure_message = NULL
+	//	WHERE id = 'hb_agent_runtime_v1:<bucket start, e.g. 2026-07-15_14:00:00>';
+	//
+	// That re-arm only has an effect while the bucket is inside the
+	// publisher's 30-day cutoff: SelectUsageEventsForPublishing also
+	// filters created_at > now - INTERVAL '30 days', and created_at is the
+	// bucket start, so past that the UPDATE reports success but the row is
+	// never picked up again. The release gate (Tallyman must accept this
+	// event type before coderd ships it) is what keeps permanent
 	// rejections exceptional.
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
@@ -174,6 +191,12 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 
 		err := g.generateBucket(ctx, bucket)
 		if err != nil {
+			if ctx.Err() != nil {
+				// A cancel landing mid-query surfaces as a bucket error.
+				// Report the cancellation instead of logging shutdown as
+				// a bucket failure.
+				return ctx.Err()
+			}
 			// Skip only the failed bucket so one bad bucket (e.g. an
 			// invalid runtime sum) cannot stall every later bucket until
 			// it ages out of the window.
@@ -210,8 +233,8 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	// The deterministic ID makes concurrent inserts of the same bucket
 	// idempotent, and created_at is the bucket start (not the insertion
 	// time) so daily rollups attribute backfilled hours to the correct day.
-	id := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(cronDateFormat)
-	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, id, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
+	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if err != nil {
 		return xerrors.Errorf("insert usage event: %w", err)
 	}

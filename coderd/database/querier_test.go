@@ -10605,6 +10605,14 @@ func TestUsageEventsTrigger(t *testing.T) {
 		insert("hb_agent_runtime_v1:2025-01-02_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 250}`, day2)
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 
+		// Re-inserting a bucket must not double-count it. The daily rollup
+		// sums runtime_ms, so idempotency rests on the aggregate trigger
+		// being AFTER INSERT: Postgres does not fire it for rows suppressed
+		// by ON CONFLICT (id) DO NOTHING. Concurrent replicas and backfill
+		// re-runs both take this path.
+		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
+		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
+
 		// A different event type on the same day gets its own daily row.
 		insert("hb-seats-1", "hb_ai_seats_v1", `{"count": 3}`, day2)
 		rows := getDailyRows(ctx, sqlDB)
