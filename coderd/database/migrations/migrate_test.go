@@ -1800,6 +1800,71 @@ func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
 	require.Equal(t, "password", gotLoginType)
 }
 
+// TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn reproduces
+// the production upgrade path, where every pending migration in a deploy
+// runs inside a single transaction (see pgTxnDriver). 000558 adds
+// 'oauth2_provider_settings' to the resource_type enum via ALTER TYPE ...
+// ADD VALUE. Postgres forbids using an enum value added by ADD VALUE within
+// the same transaction that added it, so this confirms the audit write path
+// (a separate transaction, exactly like commitAudit() performs it for a real
+// PUT to the DCR settings endpoint) can use the new value immediately after
+// the migration transaction commits, and that pre-existing audit data from
+// before the upgrade survives untouched.
+func TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Apply everything through 557 and commit, simulating a deployment
+	// that was already running the previous release, with real
+	// pre-existing audit data, before the upgrade that adds 558.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 557)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	preUpgradeLogID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO audit_logs (
+			id, time, user_id, organization_id, resource_type, resource_id,
+			resource_target, action, diff, status_code, additional_fields,
+			request_id, resource_icon
+		) VALUES (
+			$1, $2, $3, $4, 'oauth2_provider_app', $5, 'pre-upgrade-app',
+			'write', '{}', 200, '{}', $6, ''
+		)`,
+		preUpgradeLogID, now, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+	)
+	require.NoError(t, err)
+
+	// Apply 558 in the same single transaction production uses for the
+	// whole pending batch.
+	applyMigrationsInTxn(ctx, t, sqlDB, 558, 558)
+
+	// Pre-existing audit data survives the upgrade untouched.
+	var resourceTarget string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT resource_target FROM audit_logs WHERE id = $1`, preUpgradeLogID,
+	).Scan(&resourceTarget)
+	require.NoError(t, err)
+	require.Equal(t, "pre-upgrade-app", resourceTarget)
+
+	// The new enum value is usable immediately after the migration
+	// transaction commits, in a separate transaction, exactly like a real
+	// PUT to the DCR settings endpoint would write it.
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO audit_logs (
+			id, time, user_id, organization_id, resource_type, resource_id,
+			resource_target, action, diff, status_code, additional_fields,
+			request_id, resource_icon
+		) VALUES (
+			$1, $2, $3, $4, 'oauth2_provider_settings', $5, '', 'write',
+			'{}', 200, '{}', $6, ''
+		)`,
+		uuid.New(), now, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+	)
+	require.NoError(t, err)
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 
