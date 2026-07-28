@@ -90,7 +90,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 											destructive
 										</span>
 									)
-								: "Renaming your workspace can be destructive and is disabled by the template.",
+								: "Renaming your workspace can be destructive, and is not enabled for this deployment. Contact your Coder administrator if you need it.",
 						})}
 						label="Name"
 						disabled={!workspace.allow_renames || form.isSubmitting}
