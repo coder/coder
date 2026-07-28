@@ -424,7 +424,7 @@ export const ParentAgentApps: Story = {
 	},
 };
 
-// An external app with an unparseable URL must not crash the table. Its icon
+// An external app with an unparsable URL must not crash the table. Its icon
 // renders as a non-navigating button with an explanatory label instead of a
 // broken link.
 export const InvalidAppUrl: Story = {
@@ -450,7 +450,7 @@ export const InvalidAppUrl: Story = {
 											display_name: "Broken App",
 											health: "healthy",
 											external: true,
-											// A bare string with no scheme is unparseable
+											// A bare string with no scheme is unparsable
 											// by the URL constructor.
 											url: "my-repo",
 										},
