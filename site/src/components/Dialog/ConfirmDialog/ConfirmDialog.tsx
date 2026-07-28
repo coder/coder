@@ -38,7 +38,7 @@ export interface ConfirmDialogProps {
 	readonly title: string;
 	readonly open: boolean;
 	readonly onClose: () => void;
-	readonly description?: ReactNode;
+	readonly description: ReactNode;
 	readonly cancelText?: string;
 	readonly confirmText?: ReactNode;
 	readonly confirmLoading?: boolean;
@@ -89,19 +89,14 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
-				// Radix defaults aria-describedby to a descriptionId that dangles
-				// (and warns) without a DialogDescription, so opt out when absent.
-				{...(!description && { "aria-describedby": undefined })}
 			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
-					{description && (
-						<DialogDescription asChild>
-							<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
-								{description}
-							</div>
-						</DialogDescription>
-					)}
+					<DialogDescription asChild>
+						<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
+							{description}
+						</div>
+					</DialogDescription>
 				</DialogHeader>
 
 				<DialogFooter>
