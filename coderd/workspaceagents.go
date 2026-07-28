@@ -1405,17 +1405,11 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	// Bound the writes so that connection log backpressure (e.g. a
 	// wedged database write) cannot stall tunnel establishment. Losing
 	// a log row under extreme backpressure is preferable to refusing
-	// tunnels; the errors below record the loss.
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	// The connection log enqueue gets its own budget so that a slow
-	// audit session upsert cannot exhaust the deadline before the
-	// enqueue runs. Without this, the session row would be committed
-	// with no log row written, and the active session would suppress
-	// retries for the entire stale interval. WithoutCancel keeps the
-	// enqueue alive if the client disconnects mid-handshake.
-	logCtx, logCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-	defer logCancel()
+	// tunnels; the errors below record the loss. Both writes share
+	// this budget: if the session upsert consumes it, the log row is
+	// dropped and not retried until the session goes stale.
+	writeCtx, writeCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer writeCancel()
 	userAgent := r.UserAgent()
 	now := dbtime.Now()
 
@@ -1437,8 +1431,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		staleInterval = time.Hour
 	}
 	// nolint:gocritic // System context is needed to write audit sessions.
-	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
-	newOrStale, err := api.Database.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
+	newSession, err := api.Database.UpsertWorkspaceAppAuditSession(dbauthz.AsSystemRestricted(writeCtx), database.UpsertWorkspaceAppAuditSessionParams{
 		// Config.
 		StaleIntervalMS: staleInterval.Milliseconds(),
 
@@ -1465,14 +1458,14 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		// with the database.
 		return
 	}
-	if !newOrStale {
+	if !newSession {
 		// An active session for this key was already logged; this
 		// handshake is a reconnection.
 		return
 	}
 
 	connLogger := *api.ConnectionLogger.Load()
-	err = connLogger.Upsert(logCtx, database.UpsertConnectionLogParams{
+	err = connLogger.Upsert(writeCtx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             now,
 		OrganizationID:   waws.WorkspaceTable.OrganizationID,
