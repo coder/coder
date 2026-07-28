@@ -1715,6 +1715,39 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Export organization AI spend as CSV
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend/export \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/ai/spend/export`
+
+Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
+An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+Requires organization-level administrator permissions.
+
+### Parameters
+
+| Name           | In    | Type              | Required | Description                     |
+|----------------|-------|-------------------|----------|---------------------------------|
+| `organization` | path  | string(uuid)      | true     | Organization ID                 |
+| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
+| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples

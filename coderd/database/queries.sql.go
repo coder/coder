@@ -2525,6 +2525,108 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 	return i, err
 }
 
+const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
+	ai.model AS model,
+	ai.provider AS provider,
+	ai.provider_name AS provider_name,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	organizations.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+`
+
+type ExportOrganizationAISpendParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type ExportOrganizationAISpendRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
+	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
+	GroupName        string        `db:"group_name" json:"group_name"`
+	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OrganizationName string        `db:"organization_name" json:"organization_name"`
+	Model            string        `db:"model" json:"model"`
+	Provider         string        `db:"provider" json:"provider"`
+	ProviderName     string        `db:"provider_name" json:"provider_name"`
+	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+}
+
+// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+// @organization_id over the [period_start, period_end) window. Spend is
+// attributed through the token usage's effective group, and rows are bucketed
+// by the token usage created_at, matching how ai_user_daily_spend is derived.
+func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportOrganizationAISpendRow
+	for rows.Next() {
+		var i ExportOrganizationAISpendRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.GroupID,
+			&i.GroupName,
+			&i.OrganizationID,
+			&i.OrganizationName,
+			&i.Model,
+			&i.Provider,
+			&i.ProviderName,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
