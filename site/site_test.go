@@ -303,6 +303,33 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	// THEN: createWorkspace = false because the user belongs to no
 	// organization, so the any_org check has no memberships to satisfy it.
 	assert.False(t, permsWithoutRole["createWorkspace"], "user without an org membership should have createWorkspace = false")
+
+	// GIVEN: an org member whose only membership carries the
+	// workspace-creation ban role.
+	bannedUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         bannedUser.ID,
+		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
+	})
+	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    bannedUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, bannedToken)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createWorkspace = false because the ban's negative permission
+	// overrides the create permission granted by org membership.
+	var bannedPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &bannedPerms)
+	require.NoError(t, err)
+	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
