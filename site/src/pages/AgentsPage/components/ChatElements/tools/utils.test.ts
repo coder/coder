@@ -12,7 +12,6 @@ import {
 	formatShellDurationMs,
 	formatToolInput,
 	getDiffViewerOptions,
-	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsMinimal,
 	getFileViewerOptionsNoHeader,
@@ -432,78 +431,6 @@ describe("getFileViewerOptionsMinimal", () => {
 		expect(opts.disableFileHeader).toBe(true);
 		expect(opts.disableLineNumbers).toBe(true);
 		expect(opts.themeType).toBe("light");
-	});
-});
-
-describe("getFileContentForViewer", () => {
-	it("returns null for unsupported tool names", () => {
-		expect(getFileContentForViewer("write_file", {}, {})).toBeNull();
-		expect(getFileContentForViewer("search", {}, {})).toBeNull();
-	});
-
-	describe("execute tool", () => {
-		it("returns output with shell path and disabled header/line numbers", () => {
-			const result = getFileContentForViewer(
-				"execute",
-				{},
-				{ output: "ls -la" },
-			);
-			expect(result).toEqual({
-				path: "output.sh",
-				content: "ls -la",
-				disableHeader: true,
-				disableLineNumbers: true,
-			});
-		});
-
-		it("returns null when result is not a record", () => {
-			expect(getFileContentForViewer("execute", {}, "string")).toBeNull();
-		});
-
-		it("returns null when output is empty", () => {
-			expect(
-				getFileContentForViewer("execute", {}, { output: "  " }),
-			).toBeNull();
-		});
-	});
-
-	describe("read_file tool", () => {
-		it("returns path and content from args and result", () => {
-			const args = { path: "/src/main.ts" };
-			const result = { content: "const x = 1;" };
-			const out = getFileContentForViewer("read_file", args, result);
-			expect(out).toEqual({
-				path: "/src/main.ts",
-				content: "const x = 1;",
-			});
-		});
-
-		it("parses JSON string args", () => {
-			const args = JSON.stringify({ path: "/foo.ts" });
-			const result = { content: "hello" };
-			expect(getFileContentForViewer("read_file", args, result)).toEqual({
-				path: "/foo.ts",
-				content: "hello",
-			});
-		});
-
-		it("returns null when path is missing", () => {
-			expect(
-				getFileContentForViewer("read_file", {}, { content: "hello" }),
-			).toBeNull();
-		});
-
-		it("returns null when content is empty", () => {
-			expect(
-				getFileContentForViewer("read_file", { path: "/x" }, { content: "" }),
-			).toBeNull();
-		});
-
-		it("returns null when result is not a record", () => {
-			expect(
-				getFileContentForViewer("read_file", { path: "/x" }, "not record"),
-			).toBeNull();
-		});
 	});
 });
 

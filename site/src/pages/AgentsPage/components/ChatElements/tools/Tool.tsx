@@ -23,7 +23,6 @@ import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -47,8 +46,6 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
-	getFileContentForViewer,
-	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
@@ -310,18 +307,6 @@ const WaitForExternalAuthRenderer: FC<ToolRendererProps> = ({
 		/>
 	);
 };
-
-const ReadFileRenderer: FC<ToolRendererProps> = ({
-	status,
-	args,
-	result,
-	isError,
-}) => (
-	<ReadFileTool
-		{...getReadFileToolData({ args, result, isError })}
-		status={status}
-	/>
-);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -884,30 +869,21 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 
 type GenericToolContentProps = {
 	toolInput: string | null;
-	fileContent: ReturnType<typeof getFileContentForViewer>;
-	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
 	isDark: boolean;
 	resultOutput: string | null;
 };
 
 const GenericToolContent: FC<GenericToolContentProps> = ({
 	toolInput,
-	fileContent,
-	fileContentOptions,
 	isDark,
 	resultOutput,
 }) => {
-	const output = fileContent
+	const output = resultOutput
 		? {
-				file: { name: fileContent.path, contents: fileContent.content },
-				options: fileContentOptions,
+				file: { name: "output.json", contents: resultOutput },
+				options: getFileViewerOptionsNoHeader(isDark),
 			}
-		: resultOutput
-			? {
-					file: { name: "output.json", contents: resultOutput },
-					options: getFileViewerOptionsNoHeader(isDark),
-				}
-			: undefined;
+		: undefined;
 
 	return (
 		<>
@@ -954,22 +930,13 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
-	const fileContent = getFileContentForViewer(name, args, result);
-	const fileViewerOpts = getFileViewerOptions(isDark);
-	const fileContentOptions = fileContent
-		? {
-				...fileViewerOpts,
-				disableFileHeader: fileContent.disableHeader,
-				disableLineNumbers: fileContent.disableLineNumbers,
-			}
-		: fileViewerOpts;
 
 	// Look up MCP server config for icon and slug.
 	const mcpServer = mcpServerConfigId
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(toolInput || fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || resultOutput);
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	const fallbackErrorMessage = getGenericToolErrorMessage({
@@ -1004,8 +971,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			<ToolCall.Content>
 				<GenericToolContent
 					toolInput={toolInput}
-					fileContent={fileContent}
-					fileContentOptions={fileContentOptions}
 					isDark={isDark}
 					resultOutput={resultOutput}
 				/>
@@ -1066,7 +1031,6 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
 	wait_for_external_auth: WaitForExternalAuthRenderer,
-	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,

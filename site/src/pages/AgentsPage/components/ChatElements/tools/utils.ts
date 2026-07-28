@@ -426,56 +426,6 @@ export const DIFFS_FONT_STYLE = {
 };
 
 /**
- * Checks whether a tool result should be rendered as a syntax-highlighted
- * file viewer. Returns the file path, content, and whether the header
- * should be hidden.
- */
-export const getFileContentForViewer = (
-	toolName: string,
-	args: unknown,
-	result: unknown,
-): {
-	path: string;
-	content: string;
-	disableHeader?: boolean;
-	disableLineNumbers?: boolean;
-} | null => {
-	if (toolName === "execute") {
-		const rec = asRecord(result);
-		if (!rec) {
-			return null;
-		}
-		const output = asString(rec.output).trim();
-		if (!output) {
-			return null;
-		}
-		return {
-			path: "output.sh",
-			content: output,
-			disableHeader: true,
-			disableLineNumbers: true,
-		};
-	}
-	if (toolName !== "read_file") {
-		return null;
-	}
-	const parsed = parseArgs(args);
-	const path = parsed ? asString(parsed.path).trim() : "";
-	if (!path) {
-		return null;
-	}
-	const rec = asRecord(result);
-	if (!rec) {
-		return null;
-	}
-	const content = asString(rec.content).trim();
-	if (!content) {
-		return null;
-	}
-	return { path, content };
-};
-
-/**
  * Parses a unified-diff string (with an optional SVN `Index:`
  * banner) into the first FileDiffMetadata it contains. Returns
  * null when the input is empty or the parser produces no files.

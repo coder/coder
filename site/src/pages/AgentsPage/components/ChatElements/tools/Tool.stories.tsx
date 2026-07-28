@@ -14,6 +14,7 @@ import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
+import { ReadFileTool } from "./ReadFileTool";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -104,11 +105,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		name: "wait_for_external_auth",
 		args: { provider: "github" },
 		result: { provider_display_name: "GitHub", authenticated: true },
-	},
-	{
-		name: "read_file",
-		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
-		result: { content: "export const AgentChatPage = () => null;" },
 	},
 	{
 		name: "write_file",
@@ -235,13 +231,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		args: { prompt: "Inspect the UI." },
 		result: { chat_id: "desktop-child", status: "completed" },
 		subagentVariants: new Map([["desktop-child", "computer_use"]]),
-	},
-	{
-		name: "read_file",
-		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
-		status: "error",
-		isError: true,
-		result: { error: "File not found" },
 	},
 	{
 		name: "create_workspace",
@@ -2341,27 +2330,17 @@ const tallWideFileContent = [
 	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
 ].join("\n");
 
-export const ReadFileLongLine: Story = {
-	args: {
-		name: "read_file",
-		args: { path: "site/src/config.ts" },
-		result: { content: longCodeLine },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /Read config.ts/i }),
-		);
-		await expectDiffText(canvasElement, "apiUrl");
-	},
-};
-
+// read_file has no renderer registry entry; the timeline mounts ReadFileTool
+// directly.
 export const ReadFileTallAndWide: Story = {
-	args: {
-		name: "read_file",
-		args: { path: "site/src/config.ts" },
-		result: { content: tallWideFileContent },
-	},
+	render: () => (
+		<ReadFileTool
+			path="site/src/config.ts"
+			content={tallWideFileContent}
+			status="completed"
+			isError={false}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(

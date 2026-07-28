@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { groupSequentialReadFileBlocks } from "./blockUtils";
+import { toTimelineBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	buildDisplayMessages,
@@ -291,11 +291,7 @@ export const BlockList: FC<{
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
-	const displayBlocks = groupSequentialReadFileBlocks(
-		blocks,
-		tools,
-		isStreaming,
-	);
+	const displayBlocks = toTimelineBlocks(blocks, tools, isStreaming);
 
 	return (
 		<>

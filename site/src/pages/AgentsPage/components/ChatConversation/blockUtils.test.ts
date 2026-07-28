@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	appendTextBlock,
 	asNonEmptyString,
-	groupSequentialReadFileBlocks,
+	toTimelineBlocks,
 } from "./blockUtils";
 import type { MergedTool, RenderBlock } from "./types";
 
@@ -101,7 +101,7 @@ describe("appendTextBlock", () => {
 	});
 });
 
-describe("groupSequentialReadFileBlocks", () => {
+describe("toTimelineBlocks", () => {
 	const tool = (id: string, name = "read_file"): MergedTool => ({
 		id,
 		name,
@@ -111,12 +111,13 @@ describe("groupSequentialReadFileBlocks", () => {
 	const tools = [tool("read-1"), tool("read-2"), tool("execute-1", "execute")];
 
 	it("collapses consecutive read_file tool blocks", () => {
-		const result = groupSequentialReadFileBlocks(
+		const result = toTimelineBlocks(
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "read-2" },
 			],
 			tools,
+			false,
 		);
 
 		expect(result).toEqual([
@@ -125,9 +126,10 @@ describe("groupSequentialReadFileBlocks", () => {
 	});
 
 	it("emits a single read_file tool block as a one-file group", () => {
-		const result = groupSequentialReadFileBlocks(
+		const result = toTimelineBlocks(
 			[{ type: "tool", id: "read-1" }],
 			tools,
+			false,
 		);
 
 		expect(result).toEqual([{ type: "read-files", tools: [tool("read-1")] }]);
@@ -175,16 +177,12 @@ describe("groupSequentialReadFileBlocks", () => {
 	] satisfies Array<
 		[string, RenderBlock[], unknown]
 	>)("does not collapse read_file blocks across %s", (_, blocks, expected) => {
-		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(expected);
+		expect(toTimelineBlocks(blocks, tools, false)).toEqual(expected);
 	});
 
 	it("renders a block whose tool has not arrived yet as pending", () => {
 		expect(
-			groupSequentialReadFileBlocks(
-				[{ type: "tool", id: "missing" }],
-				tools,
-				true,
-			),
+			toTimelineBlocks([{ type: "tool", id: "missing" }], tools, true),
 		).toEqual([
 			{
 				type: "tool",

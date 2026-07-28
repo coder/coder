@@ -38,10 +38,10 @@ type TimelineBlock =
 
 // An id with no tool means its call has not arrived: pending while streaming,
 // dropped once settled.
-export const groupSequentialReadFileBlocks = (
+export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-	isStreaming = false,
+	isStreaming: boolean,
 ): TimelineBlock[] => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const grouped: TimelineBlock[] = [];
