@@ -423,6 +423,7 @@ export const BlockList: FC<{
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
+								resultRaw={tool.resultRaw}
 								status={tool.status}
 								killedBySignal={tool.killedBySignal}
 								shellToolDisplayMode={shellToolDisplayMode}
@@ -482,6 +483,7 @@ export const BlockList: FC<{
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
+					resultRaw={tool.resultRaw}
 					status={tool.status}
 					killedBySignal={tool.killedBySignal}
 					shellToolDisplayMode={shellToolDisplayMode}

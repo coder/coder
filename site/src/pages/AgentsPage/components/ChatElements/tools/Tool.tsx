@@ -63,6 +63,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
+	/** Accumulated result text before parsing, set while result deltas stream. */
+	resultRaw?: string;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
@@ -97,6 +99,7 @@ type ToolRendererProps = {
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
+	resultRaw?: string;
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -373,7 +376,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 			workspaceName={wsName}
 			resultJson={resultJson}
 			status={rec?.error ? "error" : status}
-			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			errorMessage={rec ? asString(rec.error) : undefined}
 			buildId={buildId}
 			created={created}
 			labelOverride={quotaTitle}
@@ -631,29 +634,36 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
+const AdvisorRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	resultRaw,
+}) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
 	const rec = asRecord(result);
 	const rawResultType = rec ? asString(rec.type) : "";
-	const hasError = status === "error";
-	const advice = rec
-		? asString(rec.advice)
-		: typeof result === "string" && !hasError
-			? result
-			: undefined;
-	const adviceText = (advice ?? "").trim();
-	const resolvedResultType: AdvisorToolResultType | undefined =
+	const envelopeType: AdvisorToolResultType | undefined =
 		rawResultType === "advice" ||
 		rawResultType === "limit_reached" ||
 		rawResultType === "error"
 			? rawResultType
-			: adviceText
-				? "advice"
-				: undefined;
+			: undefined;
+	// Streamed advice is re-parsed on every chunk, so prose opening with a
+	// JSON object accretes into a record carrying no advice. Outside a real
+	// envelope the accumulated text is the advice.
+	const advice = envelopeType
+		? asString(rec?.advice)
+		: status === "error"
+			? undefined
+			: (resultRaw ?? (typeof result === "string" ? result : undefined));
+	const adviceText = (advice ?? "").trim();
+	const resolvedResultType =
+		envelopeType ?? (adviceText ? "advice" : undefined);
 	const errorMessage =
 		(rec ? asString(rec.error || rec.message) : "") ||
-		(typeof result === "string" && hasError ? result : "");
+		(typeof result === "string" && status === "error" ? result : "");
 	const advisorModel = rec ? asString(rec.advisor_model) : "";
 	const remainingUses = rec
 		? asNumber(rec.remaining_uses, { parseString: true })
@@ -918,7 +928,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 			status={rec?.error ? "error" : status}
 			buildId={buildId}
 			workspaceName={wsName}
-			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			errorMessage={rec ? asString(rec.error) : undefined}
 			noBuild={noBuild}
 			labelOverride={quotaTitle}
 		/>
@@ -961,6 +971,7 @@ export const Tool = memo(
 		status = "completed",
 		args,
 		result,
+		resultRaw,
 		killedBySignal,
 		subagentTitles,
 		subagentVariants,
@@ -1005,6 +1016,7 @@ export const Tool = memo(
 					status={status}
 					args={args}
 					result={result}
+					resultRaw={resultRaw}
 					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}

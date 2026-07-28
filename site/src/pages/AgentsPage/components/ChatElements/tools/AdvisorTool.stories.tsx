@@ -152,6 +152,25 @@ export const RunningWithErrorShapedPartial: Story = {
 	},
 };
 
+/** Prose opening with a JSON object partially parses into a record. */
+export const RunningWithProseThatParsesAsRecord: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		result: { key: "value" },
+		resultRaw: '{"key": "value"} is the shape you want.',
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText('{"key": "value"} is the shape you want.'),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Reviewing context and preparing guidance."),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const LimitReached: Story = {
 	args: {
 		status: "completed",
