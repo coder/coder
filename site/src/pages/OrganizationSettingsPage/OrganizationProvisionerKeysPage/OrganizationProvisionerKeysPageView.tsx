@@ -6,7 +6,6 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
@@ -23,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -77,14 +77,10 @@ export const OrganizationProvisionerKeysPageView: FC<
 					<TableBody>
 						{filteredProvisionerKeyDaemons ? (
 							filteredProvisionerKeyDaemons.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={5}>
-										<EmptyState
-											message="No provisioner keys"
-											description="Create your first provisioner key to authenticate external provisioner daemons."
-										/>
-									</TableCell>
-								</TableRow>
+								<TableEmpty
+									message="No provisioner keys"
+									description="Create your first provisioner key to authenticate external provisioner daemons."
+								/>
 							) : (
 								filteredProvisionerKeyDaemons.map((pkd) => (
 									<ProvisionerKeyRow
@@ -96,18 +92,14 @@ export const OrganizationProvisionerKeysPageView: FC<
 								))
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={5}>
-									<EmptyState
-										message="Error loading provisioner keys"
-										cta={
-											<Button onClick={onRetry} size="sm">
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading provisioner keys"
+								cta={
+									<Button onClick={onRetry} size="sm">
+										Retry
+									</Button>
+								}
+							/>
 						) : (
 							<TableRow>
 								<TableCell colSpan={999}>
