@@ -17,6 +17,7 @@ const meta: Meta<typeof ModelRow> = {
 		providerLabel: "OpenAI",
 		providerTypeByID,
 		hasProvider: true,
+		providerEnabled: true,
 		onClick: () => {},
 	},
 	render: (args) => (
@@ -31,7 +32,7 @@ const meta: Meta<typeof ModelRow> = {
 export default meta;
 type Story = StoryObj<typeof ModelRow>;
 
-// Baseline: an enabled model with a connected provider renders the provider
+// Baseline: an enabled model with an enabled provider renders the provider
 // label and an "Enabled" badge.
 export const WithProvider: Story = {
 	play: async ({ canvasElement }) => {
@@ -50,6 +51,7 @@ export const WithoutProviderForcesDisabled: Story = {
 		model: { ...mockClaude, enabled: true },
 		providerLabel: "",
 		hasProvider: false,
+		providerEnabled: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -59,14 +61,34 @@ export const WithoutProviderForcesDisabled: Story = {
 	},
 };
 
-// A disabled model with a provider keeps its provider label but stays
-// "Disabled". This exercises the enabled=false path so the "Unset" wording
-// is only tied to the missing provider case.
-export const DisabledWithProvider: Story = {
+// When the provider exists but is disabled, the label still renders (the
+// provider is set) but the status collapses to "Disabled" because the model
+// is not usable.
+export const DisabledProviderForcesDisabled: Story = {
+	args: {
+		model: { ...mockClaude, enabled: true, is_default: false },
+		providerLabel: "Anthropic",
+		hasProvider: true,
+		providerEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Anthropic")).toBeInTheDocument();
+		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();
+	},
+};
+
+// A disabled model with an enabled provider keeps its provider label but
+// stays "Disabled". This exercises the enabled=false path so the "Unset"
+// wording is only tied to the missing provider case.
+export const DisabledModelWithProvider: Story = {
 	args: {
 		model: { ...mockClaude, enabled: false, is_default: false },
 		providerLabel: "Anthropic",
 		hasProvider: true,
+		providerEnabled: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

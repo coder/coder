@@ -145,6 +145,19 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		return map;
 	}, [providerStates]);
 
+	const modelProviderEnabledById = useMemo(() => {
+		const map = new Map<string, boolean>();
+		for (const providerState of providerStates) {
+			for (const providerModel of providerState.modelConfigs) {
+				map.set(
+					providerModel.id,
+					providerState.providerConfig?.enabled === true,
+				);
+			}
+		}
+		return map;
+	}, [providerStates]);
+
 	const filteredModels = useMemo(() => {
 		const normalizedQuery = searchQuery.trim().toLowerCase();
 		return models.filter((model) => {
@@ -281,6 +294,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
 								hasProvider={modelHasProviderById.get(model.id) ?? false}
+								providerEnabled={
+									modelProviderEnabledById.get(model.id) ?? false
+								}
 								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
 							/>
 						))

@@ -12,6 +12,7 @@ type ModelRowProps = {
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
 	hasProvider: boolean;
+	providerEnabled: boolean;
 	onClick: () => void;
 };
 
@@ -27,12 +28,14 @@ export const ModelRow: FC<ModelRowProps> = ({
 	providerLabel,
 	providerTypeByID,
 	hasProvider,
+	providerEnabled,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
-	// Models without a provider should always be shown as disabled
-	const isEffectivelyEnabled = model.enabled && hasProvider;
+	// Models whose provider is missing or disabled cannot be used, so the
+	// status column reflects that regardless of the persisted enabled flag.
+	const isEffectivelyEnabled = model.enabled && hasProvider && providerEnabled;
 
 	return (
 		<TableRow {...clickableProps}>
