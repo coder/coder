@@ -53,13 +53,34 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // and headers. It understands both the top-level `{"message":...}` shape
 // used by many providers and the nested `{"error":{"message":...}}`
 // envelope. When the extracted message is itself an SDK-formatted transport
-// error wrapper, the clean inner provider message is returned.
+// error wrapper, the clean inner provider message is returned. Non-JSON
+// bodies (e.g. aibridge's plain-text budget errors) fall back to the first
+// line of the body unless it looks like markup.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
 	body := providerErrorResponseBody(responseDump)
-	return unwrapTransportErrorMessage(jsonErrorMessage(body))
+	if msg := unwrapTransportErrorMessage(jsonErrorMessage(body)); msg != "" {
+		return msg
+	}
+	return plainTextErrorMessage(body)
+}
+
+// plainTextErrorMessage returns the first line of a plain-text error body,
+// trimmed and capped. Markup bodies (HTML error pages from proxies and load
+// balancers) are skipped because the result is user-facing.
+func plainTextErrorMessage(body []byte) string {
+	const maxLen = 512
+	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "<") {
+		return ""
+	}
+	if len(line) > maxLen {
+		line = line[:maxLen]
+	}
+	return line
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an

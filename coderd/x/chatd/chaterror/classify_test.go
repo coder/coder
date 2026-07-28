@@ -1431,10 +1431,116 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 		"  image exceeds 5 MB maximum  ",
 		400,
 		nil,
-		testProviderResponseDump("not-json"),
 	))
 
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
+	t.Parallel()
+
+	// aibridge returns its budget error as a plain-text 403. The Anthropic
+	// adapter's Message is the SDK transport string without the body, so
+	// the budget text is only present in the dumped ResponseBody. It must
+	// still classify as a usage limit, not auth.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://api.example.com/v1/messages": 403 Forbidden`,
+		403,
+		nil,
+		[]byte("HTTP/1.1 403 Forbidden\r\n"+
+			"Content-Type: text/plain; charset=utf-8\r\n"+
+			"X-Content-Type-Options: nosniff\r\n"+
+			"\r\n"+
+			"AI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t,
+		"AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
+		classified.Detail)
+}
+
+func TestClassify_UsesPlainTextBodyForDetail(t *testing.T) {
+	t.Parallel()
+
+	// A non-JSON body is still the provider's actual response, so prefer
+	// it over the SDK-constructed Message.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://example.com/api": 400 Bad Request`,
+		400,
+		nil,
+		testProviderResponseDump("upstream rejected the request\n"),
+	))
+
+	require.Equal(t, "upstream rejected the request", classified.Detail)
+}
+
+func TestClassify_SkipsHTMLBodyForDetail(t *testing.T) {
+	t.Parallel()
+
+	// Proxies and load balancers return HTML error pages; those are not
+	// user-facing details, so fall back to the provider message.
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		502,
+		nil,
+		testProviderResponseDump("<html><body>502 Bad Gateway</body></html>"),
+	))
+
+	require.Equal(t, "upstream failed", classified.Detail)
+}
+
+func TestClassify_SkipsWhitespaceOnlyBodyForDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		400,
+		nil,
+		testProviderResponseDump("  \n\t\n"),
+	))
+
+	require.Equal(t, "upstream failed", classified.Detail)
+}
+
+func TestClassify_PlainTextBodyUsesFirstLineOnly(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump("first line of the error\nsecond line\nthird line\n"),
+	))
+
+	require.Equal(t, "first line of the error", classified.Detail)
+}
+
+func TestClassify_PrefersJSONEnvelopeOverPlainTextFallback(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"nested wins"}}`),
+	))
+
+	require.Equal(t, "nested wins", classified.Detail)
+}
+
+func TestClassify_CapsPlainTextBodyFallback(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(strings.Repeat("y", 2048)),
+	))
+
+	require.LessOrEqual(t, len(classified.Detail), 512)
 }
 
 func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
