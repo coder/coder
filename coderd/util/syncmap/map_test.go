@@ -81,11 +81,12 @@ func TestLoadOrStoreConcurrent(t *testing.T) {
 	start.Add(1)
 	done.Add(goroutines)
 	winners := make([]*atomic.Int32, goroutines)
+	loadedFlags := make([]bool, goroutines)
 	for i := range goroutines {
 		go func() {
 			defer done.Done()
 			start.Wait()
-			winners[i], _ = m.LoadOrStore("key", &atomic.Int32{})
+			winners[i], loadedFlags[i] = m.LoadOrStore("key", &atomic.Int32{})
 		}()
 	}
 	start.Done()
@@ -93,9 +94,14 @@ func TestLoadOrStoreConcurrent(t *testing.T) {
 
 	stored, ok := m.Load("key")
 	require.True(t, ok)
+	stores := 0
 	for i, winner := range winners {
 		require.Same(t, stored, winner, "goroutine %d observed a different value than the map holds", i)
+		if !loadedFlags[i] {
+			stores++
+		}
 	}
+	require.Equal(t, 1, stores, "exactly one goroutine should store")
 }
 
 func TestLoadAndDelete(t *testing.T) {
@@ -217,4 +223,67 @@ func TestRange(t *testing.T) {
 		return false
 	})
 	require.Equal(t, 1, visited, "returning false must stop iteration")
+}
+
+// TestNilInterfaceValue covers an interface value type holding nil.
+// sync.Map stores it as a nil `any`, which cannot be type-asserted, so
+// every read path has to return the zero V instead of panicking.
+func TestNilInterfaceValue(t *testing.T) {
+	t.Parallel()
+
+	var nilErr error
+
+	t.Run("LoadOrStore", func(t *testing.T) {
+		t.Parallel()
+
+		m := syncmap.New[string, error]()
+		actual, loaded := m.LoadOrStore("key", nilErr)
+		require.False(t, loaded)
+		require.NoError(t, actual)
+	})
+
+	t.Run("Load", func(t *testing.T) {
+		t.Parallel()
+
+		m := syncmap.New[string, error]()
+		m.Store("key", nilErr)
+		v, ok := m.Load("key")
+		require.True(t, ok, "a stored nil is still a present key")
+		require.NoError(t, v)
+	})
+
+	t.Run("LoadAndDelete", func(t *testing.T) {
+		t.Parallel()
+
+		m := syncmap.New[string, error]()
+		m.Store("key", nilErr)
+		v, loaded := m.LoadAndDelete("key")
+		require.True(t, loaded)
+		require.NoError(t, v)
+	})
+
+	t.Run("Swap", func(t *testing.T) {
+		t.Parallel()
+
+		m := syncmap.New[string, error]()
+		m.Store("key", nilErr)
+		previous, loaded := m.Swap("key", nilErr)
+		require.True(t, loaded)
+		require.NoError(t, previous)
+	})
+
+	t.Run("Range", func(t *testing.T) {
+		t.Parallel()
+
+		m := syncmap.New[string, error]()
+		m.Store("key", nilErr)
+		visited := 0
+		m.Range(func(key string, value error) bool {
+			visited++
+			require.Equal(t, "key", key)
+			require.NoError(t, value)
+			return true
+		})
+		require.Equal(t, 1, visited)
+	})
 }
