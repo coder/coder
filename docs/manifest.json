@@ -2154,6 +2154,11 @@
 							"path": "reference/cli/secret_update.md"
 						},
 						{
+							"title": "secret import",
+							"description": "Import secrets from a file",
+							"path": "reference/cli/secret_import.md"
+						},
+						{
 							"title": "secret list",
 							"description": "List secrets, or show one by name",
 							"path": "reference/cli/secret_list.md"

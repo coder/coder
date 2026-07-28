@@ -31,6 +31,7 @@ import { prepareQuery } from "#/utils/filters";
 type SelectedUser = {
 	avatar_url?: string;
 	email?: string;
+	name?: string;
 	username: string;
 };
 
@@ -233,7 +234,11 @@ const InnerAutocomplete = <T extends SelectedUser>({
 								<ComboboxItem
 									key={option.username}
 									value={option.username}
-									keywords={[option.username, option.email ?? ""]}
+									keywords={[
+										option.username,
+										option.email ?? "",
+										option.name ?? "",
+									]}
 									className="m-1"
 								>
 									<AvatarData
