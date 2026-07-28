@@ -34,17 +34,21 @@ export const appendTextBlock = (
 type TimelineBlock =
 	| Exclude<RenderBlock, { type: "tool" }>
 	| { type: "tool"; tool: MergedTool }
+	| { type: "pending-tool"; id: string }
 	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
-// An id with no tool means its call has not arrived: pending while streaming,
-// dropped once settled.
+/**
+ * Resolves each tool block's id against `tools` and collapses runs of
+ * consecutive read_file tools into one `read-files` block, so the renderer
+ * switches on shape instead of looking tools up. A block whose call has not
+ * arrived becomes `pending-tool`.
+ */
 export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-	isStreaming: boolean,
 ): TimelineBlock[] => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const grouped: TimelineBlock[] = [];
+	const timeline: TimelineBlock[] = [];
 	let readFileRun: MergedTool[] = [];
 
 	const flushReadFileRun = () => {
@@ -52,31 +56,21 @@ export const toTimelineBlocks = (
 		if (!first) {
 			return;
 		}
-		grouped.push({ type: "read-files", tools: [first, ...rest] });
+		timeline.push({ type: "read-files", tools: [first, ...rest] });
 		readFileRun = [];
 	};
 
 	for (const block of blocks) {
 		if (block.type !== "tool") {
 			flushReadFileRun();
-			grouped.push(block);
+			timeline.push(block);
 			continue;
 		}
 
 		const tool = toolByID.get(block.id);
 		if (!tool) {
 			flushReadFileRun();
-			if (isStreaming) {
-				grouped.push({
-					type: "tool",
-					tool: {
-						id: block.id,
-						name: "Tool",
-						status: "running",
-						isError: false,
-					},
-				});
-			}
+			timeline.push({ type: "pending-tool", id: block.id });
 			continue;
 		}
 		if (tool.name === "read_file") {
@@ -85,9 +79,9 @@ export const toTimelineBlocks = (
 		}
 
 		flushReadFileRun();
-		grouped.push({ type: "tool", tool });
+		timeline.push({ type: "tool", tool });
 	}
 
 	flushReadFileRun();
-	return grouped;
+	return timeline;
 };

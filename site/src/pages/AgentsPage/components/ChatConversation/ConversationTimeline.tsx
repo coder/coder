@@ -291,7 +291,7 @@ export const BlockList: FC<{
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
-	const displayBlocks = toTimelineBlocks(blocks, tools, isStreaming);
+	const displayBlocks = toTimelineBlocks(blocks, tools);
 
 	return (
 		<>
@@ -325,10 +325,7 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-thinking-${index}`}
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
-								isStreaming={
-									// A thinking block is done once newer content follows it.
-									isStreaming && index === displayBlocks.length - 1
-								}
+								isStreaming={isStreaming && index === displayBlocks.length - 1}
 								urlTransform={urlTransform}
 								thinkingDisplayMode={thinkingDisplayMode}
 							/>
@@ -354,6 +351,11 @@ export const BlockList: FC<{
 								tools={block.tools}
 							/>
 						);
+					case "pending-tool":
+						// Kept in place once settled so later blocks keep their index.
+						return isStreaming ? (
+							<Tool key={block.id} name="Tool" status="running" />
+						) : null;
 					case "tool": {
 						const tool = block.tool;
 						return (

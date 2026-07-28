@@ -193,6 +193,9 @@ const mergeReadFileMessageGroup = (
 	};
 };
 
+// This is the only place hidden entries are dropped, so anything driving
+// rendered output must iterate the result rather than the input.
+//
 // Real transcripts place hidden tool-result-only messages between
 // sequential read_file assistant messages. Those hidden entries stay
 // transparent so the visible timeline reflects one file-reading run instead

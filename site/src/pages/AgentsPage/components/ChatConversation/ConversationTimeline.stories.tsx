@@ -2596,6 +2596,54 @@ export const SequentialReadFilesRunningState: Story = {
 	},
 };
 
+/** A read that fails on its own falls back to the generic error copy. */
+export const SingleReadFileErrorState: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-solo-error",
+				path: "site/src/missing-solo.ts",
+				status: "error",
+			}),
+			...buildMessages([
+				{
+					...baseMessage,
+					id: 2,
+					role: "assistant",
+					content: [{ type: "text", text: "Trying the pair instead." }],
+				},
+			]),
+			buildParsedReadFileEntry({
+				messageId: 3,
+				toolId: "read-pair-error-1",
+				path: "site/src/missing-pair-a.ts",
+				status: "error",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 4,
+				toolId: "read-pair-error-2",
+				path: "site/src/missing-pair-b.ts",
+				status: "error",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /read missing-solo\.ts/i }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText("Failed to read file")).toBeVisible();
+		});
+
+		expect(
+			canvas.getByLabelText("Failed to read one or more files"),
+		).toBeInTheDocument();
+	},
+};
+
 /** Collapsed thinking should visually align with adjacent tool calls. */
 export const ThinkingBlockWithToolCall: Story = {
 	parameters: {

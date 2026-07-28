@@ -117,7 +117,6 @@ describe("toTimelineBlocks", () => {
 				{ type: "tool", id: "read-2" },
 			],
 			tools,
-			false,
 		);
 
 		expect(result).toEqual([
@@ -126,11 +125,7 @@ describe("toTimelineBlocks", () => {
 	});
 
 	it("emits a single read_file tool block as a one-file group", () => {
-		const result = toTimelineBlocks(
-			[{ type: "tool", id: "read-1" }],
-			tools,
-			false,
-		);
+		const result = toTimelineBlocks([{ type: "tool", id: "read-1" }], tools);
 
 		expect(result).toEqual([{ type: "read-files", tools: [tool("read-1")] }]);
 	});
@@ -163,7 +158,7 @@ describe("toTimelineBlocks", () => {
 			],
 		],
 		[
-			"an unresolved tool",
+			"an unresolved tool, which becomes its own pending block",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "missing" },
@@ -171,28 +166,19 @@ describe("toTimelineBlocks", () => {
 			],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
+				{ type: "pending-tool", id: "missing" },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
 	] satisfies Array<
-		[string, RenderBlock[], unknown]
+		[string, RenderBlock[], ReturnType<typeof toTimelineBlocks>]
 	>)("does not collapse read_file blocks across %s", (_, blocks, expected) => {
-		expect(toTimelineBlocks(blocks, tools, false)).toEqual(expected);
+		expect(toTimelineBlocks(blocks, tools)).toEqual(expected);
 	});
 
-	it("renders a block whose tool has not arrived yet as pending", () => {
-		expect(
-			toTimelineBlocks([{ type: "tool", id: "missing" }], tools, true),
-		).toEqual([
-			{
-				type: "tool",
-				tool: {
-					id: "missing",
-					name: "Tool",
-					status: "running",
-					isError: false,
-				},
-			},
+	it("emits a block whose tool has not arrived yet as pending", () => {
+		expect(toTimelineBlocks([{ type: "tool", id: "missing" }], tools)).toEqual([
+			{ type: "pending-tool", id: "missing" },
 		]);
 	});
 });

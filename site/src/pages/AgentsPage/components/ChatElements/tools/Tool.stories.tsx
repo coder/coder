@@ -1,13 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -100,11 +92,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		name: "process_signal",
 		args: { process_id: "storybook-process", signal: "terminate" },
 		result: { success: true },
-	},
-	{
-		name: "wait_for_external_auth",
-		args: { provider: "github" },
-		result: { provider_display_name: "GitHub", authenticated: true },
 	},
 	{
 		name: "write_file",
@@ -530,99 +517,6 @@ export const ProcessOutputStringError: Story = {
 		expect(
 			canvas.getByRole("img", { name: "Failed to read process output" }),
 		).toBeVisible();
-	},
-};
-
-export const ExecuteAuthRequired: Story = {
-	args: {
-		result: {
-			auth_required: true,
-			provider_display_name: "GitHub",
-			authenticate_url: "https://coder.example.com/external-auth/github",
-			output:
-				"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", {
-			name: "Authenticate with GitHub",
-		});
-		expect(button).toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "Open authentication link" }),
-		).toHaveAttribute("href", "https://coder.example.com/external-auth/github");
-
-		const openSpy = spyOn(window, "open").mockImplementation(() => null);
-		await userEvent.click(button);
-		expect(openSpy).toHaveBeenCalledWith(
-			"https://coder.example.com/external-auth/github",
-			"_blank",
-			"width=900,height=600",
-		);
-		openSpy.mockRestore();
-	},
-};
-
-// ---------------------------------------------------------------------------
-// WaitForExternalAuth stories
-// ---------------------------------------------------------------------------
-
-export const WaitForExternalAuthRunning: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "running",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Waiting for GitHub authentication..."),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Authentication in progress" }),
-		).toBeVisible();
-	},
-};
-
-export const WaitForExternalAuthAuthenticated: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Authenticated with GitHub")).toBeInTheDocument();
-	},
-};
-
-export const WaitForExternalAuthTimedOut: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			timed_out: true,
-		},
-	},
-};
-
-export const WaitForExternalAuthError: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "error",
-		isError: true,
-		result: {
-			provider_display_name: "GitHub",
-			error: "Authentication failed: token exchange was rejected.",
-		},
 	},
 };
 
@@ -2330,8 +2224,8 @@ const tallWideFileContent = [
 	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
 ].join("\n");
 
-// read_file has no renderer registry entry; the timeline mounts ReadFileTool
-// directly.
+// read_file has no renderer registry entry. ReadFileTimelineBlock mounts
+// ReadFileTool for a single file, minus the tool-call wrapper.
 export const ReadFileTallAndWide: Story = {
 	render: () => (
 		<ReadFileTool

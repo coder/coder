@@ -284,6 +284,28 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 	},
 };
 
+/**
+ * A result part can arrive before its call, leaving a block with no tool. The
+ * row holds its place as a pending card while the stream is live.
+ */
+export const ToolResultBeforeItsCall: Story = {
+	args: {
+		...buildStreamRenderState([
+			{ type: "text", text: "Working on it." },
+			{
+				type: "tool-result",
+				tool_call_id: "tc-unpaired",
+				result_delta: "",
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Tool")).toBeVisible();
+		expect(canvas.getByLabelText("Tool call running")).toBeVisible();
+	},
+};
+
 const editFilesArgs = {
 	files: JSON.stringify([
 		{

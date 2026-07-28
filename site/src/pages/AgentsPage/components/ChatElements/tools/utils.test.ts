@@ -12,7 +12,6 @@ import {
 	formatShellDurationMs,
 	formatToolInput,
 	getDiffViewerOptions,
-	getFileViewerOptions,
 	getFileViewerOptionsMinimal,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
@@ -28,7 +27,6 @@ import {
 	sanitizeExecuteModelIntent,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
-	toProviderLabel,
 } from "./utils";
 
 describe("formatModelIntentLabel", () => {
@@ -80,24 +78,6 @@ describe("sanitizeExecuteModelIntent", () => {
 		expect(
 			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
 		).toBe("Testing using mock data");
-	});
-});
-
-describe("toProviderLabel", () => {
-	it("returns displayName when provided", () => {
-		expect(toProviderLabel("GitHub", "gh-id", "oauth")).toBe("GitHub");
-	});
-
-	it("falls back to providerID when displayName is empty", () => {
-		expect(toProviderLabel("", "gh-id", "oauth")).toBe("gh-id");
-	});
-
-	it("falls back to providerType when displayName and ID are empty", () => {
-		expect(toProviderLabel("", "", "oauth")).toBe("oauth");
-	});
-
-	it("returns default label when all are empty", () => {
-		expect(toProviderLabel("", "", "")).toBe("Git provider");
 	});
 });
 
@@ -396,22 +376,6 @@ describe("getDiffViewerOptions", () => {
 
 	it("returns light theme options", () => {
 		const opts = getDiffViewerOptions(false);
-		expect(opts.themeType).toBe("light");
-		expect(opts.theme).toBe("github-light");
-	});
-});
-
-describe("getFileViewerOptions", () => {
-	it("returns dark theme options", () => {
-		const opts = getFileViewerOptions(true);
-		expect(opts.themeType).toBe("dark");
-		expect(opts.theme).toBe("github-dark-high-contrast");
-		expect(opts.overflow).toBe("scroll");
-		expect(opts.unsafeCSS).toBe(fileViewerCSS);
-	});
-
-	it("returns light theme options", () => {
-		const opts = getFileViewerOptions(false);
 		expect(opts.themeType).toBe("light");
 		expect(opts.theme).toBe("github-light");
 	});
