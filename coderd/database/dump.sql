@@ -2249,17 +2249,17 @@ CREATE TABLE connection_logs (
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
 
-COMMENT ON COLUMN connection_logs.user_agent IS 'Null for agent-reported (SSH) events. For coderd-reported connections (workspace_app, port_forwarding, tunnel), this is the User-Agent header from the request.';
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web connections, this is the User-Agent header from the request.';
 
-COMMENT ON COLUMN connection_logs.user_id IS 'Null for agent-reported (SSH) events. For coderd-reported connections (workspace_app, port_forwarding, tunnel), this is the ID of the user that made the request.';
+COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for agent-reported (SSH) events and tunnel events. For workspace_app events, this is the slug of the app. For port_forwarding events, this is the port number being forwarded.';
+COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.';
 
 COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 
-COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.';
+COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
-COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.';
+COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -3864,7 +3864,7 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     id uuid NOT NULL
 );
 
-COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, ports, and tunnels. The data in this table is ephemeral and is used to deduplicate connection log entries. While a session is active, the same data will not be logged again. This table does not store historical data.';
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
 
 COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that the workspace app or port forward belongs to.';
 

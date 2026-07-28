@@ -5241,17 +5241,17 @@ type ConnectionLog struct {
 	Ip               pqtype.Inet    `db:"ip" json:"ip"`
 	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
 	Code sql.NullInt32 `db:"code" json:"code"`
-	// Null for agent-reported (SSH) events. For coderd-reported connections (workspace_app, port_forwarding, tunnel), this is the User-Agent header from the request.
+	// Null for SSH events. For web connections, this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
-	// Null for agent-reported (SSH) events. For coderd-reported connections (workspace_app, port_forwarding, tunnel), this is the ID of the user that made the request.
+	// Null for SSH events. For web connections, this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
-	// Null for agent-reported (SSH) events and tunnel events. For workspace_app events, this is the slug of the app. For port_forwarding events, this is the port number being forwarded.
+	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
 	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
 	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
 	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
-	// The time the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.
+	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
-	// The reason the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.
+	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 }
 
@@ -6555,7 +6555,7 @@ type WorkspaceApp struct {
 	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
-// Audit sessions for workspace apps, ports, and tunnels. The data in this table is ephemeral and is used to deduplicate connection log entries. While a session is active, the same data will not be logged again. This table does not store historical data.
+// Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
 type WorkspaceAppAuditSession struct {
 	// The agent that the workspace app or port forward belongs to.
 	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
