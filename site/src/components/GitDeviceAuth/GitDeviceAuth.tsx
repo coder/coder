@@ -131,7 +131,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 
 	return (
 		<div>
-			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
+			<div className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
 				<span className="inline-flex items-center">
 					<span className="font-bold text-content-primary">
@@ -145,7 +145,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				</span>
 				<br />
 				Then open the link below and paste it:
-			</p>
+			</div>
 			<div className="m-4 flex flex-col gap-1">
 				<Link
 					className="flex items-center justify-center gap-2 text-base"
