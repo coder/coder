@@ -8,6 +8,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
+)
+
+const (
+	dialValidationDelayTimerTag = "dial-validation-delay"
+	dialTimeoutTimerTag         = "dial-timeout"
 )
 
 // DialResult contains the outcome of dialWithLazyValidation.
@@ -44,6 +50,7 @@ type dialOut struct {
 //     switches to a different agent or retries the current one once.
 func dialWithLazyValidation(
 	ctx context.Context,
+	clock quartz.Clock,
 	agentID uuid.UUID,
 	workspaceID uuid.UUID,
 	dialFn DialFunc,
@@ -110,6 +117,9 @@ func dialWithLazyValidation(
 		case result := <-results:
 			drained = true
 			if result.err != nil {
+				if waitCtx.Err() != nil {
+					return DialResult{}, waitCtx.Err()
+				}
 				return DialResult{}, wrapErr(result.err)
 			}
 			return resultForAgent(agentID, result, false), nil
@@ -141,7 +151,7 @@ func dialWithLazyValidation(
 		return dialAgent(validatedAgentID, true)
 	}
 
-	timer := time.NewTimer(delay)
+	timer := clock.NewTimer(delay, "chatd", dialValidationDelayTimerTag)
 	defer timer.Stop()
 
 	select {
@@ -149,6 +159,9 @@ func dialWithLazyValidation(
 		drained = true
 		if result.err == nil {
 			return resultForAgent(agentID, result, false), nil
+		}
+		if ctx.Err() != nil {
+			return DialResult{}, ctx.Err()
 		}
 		return resolveFastFailure()
 

@@ -2,6 +2,7 @@ package proto_test
 
 import (
 	crand "crypto/rand"
+	"crypto/sha256"
 	"math/rand"
 	"testing"
 
@@ -9,6 +10,101 @@ import (
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
+
+func TestNewDataBuilderValidation(t *testing.T) {
+	t.Parallel()
+
+	validHash := sha256.Sum256([]byte{})
+
+	t.Run("ExactMaxFileSize", func(t *testing.T) {
+		t.Parallel()
+		builder, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   proto.MaxFileSize,
+			Chunks:     int32((proto.MaxFileSize + proto.ChunkSize - 1) / proto.ChunkSize),
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, builder)
+	})
+
+	t.Run("OversizedFileSize", func(t *testing.T) {
+		t.Parallel()
+		_, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   proto.MaxFileSize + 1,
+			Chunks:     1,
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.ErrorContains(t, err, "exceeds maximum allowed")
+	})
+
+	t.Run("NegativeFileSize", func(t *testing.T) {
+		t.Parallel()
+		_, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   -1,
+			Chunks:     1,
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.ErrorContains(t, err, "must not be negative")
+	})
+
+	t.Run("NegativeChunks", func(t *testing.T) {
+		t.Parallel()
+		_, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   100,
+			Chunks:     -1,
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.ErrorContains(t, err, "chunk count must not be negative")
+	})
+
+	t.Run("ExcessiveChunkCount", func(t *testing.T) {
+		t.Parallel()
+		_, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   100,
+			Chunks:     1000,
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.ErrorContains(t, err, "chunk count 1000 exceeds maximum")
+	})
+
+	t.Run("ZeroFileSize", func(t *testing.T) {
+		t.Parallel()
+		builder, err := proto.NewDataBuilder(&proto.DataUpload{
+			DataHash:   validHash[:],
+			FileSize:   0,
+			Chunks:     0,
+			UploadType: proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+		require.True(t, builder.IsDone(), "zero-chunk upload should be immediately done")
+	})
+
+	t.Run("ValidRoundTrip", func(t *testing.T) {
+		t.Parallel()
+		data := make([]byte, 256)
+		_, _ = crand.Read(data)
+
+		first, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
+		require.NoError(t, err)
+
+		builder, err := proto.NewDataBuilder(first)
+		require.NoError(t, err)
+
+		for _, chunk := range chunks {
+			_, err = builder.Add(chunk)
+			require.NoError(t, err)
+		}
+
+		got, err := builder.Complete()
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
+}
 
 // Fuzz must be run manually with the `-fuzz` flag to generate random test cases.
 // By default, it only runs the added seed corpus cases.
@@ -25,7 +121,11 @@ func FuzzBytesToDataUpload(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		first, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
+		first, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
+		if err != nil {
+			// Data exceeds MaxFileSize, which is expected for large fuzz inputs.
+			return
+		}
 
 		builder, err := proto.NewDataBuilder(first)
 		require.NoError(t, err)
@@ -62,7 +162,9 @@ func TestBytesToDataUpload(t *testing.T) {
 		_, err := crand.Read(data)
 		require.NoError(t, err)
 
-		first, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
+		first, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
+		require.NoError(t, err)
+
 		builder, err := proto.NewDataBuilder(first)
 		require.NoError(t, err)
 

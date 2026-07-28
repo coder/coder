@@ -124,15 +124,13 @@ func TestTracker_Track_Concurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			workspaceID := uuid.New()
 			ownerID := uuid.New()
 			for j := 0; j < requestsPerGoroutine; j++ {
 				tracker.Track(workspaceID, ownerID, 1, 1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -507,22 +505,18 @@ func TestTracker_ConcurrentFlushAndTrack(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Goroutine 1: Continuously track.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < numOperations; i++ {
 			tracker.Track(uuid.New(), uuid.New(), 1, 1)
 		}
-	}()
+	})
 
 	// Goroutine 2: Continuously flush.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < numOperations; i++ {
 			_ = tracker.FlushToDB(ctx, db, replicaID)
 		}
-	}()
+	})
 
 	wg.Wait()
 

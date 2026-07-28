@@ -1,6 +1,9 @@
 # Coder Desktop
 
-Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments—all without installing a CLI or configuring manual port forwarding.
+Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
+
+> [!TIP]
+> Coder Desktop provides **automatic port forwarding** to every service running in your workspace. Any port your application listens on is instantly accessible at `workspace-name.coder:PORT` with no manual setup required. For a comparison of all port forwarding methods, see [Workspace Ports](../workspace-access/port-forwarding.md).
 
 ## What You'll Need
 
@@ -21,6 +24,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 **Coder Connect**, the primary component of Coder Desktop, creates a secure tunnel to your Coder deployment, allowing you to:
 
 - **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
+- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no configuration
 - **Use any application**: SSH clients, browsers, IDEs work seamlessly
 - **Sync files**: Bidirectional sync between local and remote directories
 - **Work offline**: Edit files locally, sync when reconnected
@@ -37,7 +41,7 @@ The VPN extension routes only Coder traffic—your other internet activity remai
 
 #### Homebrew (Recommended)
 
-```shell
+```sh
 brew install --cask coder/coder/coder-desktop
 ```
 
@@ -63,7 +67,7 @@ Coder Desktop requires VPN extension permissions:
 
 #### WinGet (Recommended)
 
-```shell
+```sh
 winget install Coder.CoderDesktop
 ```
 
@@ -92,13 +96,13 @@ Once connected, test access to your workspaces:
 
 ### SSH Connection
 
-```shell
+```sh
 ssh your-workspace.coder
 ```
 
 ### Ping Test
 
-```shell
+```sh
 # macOS
 ping6 -c 3 your-workspace.coder
 
@@ -126,7 +130,7 @@ Administrators can disable the built-in auto-updater to manage updates through t
 
 Set the `disableUpdater` preference to `true` using the `defaults` command:
 
-```shell
+```sh
 defaults write com.coder.Coder-Desktop disableUpdater -bool true
 ```
 
@@ -136,7 +140,7 @@ Organization administrators can also enforce this setting across managed devices
 
 Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
 
-```powershell
+```ps1
 New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
@@ -164,6 +168,62 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 - Restart Coder Desktop
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
+
+### Collecting Logs
+
+When reporting an issue, attach the relevant log files so we can diagnose it faster.
+
+<div class="tabs">
+
+#### macOS
+
+Coder Desktop and its network extension write to the Apple [unified logging system](https://developer.apple.com/documentation/os/logging). The file sync (Mutagen) daemon writes to a separate log file.
+
+1. Export the unified logs for the last hour with the `log` command:
+
+    ```sh
+    log show --predicate 'subsystem == "com.coder.Coder-Desktop"' \
+      --info --debug --last 1h > ~/Desktop/coder-desktop.log
+    ```
+
+    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred. You can also view the same logs interactively in **Console.app** by filtering on the `com.coder.Coder-Desktop` subsystem.
+
+2. If you're using file sync, also collect the Mutagen daemon log:
+
+    ```sh
+    ~/Library/Application\ Support/Coder\ Desktop/Mutagen/daemon.log
+    ```
+
+    Coder Desktop also opens this file in Console automatically when the file sync daemon fails.
+
+#### Windows
+
+Coder Desktop has three components that write logs: the app (UI), the VPN service, and the file sync (Mutagen) daemon.
+
+1. App log (daily rolling):
+
+    ```ps1
+    %LOCALAPPDATA%\CoderDesktop\app.log
+    ```
+
+2. VPN service log (default install path):
+
+    ```ps1
+    C:\Program Files\Coder Desktop\coder-desktop-service.log
+    ```
+
+3. File sync (Mutagen) daemon log, if you use file sync:
+
+    ```ps1
+    %LOCALAPPDATA%\CoderDesktop\mutagen\daemon.log
+    ```
+
+You can quickly open the app log directory by pasting `%LOCALAPPDATA%\CoderDesktop` into File Explorer.
+
+</div>
+
+> [!TIP]
+> Before attaching logs to a public issue, review them for any sensitive information (deployment URLs, usernames, hostnames) and redact as needed.
 
 ### Getting Help
 
@@ -196,3 +256,4 @@ If you encounter issues not covered here:
 ## Next Steps
 
 - [Using Coder Connect and File Sync](./desktop-connect-sync.md)
+- [Compare port forwarding methods](../workspace-access/port-forwarding.md)

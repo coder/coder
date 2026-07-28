@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestPing(t *testing.T) {
@@ -22,10 +22,7 @@ func TestPing(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ping", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stderr = pty.Output()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -38,7 +35,7 @@ func TestPing(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch("pong from " + workspace.Name)
+		stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 		cancel()
 		<-cmdDone
 	})
@@ -49,10 +46,7 @@ func TestPing(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ping", "-n", "1", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stderr = pty.Output()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -65,7 +59,7 @@ func TestPing(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch("pong from " + workspace.Name)
+		stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 		cancel()
 		<-cmdDone
 	})
@@ -93,10 +87,7 @@ func TestPing(t *testing.T) {
 
 				inv, root := clitest.New(t, args...)
 				clitest.SetupConfig(t, client, root)
-				pty := ptytest.New(t)
-				inv.Stdin = pty.Input()
-				inv.Stderr = pty.Output()
-				inv.Stdout = pty.Output()
+				stdout := expecter.NewAttachedToInvocation(t, inv)
 
 				_ = agenttest.New(t, client.URL, agentToken)
 				_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -119,7 +110,7 @@ func TestPing(t *testing.T) {
 					rfc3339 += `(?:Z|[+-]\d{2}:\d{2})`
 				}
 
-				pty.ExpectRegexMatch(`\[` + rfc3339 + `\] pong from ` + workspace.Name)
+				stdout.ExpectRegexMatch(ctx, `\[`+rfc3339+`\] pong from `+workspace.Name)
 				cancel()
 				<-cmdDone
 			})

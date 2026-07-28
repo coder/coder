@@ -1,10 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockChatContextClean,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import { withProxyProvider } from "#/testHelpers/storybook";
+import { createMockFile } from "#/testHelpers/files";
+import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -330,6 +336,23 @@ export const NoModelOptions: Story = {
 	},
 };
 
+export const AIGatewayDisabledShowsSetupNotice: Story = {
+	args: {
+		// canConfigureAgentSetup: false and providerCount/modelCount left
+		// undefined simulates the model-catalog query still loading, which
+		// used to make an admin briefly see the wrong copy before this was
+		// fixed to short-circuit on aiGatewayDisabled directly.
+		canConfigureAgentSetup: false,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
 export const LoadingSpinner: Story = {
 	args: {
 		isDisabled: true,
@@ -402,9 +425,6 @@ export const LongContentScrollable: Story = {
 // Tiny 1x1 transparent PNG as data URI for attachment previews.
 const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-const createMockFile = (name: string, type: string) =>
-	new File(["mock-data"], name, { type });
 
 export const WithAttachments: Story = {
 	args: (() => {
@@ -611,9 +631,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -646,9 +664,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -681,39 +697,17 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 
 const now = "2026-03-19T12:00:00.000Z";
 
-const makeMCPServer = (
+const buildMCPServer = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
-	id: overrides.id,
-	display_name: overrides.display_name,
-	slug: overrides.slug,
-	description: overrides.description ?? "",
-	icon_url: overrides.icon_url ?? "",
-	transport: overrides.transport ?? "streamable_http",
-	url: overrides.url ?? "https://mcp.example.com/sse",
-	auth_type: overrides.auth_type ?? "none",
-	oauth2_client_id: overrides.oauth2_client_id,
-	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
-	oauth2_auth_url: overrides.oauth2_auth_url,
-	oauth2_token_url: overrides.oauth2_token_url,
-	oauth2_scopes: overrides.oauth2_scopes,
-	api_key_header: overrides.api_key_header,
-	has_api_key: overrides.has_api_key ?? false,
-	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
-	availability: overrides.availability ?? "default_on",
-	enabled: overrides.enabled ?? true,
-	model_intent: overrides.model_intent ?? false,
-	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
-	forward_coder_headers: overrides.forward_coder_headers ?? false,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-	auth_connected: overrides.auth_connected ?? false,
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
-const sentryMCP = makeMCPServer({
+const sentryMCP = buildMCPServer({
 	id: "mcp-sentry",
 	display_name: "Sentry",
 	slug: "sentry",
@@ -724,7 +718,7 @@ const sentryMCP = makeMCPServer({
 	enabled: true,
 });
 
-const linearMCP = makeMCPServer({
+const linearMCP = buildMCPServer({
 	id: "mcp-linear",
 	display_name: "Linear",
 	slug: "linear",
@@ -733,7 +727,7 @@ const linearMCP = makeMCPServer({
 	enabled: true,
 });
 
-const githubMCP = makeMCPServer({
+const githubMCP = buildMCPServer({
 	id: "mcp-github",
 	display_name: "GitHub",
 	slug: "github",
@@ -745,6 +739,16 @@ const githubMCP = makeMCPServer({
 });
 
 const githubMCPConnected = { ...githubMCP, auth_connected: true };
+
+const notionMCPConnected = buildMCPServer({
+	id: "mcp-notion",
+	display_name: "Notion",
+	slug: "notion",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
 
 const mcpDefaults = {
 	onMCPSelectionChange: fn(),
@@ -807,6 +811,147 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+export const MCPDisconnectControls: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			await body.findByRole("button", { name: "Disconnect Notion" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect GitHub" }),
+		).not.toBeInTheDocument();
+		expect(body.getByRole("button", { name: "Auth" })).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect Linear" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const MCPDisconnectCancel: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPDisconnectConfirm: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			githubMCPConnected.id,
+		);
+	},
+};
+
+export const MCPDisconnectRevocationWarning: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error:
+				"The OAuth provider rejected the revocation request.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(
+			await body.findByText(
+				"The OAuth provider rejected the revocation request.",
+			),
+		).toBeInTheDocument();
+	},
+};
+
+export const MCPDisconnectError: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
+		);
+		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
+	},
+};
+
 export const PlanFirstMenuItem: Story = {
 	args: {
 		onPlanModeToggle: fn(),
@@ -839,6 +984,76 @@ export const PlanningIndicator: Story = {
 		expect(
 			canvas.getByRole("button", { name: "Disable plan mode" }),
 		).toBeVisible();
+	},
+};
+
+const narrowPlanningContextUsage: AgentContextUsage = {
+	usedTokens: 100_000,
+	contextLimitTokens: 200_000,
+};
+
+const narrowPlanningModelOptions = [
+	{
+		id: "long-model-name",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5-long-name",
+		displayName: "Claude Sonnet 4.5 Extended Thinking",
+	},
+] as const;
+
+export const PlanningIndicatorNarrow: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+		contextUsage: narrowPlanningContextUsage,
+		selectedModel: narrowPlanningModelOptions[0].id,
+		modelOptions: [...narrowPlanningModelOptions],
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		const contextUsageButton = canvas.getByRole("button", {
+			name: /Context usage/,
+		});
+		const planningBadge = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='planning-badge']",
+		);
+		const isVisible = (element: HTMLElement) => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return (
+				style.display !== "none" &&
+				style.visibility !== "hidden" &&
+				rect.width > 0 &&
+				rect.height > 0
+			);
+		};
+
+		await waitFor(() => {
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const contextUsageRect = contextUsageButton.getBoundingClientRect();
+
+			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+
+			if (planningBadge && isVisible(planningBadge)) {
+				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
+					contextUsageRect.left + 1,
+				);
+				return;
+			}
+
+			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
+		});
 	},
 };
 
@@ -910,15 +1125,16 @@ export const DetailPageWorkspacePicker: Story = {
 			statusLabel: "Workspace running",
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 
 		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
-		expect(
-			canvas.queryByRole("button", {
-				name: "Remove workspace agents-workspace",
-			}),
-		).not.toBeInTheDocument();
+		const removeWorkspaceButton = canvas.getByRole("button", {
+			name: "Remove workspace agents-workspace",
+		});
+		expect(removeWorkspaceButton).toBeVisible();
+		await userEvent.click(removeWorkspaceButton);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
 
 		const moreOptionsButton = canvas.getByRole("button", {
 			name: "More options",
@@ -940,7 +1156,107 @@ export const DetailPageWorkspacePicker: Story = {
 	},
 };
 
-const confluenceMCP = makeMCPServer({
+export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspaceMenuButton = canvas.getByRole("button", {
+			name: `${MockWorkspace.name} workspace menu`,
+		});
+
+		expect(
+			canvas.queryByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).not.toBeInTheDocument();
+		expect(workspaceMenuButton).toBeVisible();
+		expect(workspaceMenuButton).toBeEnabled();
+		await userEvent.click(workspaceMenuButton);
+		let detachWorkspaceItem: HTMLElement | null = null;
+		await waitFor(() => {
+			const menuId = workspaceMenuButton.getAttribute("aria-controls");
+			if (!menuId) {
+				throw new Error("Expected workspace pill to control a menu.");
+			}
+
+			const menu = canvasElement.ownerDocument.getElementById(menuId);
+			if (!(menu instanceof HTMLElement)) {
+				throw new Error("Expected workspace menu to render.");
+			}
+
+			detachWorkspaceItem = within(menu).getByRole("menuitem", {
+				name: "Detach workspace",
+			});
+			expect(detachWorkspaceItem).toBeVisible();
+		});
+		if (!detachWorkspaceItem) {
+			throw new Error("Expected detach workspace menu item to render.");
+		}
+
+		await userEvent.click(detachWorkspaceItem);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	},
+};
+
+export const UncheckSelectedWorkspaceFromPicker: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		workspaceOptions: [
+			{
+				id: MockWorkspace.id,
+				name: MockWorkspace.name,
+				owner_name: MockWorkspace.owner_name,
+				organization_id: MockWorkspace.organization_id,
+			},
+		],
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		expect(moreOptionsButton).toBeEnabled();
+		await userEvent.click(moreOptionsButton);
+
+		const attachWorkspaceButton = (
+			await body.findByText("Attach workspace")
+		).closest("button");
+		if (!(attachWorkspaceButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected Attach workspace to be a button.");
+		}
+		expect(attachWorkspaceButton).toBeEnabled();
+		await userEvent.click(attachWorkspaceButton);
+
+		const workspaceMatches = await body.findAllByText(MockWorkspace.name);
+		const selectedWorkspaceOption = workspaceMatches.at(-1);
+		if (!(selectedWorkspaceOption instanceof HTMLElement)) {
+			throw new Error("Expected workspace option to render.");
+		}
+		await userEvent.click(selectedWorkspaceOption);
+
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	},
+};
+
+const confluenceMCP = buildMCPServer({
 	id: "mcp-confluence",
 	display_name: "Confluence Cloud",
 	slug: "confluence",
@@ -949,7 +1265,7 @@ const confluenceMCP = makeMCPServer({
 	enabled: true,
 });
 
-const datadogMCP = makeMCPServer({
+const datadogMCP = buildMCPServer({
 	id: "mcp-datadog",
 	display_name: "Datadog Monitoring",
 	slug: "datadog",
@@ -958,7 +1274,7 @@ const datadogMCP = makeMCPServer({
 	enabled: true,
 });
 
-const pagerdutyMCP = makeMCPServer({
+const pagerdutyMCP = buildMCPServer({
 	id: "mcp-pagerduty",
 	display_name: "PagerDuty",
 	slug: "pagerduty",
@@ -1040,32 +1356,12 @@ export const WithContextUsage: Story = {
 	},
 };
 
-/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+/** Tooltip lists the chat's pinned context resources. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {
 			...baseContextUsage,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
-					context_file_truncated: true,
-				},
-				{
-					type: "skill" as const,
-					skill_name: "pull-requests",
-					skill_description: "Guide for creating and updating pull requests",
-				},
-				{
-					type: "skill" as const,
-					skill_name: "deep-review",
-					skill_description: "Multi-reviewer code review",
-				},
-			] as TypesGen.ChatMessagePart[],
+			context: MockChatContextClean,
 		},
 	},
 };
@@ -1080,12 +1376,6 @@ export const ContextNearLimit: Story = {
 			outputTokens: 20_000,
 			cacheReadTokens: 4_000,
 			compressionThreshold: 90,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-			] as TypesGen.ChatMessagePart[],
 		},
 	},
 };

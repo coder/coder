@@ -11,8 +11,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func Test_ProxyCRUD(t *testing.T) {
@@ -40,14 +40,14 @@ func Test_ProxyCRUD(t *testing.T) {
 			"--only-token",
 		)
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // create wsproxy requires owner
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		line := pty.ReadLine(ctx)
+		line := stdout.ReadLine(ctx)
 		parts := strings.Split(line, ":")
 		require.Len(t, parts, 2, "expected 2 parts")
 		_, err = uuid.Parse(parts[0])
@@ -59,13 +59,12 @@ func Test_ProxyCRUD(t *testing.T) {
 			"wsproxy", "ls",
 		)
 
-		pty = ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout, inv.Stdout = expecter.NewPiped(t)
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		pty.ExpectMatch(expectedName)
+		stdout.ExpectMatch(ctx, expectedName)
 
 		// Also check via the api
 		proxies, err := client.WorkspaceProxies(ctx) //nolint:gocritic // requires owner
@@ -104,9 +103,6 @@ func Test_ProxyCRUD(t *testing.T) {
 			t,
 			"wsproxy", "delete", "-y", expectedName,
 		)
-
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		err = inv.WithContext(ctx).Run()

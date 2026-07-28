@@ -32,6 +32,34 @@ func CustomRoleCacheContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[string, rbac.Role]())
 }
 
+// PrefetchCustomRoles fetches every custom role in a single query and
+// stores them in the returned context's role cache, so Expand calls on
+// that context resolve custom roles without further database lookups.
+// Roles deleted after the prefetch are still absent from the cache and
+// fall back to an individual lookup on Expand.
+func PrefetchCustomRoles(ctx context.Context, db database.Store) (context.Context, error) {
+	ctx = CustomRoleCacheContext(ctx)
+	cache := roleCache(ctx)
+
+	dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles:        nil,
+		ExcludeOrgRoles:    false,
+		OrganizationID:     uuid.Nil,
+		IncludeSystemRoles: true,
+	})
+	if err != nil {
+		return ctx, xerrors.Errorf("fetch custom roles: %w", err)
+	}
+	for _, dbrole := range dbroles {
+		converted, err := ConvertDBRole(dbrole)
+		if err != nil {
+			return ctx, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
+		}
+		cache.Store(dbrole.RoleIdentifier().String(), converted)
+	}
+	return ctx, nil
+}
+
 func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[string, rbac.Role])
 	if !ok {
@@ -168,6 +196,25 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 var systemRoles = map[string]permissionsFunc{
 	rbac.RoleOrgMember():         rbac.OrgMemberPermissions,
 	rbac.RoleOrgServiceAccount(): rbac.OrgServiceAccountPermissions,
+}
+
+func TestingGetSystemRole(name string, orgID uuid.UUID, settings rbac.OrgSettings) (rbac.Role, error) {
+	f, ok := systemRoles[name]
+	if !ok {
+		return rbac.Role{}, xerrors.Errorf("role %q not found", name)
+	}
+	perms := f(settings)
+	return rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: name, OrganizationID: orgID},
+		DisplayName: "",
+		Site:        nil,
+		ByOrgID: map[string]rbac.OrgPermissions{
+			orgID.String(): {
+				Org:    perms.Org,
+				Member: perms.Member,
+			},
+		},
+	}, nil
 }
 
 // permissionsFunc produces the desired permissions for a system role

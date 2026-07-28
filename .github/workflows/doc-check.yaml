@@ -2,10 +2,6 @@
 # It creates a Coder Agent chat session that uses AI to analyze the PR
 # changes, search existing docs, and comment with recommendations.
 #
-# Uses the Coder Chat API (/api/experimental/chats) instead of the Tasks
-# API — all API calls use curl + jq directly, no dedicated GitHub Action
-# or workspace provisioning required.
-#
 # Triggers:
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
@@ -50,11 +46,9 @@ jobs:
         github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
-      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 30
-    env:
-      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
     permissions:
       contents: read
       pull-requests: write
@@ -174,6 +168,8 @@ jobs:
 
           ${CONTEXT}
 
+          When creating a new workspace, use the \"coder-workflow-bot\" template.
+
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
           **Do not comment if no documentation changes are needed.**
@@ -215,163 +211,17 @@ jobs:
             echo "EOFOUTPUT"
           } >> "${GITHUB_OUTPUT}"
 
-      # ------------------------------------------------------------------
-      # Create a chat via the Coder Chat API.
-      # The Chat API creates a lightweight chat session — no workspace
-      # provisioning or dedicated GitHub Action checkout required.
-      # ------------------------------------------------------------------
-      - name: Create chat via Coder Chat API
+      - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true'
-        id: create-chat
-        continue-on-error: true
-        env:
-          CHAT_PROMPT: ${{ steps.extract-context.outputs.chat_prompt }}
-        run: |
-          set -euo pipefail
-
-          echo "Creating chat session..."
-
-          RESPONSE=$(curl --silent --fail-with-body \
-            -X POST \
-            -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg prompt "${CHAT_PROMPT}" \
-              '{content: [{type: "text", text: $prompt}]}')" \
-            "${CODER_URL}/api/experimental/chats")
-
-          CHAT_ID=$(echo "${RESPONSE}" | jq -r '.id')
-          CHAT_STATUS=$(echo "${RESPONSE}" | jq -r '.status')
-
-          if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
-            echo "::error::Failed to create chat — no ID returned"
-            echo "Response: ${RESPONSE}"
-            exit 1
-          fi
-
-          # Validate that CHAT_ID is a UUID before using it in URL paths.
-          if [[ ! "${CHAT_ID}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
-            echo "::error::CHAT_ID is not a valid UUID: ${CHAT_ID}"
-            exit 1
-          fi
-
-          CHAT_URL="${CODER_URL}/agents?chat=${CHAT_ID}"
-
-          echo "Chat created: ${CHAT_ID} (status: ${CHAT_STATUS})"
-          echo "Chat URL: ${CHAT_URL}"
-
-          echo "chat_id=${CHAT_ID}" >> "${GITHUB_OUTPUT}"
-          echo "chat_url=${CHAT_URL}" >> "${GITHUB_OUTPUT}"
-
-      - name: Handle Chat Creation Failure
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome != 'success'
-        run: |
-          {
-            echo "## Documentation Check"
-            echo ""
-            echo "⚠️ The Coder Chat API was unavailable, so this"
-            echo "advisory documentation check did not run."
-            echo ""
-            echo "Maintainers can rerun the workflow or trigger it manually"
-            echo "after the service recovers."
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Write Chat Info
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome == 'success'
-        env:
-          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
-          CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
-          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
-        run: |
-          {
-            echo "## Documentation Check"
-            echo ""
-            echo "**PR:** ${PR_URL}"
-            echo "**Chat ID:** \`${CHAT_ID}\`"
-            echo "**Chat URL:** ${CHAT_URL}"
-            echo ""
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      # ------------------------------------------------------------------
-      # Poll the chat status until the agent finishes.
-      # The Chat API is asynchronous — after creation the agent begins
-      # working in the background. We poll GET /api/experimental/chats/<id>
-      # every 5 seconds until the status is "waiting" (agent needs input),
-      # "completed" (agent finished), or "error". Timeout after 10 minutes.
-      # ------------------------------------------------------------------
-      - name: Poll chat status
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome == 'success'
-        id: poll-status
-        env:
-          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
-        run: |
-          set -euo pipefail
-
-          POLL_INTERVAL=5
-          TIMEOUT=600
-          ELAPSED=0
-
-          echo "Polling chat ${CHAT_ID} every ${POLL_INTERVAL}s (timeout: ${TIMEOUT}s)..."
-
-          while true; do
-            RESPONSE=$(curl --silent --fail-with-body \
-              -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-              "${CODER_URL}/api/experimental/chats/${CHAT_ID}")
-
-            STATUS=$(echo "${RESPONSE}" | jq -r '.status')
-
-            echo "[${ELAPSED}s] Chat status: ${STATUS}"
-
-            case "${STATUS}" in
-              waiting|completed)
-                echo "Chat reached terminal status: ${STATUS}"
-                echo "final_status=${STATUS}" >> "${GITHUB_OUTPUT}"
-                exit 0
-                ;;
-              error)
-                echo "::error::Chat entered error state"
-                echo "${RESPONSE}" | jq .
-                echo "final_status=error" >> "${GITHUB_OUTPUT}"
-                exit 1
-                ;;
-              pending|running)
-                # Still working — keep polling.
-                ;;
-              *)
-                echo "::warning::Unknown chat status: ${STATUS}"
-                ;;
-            esac
-
-            if [[ ${ELAPSED} -ge ${TIMEOUT} ]]; then
-              echo "::error::Timed out after ${TIMEOUT}s waiting for chat to finish"
-              echo "final_status=timeout" >> "${GITHUB_OUTPUT}"
-              exit 1
-            fi
-
-            sleep "${POLL_INTERVAL}"
-            ELAPSED=$((ELAPSED + POLL_INTERVAL))
-          done
-
-      - name: Write Final Summary
-        if: always() && steps.check-secrets.outputs.skip != 'true'
-        env:
-          CREATE_CHAT_OUTCOME: ${{ steps.create-chat.outcome }}
-          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
-          CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
-          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status }}
-          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
-        run: |
-          {
-            echo ""
-            echo "---"
-            echo "### Result"
-            echo ""
-            if [[ "${CREATE_CHAT_OUTCOME}" == "success" ]]; then
-              echo "**Status:** ${FINAL_STATUS:-Chat completed}"
-              echo "**Chat URL:** ${CHAT_URL}"
-              echo ""
-              echo "Chat \`${CHAT_ID}\` has finished."
-            else
-              echo "**Status:** Skipped because the Coder Chat API"
-              echo "was unavailable."
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+        uses: coder/agents-chat-action@b3fc81d7dae5006dd124e98ef6fada1a36cdd86e # v0.3.0
+        with:
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
+          github-url: ${{ steps.determine-context.outputs.pr_url }}
+          github-token: ${{ github.token }}
+          wait: complete
+          wait-timeout-seconds: "600"
+          # The doc-check agent posts its own sticky comment when there
+          # are findings; failures surface in the workflow run log.
+          comment-on-issue: "false"

@@ -6,6 +6,13 @@ on:
       - main
       - release/*
 
+  # GitHub Actions does not reliably trigger push-based CI when a new
+  # branch is created at a commit that already has a workflow run (e.g.
+  # from main). The create event fires separately and ensures CI runs
+  # on newly cut release branches. Non-release branch creations are
+  # filtered out by the changes job condition.
+  create:
+
   pull_request:
   workflow_dispatch:
 
@@ -21,6 +28,13 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # For create events, only run on release branches to avoid
+    # triggering CI for every feature branch creation.
+    if: |
+      github.event_name != 'create' || (
+        github.event.ref_type == 'branch' &&
+        startsWith(github.event.ref, 'release/')
+      )
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
@@ -35,17 +49,17 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           filters: |
@@ -53,7 +67,8 @@ jobs:
               - "**"
             docs:
               - "docs/**"
-              - "README.md"
+              - ".claude/docs/**"
+              - "*.md"
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
@@ -120,6 +135,139 @@ jobs:
         env:
           FILTER_JSON: ${{ toJSON(steps.filter.outputs) }}
 
+  lint-docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Check docs
+        run: pnpm check-docs
+
+      # Vale prose linter, advisory only. Scoped to changed Markdown under
+      # docs/. Every Vale step is `continue-on-error` so this section can
+      # never block the required `lint-docs` job: a `vale sync` network
+      # blip or a baseline rule violation surfaces as an annotation, not a
+      # merge gate. Only markdownlint/table-formatter above stay blocking.
+      # `vale --no-exit` additionally keeps the baseline error count from
+      # un-overridden upstream Google rules from failing the step. Lives
+      # here rather than a standalone workflow so docs lint stays in the
+      # single required CI umbrella (see #25608). See DOCS-40.
+      - name: Detect changed Markdown
+        id: changed-md
+        continue-on-error: true
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v45.0.7
+        with:
+          files: |
+            **.md
+          separator: ","
+
+      # `**.md` (not `docs/**.md`) because the action's globber collapses a
+      # `**` adjacent to `.md` to a single path segment, so `docs/**.md`
+      # only matches top-level docs/*.md and misses nested pages such as
+      # docs/.style/style-guide/README.md. The prose step below re-filters to
+      # docs/ paths.
+      # Cache split into restore + conditional save to avoid letting PR
+      # runs populate a cache that other branches restore from (the
+      # zizmor `cache-poisoning` concern). Only pushes to the default
+      # branch may write the cache; PRs may only read it.
+      - name: Restore Vale styles
+        id: vale-cache
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Negation excludes the hand-authored Coder rules from the cache;
+          # the key also hashes them so a rule change always invalidates it.
+          # mise manages the Vale binary, so only the synced styles cache.
+          path: |
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
+            docs/.style/.vale-synced
+          key: vale-${{ hashFiles('.vale.ini', 'mise.toml', 'docs/.style/styles/Coder/**') }}
+          restore-keys: |
+            vale-
+
+      - name: Prepare Vale styles
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        env:
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
+        run: make docs/.style/.vale-synced
+
+      - name: Vale prose lint
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
+        run: |
+          # all_changed_files is ACMRD and so lists paths this PR deleted.
+          # Vale errors on a missing file (--no-exit only suppresses alert
+          # exits, not runtime errors), so keep only docs/ paths still on
+          # disk. See DOCS-40.
+          files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
+            | tr ',' '\n' \
+            | grep -E '^docs/' \
+            | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done || true)
+          if [ -z "$files" ]; then
+            echo "No changed Markdown files under docs/ on disk; skipping Vale."
+            exit 0
+          fi
+          # Vale's --output=line strips per-finding severity, so the
+          # previous problem-matcher approach collapsed every finding to
+          # a single hard-coded severity. Use --output=JSON instead and
+          # emit GitHub workflow commands directly so error/warning/
+          # suggestion render with their actual Vale severities. URL-
+          # encode message bodies for `%`, `\r`, and `\n` per the
+          # GitHub Actions workflow command spec. See DOCS-426.
+          printf '%s\n' "$files" \
+            | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=JSON \
+            | jq -r '
+                to_entries[]
+                | .key as $file
+                | .value[]
+                | (if .Severity == "suggestion" then "notice"
+                   elif .Severity == "warning" then "warning"
+                   else "error" end) as $level
+                | (.Message | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A")) as $msg
+                | "::\($level) file=\($file),line=\(.Line),col=\(.Span[0]),title=\(.Check)::\($msg)"
+              '
+
+      - name: Save Vale styles
+        # Only the default branch is trusted to write the cache, so PR
+        # runs cannot poison the cache that subsequent runs restore from.
+        # Skip when the cache already had an exact key hit (no new content).
+        if: github.ref == 'refs/heads/main' && steps.changed-md.outputs.any_changed == 'true' && steps.vale-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
+            docs/.style/.vale-synced
+          key: ${{ steps.vale-cache.outputs.cache-primary-key }}
+
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
   # Re-enable once the flake hash calculation is stable.
   # update-flake:
@@ -128,14 +276,16 @@ jobs:
   #   runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+  #       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
   #       with:
   #         fetch-depth: 1
   #         # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
   #         token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
-  #     - name: Setup Go
-  #       uses: ./.github/actions/setup-go
+  #     - name: Set up mise tools
+  #       uses: ./.github/actions/setup-mise
+  #       with:
+  #         install-args: "go"
 
   #     - name: Update Nix Flake SRI Hash
   #       run: ./scripts/update-flake.sh
@@ -161,28 +311,32 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: 1
+          # Depth 2 makes the PR merge commit's first parent (the base
+          # branch tip) available so lint/emdash can diff against HEAD^
+          # without fetching the base branch at runtime.
+          fetch-depth: 2
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm helm actionlint aqua:crate-ci/typos"
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
 
       - name: Get golangci-lint cache dir
         run: |
-          # mise.toml is the source of truth for tool versions baked into
-          # the dogfood image; pull the same version for the lint job.
-          linter_ver=$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
-          ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
@@ -192,7 +346,7 @@ jobs:
       # branch may write the cache; PRs may only read it.
       - name: Restore golangci-lint cache
         id: golangci-lint-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -202,35 +356,13 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@cf5f1c29a8ac336af8568821ec41919923b05a83 # v1.45.1
-        with:
-          config: .github/workflows/typos.toml
+        run: typos --config .github/workflows/typos.toml
 
       - name: Fix the typos
         if: ${{ failure() }}
         run: |
           echo "::notice:: you can automatically fix typos from your CLI:
-          cargo install typos-cli
-          typos -c .github/workflows/typos.toml -w"
-
-      # Needed for helm chart linting
-      - name: Install helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-        with:
-          version: v3.9.2
-        continue-on-error: true
-        id: setup-helm
-
-      - name: Install helm (fallback)
-        if: steps.setup-helm.outcome == 'failure'
-        # Fallback to Buildkite's apt repository if get.helm.sh is down.
-        # See: https://github.com/coder/internal/issues/1109
-        run: |
-          set -euo pipefail
-          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-          sudo apt-get update
-          sudo apt-get install -y helm=3.9.2-1
+          mise exec aqua:crate-ci/typos -- typos -c .github/workflows/typos.toml -w"
 
       - name: Verify helm version
         run: helm version --short
@@ -243,22 +375,18 @@ jobs:
         # runs cannot poison the cache that subsequent runs restore from.
         # Skip when the cache already had an exact key hit (no new content).
         if: github.ref == 'refs/heads/main' && steps.golangci-lint-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
           key: ${{ steps.golangci-lint-cache.outputs.cache-primary-key }}
 
       - name: Check workflow files
-        run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
-          ./actionlint -color -shellcheck= -ignore "set-output"
+        run: actionlint -color -shellcheck= -ignore "set-output"
         shell: bash
 
       - name: Check for unstaged files
-        run: |
-          rm -f ./actionlint ./typos
-          ./scripts/check_unstaged.sh
+        run: ./scripts/check_unstaged.sh
         shell: bash
 
   lint-actions:
@@ -266,21 +394,23 @@ jobs:
     # Only run this job if changes to CI workflow files are detected. This job
     # can flake as it reaches out to GitHub to check referenced actions.
     if: needs.changes.outputs.ci == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "actionlint zizmor"
 
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
@@ -294,40 +424,29 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm terraform protoc protoc-gen-go"
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: go install tools
-        uses: ./.github/actions/setup-go-tools
-
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
-          unzip protoc.zip
-          sudo cp -r ./bin/* /usr/local/bin
-          sudo cp -r ./include /usr/local/bin/include
-          popd
+      - name: Start PostgreSQL container
+        run: make test-postgres-docker
 
       - name: make gen
         timeout-minutes: 8
@@ -342,6 +461,17 @@ jobs:
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
+      - name: Collect PostgreSQL logs
+        if: always()
+        run: make test-postgres-docker-logs > postgres.log 2>&1
+
+      - name: Upload PostgreSQL logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gen-postgres-logs
+          path: postgres.log
+
   fmt:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -349,34 +479,33 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
       - name: Check Go version
         run: IGNORE_NIX=true ./scripts/check_go_versions.sh
 
-      # Use default Go version
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm terraform"
 
-      - name: Install shfmt
-        run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: make fmt
         timeout-minutes: 7
-        run: |
-          PATH="${PATH}:$(go env GOPATH)/bin" \
-            make --output-sync -j -B fmt
+        run: make --output-sync -j -B fmt
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -401,7 +530,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -427,25 +556,24 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Setup Go Paths
-        id: go-paths
         uses: ./.github/actions/setup-go-paths
 
       - name: Setup GNU tools (macOS)
         uses: ./.github/actions/setup-gnu-tools
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
         with:
-          use-cache: true
+          install-args: "go terraform"
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
         id: download-cache
@@ -481,24 +609,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/sym"
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
 
       - name: Setup RAM disk for Embedded Postgres (Windows)
         if: runner.os == 'Windows'
@@ -537,6 +647,7 @@ jobs:
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          gotestsum-json-file: default
 
       - name: Test with PostgreSQL Database (macOS)
         if: runner.os == 'macOS'
@@ -576,24 +687,11 @@ jobs:
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload failed test db dumps
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -634,21 +732,23 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go terraform"
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Download Test Cache
         id: download-cache
@@ -665,24 +765,6 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-
       - name: Test with PostgreSQL Database
         uses: ./.github/actions/test-go-pg
         with:
@@ -693,25 +775,13 @@ jobs:
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          gotestsum-json-file: default
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -733,21 +803,23 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go terraform"
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Download Test Cache
         id: download-cache
@@ -770,24 +842,6 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       # Our Linux runners have 16 cores, but we reduce parallelism since race detection adds a lot of overhead.
       # We aim to have parallelism match CPU count (4*4=16) to avoid making flakes worse.
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-
       - name: Run Tests
         uses: ./.github/actions/test-go-pg
         with:
@@ -795,25 +849,13 @@ jobs:
           test-parallelism-packages: "4"
           test-parallelism-tests: "4"
           race-detection: "true"
+          gotestsum-json-file: default
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -842,18 +884,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
 
       # Used by some integration tests.
       - name: Install Nginx
@@ -869,18 +913,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
       - run: pnpm test:ci --max-workers "$(nproc)"
         working-directory: site
@@ -902,36 +951,51 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
       # Assume that the checked-in versions are up-to-date
       - run: make gen/mark-fresh
         name: make gen
-
-      - run: make site/e2e/bin/coder
-        name: make coder
 
       - run: pnpm build
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
 
+      - run: make site/e2e/bin/coder
+        name: make coder
+
       - run: pnpm playwright:install
         working-directory: site
+
+      # Cache the Coder release binaries downloaded by the outdatedCLI /
+      # outdatedAgent e2e tests so most runs skip the flaky GitHub release
+      # download entirely. The cache key is keyed off the test files that pin
+      # the downloaded versions, so it invalidates when those versions change.
+      - name: Restore e2e Coder release binary cache
+        id: coder-e2e-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/tests/outdatedCLI.spec.ts', 'site/e2e/tests/outdatedAgent.spec.ts') }}
+          restore-keys: |
+            coder-e2e-cache-${{ runner.os }}-
 
       # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
@@ -948,6 +1012,16 @@ jobs:
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
+
+      - name: Save e2e Coder release binary cache
+        # Only the default branch is trusted to write the cache, so PR runs
+        # cannot poison the cache that subsequent runs restore from. Skip when
+        # the cache already had an exact key hit (no new content).
+        if: always() && github.ref == 'refs/heads/main' && steps.coder-e2e-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: ${{ steps.coder-e2e-cache.outputs.cache-primary-key }}
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -982,87 +1056,37 @@ jobs:
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
-  # Reference guide:
-  # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event
-  chromatic:
-    # REMARK: this is only used to build storybook and deploy it to Chromatic.
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
-        with:
-          egress-policy: audit
+  storybook:
+    name: Storybook
 
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        name: Checkout
         with:
-          # 👇 Ensures Chromatic can read your full git history
-          fetch-depth: 0
-          # 👇 Tells the checkout which commit hash to reference
-          ref: ${{ github.event.pull_request.head.ref }}
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      # This step is not meant for mainline because any detected changes to
-      # storybook snapshots will require manual approval/review in order for
-      # the check to pass. This is desired in PRs, but not in mainline.
-      - name: Publish to Chromatic (non-mainline)
-        if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@5c6ec06f45a2117a25f07b1bf2b2f3009233fac8 # v16.3.0
-        env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          STORYBOOK: true
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        name: Install dependencies
         with:
-          # Do a fast, testing build for change previews
-          buildScriptName: "storybook:ci"
-          exitOnceUploaded: true
-          # This will prevent CI from failing when Chromatic detects visual changes
-          exitZeroOnChanges: true
-          # Chromatic states its fine to make this token public. See:
-          # https://www.chromatic.com/docs/github-actions#forked-repositories
-          projectToken: 695c25b6cb65
-          workingDir: "./site"
-          storybookBaseDir: "./site"
-          storybookConfigDir: "./site/.storybook"
-          # Prevent excessive build runs on minor version changes
-          skip: "@(renovate/**|dependabot/**)"
-          # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevant stories
-          onlyChanged: true
-          # Avoid uploading single files, because that's very slow
-          zip: true
+          run_install: true
+          cache: true
 
-      # This is a separate step for mainline only that auto accepts and changes
-      # instead of holding CI up. Since we squash/merge, this is defensive to
-      # avoid the same changeset from requiring review once squashed into
-      # main. Chromatic is supposed to be able to detect that we use squash
-      # commits, but it's good to be defensive in case, otherwise CI remains
-      # infinitely "in progress" in mainline unless we re-review each build.
-      - name: Publish to Chromatic (mainline)
-        if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@5c6ec06f45a2117a25f07b1bf2b2f3009233fac8 # v16.3.0
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build Storybook
+
+      - run: pnpm playwright:install
+        working-directory: site/
+        name: Install Chromium
+
+      - run: pnpm pixel-storybook
+        working-directory: site/
+        name: Snapshot
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          STORYBOOK: true
-        with:
-          autoAcceptChanges: true
-          # This will prevent CI from failing when Chromatic detects visual changes
-          exitZeroOnChanges: true
-          # Do a full build with documentation for mainline builds
-          buildScriptName: "storybook:build"
-          projectToken: 695c25b6cb65
-          workingDir: "./site"
-          storybookBaseDir: "./site"
-          storybookConfigDir: "./site/.storybook"
-          # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevant stories
-          onlyChanged: true
-          # Avoid uploading single files, because that's very slow
-          zip: true
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+          PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
     name: offlinedocs
@@ -1072,40 +1096,29 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm protoc protoc-gen-go"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
         with:
           directory: offlinedocs
 
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
-          unzip protoc.zip
-          sudo cp -r ./bin/* /usr/local/bin
-          sudo cp -r ./include /usr/local/bin/include
-          popd
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install go tools
-        uses: ./.github/actions/setup-go-tools
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Format
         run: |
@@ -1132,6 +1145,7 @@ jobs:
       - changes
       - fmt
       - lint
+      - lint-docs
       - lint-actions
       - gen
       - test-go-pg
@@ -1147,7 +1161,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -1157,6 +1171,7 @@ jobs:
           echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
+          echo "- lint-docs: ${{ needs.lint-docs.result }}"
           echo "- lint-actions: ${{ needs.lint-actions.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
@@ -1185,27 +1200,26 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
-      - name: Install go-winres
-        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
-
-      - name: Install nfpm
-        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -1239,30 +1253,33 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
         with:
-          use-cache: false
+          install-args: "go node pnpm cosign syft"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       - name: Install rcodesign
         run: |
@@ -1287,25 +1304,13 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: "zulu"
           java-version: "11.0"
 
-      - name: Install go-winres
-        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
-
-      - name: Install nfpm
-        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
-
       - name: Install zstd
         run: sudo apt-get install -y zstd
-
-      - name: Install cosign
-        uses: ./.github/actions/install-cosign
-
-      - name: Install syft
-        uses: ./.github/actions/install-syft
 
       - name: Setup Windows EV Signing Certificate
         run: |
@@ -1478,7 +1483,7 @@ jobs:
         id: attest_main
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.main_digest != ''
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
@@ -1488,7 +1493,7 @@ jobs:
         id: attest_latest
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.latest_digest != ''
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
@@ -1498,7 +1503,7 @@ jobs:
         id: attest_version
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.version_digest != ''
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
@@ -1605,12 +1610,6 @@ jobs:
       contents: read
       id-token: write
       packages: write # to retag image as dogfood
-    secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_PARIS_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
-      FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
-      FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
-      FLY_JNB_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
@@ -1621,20 +1620,22 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
 
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Setup and run sqlc vet
         run: |

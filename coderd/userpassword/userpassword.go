@@ -39,11 +39,12 @@ var (
 	// used.
 	defaultSaltSize = 16
 
-	// The simulated hash is used when trying to simulate password checks for
-	// users that don't exist. It's meant to preserve the timing of the hash
-	// comparison.
+	// The simulated hash is used when comparing against an empty stored hash
+	// (e.g. nonexistent or SSO users). It hashes a random value generated on
+	// first use, so no attacker-supplied password can ever match it. It exists
+	// purely to keep failed comparisons constant-time.
 	simulatedHash = lazy.New(func() string {
-		h, err := Hash("hunter2")
+		h, err := Hash(rand.Text())
 		if err != nil {
 			panic(err)
 		}
@@ -72,10 +73,10 @@ func init() {
 // uses pbkdf2 to ensure FIPS 140-2 compliance. See:
 // https://csrc.nist.gov/csrc/media/templates/cryptographic-module-validation-program/documents/security-policies/140sp2261.pdf
 func Compare(hashed string, password string) (bool, error) {
-	// If the hased password provided is empty, simulate comparing a real hash.
+	// If the hashed password provided is empty, simulate comparing a real hash
+	// to preserve timing. The simulated hash is derived from a random value, so
+	// the comparison below can never succeed.
 	if hashed == "" {
-		// TODO: this seems ripe for creating a vulnerability where
-		// hunter2 can log into any account.
 		hashed = simulatedHash.Load()
 	}
 

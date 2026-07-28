@@ -83,9 +83,61 @@ export const ensureToolBlock = (
 	return [...blocks, { type: "tool", id }];
 };
 
+const isToolCallPart = (
+	part: TypesGen.ChatMessagePart,
+): part is TypesGen.ChatToolCallPart => part.type === "tool-call";
+
+const isToolResultPart = (
+	part: TypesGen.ChatMessagePart,
+): part is TypesGen.ChatToolResultPart => part.type === "tool-result";
+
+const chatHasActiveToolCalls = (status: TypesGen.ChatStatus | null): boolean =>
+	status === "running" || status === "requires_action";
+
+export const getPendingToolCallIDs = (
+	messages: readonly TypesGen.ChatMessage[],
+	chatStatus: TypesGen.ChatStatus | null,
+): ReadonlySet<string> | undefined => {
+	if (!chatHasActiveToolCalls(chatStatus)) {
+		return undefined;
+	}
+
+	const resultIDs = new Set<string>();
+	for (const message of messages) {
+		for (const part of message.content ?? []) {
+			if (isToolResultPart(part) && part.tool_call_id) {
+				resultIDs.add(part.tool_call_id);
+			}
+		}
+	}
+
+	for (const message of messages.toReversed()) {
+		if (message.role === "user") {
+			return undefined;
+		}
+		if (message.role !== "assistant") {
+			continue;
+		}
+		const pendingToolCallIDs = (message.content ?? [])
+			.filter(isToolCallPart)
+			.map((part) => part.tool_call_id)
+			.filter((id): id is string => Boolean(id && !resultIDs.has(id)));
+		return pendingToolCallIDs.length > 0
+			? new Set(pendingToolCallIDs)
+			: undefined;
+	}
+
+	return undefined;
+};
+
+type MergeToolsOptions = {
+	pendingToolCallIDs?: ReadonlySet<string>;
+};
+
 export const mergeTools = (
 	calls: ParsedToolCall[],
 	results: ParsedToolResult[],
+	options: MergeToolsOptions = {},
 ): MergedTool[] => {
 	const resultById = new Map(results.map((r) => [r.id, r]));
 	const seen = new Set<string>();
@@ -100,15 +152,23 @@ export const mergeTools = (
 			typeof callArgs?.model_intent === "string"
 				? callArgs.model_intent
 				: undefined;
+		const status = result
+			? result.isError
+				? "error"
+				: "completed"
+			: options.pendingToolCallIDs?.has(call.id)
+				? "running"
+				: "completed";
 		merged.push({
 			id: call.id,
 			name: call.name,
 			args: call.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
-			status: result ? (result.isError ? "error" : "completed") : "completed",
+			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 
@@ -161,6 +221,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
@@ -270,8 +331,13 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
+type ParseMessagesWithMergedToolsOptions = {
+	pendingToolCallIDs?: ReadonlySet<string>;
+};
+
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
+	options: ParseMessagesWithMergedToolsOptions = {},
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,
@@ -301,6 +367,7 @@ export const parseMessagesWithMergedTools = (
 		parsed.tools = mergeTools(
 			parsed.toolCalls,
 			Array.from(resultById.values()),
+			{ pendingToolCallIDs: options.pendingToolCallIDs },
 		);
 	}
 

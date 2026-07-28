@@ -11,6 +11,7 @@ const meta: Meta<typeof AccountForm> = {
 		initialValues: {
 			username: "test-user",
 			name: "Test User",
+			avatar_url: "",
 		},
 		updateProfileError: undefined,
 	},

@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import type { MockInstance } from "vitest";
 import * as apiModule from "#/api/api";
-import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	DashboardContext,
 	type DashboardProvider,
@@ -23,9 +23,6 @@ import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter2,
-	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
@@ -37,7 +34,7 @@ import {
 import { server } from "#/testHelpers/server";
 import WorkspacePage from "./WorkspacePage";
 
-const { API, MissingBuildParameters } = apiModule;
+const { API } = apiModule;
 
 type RenderWorkspacePageOptions = Omit<RenderWithAuthOptions, "route" | "path">;
 
@@ -306,118 +303,6 @@ describe("WorkspacePage", () => {
 		});
 	});
 
-	// Started flaking after upgrading react-router. Tests the old parameters path
-	// and isn't worth spending more time to fix since this code will be removed
-	// in a few releases when dynamic parameters takes over the world.
-	it("updates the parameters when they are missing during update", async () => {
-		// Mocks
-		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
-			MockOutdatedWorkspace,
-		);
-		const updateWorkspaceSpy = vi
-			.spyOn(API, "updateWorkspace")
-			.mockRejectedValueOnce(
-				new MissingBuildParameters(
-					[MockTemplateVersionParameter1, MockTemplateVersionParameter2],
-					MockOutdatedWorkspace.template_active_version_id,
-				),
-			);
-
-		// Render
-		await renderWorkspacePage(MockWorkspace);
-
-		// Actions
-		const user = userEvent.setup();
-		await user.click(screen.getByTestId("workspace-update-button"));
-		const confirmButton = await screen.findByTestId("confirm-button");
-		await user.click(confirmButton);
-
-		// The update was called
-		await waitFor(() => {
-			expect(API.updateWorkspace).toBeCalled();
-			updateWorkspaceSpy.mockClear();
-		});
-
-		// After trying to update, a new dialog asking for missed parameters should
-		// be displayed and filled
-		const dialog = await screen.findByRole("dialog", {
-			name: /workspace parameters/i,
-		});
-		const firstParameterInput = within(dialog).getByLabelText(
-			MockTemplateVersionParameter1.name,
-			{ exact: false },
-		);
-		await user.clear(firstParameterInput);
-		await user.type(firstParameterInput, "some-value");
-		const secondParameterInput = within(dialog).getByLabelText(
-			MockTemplateVersionParameter2.name,
-			{ exact: false },
-		);
-		await user.clear(secondParameterInput);
-		await user.type(secondParameterInput, "2");
-		await user.click(
-			within(dialog).getByRole("button", { name: /update parameters/i }),
-		);
-
-		// Check if the update was called using the values from the form
-		await waitFor(() => {
-			expect(API.updateWorkspace).toHaveBeenCalledWith(
-				MockOutdatedWorkspace,
-				[
-					{
-						name: MockTemplateVersionParameter1.name,
-						value: "some-value",
-					},
-					{
-						name: MockTemplateVersionParameter2.name,
-						value: "2",
-					},
-				],
-				false,
-			);
-		});
-	});
-
-	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
-		localStorage.removeItem(`${MockUserOwner.id}_ignoredWarnings`);
-		vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-			{
-				...MockTemplateVersionParameter1,
-				ephemeral: true,
-				name: "rebuild",
-				description: "Rebuild",
-				required: false,
-			},
-		]);
-		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
-			{ name: "rebuild", value: "false" },
-		]);
-
-		const restartWorkspaceSpy = vi.spyOn(API, "restartWorkspace");
-		const user = userEvent.setup();
-		await renderWorkspacePage(MockWorkspace);
-		await user.click(screen.getByTestId("build-parameters-button"));
-		const buildParametersForm = await screen.findByTestId(
-			"build-parameters-form",
-		);
-		const rebuildField = within(buildParametersForm).getByLabelText("Rebuild", {
-			exact: false,
-		});
-		await user.clear(rebuildField);
-		await user.type(rebuildField, "true");
-		await user.click(screen.getByTestId("build-parameters-submit"));
-		await user.click(screen.getByTestId("confirm-button"));
-		await waitFor(() => {
-			expect(restartWorkspaceSpy).toBeCalledWith({
-				workspace: MockWorkspace,
-				buildParameters: [{ name: "rebuild", value: "true" }],
-			});
-		});
-	});
-
-	// Tried to get these wired up via describe.each to reduce repetition, but the
-	// syntax just got too convoluted because of the variance in what arguments
-	// each function gets called with
 	describe("Retrying failed workspaces", () => {
 		const retryButtonRe = /^Retry$/i;
 		const retryDebugButtonRe = /^Debug$/i;
@@ -503,110 +388,6 @@ describe("WorkspacePage", () => {
 					log_level: "debug",
 				});
 			});
-		});
-	});
-
-	it("retry with build parameters", async () => {
-		const user = userEvent.setup();
-		const workspace = {
-			...MockFailedWorkspace,
-			latest_build: {
-				...MockFailedWorkspace.latest_build,
-				transition: "start",
-			},
-		} satisfies Workspace;
-		const parameter = {
-			...MockTemplateVersionParameter1,
-			display_name: "Parameter 1",
-			ephemeral: true,
-		} satisfies TemplateVersionParameter;
-
-		server.use(
-			http.get("/api/v2/templateversions/:versionId/rich-parameters", () => {
-				return HttpResponse.json([parameter]);
-			}),
-		);
-		const retryWorkspaceSpy = vi
-			.spyOn(API, "retryWorkspace")
-			.mockResolvedValue(MockWorkspaceBuild);
-
-		await renderWorkspacePage(workspace);
-		const retryWithBuildParametersButton = await screen.findByRole("button", {
-			name: "Retry with build parameters",
-		});
-		await user.click(retryWithBuildParametersButton);
-		await screen.findByText("Build Options");
-		const parameterField = await screen.findByLabelText(
-			parameter.display_name,
-			{
-				exact: false,
-			},
-		);
-
-		await user.clear(parameterField);
-		await user.type(parameterField, "some-value");
-		const submitButton = screen.getByText("Build workspace");
-		await user.click(submitButton);
-
-		await waitFor(() => {
-			expect(retryWorkspaceSpy).toBeCalledWith(
-				workspace,
-				workspace.latest_build.template_version_id,
-				undefined,
-				[{ name: parameter.name, value: "some-value" }],
-			);
-		});
-	});
-
-	it("debug with build parameters", async () => {
-		const user = userEvent.setup();
-		const workspace = {
-			...MockFailedWorkspace,
-			latest_build: {
-				...MockFailedWorkspace.latest_build,
-				transition: "start",
-			},
-		} satisfies Workspace;
-		const parameter = {
-			...MockTemplateVersionParameter1,
-			display_name: "Parameter 1",
-			ephemeral: true,
-		} satisfies TemplateVersionParameter;
-
-		server.use(
-			http.get("/api/v2/templateversions/:versionId/rich-parameters", () => {
-				return HttpResponse.json([parameter]);
-			}),
-		);
-		const retryWorkspaceSpy = vi
-			.spyOn(API, "retryWorkspace")
-			.mockResolvedValue(MockWorkspaceBuild);
-
-		await renderWorkspacePage(workspace);
-		const retryWithBuildParametersButton = await screen.findByRole("button", {
-			name: "Debug with build parameters",
-		});
-		await user.click(retryWithBuildParametersButton);
-		await screen.findByText("Build Options");
-		const parameterField = await screen.findByLabelText(
-			parameter.display_name,
-			{
-				exact: false,
-			},
-		);
-
-		await user.clear(parameterField);
-		await user.type(parameterField, "some-value");
-		const submitButton = screen.getByText("Build workspace");
-		await user.click(submitButton);
-
-		await waitFor(() => {
-			expect(retryWorkspaceSpy).toBeCalledWith(
-				workspace,
-				workspace.latest_build.template_version_id,
-				"debug",
-				[{ name: parameter.name, value: "some-value" }],
-			);
 		});
 	});
 

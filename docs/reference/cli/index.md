@@ -66,13 +66,13 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>support</code>](./support.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
 | [<code>server</code>](./server.md)                           | Start a Coder server                                                                                                         |
 | [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
-| [<code>boundary</code>](./boundary.md)                       | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
+| [<code>ai-gateway</code>](./ai-gateway.md)                   | Manage AI Gateway                                                                                                            |
+| [<code>agent-firewall</code>](./agent-firewall.md)           | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
 | [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |
 | [<code>licenses</code>](./licenses.md)                       | Add, delete, and list licenses                                                                                               |
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |
 | [<code>prebuilds</code>](./prebuilds.md)                     | Manage Coder prebuilds                                                                                                       |
 | [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
-| [<code>aibridge</code>](./aibridge.md)                       | Manage AI Bridge.                                                                                                            |
 
 ## Options
 

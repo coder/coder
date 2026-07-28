@@ -27,7 +27,7 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 
 For direct connections or creating bookmarks, use custom URI links with parameters:
 
-```shell
+```sh
 jetbrains://gateway/com.coder.toolbox?url=https://coder.example.com&token=<auth-token>&workspace=my-workspace
 ```
 

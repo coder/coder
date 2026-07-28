@@ -80,6 +80,41 @@ func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
 }
 
+type ChatACL map[string]ChatACLEntry
+
+func (c *ChatACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &c)
+	case []byte:
+		return json.Unmarshal(v, &c)
+	case json.RawMessage:
+		return json.Unmarshal(v, &c)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+//nolint:revive
+func (c ChatACL) RBACACL() map[string][]policy.Action {
+	rbacACL := make(map[string][]policy.Action, len(c))
+	for id, entry := range c {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
+func (c ChatACL) Value() (driver.Value, error) {
+	if c == nil {
+		return json.Marshal(ChatACL{})
+	}
+	return json.Marshal(c)
+}
+
+type ChatACLEntry struct {
+	Permissions []policy.Action `json:"permissions"`
+}
+
 type WorkspaceACL map[string]WorkspaceACLEntry
 
 func (t *WorkspaceACL) Scan(src interface{}) error {
@@ -259,7 +294,29 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+	// The string values must be escaped in case there are special characters, quotes, etc.
+	// 'NameOrganizationPair' is a composite value, which has no driver handler
+	// in the `pq` package.
+	//
+	// pq.StringArray formats the single name as `{"<escaped>"}`. Strip
+	// the outer braces to get the quoted+escaped form that composite
+	// literal syntax accepts unchanged.
+	//
+	// Ideally `appendArrayQuotedBytes` would be exported, and we could call
+	// it directly.
+	v, err := (&pq.StringArray{a.Name}).Value()
+	if err != nil {
+		return nil, err
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return nil, xerrors.Errorf("unexpected type %T", v)
+	}
+
+	stripCurlyBraces := s[1 : len(s)-1]
+
+	return fmt.Sprintf("(%s,%s)", stripCurlyBraces, a.OrganizationID.String()), nil
 }
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.

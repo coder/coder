@@ -10,6 +10,7 @@ import {
 	MockTasks,
 	MockTemplate,
 	MockTemplateVersion,
+	MockTemplateVersionExternalAuthAzure,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
@@ -133,9 +134,7 @@ export const Submitting: Story = {
 		await userEvent.click(submitButton);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -355,9 +354,7 @@ export const AuthenticatedExternalAuth: Story = {
 		});
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -383,6 +380,39 @@ export const MissingExternalAuth: Story = {
 
 		await step("Renders external authentication", async () => {
 			await canvas.findByRole("button", { name: /connect to github/i });
+		});
+	},
+};
+
+export const MissingExternalAuthMultipleProviders: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(API, "createTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+			MockTemplateVersionExternalAuthGithub,
+			MockTemplateVersionExternalAuthAzure,
+		]);
+		// Prevent the auth button from actually opening a popup.
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		const githubButton = await canvas.findByRole("button", {
+			name: /connect to github/i,
+		});
+		const azureButton = await canvas.findByRole("button", {
+			name: /connect to azure/i,
+		});
+
+		await step("Click GitHub auth button", async () => {
+			await userEvent.click(githubButton);
+		});
+
+		await step("Azure button remains enabled", () => {
+			expect(azureButton).toBeEnabled();
 		});
 	},
 };

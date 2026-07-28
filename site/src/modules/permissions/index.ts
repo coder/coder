@@ -25,7 +25,9 @@ export const canViewDeploymentSettings = (
 			permissions.viewAllUsers ||
 			permissions.viewAnyGroup ||
 			permissions.viewNotificationTemplate ||
-			permissions.viewOrganizationIDPSyncSettings)
+			permissions.viewOrganizationIDPSyncSettings ||
+			permissions.viewAnyAIProvider ||
+			permissions.viewAIGatewayKeys)
 	);
 };
 
@@ -38,8 +40,7 @@ export const canViewAnyOrganization = (
 ): permissions is Permissions => {
 	return (
 		permissions !== undefined &&
-		(permissions.viewAnyMembers ||
-			permissions.editAnyGroups ||
+		(permissions.editAnyGroups ||
 			permissions.assignAnyRoles ||
 			permissions.viewAnyIdpSyncSettings ||
 			permissions.editAnySettings)

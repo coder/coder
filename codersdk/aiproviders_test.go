@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,8 +28,8 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 				Region:          "us-east-1",
 				Model:           "anthropic.claude-3-5-sonnet",
 				SmallFastModel:  "anthropic.claude-3-5-haiku",
-				AccessKey:       "AKIA-test", //nolint:gosec // fixture
-				AccessKeySecret: "secret",
+				AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // fixture
+				AccessKeySecret: ptr.Ref("secret"),
 			},
 		})
 		require.NoError(t, err)
@@ -145,8 +146,8 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 			Region:          "us-west-2",
 			Model:           "anthropic.claude-sonnet-4-5",
 			SmallFastModel:  "anthropic.claude-haiku-4-5",
-			AccessKey:       "AKIA-roundtrip", //nolint:gosec // fixture
-			AccessKeySecret: "secret-roundtrip",
+			AccessKey:       ptr.Ref("AKIA-roundtrip"), //nolint:gosec // fixture
+			AccessKeySecret: ptr.Ref("secret-roundtrip"),
 		},
 	}
 	encoded, err := json.Marshal(orig)
@@ -157,4 +158,168 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 	var got codersdk.AIProviderSettings
 	require.NoError(t, json.Unmarshal(encoded, &got))
 	require.Equal(t, orig, got)
+}
+
+func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		roleARN string
+		wantErr bool
+	}{
+		{name: "empty is allowed", roleARN: "", wantErr: false},
+		{name: "standard role arn", roleARN: "arn:aws:iam::743809215448:role/bedrock-role", wantErr: false},
+		{name: "govcloud partition", roleARN: "arn:aws-us-gov:iam::123456789012:role/bedrock-role", wantErr: false},
+		{name: "china partition", roleARN: "arn:aws-cn:iam::123456789012:role/bedrock-role", wantErr: false},
+		{name: "role path", roleARN: "arn:aws:iam::123456789012:role/team/bedrock-role", wantErr: false},
+		{name: "not an arn", roleARN: "bedrock-role", wantErr: true},
+		{name: "wrong resource type", roleARN: "arn:aws:iam::123456789012:user/dave", wantErr: true},
+		{name: "wrong service", roleARN: "arn:aws:s3:::my-bucket", wantErr: true},
+		{name: "truncated arn", roleARN: "arn:aws:iam::123456789012", wantErr: true},
+	}
+
+	hasRoleARNError := func(vs []codersdk.ValidationError) bool {
+		for _, v := range vs {
+			if v.Field == "settings.role_arn" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:  "us-east-1",
+					RoleARN: tc.roleARN,
+				},
+			}
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasRoleARNError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasRoleARNError(update.Validate()))
+		})
+	}
+}
+
+func TestAIProviderRequest_ValidateBedrockProtocol(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		protocol codersdk.AIProviderBedrockProtocol
+		wantErr  bool
+	}{
+		{name: "empty is allowed", protocol: "", wantErr: false},
+		{name: "invoke-model", protocol: codersdk.AIProviderBedrockProtocolInvokeModel, wantErr: false},
+		{name: "mantle", protocol: codersdk.AIProviderBedrockProtocolMantle, wantErr: false},
+		{name: "typo", protocol: "mnatle", wantErr: true},
+		{name: "unknown", protocol: "http", wantErr: true},
+	}
+
+	hasProtocolError := func(vs []codersdk.ValidationError) bool {
+		for _, v := range vs {
+			if v.Field == "settings.protocol" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:   "us-east-1",
+					Protocol: tc.protocol,
+				},
+			}
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasProtocolError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasProtocolError(update.Validate()))
+		})
+	}
+}
+
+func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
+	t.Parallel()
+
+	hasFieldError := func(vs []codersdk.ValidationError, field string) bool {
+		for _, v := range vs {
+			if v.Field == field {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("MantleRequiresRegion", func(t *testing.T) {
+		t.Parallel()
+		create := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock",
+			BaseURL: "https://bedrock-mantle.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Protocol: codersdk.AIProviderBedrockProtocolMantle,
+				},
+			},
+		}
+		require.True(t, hasFieldError(create.Validate(), "settings.region"))
+
+		create.Settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(create.Validate(), "settings.region"))
+	})
+
+	t.Run("MantleRequiresRegionOnUpdate", func(t *testing.T) {
+		t.Parallel()
+		settings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Protocol: codersdk.AIProviderBedrockProtocolMantle,
+			},
+		}
+		update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+		require.True(t, hasFieldError(update.Validate(), "settings.region"))
+
+		settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(update.Validate(), "settings.region"))
+	})
+
+	t.Run("InvokeModelDoesNotRequireRegionField", func(t *testing.T) {
+		t.Parallel()
+		// The mantle-specific region check must not fire for the invoke-model
+		// protocol, whether it is set explicitly or left empty (existing rows).
+		for _, protocol := range []codersdk.AIProviderBedrockProtocol{"", codersdk.AIProviderBedrockProtocolInvokeModel} {
+			create := codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeBedrock,
+				Name:    "bedrock",
+				BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+				Settings: codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{Protocol: protocol},
+				},
+			}
+			require.False(t, hasFieldError(create.Validate(), "settings.region"))
+		}
+	})
 }

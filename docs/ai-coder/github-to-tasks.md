@@ -24,7 +24,7 @@ This guide walks you through how to configure GitHub and Coder together so that 
 
 The below steps outline how to use the Coder [Create Task Action GHA](https://github.com/coder/create-task-action) in a GitHub workflow to solve a bug. The guide makes the following assumptions:
 
-- You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Quickstart Guide](https://coder.com/docs/tutorials/quickstart)
+- You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Get started guide](../get-started/index.md)
 - Your Coder Server is accessible from GitHub
 - You have an AI-enabled Task Template that can successfully create a Coder Task. If you don't have a Task Template available, follow our [Getting Started with Tasks Guide](https://coder.com/docs/ai-coder/tasks#getting-started-with-tasks)
 - Check the [Requirements section of the GHA](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for specific version requirements for your Coder deployment and the following
@@ -96,7 +96,7 @@ You must also set `coder-template-name` as part of this. The GHA example has thi
 - By viewing the URL of the template in the UI, e.g. `https://<your-coder-url>/templates/<org-name>/<template-name>`
 - Using the Coder CLI:
 
-```bash
+```sh
 # List all templates in your organization
 coder templates list
 
@@ -110,7 +110,7 @@ You can also choose to modify the other [input parameters](https://github.com/co
 
 If your prompt uses the GitHub CLI `gh`, your template must pass the user's GitHub token to the agent. Add this to your template's Terraform:
 
-```terraform
+```tf
 data "coder_external_auth" "github" {
   id = "github" # Must match your CODER_EXTERNAL_AUTH_0_ID
 }
@@ -165,7 +165,7 @@ We recommend that you further adapt this workflow to better match your process. 
 - Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completeness, or even writing unit tests
 - Modify the workflow trigger for other scenarios such as:
 
-```yml
+```yaml
 # Comment-based trigger slash commands
 on:
   issue_comment:
@@ -251,7 +251,7 @@ Generate a new token with these permissions at `https://<your-coder-url>/deploym
 
 From within the running task workspace, check if the token is still valid:
 
-```bash
+```sh
 # Check if the token still works
 curl -H "Authorization: token ${GITHUB_TOKEN}" \
   https://api.github.com/user
@@ -261,6 +261,6 @@ If this returns 401 Unauthorized or Bad credentials, the token has expired.
 
 **Solution:**
 
-1. Have the user re-authenticate at https://<your-coder-url>/settings/external-auth
+1. Have the user re-authenticate at `https://<your-coder-url>/settings/external-auth`
 1. Verify the GitHub provider shows "Authenticated" with a green checkmark
 1. Re-trigger the workflow to create a new task with a fresh token

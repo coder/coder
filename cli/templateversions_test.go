@@ -12,13 +12,15 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplateVersions(t *testing.T) {
 	t.Parallel()
 	t.Run("ListVersions", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -29,7 +31,7 @@ func TestTemplateVersions(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "versions", "list", template.Name)
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		errC := make(chan error)
 		go func() {
@@ -38,9 +40,9 @@ func TestTemplateVersions(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch(version.Name)
-		pty.ExpectMatch(version.CreatedBy.Username)
-		pty.ExpectMatch("Active")
+		stdout.ExpectMatch(ctx, version.Name)
+		stdout.ExpectMatch(ctx, version.CreatedBy.Username)
+		stdout.ExpectMatch(ctx, "Active")
 	})
 
 	t.Run("ListVersionsJSON", func(t *testing.T) {

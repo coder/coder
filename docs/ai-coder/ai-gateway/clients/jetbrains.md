@@ -17,7 +17,7 @@ JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via th
 1. **Open Settings**: Go to **Settings** > **Tools** > **AI Assistant** > **Models & API Keys**.
 1. **Configure Provider**: Go to **Third-party AI providers**.
 1. **Choose Provider**: Choose **OpenAI-compatible**.
-1. **URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
+1. **URL**: `https://coder.example.com/api/v2/ai-gateway/openai/v1`
 1. **API Key**: Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 1. **Apply**: Click **Apply** and **OK**.
 

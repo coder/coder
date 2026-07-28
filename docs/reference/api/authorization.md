@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/auth/scopes \
   -H 'Accept: application/json'
@@ -34,7 +34,7 @@ curl -X GET http://coder-server:8080/api/v2/auth/scopes \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/authcheck \
   -H 'Content-Type: application/json' \
@@ -102,7 +102,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/login \
   -H 'Content-Type: application/json' \
@@ -146,7 +146,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
   -H 'Content-Type: application/json'
@@ -180,7 +180,7 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/otp/request \
   -H 'Content-Type: application/json'
@@ -212,7 +212,7 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/validate-password \
   -H 'Content-Type: application/json' \
@@ -259,7 +259,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
   -H 'Content-Type: application/json' \

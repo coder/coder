@@ -75,11 +75,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						Observability
 					</SidebarNavItem>
 				)}
-				{permissions.viewDeploymentConfig && (
-					<SidebarNavItem href="/deployment/ai-governance">
-						AI Governance
-					</SidebarNavItem>
-				)}
+
 				{permissions.viewAllUsers && (
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
@@ -104,13 +100,6 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
-				)}
-				{permissions.editDeploymentConfig && (
-					<SidebarNavItem href="/agents/settings/agents">
-						<div className="flex flex-row items-center gap-1">
-							Manage Coder Agents <ArrowUpRightIcon size={16} />
-						</div>
-					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

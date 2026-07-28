@@ -2,7 +2,7 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -81,6 +81,44 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
+}
+
+// AuditableGroupAIBudget is the audit-log representation of GroupAIBudget.
+// It enriches the raw record with the group's name and a human-readable
+// spend limit so audit entries can display meaningful values instead of
+// UUIDs and micros.
+type AuditableGroupAIBudget struct {
+	GroupAIBudget
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (b GroupAIBudget) Auditable(groupName string) AuditableGroupAIBudget {
+	return AuditableGroupAIBudget{
+		GroupAIBudget: b,
+		GroupName:     groupName,
+		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
+}
+
+// AuditableUserAIBudgetOverride is the audit-log representation of
+// UserAIBudgetOverride. It enriches the raw record with the username, the
+// attributed group's name, and a human-readable spend limit so audit
+// entries can display meaningful values instead of UUIDs and micros.
+type AuditableUserAIBudgetOverride struct {
+	UserAIBudgetOverride
+	Username   string `json:"username"`
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (o UserAIBudgetOverride) Auditable(username, groupName string) AuditableUserAIBudgetOverride {
+	return AuditableUserAIBudgetOverride{
+		UserAIBudgetOverride: o,
+		Username:             username,
+		GroupName:            groupName,
+		SpendLimit:           fmt.Sprintf("$%.2f", float64(o.SpendLimitMicros)/1_000_000),
+	}
 }
 
 // Auditable returns an object that can be used in audit logs.
@@ -175,7 +213,22 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+	obj := rbac.ResourceChat.
+		WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
+
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+
+	return obj.
+		WithACLUserList(c.UserACL.RBACACL()).
+		WithGroupACL(c.GroupACL.RBACACL())
+}
+
+func (c Chat) IsSubChat() bool {
+	return c.RootChatID.Valid || c.ParentChatID.Valid
 }
 
 func (r GetChatsRow) RBACObject() rbac.Object {
@@ -191,6 +244,10 @@ func (c ChatFile) RBACObject() rbac.Object {
 }
 
 func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileDataPrefixesByIDsRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
@@ -401,12 +458,20 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 	return g.Group.RBACObject()
 }
 
+func (g GetOrganizationGroupsAISpendRow) RBACObject() rbac.Object {
+	return Group{ID: g.GroupID, OrganizationID: g.OrganizationID}.RBACObject()
+}
+
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
 func (gm GetGroupMembersByGroupIDPaginatedRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
+}
+
+func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }
 
 // PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
@@ -811,12 +876,20 @@ func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error)
 	return names, nil
 }
 
-func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
-	return k.StartsAt.Add(keyDuration).UTC()
+func (r GetActiveUsersAuthorizationRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
 }
 
-func (k CryptoKey) DecodeString() ([]byte, error) {
-	return hex.DecodeString(k.Secret.String)
+func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
+	return k.StartsAt.Add(keyDuration).UTC()
 }
 
 func (k CryptoKey) CanSign(now time.Time) bool {
@@ -860,6 +933,10 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	}
 
 	return m.DebouncedUntil, false
+}
+
+func (s UserSkill) RBACObject() rbac.Object {
+	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
 }
 
 func (s UserSecret) RBACObject() rbac.Object {

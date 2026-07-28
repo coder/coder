@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func Test_ProxyServer_Headers(t *testing.T) {
@@ -50,13 +50,9 @@ func Test_ProxyServer_Headers(t *testing.T) {
 		"--header", fmt.Sprintf("%s=%s", headerName1, headerVal1),
 		"--header-command", fmt.Sprintf("printf %s=%s", headerName2, headerVal2),
 	)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "unexpected status code 418")
-	require.NoError(t, pty.Close())
-
 	assert.EqualValues(t, 1, called.Load())
 }
 
@@ -102,7 +98,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 		"--prometheus-enable",
 		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort),
 	)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
 	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 	defer cancel()
@@ -111,7 +107,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
 		// actually no assertions are needed as the test verifies only Prometheus endpoint
 	})
-	pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+	stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
 	// Fetch metrics from Prometheus endpoint
 	var res *http.Response

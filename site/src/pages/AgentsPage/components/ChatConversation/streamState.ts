@@ -24,7 +24,7 @@ export const applyMessagePartToStreamState = (
 			// Skip empty and whitespace-only deltas so they don't
 			// create a non-null StreamState with empty blocks, which
 			// would prematurely end the "starting" phase.
-			if (!part.text?.trim()) {
+			if (!part.text.trim()) {
 				return prev;
 			}
 			return {
@@ -33,7 +33,7 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "reasoning": {
-			if (!part.text?.trim()) {
+			if (!part.text.trim()) {
 				return prev;
 			}
 			return {
@@ -83,6 +83,7 @@ export const applyMessagePartToStreamState = (
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 						modelIntent,
+						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 					},
 				},
 			};
@@ -113,6 +114,16 @@ export const applyMessagePartToStreamState = (
 					...nextState,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
+				};
+			}
+			if (
+				part.result_delta === "" &&
+				part.result === undefined &&
+				!part.is_error
+			) {
+				return {
+					...nextState,
+					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
 
@@ -243,6 +254,7 @@ export const buildStreamTools = (
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 

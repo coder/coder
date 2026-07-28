@@ -106,6 +106,18 @@ func TestGuessSessionID(t *testing.T) {
 			sessionID: utils.PtrTo("codex-session-123"),
 		},
 		{
+			name:      "codex_with_hyphenated_session_header",
+			client:    aibridge.ClientCodex,
+			headers:   map[string]string{"session-id": "codex-session-456"},
+			sessionID: utils.PtrTo("codex-session-456"),
+		},
+		{
+			name:      "codex_hyphenated_header_takes_precedence",
+			client:    aibridge.ClientCodex,
+			headers:   map[string]string{"session-id": "codex-session-new", "session_id": "codex-session-old"},
+			sessionID: utils.PtrTo("codex-session-new"),
+		},
+		{
 			name:      "codex_with_whitespace_in_header",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session_id": "  codex-session-123  "},
@@ -181,6 +193,35 @@ func TestGuessSessionID(t *testing.T) {
 		{
 			name:   "coder_agents_without_chat_id",
 			client: aibridge.ClientCoderAgents,
+		},
+		// OpenCode.
+		{
+			name:      "opencode_with_session_header",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "ses_15a48edefffe7oY0YcIHRv29dD"},
+			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+		},
+		{
+			name:      "opencode_with_whitespace_in_header",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "  ses_15a48edefffe7oY0YcIHRv29dD  "},
+			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+		},
+		{
+			name:      "opencode_zen_header_takes_precedence_over_session_affinity",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "zen-session", "x-session-affinity": "other-session"},
+			sessionID: utils.PtrTo("zen-session"),
+		},
+		{
+			name:      "opencode_session_affinity_fallback",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"x-session-affinity": "affinity-session-123"},
+			sessionID: utils.PtrTo("affinity-session-123"),
+		},
+		{
+			name:   "opencode_without_session_header",
+			client: aibridge.ClientOpenCode,
 		},
 		// Crush.
 		{

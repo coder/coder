@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import {
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
 import type {
+	AssignableRoles,
 	OrganizationMemberWithUserData,
 	User,
 } from "#/api/typesGenerated";
@@ -35,9 +36,10 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const searchParamsResult = useSearchParams();
 	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
+	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -75,6 +77,25 @@ const OrganizationMembersPage: FC = () => {
 	const removeMemberMutation = useMutation(
 		removeOrganizationMember(queryClient, organizationName),
 	);
+
+	// Resolve the org's default member role names against the assignable
+	// roles list so the dialog can show full display names + descriptions.
+	const defaultMemberImpliedRoles = useMemo<AssignableRoles[]>(() => {
+		if (!defaultRolesEnabled) {
+			return [];
+		}
+		const available = organizationRolesQuery.data;
+		if (!available) {
+			return [];
+		}
+		return (organization?.default_org_member_roles ?? [])
+			.map((name) => available.find((r) => r.name === name))
+			.filter((r): r is AssignableRoles => r !== undefined);
+	}, [
+		defaultRolesEnabled,
+		organization?.default_org_member_roles,
+		organizationRolesQuery.data,
+	]);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -133,6 +154,7 @@ const OrganizationMembersPage: FC = () => {
 				key={memberToEditRoles?.username}
 				user={memberToEditRoles}
 				availableRoles={organizationRolesQuery.data}
+				additionalImpliedRoles={defaultMemberImpliedRoles}
 				onCancel={() => setMemberToEditRoles(undefined)}
 				onUpdateRoles={async (roles) => {
 					try {

@@ -26,7 +26,7 @@ INSERT INTO ai_providers (
         TRUE,
         FALSE,
         'https://bedrock-runtime.us-west-2.amazonaws.com/',
-        '{"bedrock_region":"us-west-2","bedrock_model":"global.anthropic.claude-sonnet-4-5-20250929-v1:0","bedrock_access_key":"fixture-bedrock-access-key","bedrock_access_key_secret":"fixture-bedrock-access-key-secret"}'
+        '{"_type":"bedrock","_version":1,"region":"us-west-2","model":"global.anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"fixture-bedrock-access-key","access_key_secret":"fixture-bedrock-access-key-secret"}'
     ),
     (
         '8e3c6e18-2b75-4c3f-9b35-9d1c6f4e1a03',

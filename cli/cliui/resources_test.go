@@ -10,12 +10,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestWorkspaceResources(t *testing.T) {
 	t.Parallel()
 	t.Run("SingleAgentSSH", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		ptty := ptytest.New(t)
 		done := make(chan struct{})
 		go func() {
@@ -37,12 +39,13 @@ func TestWorkspaceResources(t *testing.T) {
 			assert.NoError(t, err)
 			close(done)
 		}()
-		ptty.ExpectMatch("coder ssh example")
+		ptty.ExpectMatch(ctx, "coder ssh example")
 		<-done
 	})
 
 	t.Run("MultipleStates", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		ptty := ptytest.New(t)
 		disconnected := dbtime.Now().Add(-4 * time.Second)
 		done := make(chan struct{})
@@ -99,15 +102,15 @@ func TestWorkspaceResources(t *testing.T) {
 			assert.NoError(t, err)
 			close(done)
 		}()
-		ptty.ExpectMatch("google_compute_disk.root")
-		ptty.ExpectMatch("google_compute_instance.dev")
-		ptty.ExpectMatch("healthy")
-		ptty.ExpectMatch("coder ssh dev.dev")
-		ptty.ExpectMatch("kubernetes_pod.dev")
-		ptty.ExpectMatch("healthy")
-		ptty.ExpectMatch("coder ssh dev.go")
-		ptty.ExpectMatch("agent has lost connection")
-		ptty.ExpectMatch("coder ssh dev.postgres")
+		ptty.ExpectMatch(ctx, "google_compute_disk.root")
+		ptty.ExpectMatch(ctx, "google_compute_instance.dev")
+		ptty.ExpectMatch(ctx, "healthy")
+		ptty.ExpectMatch(ctx, "coder ssh dev.dev")
+		ptty.ExpectMatch(ctx, "kubernetes_pod.dev")
+		ptty.ExpectMatch(ctx, "healthy")
+		ptty.ExpectMatch(ctx, "coder ssh dev.go")
+		ptty.ExpectMatch(ctx, "agent has lost connection")
+		ptty.ExpectMatch(ctx, "coder ssh dev.postgres")
 		<-done
 	})
 }

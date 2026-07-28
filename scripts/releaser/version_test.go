@@ -1,4 +1,4 @@
-package main
+package main //nolint:testpackage // Tests unexported release helpers.
 
 import (
 	"testing"

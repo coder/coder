@@ -22,7 +22,6 @@ import (
 // and just swap the underlying implementation.
 // IDPSync exists to contain all the logic for mapping a user's external IDP
 // claims to the internal representation of a user in Coder.
-// TODO: Move group + role sync into this interface.
 type IDPSync interface {
 	OrganizationSyncEntitled() bool
 	OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error)

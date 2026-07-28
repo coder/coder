@@ -63,7 +63,7 @@ func TestConvertMessagesWithFilesPreservesEmptyRedactedReasoning(t *testing.T) {
 			Content:        content,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		},
-	}, nil, slogtest.Make(t, nil))
+	}, nil, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
 	require.Len(t, prompt[0].Content, 2)
@@ -146,7 +146,7 @@ func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *test
 			Content:        storedContent,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		},
-	}, nil, slogtest.Make(t, nil))
+	}, nil, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
 	require.Len(t, prompt[0].Content, 5)
@@ -198,6 +198,7 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 		messages,
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	return prompt
@@ -337,6 +338,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -395,6 +397,7 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 				}},
 				resolver,
 				slogtest.Make(t, nil),
+				nil,
 			)
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
@@ -442,6 +445,7 @@ func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Empty(t, prompt)
@@ -494,6 +498,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -502,6 +507,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 
 	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
 	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, "resolved.png", filePart.Filename)
 	require.Equal(t, resolvedData, filePart.Data)
 	require.Equal(t, "image/png", filePart.MediaType)
 
@@ -559,6 +565,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1484,6 +1491,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1532,6 +1540,7 @@ func TestFileReferencePreservation(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1587,6 +1596,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1731,6 +1741,7 @@ func TestMixedFormatConversation(t *testing.T) {
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(), messages, resolver, slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 6, "all 6 messages should produce prompt entries")
@@ -1851,6 +1862,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -2166,6 +2178,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		require.Len(t, prompt, 1)
@@ -2212,6 +2225,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		// 2 messages: assistant + synthetic tool result injected
@@ -2246,6 +2260,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		require.Empty(t, prompt, "all-empty message should be dropped entirely")
@@ -2367,7 +2382,7 @@ func TestConvertMessagesWithFiles_IsSyntheticPaste(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, chatprompt.IsSyntheticPasteForTest(tt.fileName, tt.mediaType))
+			require.Equal(t, tt.want, chatprompt.IsSyntheticPaste(tt.fileName, tt.mediaType))
 		})
 	}
 }
@@ -2424,6 +2439,7 @@ func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T)
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, resolverCalls, 1)
@@ -2477,6 +2493,7 @@ func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData c
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	return prompt
@@ -2499,12 +2516,12 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider: "anthropic",
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "test-model",
 		IsDefault:    true,
 		ContextLimit: 200000,
@@ -2566,6 +2583,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.NoError(t, loadErr)
 		prompt, convErr := chatprompt.ConvertMessagesWithFiles(
 			ctx, dbMsgs, nil, slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, convErr)
 		return prompt
@@ -3008,6 +3026,22 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
 		assert.Nil(t, part.CreatedAt)
 	})
+
+	t.Run("ReasoningHasNilCreatedAndCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// Same rationale as ToolCall: the chatloop layer records
+		// reasoning timestamps separately and the persistence
+		// layer applies them. PartFromContent is called in
+		// multiple contexts so stamping here would yield
+		// incorrect durations.
+		part := chatprompt.PartFromContent(fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, part.CreatedAt)
+		assert.Nil(t, part.CompletedAt)
+
+		partPtr := chatprompt.PartFromContent(&fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, partPtr.CreatedAt)
+		assert.Nil(t, partPtr.CompletedAt)
+	})
 }
 
 func TestToolResultAntivenom(t *testing.T) {
@@ -3220,4 +3254,72 @@ func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 		require.Contains(t, media.Text, "screenshot")
 		require.Contains(t, media.Text, "done")
 	})
+}
+
+func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		toolName string
+		input    string
+		want     [][]string
+	}{
+		{
+			name:     "execute-chained-git",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"command":"cd /repo && git pull && git commit -m fix"}`,
+			want: [][]string{
+				{"cd", "/repo"},
+				{"git", "pull"},
+				{"git", "commit"},
+			},
+		},
+		{
+			name:     "execute-empty-command",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"command":""}`,
+			want:     nil,
+		},
+		{
+			name:     "execute-no-command-key",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"other":"x"}`,
+			want:     nil,
+		},
+		{
+			name:     "execute-invalid-json-args",
+			toolName: chattool.ExecuteToolName,
+			input:    `not-json`,
+			want:     nil,
+		},
+		{
+			name:     "execute-command-parses-to-error",
+			toolName: chattool.ExecuteToolName,
+			// Unterminated double-quoted string fails the shell parser.
+			// Even if shellparse returns partial results, we expect nil
+			// here so the UI falls back to the raw command.
+			input: `{"command":"echo \"unterminated"}`,
+			want:  nil,
+		},
+		{
+			name:     "other-tool-ignored",
+			toolName: "read_file",
+			input:    `{"command":"cd /tmp && ls"}`,
+			want:     nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			part := chatprompt.PartFromContent(fantasy.ToolCallContent{
+				ToolCallID: "call-1",
+				ToolName:   tc.toolName,
+				Input:      tc.input,
+			})
+			require.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
+			assert.Equal(t, tc.want, part.ParsedCommands)
+		})
+	}
 }

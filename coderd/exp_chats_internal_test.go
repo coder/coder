@@ -1,12 +1,309 @@
 package coderd
 
 import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+// ExtractChatParam authorizes the read, then GetChatModelUsageCostByChatID
+// authorizes it again. A denial on the second check means the ACL changed in
+// between (a read-authz race). Assert it surfaces as 404, not 500.
+func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	dbm := dbmock.NewMockStore(ctrl)
+	chat := database.Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+	dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), chat.ID).Return(
+		database.GetChatModelUsageCostByChatIDRow{},
+		dbauthz.NotAuthorizedError{Err: sql.ErrNoRows},
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+chat.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// A subagent chat's cost is scoped to its own subtree, so the handler
+// must query the requested chat ID rather than resolving to the root.
+func TestGetChatCostQueriesRequestedChat(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	dbm := dbmock.NewMockStore(ctrl)
+	rootID := uuid.New()
+	child := database.Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		ParentChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: rootID, Valid: true},
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
+	dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), child.ID).Return(
+		database.GetChatModelUsageCostByChatIDRow{
+			ChatID:             child.ID,
+			TotalCostMicros:    250,
+			PricedMessageCount: 1,
+		},
+		nil,
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+child.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var cost codersdk.ChatCost
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
+	require.Equal(t, child.ID, cost.ChatID)
+	require.Equal(t, int64(250), cost.TotalCostMicros)
+	require.Equal(t, int64(1), cost.PricedMessageCount)
+}
+
+func TestEnrichMissingChatAgentIDs(t *testing.T) {
+	t.Parallel()
+	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
+		t.Helper()
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		return &API{Options: &Options{Database: mDB, Logger: logger}}, mDB
+	}
+	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
+	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
+		return database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			WorkspaceID: workspaceID,
+			WorkspaceAgent: database.WorkspaceAgent{
+				ID:       id,
+				ParentID: parentID,
+				Name:     name,
+			},
+		}
+	}
+	t.Run("batch selection and shared workspace", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).DoAndReturn(func(_ any, ids []uuid.UUID) ([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow, error) {
+			require.ElementsMatch(t, []uuid.UUID{workspaceID, otherWorkspaceID}, ids)
+			return []database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+				row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub"), row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"), row(otherWorkspaceID, otherAgentID, uuid.NullUUID{}, "root"),
+			}, nil
+		}).Times(1)
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
+		require.Equal(t, otherAgentID, *chats[1].AgentID)
+	})
+	t.Run("query error", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Nil(t, chats[0].AgentID)
+		require.Nil(t, chats[1].AgentID)
+	})
+	t.Run("selection error and skips bound or unbound", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
+		bound := otherAgentID
+		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Nil(t, chats[1].AgentID)
+		require.Equal(t, bound, *chats[2].AgentID)
+	})
+}
+
+func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		display string
+		wantErr string
+	}{
+		{name: "Summarized", display: "summarized"},
+		{name: "Omitted", display: " omitted "},
+		{name: "Empty", display: " "},
+		{
+			name:    "Invalid",
+			display: "summrized",
+			wantErr: "provider_options.anthropic.thinking_display must be one of summarized, omitted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			display := tt.display
+			err := validateChatModelProviderOptions(&codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					ThinkingDisplay: &display,
+				},
+			})
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateChatModelConfigProviderModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		model      string
+		provider   database.AIProvider
+		wantErr    bool
+		wantDetail string
+	}{
+		{
+			name:  "OpenRouterNameWithOpenAITypeAndSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name: "openrouter",
+				Type: database.AIProviderTypeOpenai,
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterNameWithWhitespaceAndCase",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name: " OpenRouter ",
+				Type: database.AIProviderTypeOpenai,
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterHostWithOpenAITypeAndSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://openrouter.ai/api/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterHostWithPort",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://openrouter.ai:443/api/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterSubdomainWithOpenAIType",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://api.openrouter.ai/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterTypeAllowsSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name: "openrouter",
+				Type: database.AIProviderTypeOpenrouter,
+			},
+		},
+		{
+			name:  "OpenAICompatTypeAllowsSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name: "openrouter",
+				Type: database.AIProviderTypeOpenaiCompat,
+			},
+		},
+		{
+			name:  "PrivateOpenAIProxyAllowsSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://llm-relay.internal/v1",
+			},
+		},
+		{
+			name:  "OpenRouterNameWithPlainModelAllowed",
+			model: "gpt-4.1",
+			provider: database.AIProvider{
+				Name: "openrouter",
+				Type: database.AIProviderTypeOpenai,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := validateChatModelConfigProviderModel(tt.provider, tt.model)
+			if tt.wantErr {
+				require.NotNil(t, got)
+				require.Contains(t, got.Response.Detail, tt.wantDetail)
+				return
+			}
+			require.Nil(t, got)
+		})
+	}
+}
 
 func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 	t.Parallel()

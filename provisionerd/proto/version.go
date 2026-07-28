@@ -85,9 +85,16 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `UserSecretValue` message and `user_secrets` field to `PlanRequest`,
 //     carrying user secret values from provisioner daemons to provisioners
 //     during plan.
+//
+// API v1.18:
+//   - Removed `user_secrets` from `AcquiredJob.WorkspaceBuild` (field 12) and
+//     `PlanRequest` (field 7), along with the `UserSecretValue` message. The
+//     `coder_secret` Terraform integration is being removed; user secrets are
+//     still delivered to running workspaces via the agent manifest path, which
+//     is independent of this proto.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 17
+	CurrentMinor = 18
 )
 
 // CurrentVersion is the current provisionerd API version.

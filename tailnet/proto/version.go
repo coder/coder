@@ -69,9 +69,21 @@ import (
 //   - Added session_id and confined_process fields to
 //     ReportBoundaryLogsRequest on the Agent API.
 //   - Added sequence_number field to BoundaryLog on the Agent API.
+//
+// API v2.10:
+//   - Added PushContextState RPC on the Agent API for pushing
+//     resolved workspace context snapshots (instruction files,
+//     skills, MCP configs, MCP server tool lists) from the
+//     agent to coderd. Adds ContextResource, PushContextStateRequest,
+//     and PushContextStateResponse messages. The coderd handler
+//     ships as a stub returning Unimplemented; the agent push
+//     loop shuts down cleanly on that response so older coderd
+//     deployments remain interoperable. Real persistence,
+//     KindMCPServer provider, and chatd hydration land in
+//     CODAGT-569.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 9
+	CurrentMinor = 10
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

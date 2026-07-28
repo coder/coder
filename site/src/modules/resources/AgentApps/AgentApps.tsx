@@ -35,7 +35,7 @@ export const AgentApps: FC<AgentAppsProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				{section.apps.map((app) => (
-					<DropdownMenuItem key={app.slug}>
+					<DropdownMenuItem key={app.slug} asChild>
 						<AppLink grouped app={app} agent={agent} workspace={workspace} />
 					</DropdownMenuItem>
 				))}

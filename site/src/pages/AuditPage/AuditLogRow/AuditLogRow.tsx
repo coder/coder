@@ -22,10 +22,7 @@ import { cn } from "#/utils/cn";
 import { buildReasonLabels } from "#/utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
-import {
-	determineGroupDiff,
-	determineIdPSyncMappingDiff,
-} from "./AuditLogDiff/auditUtils";
+import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
 interface AuditLogRowProps {
 	auditLog: AuditLog;
@@ -53,14 +50,6 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		auditDiff = determineGroupDiff(auditLog.diff);
 	}
 
-	if (
-		auditLog.resource_type === "idp_sync_settings_organization" ||
-		auditLog.resource_type === "idp_sync_settings_group" ||
-		auditLog.resource_type === "idp_sync_settings_role"
-	) {
-		auditDiff = determineIdPSyncMappingDiff(auditLog.diff);
-	}
-
 	const toggle = () => {
 		if (shouldDisplayDiff) {
 			setIsDiffOpen((v) => !v);
@@ -73,7 +62,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="!p-0 border-0 border-b text-base">
+			<TableCell className="!p-0 border-0 border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					<div
 						className={cn(
@@ -245,8 +234,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						</div>
 
 						{shouldDisplayDiff ? (
-							<div>
-								<ChevronDownIcon open={isDiffOpen} className="ml-2" />
+							<div className="size-6 flex items-center justify-center">
+								<ChevronDownIcon open={isDiffOpen} />
 							</div>
 						) : (
 							<div className="ml-6" />

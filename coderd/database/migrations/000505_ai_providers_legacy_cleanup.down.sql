@@ -1,0 +1,3 @@
+-- no-op. Legacy chat provider tables are intentionally not recreated from AI
+-- provider definitions. Rolling back past this migration is not reversible at
+-- the schema level.

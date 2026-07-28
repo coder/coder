@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -11,32 +12,10 @@ const createServerConfig = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
-	id: overrides.id,
-	display_name: overrides.display_name,
-	slug: overrides.slug,
-	description: overrides.description ?? "",
-	icon_url: overrides.icon_url ?? "",
-	transport: overrides.transport ?? "streamable_http",
-	url: overrides.url ?? "https://mcp.example.com/sse",
-	auth_type: overrides.auth_type ?? "none",
-	oauth2_client_id: overrides.oauth2_client_id,
-	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
-	oauth2_auth_url: overrides.oauth2_auth_url,
-	oauth2_token_url: overrides.oauth2_token_url,
-	oauth2_scopes: overrides.oauth2_scopes,
-	api_key_header: overrides.api_key_header,
-	has_api_key: overrides.has_api_key ?? false,
-	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
-	availability: overrides.availability ?? "default_on",
-	enabled: overrides.enabled ?? true,
-	model_intent: overrides.model_intent ?? false,
-	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
-	forward_coder_headers: overrides.forward_coder_headers ?? false,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-	auth_connected: overrides.auth_connected ?? false,
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
 // ── Fixtures ───────────────────────────────────────────────────

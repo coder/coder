@@ -166,16 +166,17 @@ func TestPrepareStoredFile(t *testing.T) {
 		require.ErrorIs(t, err, chatfiles.ErrStoredFileNameRequired)
 	})
 
-	t.Run("RejectsUnsupportedStoredFileType", func(t *testing.T) {
+	t.Run("ClassifiesUnsupportedPromptInputType", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := chatfiles.PrepareStoredFile(
+		name, mediaType, err := chatfiles.PrepareStoredFile(
 			"evil.svg",
 			"evil.svg",
 			[]byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`),
 		)
-		require.ErrorIs(t, err, chatfiles.ErrUnsupportedStoredFileType)
-		require.ErrorContains(t, err, "image/svg+xml")
+		require.NoError(t, err)
+		require.Equal(t, "evil.svg", name)
+		require.Equal(t, "image/svg+xml", mediaType)
 	})
 
 	t.Run("TruncatesNamesAtRuneBoundaries", func(t *testing.T) {
@@ -322,18 +323,18 @@ func TestIsCompatibleUploadMediaType(t *testing.T) {
 	}
 }
 
-func TestIsAllowedStoredMediaType(t *testing.T) {
+func TestIsAllowedPromptInputMediaType(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, chatfiles.IsAllowedStoredMediaType("text/plain; charset=utf-8"))
-	require.True(t, chatfiles.IsAllowedStoredMediaType("text/markdown"))
-	require.True(t, chatfiles.IsAllowedStoredMediaType("text/csv"))
-	require.True(t, chatfiles.IsAllowedStoredMediaType("application/json"))
-	require.True(t, chatfiles.IsAllowedStoredMediaType("application/pdf"))
-	require.True(t, chatfiles.IsAllowedStoredMediaType("image/png"))
-	require.False(t, chatfiles.IsAllowedStoredMediaType("image/svg+xml"))
-	require.False(t, chatfiles.IsAllowedStoredMediaType("image/avif"))
-	require.False(t, chatfiles.IsAllowedStoredMediaType("application/zip"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("text/plain; charset=utf-8"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("text/markdown"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("text/csv"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("application/json"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("application/pdf"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("image/png"))
+	require.False(t, chatfiles.IsAllowedPromptInputMediaType("image/svg+xml"))
+	require.False(t, chatfiles.IsAllowedPromptInputMediaType("image/avif"))
+	require.False(t, chatfiles.IsAllowedPromptInputMediaType("application/zip"))
 }
 
 func TestIsInlineRenderableStoredMediaType(t *testing.T) {
@@ -344,6 +345,7 @@ func TestIsInlineRenderableStoredMediaType(t *testing.T) {
 	require.True(t, chatfiles.IsInlineRenderableStoredMediaType("image/png"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/pdf"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("image/svg+xml"))
+	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/zip"))
 }
 
 func TestHasSVGRootElement(t *testing.T) {

@@ -58,6 +58,8 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
+	ErrClientURLNotConfigured = xerrors.New("client URL is not configured")
+
 	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
 )
 
@@ -343,10 +345,11 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 					// support links.
 					return
 				}
-				if cmd.Name() == "boundary" {
-					// The boundary command is integrated from the boundary package
-					// and has YAML-only options (e.g., allowlist from config file)
-					// that don't have flags or env vars.
+				if cmd.Name() == "agent-firewall" || cmd.Name() == "boundary" {
+					// The agent-firewall command (and its "boundary" alias) is
+					// integrated from the boundary package and has YAML-only
+					// options (e.g., allowlist from config file) that don't
+					// have flags or env vars.
 					return
 				}
 				merr = errors.Join(
@@ -601,23 +604,58 @@ func (r *RootCmd) SetClock(clk quartz.Clock) {
 // ensureClientURL loads the client URL from the config file if it
 // wasn't provided via --url or CODER_URL.
 func (r *RootCmd) ensureClientURL() error {
-	if r.clientURL != nil && r.clientURL.String() != "" {
-		return nil
-	}
-	rawURL, err := r.createConfig().URL().Read()
-	// If the configuration files are absent, the user is logged out.
-	if os.IsNotExist(err) {
-		binPath, err := os.Executable()
-		if err != nil {
+	u, err := r.resolveClientURL()
+
+	if errors.Is(err, ErrClientURLNotConfigured) {
+		binPath, execErr := os.Executable()
+		if execErr != nil {
 			binPath = "coder"
 		}
 		return xerrors.Errorf(notLoggedInMessage, binPath)
 	}
+
 	if err != nil {
 		return err
 	}
-	r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-	return err
+
+	r.clientURL = u
+	return nil
+}
+
+func (r *RootCmd) resolveClientURL() (*url.URL, error) {
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		return r.clientURL, nil
+	}
+
+	rawURL, err := r.createConfig().URL().Read()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrClientURLNotConfigured
+		}
+		return nil, xerrors.Errorf("read configured URL: %w", err)
+	}
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, xerrors.Errorf("parse configured URL: %w", err)
+	}
+	return parsedURL, nil
+}
+
+// ResolveClientConnection resolves the deployment URL and client TLS transport
+// without reading or requiring a user session.
+func (r *RootCmd) ResolveClientConnection() (*url.URL, http.RoundTripper, error) {
+	serverURL, err := r.resolveClientURL()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, nil, xerrors.Errorf("load client TLS config: %w", err)
+	}
+	transport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create HTTP transport: %w", err)
+	}
+	return serverURL, transport, nil
 }
 
 // ensureTLSConfig loads the TLS configuration from files if specified.
@@ -806,27 +844,23 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
-
-	// Apply custom TLS config if specified
-	if r.tlsConfig != nil {
-		// Clone the default transport and apply TLS config
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
-		}
-		customTransport := defaultTransport.Clone()
-		customTransport.TLSClientConfig = r.tlsConfig
-		transport = customTransport
+	baseTransport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, err
 	}
+	transport := baseTransport
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
+		buildInfoTransport, err := newHTTPTransport(r.tlsConfig)
+		if err != nil {
+			return nil, err
+		}
 		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL)
+			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: buildInfoTransport}))
 			return basicClient.BuildInfo(ctx)
 		})
 	}
@@ -844,6 +878,25 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	return &http.Client{
 		Transport: headerTransport,
 	}, nil
+}
+
+func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		if tlsConfig != nil {
+			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
+		}
+		return http.DefaultTransport, nil
+	}
+
+	// Clone http.DefaultTransport for each CLI client. Parallel tests and
+	// embedded callers may close idle connections on their own clients, and
+	// sharing the process-global transport can interrupt in-flight requests.
+	transport := defaultTransport.Clone()
+	if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
+	}
+	return transport, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {

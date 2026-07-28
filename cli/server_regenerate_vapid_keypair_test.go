@@ -11,8 +11,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestRegenerateVapidKeypair(t *testing.T) {
@@ -39,16 +39,14 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 
 		inv, _ := clitest.New(t, "server", "regenerate-vapid-keypair", "--postgres-url", connectionURL, "--yes")
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		pty.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
-		pty.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
-		pty.WriteLine("y")
-		pty.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
+		stdout.ExpectMatch(ctx, "Regenerating VAPID keypair...")
+		stdout.ExpectMatch(ctx, "This will delete all existing webpush subscriptions.")
+		stdout.ExpectMatch(ctx, "Are you sure you want to continue? (y/N)")
+		// don't need to write to stdin because we passed --yes
+		stdout.ExpectMatch(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
 		keys, err := db.GetWebpushVAPIDKeys(ctx)
@@ -84,16 +82,14 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 
 		inv, _ := clitest.New(t, "server", "regenerate-vapid-keypair", "--postgres-url", connectionURL, "--yes")
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		pty.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
-		pty.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
-		pty.WriteLine("y")
-		pty.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
+		stdout.ExpectMatch(ctx, "Regenerating VAPID keypair...")
+		stdout.ExpectMatch(ctx, "This will delete all existing webpush subscriptions.")
+		stdout.ExpectMatch(ctx, "Are you sure you want to continue? (y/N)")
+		// don't need to write to stdin because we passed --yes
+		stdout.ExpectMatch(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
 		keys, err := db.GetWebpushVAPIDKeys(ctx)

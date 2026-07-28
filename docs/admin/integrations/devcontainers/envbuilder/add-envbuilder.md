@@ -14,29 +14,18 @@ choose a template from the
 
 ## Dashboard
 
-1. In the Coder dashboard, select **Templates** then **Create Template**.
-1. Use a
-   [starter template](https://github.com/coder/coder/tree/main/examples/templates)
-   or create a new template:
-
-   - Starter template:
-
-     1. Select **Choose a starter template**.
-     1. Choose a template from the list or select **Devcontainer** from the
-        sidebar to display only dev container-compatible templates.
-     1. Select **Use template**, enter the details, then select **Create
-        template**.
-
-   - To create a new template, select **From scratch** and enter the templates
-     details, then select **Create template**.
-
+1. In the Coder dashboard, select **Templates** > **New Template**.
+   The template builder opens.
+1. The template builder does not currently include dev-container-compatible base templates.
+   Select **Upload an existing template** at the bottom of the page to upload your Terraform files directly.
+1. Upload your `.zip` or `.tar.gz` file, enter the details, then select **Create template**.
 1. Edit the template files to fit your deployment.
 
 ## CLI
 
 1. Use the `template init` command to initialize your choice of image:
 
-   ```shell
+   ```sh
    coder template init --id kubernetes-devcontainer
    ```
 
@@ -45,7 +34,7 @@ choose a template from the
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
-   ```shell
+   ```sh
    cd kubernetes-devcontainer && coder templates push
    ```
 
@@ -63,7 +52,7 @@ choose a template from the
 
    - CLI:
 
-   ```shell
+   ```sh
    coder templates push <template-name> -d <path to folder containing main.tf>
    ```
 
@@ -76,7 +65,7 @@ choose a template from the
 
       - To zip the files through the command line:
 
-        ```shell
+        ```sh
         zip templates.zip Dockerfile main.tf
         ```
 
@@ -95,7 +84,7 @@ choose a template from the
 To set variables such as the namespace, go to the template in your Coder
 dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
-<Image height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
+<img height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
 
 ## Envbuilder Terraform provider
 
@@ -119,12 +108,12 @@ their development environments:
 
 ## Example templates
 
-| Template                                                                                                            | Description                                                                                                                                                         |
-|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)            | Docker provisions a development container.                                                                                                                          |
-| [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-devcontainer)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
-| [Google Compute Engine dev container](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
-| [AWS EC2 dev container](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
+| Template                                                                                  | Description                                                                                                                                                         |
+|-------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Docker dev containers](../../../../../examples/templates/docker-devcontainer)            | Docker provisions a development container.                                                                                                                          |
+| [Kubernetes dev containers](../../../../../examples/templates/kubernetes-devcontainer)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
+| [Google Compute Engine dev container](../../../../../examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
+| [AWS EC2 dev container](../../../../../examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 
 Your template can prompt the user for a repo URL with
 [parameters](../../../templates/extending-templates/parameters.md):

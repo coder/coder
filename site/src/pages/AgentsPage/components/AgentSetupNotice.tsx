@@ -1,103 +1,151 @@
-import { CheckIcon } from "lucide-react";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
+import { docs } from "#/utils/docs";
 
 interface AgentSetupNoticeProps {
+	isAdmin: boolean;
 	providerCount: number;
 	modelCount: number;
+	// Names of configured providers the harness cannot use, populated by
+	// the page only when no supported provider is configured.
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 }
 
+const formatProviderList = (names: readonly string[]): string => {
+	if (names.length === 1) {
+		return names[0];
+	}
+	if (names.length === 2) {
+		return `${names[0]} and ${names[1]}`;
+	}
+	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+};
+
 export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
+	isAdmin,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
 	const hasModel = modelCount > 0;
+	const hasUnsupportedProviderNames = unsupportedProviderNames.length > 0;
+
+	// AI Gateway can be disabled even when providers/models exist in the DB
+	// catalog, so check it before the provider/model counts below. Unlike
+	// the provider/model branches, there is no in-app settings page for
+	// this deployment-level flag for any audience, so the message doesn't
+	// vary by isAdmin.
+	if (aiGatewayDisabled) {
+		return (
+			<NoticeContainer>
+				AI Gateway is disabled. Enable it in your deployment config to chat with
+				Coder Agents.
+			</NoticeContainer>
+		);
+	}
 
 	if (hasProvider && hasModel) {
 		return null;
 	}
 
-	return (
-		<Dialog open>
-			<DialogContent
-				className="w-fit max-w-[calc(100vw-2rem)] gap-8"
-				onEscapeKeyDown={(event) => {
-					event.preventDefault();
-				}}
-				onPointerDownOutside={(event) => {
-					event.preventDefault();
-				}}
+	// Configured providers exist but none are supported by Coder Agents
+	// (e.g. GitHub Copilot). Say so rather than asking to set up a provider.
+	if (hasUnsupportedProviderNames) {
+		const providerList = formatProviderList(unsupportedProviderNames);
+		const unsupportedLink = (
+			<a
+				href={docs("/ai-coder/agents/models#providers")}
+				target="_blank"
+				rel="noreferrer"
+				className="text-content-link transition-colors hover:text-content-link/80"
 			>
-				<DialogHeader className="space-y-5 text-left sm:text-left">
-					<DialogTitle className="text-xl">Welcome to Coder Agents</DialogTitle>
-					<DialogDescription className="text-base">
-						Complete 2 quick steps to get started.
-					</DialogDescription>
-				</DialogHeader>
+				not supported by Coder Agents
+			</a>
+		);
+		if (!isAdmin) {
+			return (
+				<NoticeContainer>
+					{providerList} {unsupportedProviderNames.length === 1 ? "is" : "are"}{" "}
+					configured but {unsupportedLink}. Ask your admin to add a supported
+					provider.
+				</NoticeContainer>
+			);
+		}
+		return (
+			<NoticeContainer>
+				{providerList} {unsupportedProviderNames.length === 1 ? "is" : "are"}{" "}
+				configured but {unsupportedLink}. Add a supported{" "}
+				<Link
+					to="/ai/settings/providers"
+					className="text-content-link transition-colors hover:text-content-link/80"
+				>
+					provider
+				</Link>{" "}
+				to chat with Coder Agents.
+			</NoticeContainer>
+		);
+	}
 
-				<div className="flex flex-col gap-3 text-base text-content-secondary">
-					<AgentSetupStep
-						isComplete={hasProvider}
-						stepNumber={1}
-						label="Connect a chat provider"
-						linkTo="/agents/settings/providers"
-						linkText="Go to Providers"
-					/>
-					<AgentSetupStep
-						isComplete={hasModel}
-						stepNumber={2}
-						label="Add a chat model"
-						linkTo="/agents/settings/models"
-						linkText="Go to Models"
-					/>
-				</div>
-			</DialogContent>
-		</Dialog>
+	// Non-admin member: show a generic message
+	if (!isAdmin) {
+		return (
+			<NoticeContainer>
+				AI models aren't available yet. Your admin is still getting things set
+				up.
+			</NoticeContainer>
+		);
+	}
+
+	// Admin: missing provider (with or without models)
+	if (!hasProvider) {
+		return (
+			<NoticeContainer>
+				To chat with Coder Agents, set up a{" "}
+				<Link
+					to="/ai/settings/providers"
+					className="text-content-link transition-colors hover:text-content-link/80"
+				>
+					provider
+				</Link>
+				{!hasModel && (
+					<>
+						{" "}
+						then add a{" "}
+						<Link
+							to="/ai/settings/models"
+							className="text-content-link transition-colors hover:text-content-link/80"
+						>
+							model
+						</Link>
+					</>
+				)}
+				.
+			</NoticeContainer>
+		);
+	}
+
+	// Admin: has providers but no models
+	return (
+		<NoticeContainer>
+			To chat with Coder Agents, set up a{" "}
+			<Link
+				to="/ai/settings/models"
+				className="text-content-link transition-colors hover:text-content-link/80"
+			>
+				model
+			</Link>
+			.
+		</NoticeContainer>
 	);
 };
 
-interface AgentSetupStepProps {
-	isComplete: boolean;
-	stepNumber: number;
-	label: string;
-	linkTo: string;
-	linkText: string;
-}
-
-const AgentSetupStep: FC<AgentSetupStepProps> = ({
-	isComplete,
-	stepNumber,
-	label,
-	linkTo,
-	linkText,
-}) => {
+const NoticeContainer: FC<{ children: ReactNode }> = ({ children }) => {
 	return (
-		<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-			<span className="flex w-7 shrink-0 justify-end text-content-secondary">
-				{isComplete ? (
-					<CheckIcon
-						aria-label="Complete"
-						className="h-5 w-5 text-content-success"
-					/>
-				) : (
-					`${stepNumber}.`
-				)}
-			</span>
-			<span className="text-content-secondary">{label}</span>
-			<Link
-				to={linkTo}
-				className="text-content-link transition-colors hover:text-content-link/80"
-			>
-				{linkText}
-			</Link>
+		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-[13px] text-content-primary">
+			{children}
 		</div>
 	);
 };

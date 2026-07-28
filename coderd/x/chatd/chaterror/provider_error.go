@@ -5,12 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 )
+
+// transportErrorPrefix matches the Anthropic SDK transport error format
+// `METHOD "URL": <status> <status text> ` that wraps the real provider
+// response body. The SDK emits this when it cannot parse a non-Anthropic
+// response, so AWS Bedrock errors arrive through aibridge with this
+// wrapper, hiding the useful message inside a trailing JSON body.
+var transportErrorPrefix = regexp.MustCompile(`^[A-Z]+ "[^"]+": \d{3} `)
 
 type providerErrorDetails struct {
 	detail     string
@@ -35,26 +43,76 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 	if detail := providerErrorResponseMessage(providerErr.ResponseBody); detail != "" {
 		return detail
 	}
-	return strings.TrimSpace(providerErr.Message)
+	// The Message fallback can also be the SDK transport wrapper (e.g. for
+	// Bedrock via aibridge), so unwrap it for the same clean detail.
+	return unwrapTransportErrorMessage(strings.TrimSpace(providerErr.Message))
 }
 
-// providerErrorResponseMessage extracts error.message from the common
-// provider error JSON envelope after stripping any dumped HTTP status
-// line and headers.
+// providerErrorResponseMessage extracts the human-readable message from a
+// provider error response body after stripping any dumped HTTP status line
+// and headers. It understands both the top-level `{"message":...}` shape
+// used by many providers and the nested `{"error":{"message":...}}`
+// envelope. When the extracted message is itself an SDK-formatted transport
+// error wrapper, the clean inner provider message is returned.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
 	body := providerErrorResponseBody(responseDump)
-	var envelope struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
+	return unwrapTransportErrorMessage(jsonErrorMessage(body))
+}
+
+// unwrapTransportErrorMessage extracts the clean provider message from an
+// SDK-formatted wrapper such as:
+//
+//	POST "https://bedrock-runtime...": 400 Bad Request {"message":"..."}
+//
+// When the trailing body is JSON with a top-level "message" or a nested
+// "error.message", that inner message is returned. Otherwise msg is
+// returned unchanged.
+func unwrapTransportErrorMessage(msg string) string {
+	loc := transportErrorPrefix.FindStringIndex(msg)
+	if loc == nil {
+		return msg
 	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
+	// Search for the JSON body after the matched prefix so a brace inside
+	// the URL or status text cannot be mistaken for the body.
+	rest := msg[loc[1]:]
+	start := strings.IndexByte(rest, '{')
+	if start < 0 {
+		return msg
+	}
+	if inner := jsonErrorMessage([]byte(rest[start:])); inner != "" {
+		return inner
+	}
+	return msg
+}
+
+// jsonErrorMessage parses both the nested `{"error":{"message":...}}`
+// envelope and the top-level `{"message":...}` shape used by many
+// providers, preferring the nested form when present.
+func jsonErrorMessage(body []byte) string {
+	var env struct {
+		Message string          `json:"message"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
 		return ""
 	}
-	return strings.TrimSpace(envelope.Error.Message)
+	// Prefer the nested error.message when error is an object carrying one.
+	// error may also be a non-object (string, array, number); tolerate that
+	// and fall back to the top-level message instead of dropping it.
+	if len(env.Error) > 0 {
+		var inner struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(env.Error, &inner); err == nil {
+			if m := strings.TrimSpace(inner.Message); m != "" {
+				return m
+			}
+		}
+	}
+	return strings.TrimSpace(env.Message)
 }
 
 func providerErrorResponseBody(responseDump []byte) []byte {

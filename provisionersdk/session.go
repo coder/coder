@@ -246,24 +246,28 @@ func (s *Session) handleInitRequest(init *proto.InitRequest, requests <-chan *pr
 		s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
 			slog.F("size_bytes", len(complete.ModuleFiles)),
 		)
-		dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
-
-		complete.ModuleFiles = nil // sent over the stream
-		complete.ModuleFilesHash = dataUp.DataHash
-
-		err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
+		dataUp, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
 		if err != nil {
-			complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
+			complete.Error = fmt.Sprintf("prepare module files upload: %s", err.Error())
 		} else {
-			for i, chunk := range chunks {
-				err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
-				if err != nil {
-					complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
-					break
+			complete.ModuleFiles = nil // sent over the stream
+			complete.ModuleFilesHash = dataUp.DataHash
+
+			err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
+			if err != nil {
+				complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
+			} else {
+				for i, chunk := range chunks {
+					err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
+					if err != nil {
+						complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
+						break
+					}
 				}
 			}
 		}
 	}
+
 	s.initialized = true
 
 	return complete, nil

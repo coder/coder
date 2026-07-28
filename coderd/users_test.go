@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -231,6 +232,59 @@ func TestPostLogin(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	// "hunter2" was the input of the previous hardcoded simulated hash, which
+	// an empty stored hash wrongly matched; this is a regression test.
+	t.Run("NonexistentUser401", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "does-not-exist@coder.com",
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+	})
+
+	// Attempting built-in login as an SSO user returns a 401 to avoid
+	// divulging login type.
+	t.Run("SSOReturns401", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// An SSO user has no password hash stored. Create one directly in the
+		// database since the API requires OIDC to be configured. dbgen.User
+		// substitutes a random hash for an empty one, so clear it explicitly.
+		ssoUser := dbgen.User(t, db, database.User{
+			Email:     "sso-user@coder.com",
+			LoginType: database.LoginTypeOIDC,
+		})
+		//nolint:gocritic // Test setup requires a system context to clear the hash.
+		err := db.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             ssoUser.ID,
+			HashedPassword: []byte{},
+		})
+		require.NoError(t, err)
+
+		anonClient := codersdk.New(client.URL)
+		_, err = anonClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    ssoUser.Email,
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+		// The login type must not be leaked.
+		require.NotContains(t, apiErr.Message, string(codersdk.LoginTypeOIDC))
 	})
 
 	t.Run("Suspended", func(t *testing.T) {
@@ -941,8 +995,9 @@ func TestPostUsers(t *testing.T) {
 
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
-			"email": email,
-			"sub":   uuid.NewString(),
+			"email":          email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")
@@ -1278,6 +1333,68 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
+
+	t.Run("UpdateAvatar", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		// The first user is a password user, so the avatar is editable.
+		const newAvatar = "/emojis/1f600.png"
+		userProfile, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Username:  me.Username,
+			Name:      me.Name,
+			AvatarURL: newAvatar,
+		})
+		require.NoError(t, err)
+		require.Equal(t, newAvatar, userProfile.AvatarURL)
+	})
+
+	t.Run("IgnoresAvatarForSSOUser", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		// The first user is an owner and can update other users' profiles.
+		coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Avatars for SSO users are synced from the identity provider on login,
+		// so a submitted avatar must be ignored and the existing one preserved.
+		ssoUser := dbgen.User(t, db, database.User{
+			Email:     "sso-avatar@coder.com",
+			Username:  "sso-avatar",
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		// dbgen.User does not persist the avatar at creation, so set it directly
+		// to emulate an avatar synced from the identity provider.
+		const idpAvatar = "https://idp.example.com/avatar.png"
+		//nolint:gocritic // Test setup requires a system context to set the avatar.
+		ssoUser, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+			ID:        ssoUser.ID,
+			Email:     ssoUser.Email,
+			Name:      ssoUser.Name,
+			AvatarURL: idpAvatar,
+			Username:  ssoUser.Username,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		userProfile, err := client.UpdateUserProfile(ctx, ssoUser.ID.String(), codersdk.UpdateUserProfileRequest{
+			Username:  ssoUser.Username,
+			Name:      ssoUser.Name,
+			AvatarURL: "/emojis/1f600.png",
+		})
+		require.NoError(t, err)
+		require.Equal(t, idpAvatar, userProfile.AvatarURL)
+	})
 }
 
 func TestUpdateUserPassword(t *testing.T) {
@@ -1323,6 +1440,70 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "SomeNewStrongPassword!",
 		})
 		require.NoError(t, err, "member should login successfully with the new password")
+	})
+
+	t.Run("UserAdminCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		apikey1, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey1ID, _, ok := strings.Cut(apikey1.Key, "-")
+		require.True(t, ok)
+
+		apikey2, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey2ID, _, ok := strings.Cut(apikey2.Key, "-")
+		require.True(t, ok)
+
+		// Confirm the token IDs resolve before the reset, so later
+		// 404s prove password reset removed them.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.NoError(t, err)
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.NoError(t, err)
+
+		err = userAdmin.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "user-admin should be able to update member password")
+
+		// The old session token was deleted with the password reset, so the
+		// member client is unauthorized before it logs back in.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
+
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    member.Email,
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "member should login successfully with the new password")
+
+		memberClient = codersdk.New(
+			memberClient.URL,
+			codersdk.WithSessionToken(resp.SessionToken),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(memberClient.URL)),
+		)
+
+		// After re-authentication, the old API keys should be gone from storage.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
 	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {
@@ -1515,6 +1696,57 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("UserAdminCannotResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := userAdmin.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "user-admin should not be able to reset owner password")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
+	})
+
+	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherOwner, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "another-owner@coder.com",
+			Username:        "another-owner",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserRoles(ctx, anotherOwner.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOwner().String()},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, anotherOwner.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "owner should be able to reset another owner's password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "another-owner@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "other owner should login with the new password")
 	})
 
 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
@@ -2423,7 +2655,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		require.Equal(t, field, sdkErr.Validations[0].Field)
 	}
 
-	t.Run("defaults to auto", func(t *testing.T) {
+	t.Run("defaults shell tools to always collapsed", func(t *testing.T) {
 		t.Parallel()
 
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2433,8 +2665,8 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.ShellToolDisplayMode)
-		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.ShellToolDisplayMode)
+		require.Empty(t, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("round-trips shell tool display mode", func(t *testing.T) {

@@ -1,11 +1,4 @@
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -27,6 +20,11 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import {
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
@@ -54,6 +52,7 @@ export type CreateChatOptions = {
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
+	reasoningEffort?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
@@ -132,7 +131,11 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
-	agentSetupNotice?: ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -154,7 +157,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	modelCatalog,
 	modelOptions,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -237,6 +244,33 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
+	const effectiveReasoningEffort = selectedModelOption
+		? pickReasoningEffort(
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
+				selectedModelOption.reasoningEfforts ?? [],
+				selectedModelOption.reasoningEffortDefault,
+			)
+		: undefined;
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -337,6 +371,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
 	const isForbidden = !canCreateChat;
 
 	// Filter workspaces by the selected organization. We use
@@ -366,6 +408,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
@@ -476,7 +519,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								severity="info"
 								actions={
 									<Button asChild size="sm">
-										<Link to="/agents/analytics">View Usage</Link>
+										<Link to="/agents/analytics">View usage</Link>
 									</Button>
 								}
 							>
@@ -509,13 +552,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
-					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
-							isCreating || isForbidden || isPersonalModelOverridesLoading
+							isCreating ||
+							isForbidden ||
+							isPersonalModelOverridesLoading ||
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -525,6 +571,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onModelChange={handleModelChange}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						reasoningEffort={effectiveReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
@@ -546,6 +594,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
+						canConfigureAgentSetup={canConfigureAgentSetup}
+						providerCount={providerCount}
+						modelCount={modelCount}
+						unsupportedProviderNames={unsupportedProviderNames}
+						aiGatewayDisabled={aiGatewayDisabled}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

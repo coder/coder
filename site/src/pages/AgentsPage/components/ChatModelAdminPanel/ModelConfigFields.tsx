@@ -1,6 +1,6 @@
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, Fragment, type ReactNode } from "react";
 import {
 	type FieldSchema,
 	getVisibleGeneralFields,
@@ -29,19 +29,31 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
-import { normalizeProvider } from "./helpers";
-import type {
-	ModelConfigFormBuildResult,
-	ModelFormValues,
+import {
+	isFieldConflictDisabled,
+	isVisibleWhenSatisfied,
+	type ModelConfigFormBuildResult,
+	type ModelFormValues,
 } from "./modelConfigFormLogic";
 import {
 	getPricingPlaceholderForField,
 	pricingFieldNames,
 } from "./pricingFields";
 
+const booleanFieldOptions = [
+	{ label: "Off", value: "false" },
+	{ label: "On", value: "true" },
+	{ label: "Default", value: "" },
+] as const;
+
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
+
+const isReasoningEffortField = (jsonName: string): boolean =>
+	jsonName === "reasoning_effort.default" ||
+	jsonName === "reasoning_effort.max";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -49,8 +61,8 @@ const unsetSelectValue = "__unset__";
 const shortLabelOverrides: Record<string, string> = {
 	"cost.input_price_per_million_tokens": "Input",
 	"cost.output_price_per_million_tokens": "Output",
-	"cost.cache_read_price_per_million_tokens": "Cache Read",
-	"cost.cache_write_price_per_million_tokens": "Cache Write",
+	"cost.cache_read_price_per_million_tokens": "Cache read",
+	"cost.cache_write_price_per_million_tokens": "Cache write",
 };
 
 /**
@@ -72,10 +84,10 @@ const fieldSuffix: Record<string, string> = {
  * where the valid range is more useful than an empty box.
  */
 const placeholderOverrides: Record<string, string> = {
-	temperature: "0.0–2.0",
-	top_p: "0.0–1.0",
-	presence_penalty: "-2.0–2.0",
-	frequency_penalty: "-2.0–2.0",
+	temperature: "0.0 to 2.0",
+	top_p: "0.0 to 1.0",
+	presence_penalty: "-2.0 to 2.0",
+	frequency_penalty: "-2.0 to 2.0",
 };
 
 /**
@@ -99,8 +111,8 @@ function snakeToPrettyLabel(field: FieldSchema): string {
 	if (shortLabelOverrides[field.json_name]) {
 		return shortLabelOverrides[field.json_name];
 	}
-	return field.json_name
-		.split(/[._]/)
+	const words = field.json_name.split(/[._]/);
+	return words
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 }
@@ -143,13 +155,13 @@ const FieldLabel: FC<{
 }> = ({ htmlFor, label, description }) => (
 	<Label
 		htmlFor={htmlFor}
-		className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+		className="flex items-center gap-1 leading-6 text-content-primary"
 	>
 		{label}
 		{description && (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<InfoIcon className="h-3 w-3 text-content-secondary" />
+					<InfoIcon className="size-3 text-content-secondary" />
 				</TooltipTrigger>
 				<TooltipContent side="top" className="max-w-[240px]">
 					{description}
@@ -184,12 +196,10 @@ const InputField: FC<
 	const fieldProps = form.getFieldProps(fieldKey);
 
 	const inputEl = suffix ? (
-		<InputGroup
-			className={cn("h-9", fieldError && "border-border-destructive")}
-		>
+		<InputGroup className={cn(fieldError && "border-border-destructive")}>
 			<InputGroupInput
 				id={fieldKey}
-				className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+				className="min-w-0 placeholder:text-content-disabled"
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
@@ -204,7 +214,7 @@ const InputField: FC<
 		<Input
 			id={fieldKey}
 			className={cn(
-				"h-9 min-w-0 text-[13px] placeholder:text-content-disabled",
+				"min-w-0 placeholder:text-content-disabled",
 				fieldError && "border-content-destructive",
 			)}
 			placeholder={placeholder}
@@ -235,6 +245,7 @@ const SelectField: FC<
 		label: string;
 		description?: string;
 		options: readonly string[];
+		placeholderLabel?: string;
 	}
 > = ({
 	form,
@@ -245,6 +256,7 @@ const SelectField: FC<
 	label,
 	description,
 	options,
+	placeholderLabel = "Default",
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
@@ -265,19 +277,19 @@ const SelectField: FC<
 				<SelectTrigger
 					id={fieldKey}
 					className={cn(
-						"h-9 min-w-0 text-[13px]",
+						"min-w-0 shadow-none",
 						fieldError && "border-content-destructive",
 					)}
 					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
-					<SelectValue placeholder="Default" />
+					<SelectValue placeholder={placeholderLabel} />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={unsetSelectValue}>Default</SelectItem>
+					<SelectItem value={unsetSelectValue}>{placeholderLabel}</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
-							{option}
+							{capitalize(option)}
 						</SelectItem>
 					))}
 				</SelectContent>
@@ -314,13 +326,12 @@ const SegmentedField: FC<
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
 	return (
-		<div className="flex min-w-0 flex-col gap-1.5">
-			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
+		<div className="flex min-w-0 flex-wrap items-center gap-2 self-stretch">
 			<div
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
+					"flex items-center gap-0.75 rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -334,23 +345,34 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"h-8 flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
+								"flex h-6 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
-									? "bg-surface-secondary text-content-primary"
+									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
 								disabled && "pointer-events-none opacity-60",
 							)}
-							onClick={() =>
-								void form.setFieldValue(fieldKey, isActive ? "" : opt.value)
-							}
+							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
 							{opt.label}
 						</button>
 					);
 				})}
 			</div>
+			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
+				<span>{label}</span>
+				{description && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<InfoIcon className="size-3 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-[240px]">
+							{description}
+						</TooltipContent>
+					</Tooltip>
+				)}
+			</div>
 			{fieldError && (
-				<p id={errorId} className="m-0 text-xs text-content-destructive">
+				<p id={errorId} className="m-0 w-full text-xs text-content-destructive">
 					{fieldError}
 				</p>
 			)}
@@ -379,6 +401,10 @@ const JSONField: FC<
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const fieldProps = form.getFieldProps(fieldKey);
+	// Only surface the error once the field has been blurred, so a partially
+	// typed array like "[" doesn't complain mid-edit.
+	const showError =
+		Boolean(fieldError) && Boolean(getIn(form.touched, fieldKey));
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
 			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
@@ -387,15 +413,15 @@ const JSONField: FC<
 				rows={1}
 				className={cn(
 					"min-h-0 resize-y font-mono text-xs leading-tight placeholder:text-content-disabled",
-					fieldError && "border-content-destructive",
+					showError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={Boolean(fieldError)}
-				aria-describedby={fieldError ? errorId : undefined}
+				aria-invalid={showError}
+				aria-describedby={showError ? errorId : undefined}
 			/>
-			{fieldError && (
+			{showError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{fieldError}
 				</p>
@@ -451,10 +477,7 @@ const SchemaField: FC<SchemaFieldProps> = ({
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
-						options={[
-							{ label: "On", value: "true" },
-							{ label: "Off", value: "false" },
-						]}
+						options={booleanFieldOptions}
 					/>
 				);
 			}
@@ -468,7 +491,10 @@ const SchemaField: FC<SchemaFieldProps> = ({
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
-						options={options.map((v) => ({ label: capitalize(v), value: v }))}
+						options={options.map((value) => ({
+							label: capitalize(value),
+							value,
+						}))}
 					/>
 				);
 			}
@@ -503,18 +529,14 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, booleans, small enums ≤3)
- *   3 = full-width (4+ option enums, json textareas)
+ *   1 = default (inputs, small enums)
+ *   3 = full-width (booleans, large enums, json textareas)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
-	if (field.input_type === "json") {
+	if (field.type === "boolean" || field.input_type === "json") {
 		return 3;
 	}
-	if (
-		field.input_type === "select" &&
-		field.type !== "boolean" &&
-		(field.enum?.length ?? 0) > 3
-	) {
+	if (field.input_type === "select" && (field.enum?.length ?? 0) > 3) {
 		return 3;
 	}
 	return 1;
@@ -530,6 +552,7 @@ interface ModelConfigFieldsProps {
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
+	children?: ReactNode;
 }
 
 /**
@@ -544,6 +567,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	form,
 	fieldErrors,
 	disabled,
+	children,
 }) => {
 	const normalized = normalizeProvider(provider);
 	const resolved = resolveProvider(normalized);
@@ -553,11 +577,17 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		return null;
 	}
 
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fieldValueByName = (jsonName: string): unknown =>
+		getIn(form.values, `config.${toFormFieldKey(resolved, jsonName)}`);
+
+	const isFieldVisible = (field: FieldSchema): boolean =>
+		isVisibleWhenSatisfied(field, fieldValueByName);
 
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.
-	const sorted = [...fields].sort((a, b) => colSpan(a) - colSpan(b));
+	const sorted = [...fields]
+		.filter(isFieldVisible)
+		.sort((a, b) => colSpan(a) - colSpan(b));
 
 	return (
 		<div className="grid min-w-0 gap-3 sm:grid-cols-3">
@@ -565,61 +595,26 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
 				return (
-					<div key={fieldKey} className={colSpanClass[colSpan(field)]}>
-						<SchemaField
-							field={field}
-							fieldKey={fieldKey}
-							errorKey={errorKey}
-							{...ctx}
-						/>
-					</div>
+					<Fragment key={fieldKey}>
+						<div className={colSpanClass[colSpan(field)]}>
+							<SchemaField
+								field={field}
+								fieldKey={fieldKey}
+								errorKey={errorKey}
+								form={form}
+								fieldErrors={fieldErrors}
+								disabled={
+									disabled || isFieldConflictDisabled(field, fieldValueByName)
+								}
+							/>
+						</div>
+						{field.json_name === "thinking.budget_tokens" && children}
+					</Fragment>
 				);
 			})}
+			{!sorted.some((field) => field.json_name === "thinking.budget_tokens") &&
+				children}
 		</div>
-	);
-};
-
-/**
- * Shared renderer for general model config fields backed by the
- * top-level ChatModelCallConfig schema.
- */
-const GeneralFieldsGroup: FC<
-	ModelConfigFieldsProps & {
-		fields: FieldSchema[];
-		suppressDescriptions?: boolean;
-	}
-> = ({ form, fieldErrors, disabled, fields, suppressDescriptions }) => {
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-
-	return (
-		<>
-			{fields.map((field) => {
-				// General field keys support nested json_name values, such as
-				// cost.input_price_per_million_tokens.
-				const camelName = field.json_name
-					.split(".")
-					.map(snakeToCamel)
-					.join(".");
-				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
-
-				return (
-					<InputField
-						key={fieldKey}
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={camelName}
-						label={label}
-						description={suppressDescriptions ? undefined : field.description}
-						placeholder={
-							placeholderOverrides[field.json_name] ??
-							placeholderForField(field)
-						}
-						suffix={fieldSuffix[field.json_name]}
-					/>
-				);
-			})}
-		</>
 	);
 };
 
@@ -653,12 +648,12 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
 						<FieldLabel htmlFor={fieldKey} label={label} />
 						<InputGroup
-							className={cn("h-9", fieldError && "border-border-destructive")}
+							className={cn(fieldError && "border-border-destructive")}
 						>
 							<InputGroupAddon align="inline-start">$</InputGroupAddon>
 							<InputGroupInput
 								id={fieldKey}
-								className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+								className="min-w-0 placeholder:text-content-disabled"
 								placeholder="0"
 								{...fieldProps}
 								disabled={disabled}
@@ -683,28 +678,83 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	);
 };
 
-/**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
- */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	provider,
+/** Reasoning effort selects, outside Advanced. */
+export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 	form,
 	fieldErrors,
 	disabled,
 }) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fields = getVisibleGeneralFields()
+		.filter(({ json_name }) => isReasoningEffortField(json_name))
+		.reverse();
+
 	return (
-		<GeneralFieldsGroup
-			provider={provider}
-			form={form}
-			fieldErrors={fieldErrors}
-			disabled={disabled}
-			fields={getVisibleGeneralFields().filter(
-				({ json_name }) => !pricingFieldNames.has(json_name),
-			)}
-		/>
+		<>
+			{fields.map((field) => {
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+
+				return (
+					<SelectField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={camelName}
+						label={snakeToPrettyLabel(field)}
+						description={field.description}
+						options={field.enum ?? []}
+						placeholderLabel="Not set"
+					/>
+				);
+			})}
+		</>
+	);
+};
+
+/** See ReasoningEffortConfigFields for reasoning effort fields. */
+export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fields = getVisibleGeneralFields().filter(
+		({ json_name }) =>
+			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
+	);
+
+	return (
+		<>
+			{fields.map((field) => {
+				// General field keys support nested json_name values, such as
+				// cost.input_price_per_million_tokens.
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+				const label = snakeToPrettyLabel(field);
+
+				return (
+					<InputField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={camelName}
+						label={label}
+						description={field.description}
+						placeholder={
+							placeholderOverrides[field.json_name] ??
+							placeholderForField(field)
+						}
+						suffix={fieldSuffix[field.json_name]}
+					/>
+				);
+			})}
+		</>
 	);
 };

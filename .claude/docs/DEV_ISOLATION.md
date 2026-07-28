@@ -8,14 +8,14 @@ not add new readiness or debug endpoints for these workflows.
 
 `scripts/develop/main.go` defines these base defaults:
 
-| Resource | Base default | Override |
-|----------|--------------|----------|
-| API server | `3000` | `--port`, `CODER_DEV_PORT` |
-| Frontend dev server | `8080` | `--web-port`, `CODER_DEV_WEB_PORT` |
-| Workspace proxy | `3010` | `--proxy-port`, `CODER_DEV_PROXY_PORT` |
-| Coder Prometheus metrics | `2114` | `--prometheus-port`, `CODER_DEV_PROMETHEUS_PORT` |
-| Embedded Prometheus UI | `9090` | Fixed in `scripts/develop/main.go` |
-| Delve debugger | `12345` | Fixed when `--debug` is used |
+| Resource                 | Base default | Override                                         |
+|--------------------------|--------------|--------------------------------------------------|
+| API server               | `3000`       | `--port`, `CODER_DEV_PORT`                       |
+| Frontend dev server      | `8080`       | `--web-port`, `CODER_DEV_WEB_PORT`               |
+| Workspace proxy          | `3010`       | `--proxy-port`, `CODER_DEV_PROXY_PORT`           |
+| Coder Prometheus metrics | `2114`       | `--prometheus-port`, `CODER_DEV_PROMETHEUS_PORT` |
+| Embedded Prometheus UI   | `9090`       | Fixed in `scripts/develop/main.go`               |
+| Delve debugger           | `12345`      | Fixed when `--debug` is used                     |
 
 By default, plain `./scripts/develop.sh` uses the base defaults exactly:
 `3000`, `8080`, `3010`, and `2114` for Coder Prometheus metrics. Set
@@ -37,15 +37,15 @@ Linux. The Prometheus UI port `9090` and Delve port `12345` remain hardcoded.
 The develop script also supports these existing flags and environment
 variables:
 
-| Purpose | Flag | Environment variable |
-|---------|------|----------------------|
-| Per-worktree port offset | `--port-offset` | `CODER_DEV_PORT_OFFSET` |
-| Access URL | `--access-url` | `CODER_DEV_ACCESS_URL` |
-| Admin password | `--password` | `CODER_DEV_ADMIN_PASSWORD` |
-| Starter template | `--starter-template` | `CODER_DEV_STARTER_TEMPLATE` |
-| Roll back missing migrations | `--db-rollback` | `CODER_DEV_DB_ROLLBACK` |
-| Reset the development database | `--db-reset` | `CODER_DEV_DB_RESET` |
-| Accept changed migration tracking | `--db-continue` | `CODER_DEV_DB_CONTINUE` |
+| Purpose                           | Flag                 | Environment variable         |
+|-----------------------------------|----------------------|------------------------------|
+| Per-worktree port offset          | `--port-offset`      | `CODER_DEV_PORT_OFFSET`      |
+| Access URL                        | `--access-url`       | `CODER_DEV_ACCESS_URL`       |
+| Admin password                    | `--password`         | `CODER_DEV_ADMIN_PASSWORD`   |
+| Starter template                  | `--starter-template` | `CODER_DEV_STARTER_TEMPLATE` |
+| Roll back missing migrations      | `--db-rollback`      | `CODER_DEV_DB_ROLLBACK`      |
+| Reset the development database    | `--db-reset`         | `CODER_DEV_DB_RESET`         |
+| Accept changed migration tracking | `--db-continue`      | `CODER_DEV_DB_CONTINUE`      |
 
 Extra `coder server` flags can be passed after `--`. For example,
 `./scripts/develop.sh -- --trace` passes `--trace` to the API server.

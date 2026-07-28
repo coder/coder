@@ -20,6 +20,7 @@ func (r *RootCmd) syncCommand() *serpent.Command {
 			r.syncWant(&socketPath),
 			r.syncComplete(&socketPath),
 			r.syncStatus(&socketPath),
+			r.syncList(&socketPath),
 		},
 		Options: serpent.OptionSet{
 			{

@@ -36,6 +36,9 @@ typ = "typ"
 styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
+# Go standard library uses American English single-l spelling throughout encoding/json etc.
+unmarshaling = "unmarshaling"
+marshaling = "marshaling"
 IIF = "IIF"
 
 [files]
@@ -61,4 +64,6 @@ extend-exclude = [
 	"agent/agentcontainers/testdata/devcontainercli/**",
 	# aibridge fixtures contain truncated streaming chunks that look like typos
 	"aibridge/fixtures/**",
+	# go-vcr cassettes contain real API responses with 3rd-party content
+	"coderd/externalauth/gitprovider/testdata/**",
 ]

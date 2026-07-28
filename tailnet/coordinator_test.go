@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -102,7 +103,32 @@ func TestCoordinator(t *testing.T) {
 			PreferredDerp: 10,
 		})
 		agent.AssertEventuallyResponsesClosed(
-			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()})}.Error())
+	})
+
+	t.Run("AgentWithoutClients_InvalidAllowedIP", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		// A valid self-address paired with an AllowedIP belonging to a different
+		// (victim) agent must be rejected.
+		victim := tailnet.TailscaleServicePrefix.PrefixFromUUID(uuid.New())
+		agent.UpdateNode(&proto.Node{
+			Addresses: []string{
+				tailnet.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+			},
+			AllowedIps:    []string{victim.String()},
+			PreferredDerp: 10,
+		})
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("AllowedIps: %w", tailnet.InvalidNodeAddressError{Addr: victim.Addr().String()})}.Error())
 	})
 
 	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
@@ -124,7 +150,7 @@ func TestCoordinator(t *testing.T) {
 			PreferredDerp: 10,
 		})
 		agent.AssertEventuallyResponsesClosed(
-			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", tailnet.InvalidAddressBitsError{Bits: 64})}.Error())
 	})
 
 	t.Run("AgentWithClient", func(t *testing.T) {

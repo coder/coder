@@ -19,6 +19,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -38,7 +39,26 @@ const (
 
 	// tokenRevocationTimeout timeout for requests to external oauth provider.
 	tokenRevocationTimeout = 10 * time.Second
+
+	// defaultRefreshRetryInitialBackoff is the starting wait between transient
+	// refresh retry attempts when the IDP returns a temporary failure (5xx,
+	// 429, network error, ...).
+	defaultRefreshRetryInitialBackoff = 250 * time.Millisecond
+
+	// defaultRefreshRetryMaxBackoff caps the exponential backoff between
+	// transient refresh retry attempts.
+	defaultRefreshRetryMaxBackoff = 2 * time.Second
+
+	// defaultRefreshRetryTimeout bounds the total time spent retrying a
+	// transient refresh failure across all attempts.
+	defaultRefreshRetryTimeout = 10 * time.Second
 )
+
+// SingleflightGroup exposes a subset of singleflight.Group for easier testing.
+// singleflight.Group should be used instead of implementing this in production.
+type SingleflightGroup interface {
+	DoChan(key string, fn func() (any, error)) <-chan singleflight.Result
+}
 
 // Config is used for authentication for Git operations.
 type Config struct {
@@ -115,15 +135,33 @@ type Config struct {
 	// This field can be nil if unspecified in the config.
 	MCPToolDenyRegex              *regexp.Regexp
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
+
+	// RefreshRetryInitialBackoff overrides the initial wait between transient
+	// refresh retry attempts. A zero value applies
+	// defaultRefreshRetryInitialBackoff.
+	RefreshRetryInitialBackoff time.Duration
+	// RefreshRetryMaxBackoff overrides the maximum wait between transient
+	// refresh retry attempts. A zero value applies
+	// defaultRefreshRetryMaxBackoff.
+	RefreshRetryMaxBackoff time.Duration
+	// RefreshRetryTimeout overrides the total budget for retrying a transient
+	// refresh failure across all attempts. A zero value applies
+	// defaultRefreshRetryTimeout. A negative value disables transient-failure
+	// retries entirely, so exactly one refresh attempt is made.
+	RefreshRetryTimeout time.Duration
+
+	// RefreshGroup deduplicates concurrent requests.
+	RefreshGroup SingleflightGroup
 }
 
-// Git returns a Provider for this config if the provider type
-// is a supported git hosting provider. Returns nil for non-git
-// providers (e.g. Slack, JFrog).
-func (c *Config) Git(client *http.Client) gitprovider.Provider {
+// Git returns a Provider for this config if the provider type is a
+// supported git hosting provider. Returns (nil, nil) for non-git
+// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
+// construction fails.
+func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
-		return nil
+		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
 	return gitprovider.New(norm, c.APIBaseURL, client)
 }
@@ -162,6 +200,37 @@ func IsInvalidTokenError(err error) bool {
 
 // RefreshToken automatically refreshes the token if expired and permitted.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
+	// Prevent parallel refreshes by waiting for the result of any already
+	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
+	// refresh token error as they can only be used once.
+	key := c.ID + ":" + externalAuthLink.UserID.String()
+	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
+		// Use a detached context so if a request is canceled or times out it does
+		// not cancel all the other requests as well.  The deadline is arbitrary but
+		// we give at least enough time for the refresh timeout then another 10
+		// seconds for updating the database and validating the link.
+		timeout := 10 * time.Second
+		if c.RefreshRetryTimeout > 0 {
+			timeout += c.RefreshRetryTimeout
+		}
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
+		return c.innerRefreshToken(rctx, db, externalAuthLink)
+	})
+	select {
+	case results := <-ch:
+		if newlink, ok := results.Val.(database.ExternalAuthLink); ok {
+			return newlink, results.Err
+		} else if results.Err == nil {
+			return externalAuthLink, xerrors.Errorf("got invalid type from token refresh: %T", results.Val)
+		}
+		return externalAuthLink, results.Err
+	case <-ctx.Done():
+		return externalAuthLink, ctx.Err()
+	}
+}
+
+func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
@@ -188,33 +257,38 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
-	// Note: The TokenSource(...) method will make no remote HTTP requests if the
-	// token is expired and no refresh token is set. This is important to prevent
-	// spamming the API, consuming rate limits, when the token is known to fail.
-	token, err := c.TokenSource(ctx, existingToken).Token()
+	// NOTE: TokenSource(...).Token() will short-circuit if the token:
+	// - is not expired (returns original token)
+	// - is expired and has no refresh token (returns error)
+	// This means we will avoid making useless HTTP requests.
+	//
+	// External providers (GitHub in particular) intermittently fail token
+	// refreshes with transient errors such as 5xx responses, network timeouts,
+	// and rate-limited 429s. Retry with exponential backoff before surfacing
+	// the failure so a brief upstream blip does not force users to
+	// re-authenticate. Errors classified as permanent by isFailedRefresh
+	// (e.g. revoked or rotated refresh tokens) are not retried since those
+	// will never succeed and retrying wastes the refresh quota.
+	token, err := c.refreshTokenWithRetry(ctx, existingToken)
 	if err != nil {
-		// TokenSource can fail for numerous reasons. If it fails because of
-		// a bad refresh token, then the refresh token is invalid, and we should
-		// get rid of it. Keeping it around will cause additional refresh
+		// A refresh attempt can fail for numerous reasons. If it fails because
+		// of a bad refresh token, then the refresh token is invalid, and we
+		// should get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
 		//
 		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
-			// Before caching the failure, re-read the external auth link
-			// from the database. A concurrent request may have already
-			// refreshed the token successfully, consuming the single-use
-			// refresh token (e.g., GitHub App tokens). In that case our
-			// "bad_refresh_token" error is a false positive from losing
-			// the race, and we should use the winner's updated token
-			// instead of poisoning the database with a cached failure.
+			// Before caching the failure, re-read the external auth link from the
+			// database. A nearly-concurrent request may have already refreshed the
+			// token successfully, consuming the single-use refresh token (e.g.,
+			// GitHub App tokens). In that case our "bad_refresh_token" error is a
+			// false positive from losing the race, and we should use the winner's
+			// updated token instead of poisoning the database with a cached failure.
 			currentLink, readErr := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: externalAuthLink.ProviderID,
 				UserID:     externalAuthLink.UserID,
 			})
 			if readErr == nil && currentLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-				// Another caller won the refresh race and stored a new
-				// refresh token. Return their updated link instead of
-				// caching a failure.
 				return currentLink, nil
 			}
 
@@ -269,8 +343,8 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
-		// TokenSource(...).Token() will always return the current token if the token is not expired.
-		// So this error is only returned if a refresh of the token failed.
+		// Non-expired tokens are short-circuited as noted above; reaching here
+		// means refresh failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
@@ -285,15 +359,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// validation endpoint was unavailable (e.g. rate-limited 403), the
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
-	// Use a detached context for the DB write only. The IDP already
-	// consumed the old refresh token, so if the caller's request
-	// context is canceled mid-save, the new token would be lost.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer persistCancel()
-
 	originalAccessToken := externalAuthLink.OAuthAccessToken
 	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
+		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
 			UpdatedAt:              dbtime.Now(),
@@ -350,6 +418,65 @@ validate:
 	}
 
 	return externalAuthLink, nil
+}
+
+// refreshTokenWithRetry exchanges the refresh token for a new access token,
+// retrying with exponential backoff on transient failures. Permanent
+// failures (as classified by isFailedRefresh), the no-op case where no
+// refresh token is set, and a negative RefreshRetryTimeout all bypass the
+// retry loop so a doomed or unwanted refresh is not repeatedly attempted.
+func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth2.Token) (*oauth2.Token, error) {
+	// Without a refresh token the oauth2 library short-circuits with
+	// "token expired and refresh token is not set". No retry can recover
+	// from that, so make a single attempt and return.
+	if existingToken.RefreshToken == "" {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
+	// A negative RefreshRetryTimeout disables retries entirely, so make a
+	// single attempt and return.
+	if c.RefreshRetryTimeout < 0 {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
+	initial := c.RefreshRetryInitialBackoff
+	if initial <= 0 {
+		initial = defaultRefreshRetryInitialBackoff
+	}
+	maximum := c.RefreshRetryMaxBackoff
+	if maximum <= 0 {
+		maximum = defaultRefreshRetryMaxBackoff
+	}
+	total := c.RefreshRetryTimeout
+	if total == 0 {
+		total = defaultRefreshRetryTimeout
+	}
+
+	retryCtx, retryCancel := context.WithTimeout(ctx, total)
+	defer retryCancel()
+	backoff := retry.New(initial, maximum)
+
+	var (
+		token *oauth2.Token
+		err   error
+	)
+	for {
+		token, err = c.TokenSource(ctx, existingToken).Token()
+		if err == nil || isFailedRefresh(existingToken, err) {
+			return token, err
+		}
+		// Bail out before waiting if the retry budget is already gone.
+		// retry.Wait selects between time.After(delay) and ctx.Done(); when
+		// delay is zero and the context is already canceled the two cases
+		// race nondeterministically, which would cause an unwanted extra
+		// refresh attempt with a near-zero budget.
+		if retryCtx.Err() != nil {
+			return token, err
+		}
+		if !backoff.Wait(retryCtx) {
+			return token, err
+		}
+	}
 }
 
 // ValidateToken checks if the Git token provided is valid.
@@ -828,6 +955,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			MCPToolAllowRegex:             mcpToolAllow,
 			MCPToolDenyRegex:              mcpToolDeny,
 			CodeChallengeMethodsSupported: slice.StringEnums[promoauth.Oauth2PKCEChallengeMethod](entry.CodeChallengeMethodsSupported),
+			RefreshGroup:                  new(singleflight.Group),
 		}
 
 		if entry.DeviceFlow {
@@ -957,6 +1085,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			config.APIBaseURL = "https://api.github.com"
 		case codersdk.EnhancedExternalAuthProviderGitLab:
 			config.APIBaseURL = "https://gitlab.com/api/v4"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && !strings.EqualFold(au.Host, "gitlab.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v4"
+				}
+			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
 		}
@@ -1038,7 +1171,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		DisplayName:                   "GitLab",
 		DisplayIcon:                   "/icon/gitlab.svg",
 		Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:                        []string{"write_repository"},
+		Scopes:                        []string{"write_repository", "read_api"},
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 
@@ -1243,8 +1376,16 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 	)
 }
 
-// When authenticating via Entra ID ADO only supports v1 tokens that requires the 'resource' rather than scopes
-// When ADO gets support for V2 Entra ID tokens this struct and functions can be removed
+// The Entra wrapper accounts for two things:
+//
+//  1. When authenticating via Entra ID ADO only supports v1 tokens which
+//     require 'resource'.
+//
+//  2. When refreshing, Entra ID requires the original scopes or it will switch
+//     to using the default scopes.
+//
+//     This struct and its functions might be removable once ADO gets support for
+//     Entra ID V2.
 type entraV1Oauth struct {
 	*oauth2.Config
 }
@@ -1261,6 +1402,47 @@ func (c *entraV1Oauth) Exchange(ctx context.Context, code string, opts ...oauth2
 			oauth2.SetAuthURLParam("resource", azureDevOpsAppID),
 		)...,
 	)
+}
+
+func (c *entraV1Oauth) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
+	return oauth2.ReuseTokenSource(token, &entraV1TokenSource{
+		ctx:   ctx,
+		cfg:   c,
+		token: token,
+	})
+}
+
+type entraV1TokenSource struct {
+	ctx   context.Context
+	cfg   *entraV1Oauth
+	token *oauth2.Token
+}
+
+func (s *entraV1TokenSource) Token() (*oauth2.Token, error) {
+	var refreshToken string
+	if s.token != nil {
+		refreshToken = s.token.RefreshToken
+	}
+	if refreshToken == "" {
+		return s.cfg.Config.TokenSource(s.ctx, s.token).Token()
+	}
+
+	refreshOpts := []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("grant_type", "refresh_token"),
+		oauth2.SetAuthURLParam("refresh_token", refreshToken),
+	}
+	if len(s.cfg.Config.Scopes) > 0 {
+		refreshOpts = append(refreshOpts, oauth2.SetAuthURLParam("scope", strings.Join(s.cfg.Config.Scopes, " ")))
+	}
+
+	token, err := s.cfg.Exchange(s.ctx, "", refreshOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if token.RefreshToken == "" {
+		token.RefreshToken = refreshToken
+	}
+	return token, nil
 }
 
 // exchangeWithClientSecret wraps an OAuth config and adds the client secret
@@ -1327,7 +1509,7 @@ func isRateLimited(resp *http.Response) bool {
 	return false
 }
 
-// isFailedRefresh returns true if the error returned by the TokenSource.Token()
+// isFailedRefresh returns true if the error returned by the refresh attempt
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
 //
