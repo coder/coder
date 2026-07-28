@@ -5129,6 +5129,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "name": "string",
@@ -5138,13 +5139,14 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.CreateUserSkillRequest
 
@@ -13846,6 +13848,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "value": "string"
@@ -13854,12 +13857,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.UpdateUserSkillRequest
 
@@ -14545,6 +14549,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -14555,15 +14560,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|---------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description` | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`     | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`    | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_path`   | string  | false    |              |                                                                                                                                                                                                                                      |
+| `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
 
 ## codersdk.UserSkill
 

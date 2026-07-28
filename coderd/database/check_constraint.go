@@ -56,6 +56,7 @@ const (
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
 	CheckUserAIProviderKeysAPIKeyCheck                       CheckConstraint = "user_ai_provider_keys_api_key_check"                       // user_ai_provider_keys
+	CheckUserSecretsEnabledRequiresTarget                    CheckConstraint = "user_secrets_enabled_requires_target"                      // user_secrets
 	CheckUserSkillsContentSize                               CheckConstraint = "user_skills_content_size"                                  // user_skills
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
 	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
