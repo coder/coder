@@ -27,6 +27,11 @@ The exact configuration method varies by client, some use environment variables,
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
+If you run a [standalone AI Gateway](../standalone.md), point clients at the
+Gateway endpoint and drop the `/api/v2/ai-gateway` prefix, for example
+`https://ai-gateway.example.com/openai/v1` or
+`https://ai-gateway.example.com/anthropic`.
+
 ## Authentication
 
 For information about authenticating with AI Gateway, visit [AI Gateway Authentication](../auth.md).

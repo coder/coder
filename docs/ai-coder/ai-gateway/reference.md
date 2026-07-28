@@ -30,6 +30,7 @@ Each replica accepts client traffic, sends AI requests directly to upstream prov
 The control connection carries:
 
 - Coder API key validation, which resolves each request to an active Coder user.
+- AI budget checks, which reject requests from users over their spend limit.
 - Provider configuration, plus a change signal when the provider set changes.
 - AI session records.
 - **Deprecated**: the configuration and access tokens used by [injected MCP](./mcp.md).

@@ -91,6 +91,9 @@ with `/var/lib/coder/ai-gateway-dumps` configured writes to
 Sensitive headers are redacted before dumps are written. Leave the value empty
 to disable dumping.
 
+Each [standalone Gateway](./standalone.md) replica accepts the same API dump
+settings and writes dumps to its own local disk.
+
 > [!WARNING]
 > API dumps are intended for short diagnostic sessions only. Dump files contain
 > raw request and response data, which may include proprietary or sensitive
@@ -144,6 +147,9 @@ using the format configured by
 stderr) or [`--log-json`](../../reference/cli/server.md#--log-json). For machine
 ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
+
+This setting belongs to `coderd`.
+A [standalone Gateway](./standalone.md) does not consume it.
 
 Filter for AI Gateway records in your logging pipeline by matching on the
 `"interception log"` message. Each log line includes a `record_type` field that

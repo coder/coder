@@ -143,9 +143,10 @@ The chart configures the following probes by default:
 - The startup probe is disabled by default.
 
 `/healthz` can return HTTP 200 while `/readyz` returns HTTP 503.
-This occurs during the initial connection to `coderd`, during the initial provider load, or while the control connection is unavailable.
-After the initial provider load succeeds, readiness returns when the connection to `coderd` recovers.
-A replica that loses the control connection returns HTTP 503 for any new client request it receives.
+This occurs while the initial connection to `coderd` is being established, before the initial provider load, and whenever the control connection drops.
+A replica can only become ready after its initial provider load succeeds, and it returns to ready whenever the control connection recovers.
+Kubernetes removes an unready replica from the Service, so clients normally stop reaching it.
+A request that still arrives waits for the control connection instead of failing.
 
 Port-forward the Service to inspect both endpoints:
 

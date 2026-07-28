@@ -123,6 +123,16 @@ or helper scripts.
 Please note that the Registry is a hosted service and isn't available for
 offline use.
 
+### AI Gateway
+
+[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic
+and records each AI session. It runs inside `coderd` by default, and can also
+run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md)
+that scales independently of the control plane. The standalone Helm chart
+requests 1 vCPU and 1 GiB of memory per replica and sets no limits. It ships
+without a HorizontalPodAutoscaler or a PodDisruptionBudget. Size replicas from
+your own AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
+
 ## Kubernetes Infrastructure
 
 Kubernetes is the recommended, and supported platform for deploying Coder in the
