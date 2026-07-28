@@ -242,6 +242,7 @@ Standalone spans are emitted independently by every replica with the service nam
 ### Enable tracing
 
 AI Gateway exports spans over OTLP/gRPC, honoring `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
+The exporter always dials without TLS, so an `https://` endpoint is still contacted over plaintext gRPC.
 Setting `CODER_TRACE_HONEYCOMB_API_KEY` adds a Honeycomb exporter alongside it rather than replacing it.
 
 The embedded and standalone Gateways share the same tracing options.
