@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { rolesQueryKey } from "#/api/queries/roles";
 import { authMethodsQueryKey } from "#/api/queries/users";
@@ -28,7 +28,10 @@ type Story = StoryObj<typeof meta>;
 
 export const ShowsSuccessNotificationOnSubmit: Story = {
 	beforeEach: () => {
-		spyOn(API, "createUser").mockResolvedValue(MockUserMember);
+		spyOn(API, "createUser").mockResolvedValue({
+			...MockUserMember,
+			username: "someuser",
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -42,28 +45,26 @@ export const ShowsSuccessNotificationOnSubmit: Story = {
 
 export const ShowsServiceAccountSuccessNotificationOnSubmit: Story = {
 	parameters: {
-		queries: [
-			{ key: authMethodsQueryKey, data: MockAuthMethodsPasswordOnly },
-			{ key: rolesQueryKey, data: [] },
-		],
 		features: ["service_accounts"],
 	},
 	beforeEach: () => {
-		spyOn(API, "createUser").mockResolvedValue(MockUserMember);
+		spyOn(API, "createUser").mockResolvedValue({
+			...MockUserMember,
+			username: "someuser",
+			is_service_account: true,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const body = within(document.body);
+		await fillForm(canvas, user, "service account");
 
-		await user.type(await canvas.findByLabelText("Username"), "someuser");
-		await user.click(canvas.getByTestId("login-type-input"));
-		await user.click(
-			await body.findByRole("option", { name: /service account/i }),
+		await expect(API.createUser).toHaveBeenCalledWith(
+			expect.objectContaining({ service_account: true }),
 		);
-		await user.click(canvas.getByRole("button", { name: /save/i }));
-
-		await body.findByText('Service account "someuser" created successfully.');
+		await within(document.body).findByText(
+			'Service account "someuser" created successfully.',
+		);
 	},
 };
 
@@ -81,20 +82,48 @@ export const ShowsErrorWhenUserCreationFails: Story = {
 	},
 };
 
+export const ShowsErrorWhenServiceAccountCreationFails: Story = {
+	parameters: {
+		features: ["service_accounts"],
+	},
+	beforeEach: () => {
+		// An API error without a message falls back to our own copy.
+		spyOn(API, "createUser").mockRejectedValue(mockApiError({ message: "" }));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await fillForm(canvas, user, "service account");
+		await within(document.body).findByText(
+			'Failed to create service account "someuser".',
+		);
+	},
+};
+
 async function fillForm(
 	canvas: ReturnType<typeof within>,
 	user: ReturnType<typeof userEvent.setup>,
+	loginType: "password" | "service account" = "password",
 ) {
-	await user.type(await canvas.findByLabelText("Username"), "someuser");
-	await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
-
+	const isPasswordLogin = loginType === "password";
 	const body = within(document.body);
-	await user.click(canvas.getByTestId("login-type-input"));
-	await user.click(await body.findByRole("option", { name: /password/i }));
 
-	await user.type(
-		await canvas.findByTestId("password-input"),
-		"SomeSecurePassword!",
+	await user.type(await canvas.findByLabelText("Username"), "someuser");
+	if (isPasswordLogin) {
+		await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
+	}
+
+	await user.click(canvas.getByTestId("login-type-input"));
+	await user.click(
+		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
 	);
+
+	if (isPasswordLogin) {
+		await user.type(
+			await canvas.findByTestId("password-input"),
+			"SomeSecurePassword!",
+		);
+	}
+
 	await user.click(canvas.getByRole("button", { name: /save/i }));
 }

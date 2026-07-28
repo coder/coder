@@ -872,7 +872,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateServiceAccountCreated",
+			name: "TemplateUserAccountCreatedServiceAccount",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -887,6 +887,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			// Messages enqueued before the account_type label existed
+			// must still render the user wording.
+			name: "TemplateUserAccountCreatedWithoutAccountType",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"created_account_name":      "bobby",
+					"created_account_user_name": "William Tables",
+					"initiator":                 "rob",
+				},
+			},
+		},
+		{
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
@@ -897,6 +913,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"deleted_account_name":      "bobby",
 					"deleted_account_user_name": "William Tables",
 					"initiator":                 "rob",
+					"account_type":              "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountDeletedServiceAccount",
+			id:   notifications.TemplateUserAccountDeleted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"deleted_account_name":      "ci-bot",
+					"deleted_account_user_name": "CI Bot",
+					"initiator":                 "rob",
+					"account_type":              "service",
 				},
 			},
 		},
@@ -911,6 +943,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"suspended_account_name":      "bobby",
 					"suspended_account_user_name": "William Tables",
 					"initiator":                   "rob",
+					"account_type":                "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountSuspendedServiceAccount",
+			id:   notifications.TemplateUserAccountSuspended,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"suspended_account_name":      "ci-bot",
+					"suspended_account_user_name": "CI Bot",
+					"initiator":                   "rob",
+					"account_type":                "service",
 				},
 			},
 		},
@@ -925,6 +973,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"activated_account_name":      "bobby",
 					"activated_account_user_name": "William Tables",
 					"initiator":                   "rob",
+					"account_type":                "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountActivatedServiceAccount",
+			id:   notifications.TemplateUserAccountActivated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"activated_account_name":      "ci-bot",
+					"activated_account_user_name": "CI Bot",
+					"initiator":                   "rob",
+					"account_type":                "service",
 				},
 			},
 		},

@@ -644,43 +644,6 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Equal(t, codersdk.UserStatusDormant, user.Status)
 	})
 
-	t.Run("ServiceAccount/NotifiesAdminsAsServiceAccount", func(t *testing.T) {
-		t.Parallel()
-		notifyEnq := &notificationstest.FakeEnqueuer{}
-		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				NotificationsEnqueuer: notifyEnq,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureServiceAccounts: 1,
-				},
-			},
-		})
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Notifications skip the initiator, so the notified admin must be
-		// someone other than the creator.
-		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
-		notifyEnq.Clear()
-
-		//nolint:gocritic
-		serviceAccount, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-notify",
-			UserLoginType:   codersdk.LoginTypeNone,
-			ServiceAccount:  true,
-		})
-		require.NoError(t, err)
-
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountCreated))
-		require.NotEmpty(t, sent)
-		require.Equal(t, serviceAccount.Username, sent[0].Labels["created_account_name"])
-		require.Equal(t, "service", sent[0].Labels["account_type"])
-	})
-
 	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
 		t.Parallel()
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
@@ -817,4 +780,66 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Empty(t, user2.Email)
 		require.NotEqual(t, user1.ID, user2.ID)
 	})
+}
+
+// TestServiceAccountNotifications asserts that every account lifecycle
+// notification describes a service account as such, so the wording cannot
+// regress to "user account" for one of the events.
+func TestServiceAccountNotifications(t *testing.T) {
+	t.Parallel()
+
+	notifyEnq := &notificationstest.FakeEnqueuer{}
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureServiceAccounts: 1,
+			},
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// requireServiceAccountNotification asserts the owner was notified about the
+	// service account, and that the notification carries the service wording.
+	requireServiceAccountNotification := func(t *testing.T, templateID uuid.UUID, serviceAccountID uuid.UUID) {
+		t.Helper()
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(templateID))
+		require.Len(t, sent, 1)
+		require.Equal(t, first.UserID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, serviceAccountID)
+		require.Equal(t, "service", sent[0].Labels["account_type"])
+	}
+
+	//nolint:gocritic // The owner is the only user admin, so it is the recipient under test.
+	serviceAccount, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		OrganizationIDs: []uuid.UUID{first.OrganizationID},
+		Username:        "service-acct-lifecycle",
+		UserLoginType:   codersdk.LoginTypeNone,
+		ServiceAccount:  true,
+	})
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountCreated, serviceAccount.ID)
+
+	// Service accounts are created dormant, so activation comes before
+	// suspension.
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can change another account's status here.
+	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusActive)
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountActivated, serviceAccount.ID)
+
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can change another account's status here.
+	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountSuspended, serviceAccount.ID)
+
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can delete another account here.
+	require.NoError(t, client.DeleteUser(ctx, serviceAccount.ID))
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountDeleted, serviceAccount.ID)
 }

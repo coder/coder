@@ -743,6 +743,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		require.Equal(t, user.Username, notifyEnq.Sent()[1].Labels["deleted_account_name"])
 		require.Equal(t, user.Name, notifyEnq.Sent()[1].Labels["deleted_account_user_name"])
 		require.Equal(t, firstUser.Name, notifyEnq.Sent()[1].Labels["initiator"])
+		require.Equal(t, "user", notifyEnq.Sent()[1].Labels["account_type"])
 	})
 
 	t.Run("UserAdminNotified", func(t *testing.T) {
