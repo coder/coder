@@ -465,6 +465,12 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +745,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare:
 		return true
 	}
 	return false
@@ -983,6 +995,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
 	}
 }
 

@@ -6848,3 +6848,19 @@ func (m queryMetricsStore) GetAuthorizedChatsByChatFileID(ctx context.Context, f
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChatsByChatFileID").Inc()
 	return r0, r1
 }
+
+func (m queryMetricsStore) GetAuthorizedChatModelConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedChatModelConfigs(ctx, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDefaultChatModelConfigCandidates(ctx context.Context) ([]database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDefaultChatModelConfigCandidates(ctx)
+	m.queryLatencies.WithLabelValues("GetDefaultChatModelConfigCandidates").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDefaultChatModelConfigCandidates").Inc()
+	return r0, r1
+}

@@ -120,6 +120,42 @@ type ChatACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
 }
 
+// ChatModelConfigACL is a map of ids to permissions.
+type ChatModelConfigACL map[string]ChatModelConfigACLEntry
+
+func (c *ChatModelConfigACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &c)
+	case []byte:
+		return json.Unmarshal(v, &c)
+	case json.RawMessage:
+		return json.Unmarshal(v, &c)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+//nolint:revive
+func (c ChatModelConfigACL) RBACACL() map[string][]policy.Action {
+	rbacACL := make(map[string][]policy.Action, len(c))
+	for id, entry := range c {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
+func (c ChatModelConfigACL) Value() (driver.Value, error) {
+	if c == nil {
+		return json.Marshal(ChatModelConfigACL{})
+	}
+	return json.Marshal(c)
+}
+
+type ChatModelConfigACLEntry struct {
+	Permissions []policy.Action `json:"permissions"`
+}
+
 type WorkspaceACL map[string]WorkspaceACLEntry
 
 func (t *WorkspaceACL) Scan(src interface{}) error {
