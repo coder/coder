@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { mockClaude, mockGPT5 } from "../testFixtures";
 import { ModelRow } from "./ModelRow";
@@ -45,7 +45,8 @@ export const WithProvider: Story = {
 
 // When the provider is missing (soft-deleted or otherwise unavailable) the
 // Provider column shows "Unset" and the status collapses to "Disabled" even
-// though the persisted model.enabled flag is true.
+// though the persisted model.enabled flag is true. Hovering the label reveals
+// a tooltip explaining that the connected provider has been deleted.
 export const WithoutProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true },
@@ -55,9 +56,16 @@ export const WithoutProviderForcesDisabled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Unset")).toBeInTheDocument();
+		const unset = canvas.getByText("Unset");
+		await expect(unset).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
 		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+
+		await userEvent.hover(unset);
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent(
+			"The provider connected to this model has been deleted.",
+		);
 	},
 };
 

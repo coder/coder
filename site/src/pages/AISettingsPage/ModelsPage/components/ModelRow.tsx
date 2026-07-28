@@ -4,6 +4,11 @@ import type { ChatModelConfig } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 
@@ -65,12 +70,25 @@ export const ModelRow: FC<ModelRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell className="min-w-0">
-				<span
-					className="block truncate text-sm font-medium leading-6 text-content-secondary"
-					title={providerLabel}
-				>
-					{hasProvider ? providerLabel : "Unset"}
-				</span>
+				{hasProvider ? (
+					<span
+						className="block truncate text-sm font-medium leading-6 text-content-secondary"
+						title={providerLabel}
+					>
+						{providerLabel}
+					</span>
+				) : (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="block w-fit truncate text-sm font-medium leading-6 text-content-secondary underline decoration-dashed underline-offset-4">
+								Unset
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							The provider connected to this model has been deleted.
+						</TooltipContent>
+					</Tooltip>
+				)}
 			</TableCell>
 			<TableCell className="min-w-0">
 				<span className="block truncate text-sm font-medium leading-6 text-content-secondary">
