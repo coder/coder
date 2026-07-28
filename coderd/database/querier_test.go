@@ -4049,6 +4049,20 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
 	})
 
+	// Tunnel events are point-in-time (no disconnect event is ever
+	// reported), so despite having a NULL disconnect_time they must be
+	// excluded from both status filters.
+	log5 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-30 * time.Minute),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeTunnel,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
+	})
+
 	testCases := []struct {
 		name           string
 		params         database.GetConnectionLogsOffsetParams
@@ -4058,7 +4072,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			name:   "NoFilter",
 			params: database.GetConnectionLogsOffsetParams{},
 			expectedLogIDs: []uuid.UUID{
-				log1.ID, log2.ID, log3.ID, log4.ID,
+				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID,
 			},
 		},
 		{
@@ -4073,14 +4087,14 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwner: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
 		},
 		{
 			name: "WorkspaceOwnerID",
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwnerID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
 		},
 		{
 			name: "WorkspaceOwnerEmail",
@@ -4097,18 +4111,25 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
 		},
 		{
+			name: "TypeTunnel",
+			params: database.GetConnectionLogsOffsetParams{
+				Type: string(database.ConnectionTypeTunnel),
+			},
+			expectedLogIDs: []uuid.UUID{log5.ID},
+		},
+		{
 			name: "UserID",
 			params: database.GetConnectionLogsOffsetParams{
 				UserID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log5.ID},
 		},
 		{
 			name: "Username",
 			params: database.GetConnectionLogsOffsetParams{
 				Username: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log5.ID},
 		},
 		{
 			name: "UserEmail",
@@ -4122,7 +4143,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				ConnectedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID},
+			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID},
 		},
 		{
 			name: "ConnectedBefore",

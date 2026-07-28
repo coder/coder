@@ -13742,8 +13742,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN $13 :: text != '' THEN
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude web events, since we don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding')
+				-- Exclude point-in-time events reported by coderd, since we
+				-- don't know their close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13936,8 +13937,9 @@ WHERE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			-- Exclude point-in-time events reported by coderd, since we
+			-- don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
