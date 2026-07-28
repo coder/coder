@@ -10,7 +10,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import {
 	getFormHelpers,
-	iconValidator,
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
@@ -39,7 +38,7 @@ const validationSchema = Yup.object({
 		.trim()
 		.required("Please enter a callback URL.")
 		.url("Callback URL must be a valid URL."),
-	icon: iconValidator,
+	icon: Yup.string(),
 });
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
@@ -64,6 +63,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
+	const iconField = getFieldHelpers("icon");
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
 	const submitDisabled =
@@ -99,17 +99,27 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						disabled={formDisabled}
 						onChange={(value) => {
 							void form.setFieldValue("icon", value);
+							void form.setFieldTouched("icon", true);
 							onIconChange?.(value);
 						}}
 					/>
+					{iconField.error ? (
+						<span className="text-xs text-content-destructive">
+							{iconField.helperText}
+						</span>
+					) : (
+						iconField.helperText && (
+							<span className="text-xs text-content-secondary">
+								{iconField.helperText}
+							</span>
+						)
+					)}
 				</div>
 
 				<div className="flex justify-end gap-4">
-					<Link to={BACK_HREF}>
-						<Button variant="outline" type="button">
-							Cancel
-						</Button>
-					</Link>
+					<Button variant="outline" asChild>
+						<Link to={BACK_HREF}>Cancel</Link>
+					</Button>
 					<Button disabled={submitDisabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}

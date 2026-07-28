@@ -32,12 +32,12 @@ export const CreateOAuth2AppPageView: FC = () => {
 		<>
 			<title>{pageTitle("New OAuth2 Application")}</title>
 
-			<Link to={BACK_HREF} className="-ml-3">
-				<Button variant="subtle">
+			<Button variant="subtle" asChild className="-ml-3">
+				<Link to={BACK_HREF}>
 					<ArrowLeftIcon />
 					<span>Back to applications</span>
-				</Button>
-			</Link>
+				</Link>
+			</Button>
 
 			<div className="flex flex-col gap-6 pt-6">
 				<div className="flex items-center gap-4 min-w-0">

@@ -3,6 +3,10 @@ import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
+	oauth2ProviderAppKey,
+	oauth2ProviderAppSecretsKey,
+} from "#/api/queries/oauth2";
+import {
 	MockOAuth2ProviderAppSecrets,
 	MockOAuth2ProviderApps,
 	MockPermissions,
@@ -27,16 +31,6 @@ const routingFor = (path: string) =>
 		],
 	});
 
-const seed = {
-	queries: [
-		{ key: ["oauth2-provider", "apps", appId], data: mockApp },
-		{
-			key: ["oauth2-provider", "apps", appId, "secrets"],
-			data: MockOAuth2ProviderAppSecrets,
-		},
-	],
-};
-
 const meta = {
 	title: "pages/DeploymentSettingsPage/EditOAuth2AppPageView",
 	component: EditOAuth2AppPageView,
@@ -44,7 +38,6 @@ const meta = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		reactRouter: routingFor(`/deployment/oauth2-provider/apps/${appId}`),
-		...seed,
 	},
 	decorators: [withToaster, withAuthProvider],
 } satisfies Meta<typeof EditOAuth2AppPageView>;
@@ -53,6 +46,15 @@ export default meta;
 type Story = StoryObj<typeof EditOAuth2AppPageView>;
 
 export const Default: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText(mockApp.name)).toBeVisible();
@@ -75,6 +77,15 @@ export const Loading: Story = {
 };
 
 export const WithValidationError: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
 	beforeEach: () => {
 		spyOn(API, "putOAuth2ProviderApp").mockRejectedValue(
 			mockApiError({
@@ -101,6 +112,15 @@ export const WithValidationError: Story = {
 };
 
 export const DeleteDialogOpen: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const deleteButton = await canvas.findByRole("button", {
@@ -119,6 +139,7 @@ export const NoSecretPermissions: Story = {
 			viewOAuth2AppSecrets: false,
 			deleteOAuth2App: false,
 		},
+		queries: [{ key: oauth2ProviderAppKey(appId), data: mockApp }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

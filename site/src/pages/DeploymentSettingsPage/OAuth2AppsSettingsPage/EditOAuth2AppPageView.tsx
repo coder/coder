@@ -105,12 +105,12 @@ export const EditOAuth2AppPageView: FC = () => {
 							"Failed to load OAuth2 application.",
 						)}
 					</p>
-					<Link to={BACK_HREF} className="-ml-3">
-						<Button variant="subtle">
+					<Button variant="subtle" asChild className="-ml-3">
+						<Link to={BACK_HREF}>
 							<ArrowLeftIcon />
 							<span>Back to applications</span>
-						</Button>
-					</Link>
+						</Link>
+					</Button>
 				</div>
 			</>
 		);
@@ -134,12 +134,12 @@ export const EditOAuth2AppPageView: FC = () => {
 			{title}
 
 			<div className="flex justify-between items-center">
-				<Link to={BACK_HREF} className="-ml-3">
-					<Button variant="subtle">
+				<Button variant="subtle" asChild className="-ml-3">
+					<Link to={BACK_HREF}>
 						<ArrowLeftIcon />
 						<span>Back to applications</span>
-					</Button>
-				</Link>
+					</Link>
+				</Button>
 				{canDeleteApp && (
 					<Button
 						type="button"
