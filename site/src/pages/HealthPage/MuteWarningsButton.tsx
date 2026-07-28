@@ -7,7 +7,7 @@ import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
+export const MuteWarningsButton = (props: { healthcheck: HealthSection }) => {
 	const queryClient = useQueryClient();
 	const healthSettingsQuery = useQuery(healthSettings());
 	// Separate mutation instances so unmuting isn't stuck pending while
