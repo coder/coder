@@ -1408,6 +1408,14 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	// tunnels; the errors below record the loss.
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+	// The connection log enqueue gets its own budget so that a slow
+	// audit session upsert cannot exhaust the deadline before the
+	// enqueue runs. Without this, the session row would be committed
+	// with no log row written, and the active session would suppress
+	// retries for the entire stale interval. WithoutCancel keeps the
+	// enqueue alive if the client disconnects mid-handshake.
+	logCtx, logCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer logCancel()
 	userAgent := r.UserAgent()
 	now := dbtime.Now()
 
@@ -1464,7 +1472,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	}
 
 	connLogger := *api.ConnectionLogger.Load()
-	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+	err = connLogger.Upsert(logCtx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             now,
 		OrganizationID:   waws.WorkspaceTable.OrganizationID,
