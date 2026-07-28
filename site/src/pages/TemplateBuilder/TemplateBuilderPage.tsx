@@ -29,7 +29,7 @@ const TemplateBuilderPage: FC = () => {
 
 	// Stable session ID for the lifetime of this page mount, shared
 	// across wizard_entry and compose_completion telemetry events.
-	const sessionId = useMemo(() => "derp", []);
+	const sessionId = useMemo(() => crypto.randomUUID(), []);
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
 	const wizardReady =
