@@ -228,6 +228,9 @@ export const handlers = [
 			status: 201,
 		});
 	}),
+	http.post("/api/v2/users/:userId/secrets/batch", () => {
+		return HttpResponse.json(M.MockImportedUserSecrets, { status: 201 });
+	}),
 	http.patch(
 		"/api/v2/users/:userId/secrets/:name",
 		async ({ request, params }) => {
