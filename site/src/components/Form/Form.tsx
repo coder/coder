@@ -19,7 +19,7 @@ type FormProps = HTMLProps<HTMLFormElement> & {
 	direction?: FormContextValue["direction"];
 };
 
-export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
+export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
 	return (
 		<FormContext.Provider value={{ direction }}>
 			<form
@@ -27,6 +27,7 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
 				className={cn(
 					"flex flex-col gap-16",
 					direction === "horizontal" ? "md:gap-20" : "md:gap-10",
+					className,
 				)}
 			/>
 		</FormContext.Provider>
