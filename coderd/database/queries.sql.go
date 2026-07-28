@@ -15036,11 +15036,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			user_email ILIKE concat('%', $3, '%')
 			OR user_username ILIKE concat('%', $3, '%')
+			OR user_name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -20521,11 +20522,12 @@ WHERE
 			organization_id = $2
 		ELSE true
 	END
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			users.email ILIKE concat('%', $3, '%')
 			OR users.username ILIKE concat('%', $3, '%')
+			OR users.name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -31008,11 +31010,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
 			OR username ILIKE concat('%', $2, '%')
+			OR name ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END
