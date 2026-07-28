@@ -17135,7 +17135,7 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 WHERE
@@ -17185,6 +17185,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -17201,7 +17202,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 
 const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 WHERE
@@ -17252,6 +17253,76 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getForcedMCPServerConfigsByOrganization = `-- name: GetForcedMCPServerConfigsByOrganization :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = $1::uuid
+    AND enabled = TRUE
+    AND availability = 'force_on'
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigsByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -17268,7 +17339,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 WHERE
@@ -17310,21 +17381,28 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
-const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
+const getMCPServerConfigByOrganizationAndSlug = `-- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 WHERE
-    slug = $1::text
+    organization_id = $1::uuid
+    AND slug = $2::text
 `
 
-func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error) {
-	row := q.db.QueryRowContext(ctx, getMCPServerConfigBySlug, slug)
+type GetMCPServerConfigByOrganizationAndSlugParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Slug           string    `db:"slug" json:"slug"`
+}
+
+func (q *sqlQuerier) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg GetMCPServerConfigByOrganizationAndSlugParams) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigByOrganizationAndSlug, arg.OrganizationID, arg.Slug)
 	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
@@ -17358,13 +17436,14 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 ORDER BY
@@ -17412,6 +17491,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -17428,7 +17508,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 
 const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 FROM
     mcp_server_configs
 WHERE
@@ -17478,6 +17558,80 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerConfigsByIDsAndOrganizations = `-- name: GetMCPServerConfigsByIDsAndOrganizations :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
+FROM
+    mcp_server_configs
+WHERE
+    id = ANY($1::uuid[])
+    AND organization_id = ANY($2::uuid[])
+ORDER BY
+    display_name ASC
+`
+
+type GetMCPServerConfigsByIDsAndOrganizationsParams struct {
+	IDs             []uuid.UUID `db:"ids" json:"ids"`
+	OrganizationIds []uuid.UUID `db:"organization_ids" json:"organization_ids"`
+}
+
+func (q *sqlQuerier) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg GetMCPServerConfigsByIDsAndOrganizationsParams) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByIDsAndOrganizations, pq.Array(arg.IDs), pq.Array(arg.OrganizationIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -17574,6 +17728,7 @@ func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID 
 
 const insertMCPServerConfig = `-- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    organization_id,
     display_name,
     slug,
     description,
@@ -17603,7 +17758,7 @@ INSERT INTO mcp_server_configs (
     created_by,
     updated_by
 ) VALUES (
-    $1::text,
+    $1::uuid,
     $2::text,
     $3::text,
     $4::text,
@@ -17622,21 +17777,23 @@ INSERT INTO mcp_server_configs (
     $17::text,
     $18::text,
     $19::text,
-    $20::text[],
+    $20::text,
     $21::text[],
-    $22::text,
-    $23::boolean,
+    $22::text[],
+    $23::text,
     $24::boolean,
     $25::boolean,
     $26::boolean,
-    $27::uuid,
-    $28::uuid
+    $27::boolean,
+    $28::uuid,
+    $29::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 `
 
 type InsertMCPServerConfigParams struct {
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	DisplayName             string         `db:"display_name" json:"display_name"`
 	Slug                    string         `db:"slug" json:"slug"`
 	Description             string         `db:"description" json:"description"`
@@ -17669,6 +17826,7 @@ type InsertMCPServerConfigParams struct {
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
+		arg.OrganizationID,
 		arg.DisplayName,
 		arg.Slug,
 		arg.Description,
@@ -17731,6 +17889,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -17818,7 +17977,7 @@ SET
 WHERE
     id = $28::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
 `
 
 type UpdateMCPServerConfigParams struct {
@@ -17916,6 +18075,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
 	)
 	return i, err
 }

@@ -2089,6 +2089,14 @@ func (m queryMetricsStore) GetForcedMCPServerConfigs(ctx context.Context) ([]dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigsByOrganization").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGitSSHKey(ctx, userID)
@@ -2321,11 +2329,11 @@ func (m queryMetricsStore) GetMCPServerConfigByID(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigBySlug(ctx, slug)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigBySlug").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigBySlug").Inc()
+	r0, r1 := m.s.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigByOrganizationAndSlug").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigByOrganizationAndSlug").Inc()
 	return r0, r1
 }
 
@@ -2342,6 +2350,14 @@ func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []u
 	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg database.GetMCPServerConfigsByIDsAndOrganizationsParams) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigsByIDsAndOrganizations(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDsAndOrganizations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDsAndOrganizations").Inc()
 	return r0, r1
 }
 

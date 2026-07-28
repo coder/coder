@@ -1257,6 +1257,48 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/experimental/chats [post]
 // @Description Experimental: this endpoint is subject to change.
+// chatMCPServerConfigs returns the requested MCP server configs that exist
+// within the chat's organization OR the default organization, in
+// display_name order with one row per unique ID (both properties of the
+// query). Chat create/update request validation compares the result against
+// the raw request, so duplicates and out-of-org IDs are both rejected
+// exactly as they were before configs were org-scoped. Disabled configs
+// count as existing: the generation path skips them, as it did before
+// org-scoping.
+//
+// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+func chatMCPServerConfigs(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	if len(ids) == 0 {
+		return []database.MCPServerConfig{}, nil
+	}
+
+	// The default organization is resolved as chatd: callers may hold a
+	// custom role without organization:read on it.
+	//nolint:gocritic // Organization resolution is an internal detail, not a permission the caller must hold.
+	defaultOrg, err := db.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return nil, xerrors.Errorf("get default organization: %w", err)
+	}
+	organizationIDs := []uuid.UUID{organizationID}
+	if !slices.Contains(organizationIDs, defaultOrg.ID) {
+		organizationIDs = append(organizationIDs, defaultOrg.ID)
+	}
+
+	configs, err := db.GetMCPServerConfigsByIDsAndOrganizations(ctx, database.GetMCPServerConfigsByIDsAndOrganizationsParams{
+		IDs:             ids,
+		OrganizationIds: organizationIDs,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get MCP server configs for organizations: %w", err)
+	}
+	return configs, nil
+}
+
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1337,10 +1379,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
+	// Validate MCP server IDs exist and belong to the chat's
+	// organization (falling back to the default organization until
+	// the org-scoping cutover). Disabled configs are accepted: the
+	// generation path skips them, as it did before org-scoping.
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
 	if len(req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
+		//nolint:gocritic // Need to validate MCP server IDs exist and are usable by the chat's organization.
+		existingConfigs, err := chatMCPServerConfigs(dbauthz.AsSystemRestricted(ctx), api.Database, req.OrganizationID, req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate MCP server IDs.",
@@ -2735,10 +2781,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
+	// Validate MCP server IDs exist and belong to the chat's
+	// organization (falling back to the default organization until
+	// the org-scoping cutover). Disabled configs are accepted: the
+	// generation path skips them, as it did before org-scoping.
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
 	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+		//nolint:gocritic // Need to validate MCP server IDs exist and are usable by the chat's organization.
+		existingConfigs, err := chatMCPServerConfigs(dbauthz.AsSystemRestricted(ctx), api.Database, chat.OrganizationID, *req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate MCP server IDs.",

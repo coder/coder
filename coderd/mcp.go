@@ -269,7 +269,23 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			// New configs are created in the default organization.
+			// Callers may hold a custom role with
+			// deployment_config:update and no organization:read, so
+			// resolve the organization as chatd while the insert
+			// itself stays under the caller's context.
+			//nolint:gocritic // Organization resolution is an internal detail, not a permission the caller must hold.
+			defaultOrg, orgErr := api.Database.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+			if orgErr != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to resolve default organization.",
+					Detail:  orgErr.Error(),
+				})
+				return
+			}
+
 			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				OrganizationID:          defaultOrg.ID,
 				DisplayName:             strings.TrimSpace(req.DisplayName),
 				Slug:                    strings.TrimSpace(req.Slug),
 				Description:             strings.TrimSpace(req.Description),
@@ -448,7 +464,20 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// New configs are created in the default organization. See the
+	// auto-discovery branch above for why this resolves as chatd.
+	//nolint:gocritic // Organization resolution is an internal detail, not a permission the caller must hold.
+	defaultOrg, orgErr := api.Database.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+	if orgErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve default organization.",
+			Detail:  orgErr.Error(),
+		})
+		return
+	}
+
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		OrganizationID:          defaultOrg.ID,
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),
 		Description:             strings.TrimSpace(req.Description),

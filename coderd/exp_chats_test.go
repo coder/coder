@@ -570,6 +570,200 @@ func TestPostChats(t *testing.T) {
 		}))
 	})
 
+	t.Run("MCPServerIDsDefaultOrgFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// The chat lives in a second organization, but the only enabled
+		// MCP server config lives in the default organization. During the
+		// fallback window the create must accept it.
+		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a default-org MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{defaultOrgConfig.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{defaultOrgConfig.ID}, chat.MCPServerIDs)
+	})
+
+	t.Run("MCPServerIDsDuplicatesRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Duplicate valid IDs are rejected with the pre-org-scoping
+		// response: 400, fixed message, and an EMPTY Invalid IDs detail
+		// (the SQL dedupes, the raw-length comparison flags the
+		// mismatch, and no ID is missing). Whether duplicates should be
+		// rejected, and what the detail should say, is CODAGT-870's
+		// decision; this stage preserves the old behavior.
+		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a duplicated MCP server ID",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{defaultOrgConfig.ID, defaultOrgConfig.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: ", sdkErr.Detail)
+		require.Equal(t, uuid.Nil, chat.ID)
+
+		// Seed a valid chat, then reject the duplicate on message
+		// update with the identical response.
+		validChat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a single MCP server ID",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{defaultOrgConfig.ID},
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChatMessage(ctx, validChat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "update to a duplicated MCP server ID",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{defaultOrgConfig.ID, defaultOrgConfig.ID},
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: ", sdkErr.Detail)
+	})
+
+	t.Run("MCPServerIDsDisabledConfigAccepted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// A disabled config in the default organization: attaching it to
+		// a chat (and updating the chat to keep it) must stay accepted,
+		// as before org-scoping. The generation path skips disabled
+		// configs, so this changes nothing about tool exposure.
+		user := dbgen.User(t, db, database.User{})
+		disabledCfg, err := db.InsertMCPServerConfig(dbauthz.AsSystemRestricted(ctx), database.InsertMCPServerConfigParams{
+			OrganizationID: firstUser.OrganizationID,
+			DisplayName:    "Disabled MCP Server",
+			Slug:           testutil.GetRandomName(t),
+			Url:            "https://mcp.example.com",
+			Transport:      "streamable_http",
+			AuthType:       "none",
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+			Availability:   "default_off",
+			Enabled:        false,
+			CreatedBy:      user.ID,
+			UpdatedBy:      user.ID,
+		})
+		require.NoError(t, err)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a disabled default-org MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{disabledCfg.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{disabledCfg.ID}, chat.MCPServerIDs)
+
+		// The message-update validation path accepts it too.
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "still keeping the disabled config",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{disabledCfg.ID},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("MCPServerIDsThirdOrgRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// The enabled config belongs to a third organization: neither the
+		// chat's organization nor the default organization, so the create
+		// must reject it even during the fallback window.
+		thirdOrg := dbgen.Organization(t, db, database.Organization{})
+		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: thirdOrg.ID,
+			Enabled:        true,
+		})
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a third-org MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{thirdOrgConfig.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
+	})
+
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
 		t.Parallel()
 
