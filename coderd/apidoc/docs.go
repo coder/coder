@@ -20700,7 +20700,11 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the group's configured AI spend limit. Null when\nthe group has no configured budget.",
+                    "description": "SpendLimitMicros is the group's configured per-member AI spend limit.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the combined limit of the members whose spend is\nattributed to this group, applying each member's override where one\nexists. Null when any of those members has no limit, and zero when no\nmembers are attributed to the group.",
                     "type": "integer"
                 }
             }
@@ -22188,7 +22192,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the group's configured AI spend limit. Null when\nthe group has no configured budget.",
+                    "description": "SpendLimitMicros is the group's configured per-member AI spend limit.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the combined limit of the members whose spend is\nattributed to this group, applying each member's override where one\nexists. Null when any of those members has no limit, and zero when no\nmembers are attributed to the group.",
                     "type": "integer"
                 }
             }

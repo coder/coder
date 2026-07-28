@@ -12888,28 +12888,50 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		spend int64
 	}
 
+	// overrideSpec charges a per-user budget override to one of the two groups.
+	type overrideSpec struct {
+		user  int
+		onB   bool
+		limit int64
+	}
+
+	// Every case builds an org with two users and two groups. The first group is
+	// the subject, and the second exists so a case can pull a member's effective
+	// budget away from the first. members and membersB hold indexes into the
+	// users slice, and seeded spend is always attributed to users[0] on the
+	// first group.
 	tests := []struct {
 		name             string
 		setBudget        bool
 		spendLimit       int64
+		setBudgetB       bool
+		spendLimitB      int64
+		members          []int
+		membersB         []int
+		override         *overrideSpec
 		rows             []seedRow
 		wantCurrentSpend int64
+		wantTotalLimit   sql.NullInt64
+		wantTotalLimitB  sql.NullInt64
 	}{
 		{
 			name:             "NoBudgetNoSpend",
 			wantCurrentSpend: 0,
+			wantTotalLimit:   sql.NullInt64{},
 		},
 		{
 			name:             "ZeroLimitBudget",
 			setBudget:        true,
 			spendLimit:       0,
 			wantCurrentSpend: 0,
+			wantTotalLimit:   sql.NullInt64{Int64: 0, Valid: true},
 		},
 		{
 			name:             "BudgetZeroSpend",
 			setBudget:        true,
 			spendLimit:       1_000_000,
 			wantCurrentSpend: 0,
+			wantTotalLimit:   sql.NullInt64{Int64: 0, Valid: true},
 		},
 		{
 			name:             "BudgetWithSpend",
@@ -12917,11 +12939,84 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 			spendLimit:       1_000_000,
 			rows:             []seedRow{{now, 250}},
 			wantCurrentSpend: 250,
+			wantTotalLimit:   sql.NullInt64{Int64: 0, Valid: true},
 		},
 		{
 			name:             "NoBudgetWithSpend",
 			rows:             []seedRow{{now, 100}},
 			wantCurrentSpend: 100,
+			wantTotalLimit:   sql.NullInt64{},
+		},
+		{
+			name:           "BudgetedTwoPlainMembers",
+			setBudget:      true,
+			spendLimit:     100,
+			members:        []int{0, 1},
+			wantTotalLimit: sql.NullInt64{Int64: 200, Valid: true},
+		},
+		{
+			name:       "BudgetedPlainMemberPlusOverride",
+			setBudget:  true,
+			spendLimit: 100,
+			members:    []int{0, 1},
+			override:   &overrideSpec{user: 0, limit: 1000},
+			// The override replaces its holder's share of the group limit.
+			wantTotalLimit: sql.NullInt64{Int64: 1100, Valid: true},
+		},
+		{
+			name:           "BudgetedOnlyOverrideMember",
+			setBudget:      true,
+			spendLimit:     100,
+			members:        []int{0},
+			override:       &overrideSpec{user: 0, limit: 1000},
+			wantTotalLimit: sql.NullInt64{Int64: 1000, Valid: true},
+		},
+		{
+			name:           "BudgetedZeroLimitWithMembers",
+			setBudget:      true,
+			spendLimit:     0,
+			members:        []int{0, 1},
+			wantTotalLimit: sql.NullInt64{Int64: 0, Valid: true},
+		},
+		{
+			name:           "UnbudgetedWithMembers",
+			members:        []int{0, 1},
+			wantTotalLimit: sql.NullInt64{},
+		},
+		{
+			name:     "UnbudgetedWithOverride",
+			members:  []int{0},
+			override: &overrideSpec{user: 0, limit: 1000},
+			// Members of a group with no budget spend without a cap, so the
+			// override does not make the group's total finite.
+			wantTotalLimit: sql.NullInt64{},
+		},
+		{
+			name:        "MemberResolvesToHigherBudgetGroup",
+			setBudget:   true,
+			spendLimit:  100,
+			setBudgetB:  true,
+			spendLimitB: 500,
+			members:     []int{0, 1},
+			membersB:    []int{0},
+			// users[0] is attributed to the higher-limit second group, so only
+			// users[1] counts toward the first.
+			wantTotalLimit:  sql.NullInt64{Int64: 100, Valid: true},
+			wantTotalLimitB: sql.NullInt64{Int64: 500, Valid: true},
+		},
+		{
+			name:        "OverrideChargedToOtherGroup",
+			setBudget:   true,
+			spendLimit:  100,
+			setBudgetB:  true,
+			spendLimitB: 50,
+			members:     []int{0, 1},
+			membersB:    []int{0},
+			override:    &overrideSpec{user: 0, onB: true, limit: 1000},
+			// The override attributes users[0] to the second group even though
+			// the first carries the higher group limit.
+			wantTotalLimit:  sql.NullInt64{Int64: 100, Valid: true},
+			wantTotalLimitB: sql.NullInt64{Int64: 1000, Valid: true},
 		},
 	}
 
@@ -12931,20 +13026,55 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			// Given: an org with a single group, optionally with a budget and seeded spend.
-			user := dbgen.User(t, db, database.User{})
+			// Given: an org with two groups and two members, wired up per the case.
 			org := dbgen.Organization(t, db, database.Organization{})
+			users := []database.User{
+				dbgen.User(t, db, database.User{}),
+				dbgen.User(t, db, database.User{}),
+			}
+			for _, u := range users {
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         u.ID,
+					OrganizationID: org.ID,
+				})
+			}
 			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-			if tt.setBudget {
+			groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+			for _, b := range []struct {
+				groupID uuid.UUID
+				set     bool
+				limit   int64
+			}{{group.ID, tt.setBudget, tt.spendLimit}, {groupB.ID, tt.setBudgetB, tt.spendLimitB}} {
+				if !b.set {
+					continue
+				}
 				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-					GroupID:          group.ID,
-					SpendLimitMicros: tt.spendLimit,
+					GroupID:          b.groupID,
+					SpendLimitMicros: b.limit,
+				})
+				require.NoError(t, err)
+			}
+			for _, i := range tt.members {
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: users[i].ID})
+			}
+			for _, i := range tt.membersB {
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: users[i].ID})
+			}
+			if tt.override != nil {
+				overrideGroup := group.ID
+				if tt.override.onB {
+					overrideGroup = groupB.ID
+				}
+				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+					UserID:           users[tt.override.user].ID,
+					GroupID:          overrideGroup,
+					SpendLimitMicros: tt.override.limit,
 				})
 				require.NoError(t, err)
 			}
 			for _, r := range tt.rows {
 				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-					UserID:           user.ID,
+					UserID:           users[0].ID,
 					EffectiveGroupID: group.ID,
 					Day:              r.day,
 					CostMicros:       r.spend,
@@ -12952,25 +13082,33 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// When: querying spend for the group since monthStart.
+			// When: querying spend for both groups since monthStart.
 			got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
 				OrganizationID: org.ID,
-				GroupIds:       []uuid.UUID{group.ID},
+				GroupIds:       []uuid.UUID{group.ID, groupB.ID},
 				PeriodStart:    monthStart,
 			})
 			require.NoError(t, err)
 
-			// Then: one row is returned with the group's limit and spend.
-			require.Len(t, got, 1)
-			require.Equal(t, group.ID, got[0].GroupID)
-			require.Equal(t, org.ID, got[0].OrganizationID)
-			if tt.setBudget {
-				require.True(t, got[0].SpendLimitMicros.Valid, "expected configured budget")
-				require.Equal(t, tt.spendLimit, got[0].SpendLimitMicros.Int64, "spend_limit_micros")
-			} else {
-				require.False(t, got[0].SpendLimitMicros.Valid, "expected no configured budget")
+			// Then: each group reports its own limit, spend, and the combined
+			// limit of the members attributed to it.
+			require.Len(t, got, 2)
+			byID := make(map[uuid.UUID]database.GetOrganizationGroupsAISpendRow, len(got))
+			for _, r := range got {
+				byID[r.GroupID] = r
 			}
-			require.Equal(t, tt.wantCurrentSpend, got[0].CurrentSpendMicros)
+			row, ok := byID[group.ID]
+			require.True(t, ok, "queried group missing from response")
+			require.Equal(t, org.ID, row.OrganizationID)
+			if tt.setBudget {
+				require.True(t, row.SpendLimitMicros.Valid, "expected configured budget")
+				require.Equal(t, tt.spendLimit, row.SpendLimitMicros.Int64, "spend_limit_micros")
+			} else {
+				require.False(t, row.SpendLimitMicros.Valid, "expected no configured budget")
+			}
+			require.Equal(t, tt.wantCurrentSpend, row.CurrentSpendMicros)
+			require.Equal(t, tt.wantTotalLimit, row.TotalSpendLimitMicros, "total_spend_limit_micros")
+			require.Equal(t, tt.wantTotalLimitB, byID[groupB.ID].TotalSpendLimitMicros, "second group total_spend_limit_micros")
 		})
 	}
 
@@ -13178,6 +13316,76 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, int64(25), got[0].CurrentSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
+	})
+
+	t.Run("EveryoneGroupCountsOrgMembers", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an org whose implicit Everyone group carries the only budget.
+		org := dbgen.Organization(t, db, database.Organization{})
+		for range 2 {
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+		}
+		// The Everyone group has ID equal to the organization ID and must be
+		// inserted explicitly for the group_ai_budgets FK constraint.
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), org.ID)
+		require.NoError(t, err)
+		_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          org.ID,
+			SpendLimitMicros: 100,
+		})
+		require.NoError(t, err)
+
+		// When: querying the Everyone group.
+		got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+			OrganizationID: org.ID,
+			GroupIds:       []uuid.UUID{org.ID},
+			PeriodStart:    monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: every org member counts toward the total.
+		require.Len(t, got, 1)
+		require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, got[0].TotalSpendLimitMicros)
+	})
+
+	t.Run("EveryoneGroupWithoutBudgetIsUnlimited", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an org with members but no budget anywhere, which is where
+		// uncapped users are attributed.
+		org := dbgen.Organization(t, db, database.Organization{})
+		for range 2 {
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+		}
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), org.ID)
+		require.NoError(t, err)
+
+		// When: querying the Everyone group.
+		got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+			OrganizationID: org.ID,
+			GroupIds:       []uuid.UUID{org.ID},
+			PeriodStart:    monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: the total is null, so the group reads as unlimited.
+		require.Len(t, got, 1)
+		require.False(t, got[0].TotalSpendLimitMicros.Valid)
 	})
 }
 

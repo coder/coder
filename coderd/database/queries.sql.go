@@ -2860,41 +2860,120 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 }
 
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
+WITH queried_groups AS (
+	-- The requested groups that belong to the queried organization.
+	SELECT groups.id, groups.organization_id
+	FROM groups
+	WHERE groups.organization_id = $1
+		AND groups.id = ANY($2::uuid[])
+),
+candidate_users AS (
+	-- Members of the queried groups. Narrowing to members loses nobody, because a
+	-- user's effective group is always a group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT member.user_id
+	FROM group_members_expanded member
+	WHERE member.group_id IN (SELECT id FROM queried_groups)
+),
+user_highest_group AS (
+	-- Per user, the highest-limit group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM candidate_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- Effective budget group per user: an override wins over the highest-limit
+	-- group they belong to. Users with neither spend without a cap, and the
+	-- unbudgeted group they fall back to reports unlimited regardless.
+	SELECT
+		candidate_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		override.spend_limit_micros AS override_limit_micros
+	FROM candidate_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = candidate_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = candidate_users.user_id
+),
+group_limits AS (
+	-- Per attributed group, how many members take the group's own limit and the
+	-- combined limit of those carrying an override.
+	SELECT
+		effective.effective_group_id AS group_id,
+		count(*) FILTER (WHERE effective.override_limit_micros IS NULL) AS plain_member_count,
+		COALESCE(SUM(effective.override_limit_micros), 0)::BIGINT AS override_limit_sum
+	FROM effective
+	WHERE effective.effective_group_id IS NOT NULL
+	GROUP BY effective.effective_group_id
+),
+group_totals AS (
+	-- Combined limit per budgeted group, counting members with no override at the
+	-- group's own limit and adding the overrides on top. Unbudgeted groups are
+	-- absent here, so the join below leaves their total null.
+	SELECT
+		queried_groups.id AS group_id,
+		(budget.spend_limit_micros * COALESCE(group_limits.plain_member_count, 0)
+			+ COALESCE(group_limits.override_limit_sum, 0))::BIGINT AS total_spend_limit_micros
+	FROM queried_groups
+	JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+	LEFT JOIN group_limits ON group_limits.group_id = queried_groups.id
+),
+group_spend AS (
+	-- Spend per queried group over the period.
+	SELECT
+		spend.effective_group_id AS group_id,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM ai_user_daily_spend spend
+	WHERE spend.effective_group_id IN (SELECT id FROM queried_groups)
+		AND spend.day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.effective_group_id
+)
 SELECT
-	groups.id AS group_id,
-	groups.organization_id AS organization_id,
+	queried_groups.id AS group_id,
+	queried_groups.organization_id AS organization_id,
 	budget.spend_limit_micros AS spend_limit_micros,
-	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
-FROM groups
-LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
-LEFT JOIN ai_user_daily_spend spend
-	ON spend.effective_group_id = groups.id
-	AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
-WHERE groups.organization_id = $2
-	AND groups.id = ANY($3::uuid[])
-GROUP BY groups.id, budget.spend_limit_micros
-ORDER BY groups.id
+	group_totals.total_spend_limit_micros AS total_spend_limit_micros,
+	COALESCE(group_spend.current_spend_micros, 0)::BIGINT AS current_spend_micros
+FROM queried_groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+LEFT JOIN group_totals ON group_totals.group_id = queried_groups.id
+LEFT JOIN group_spend ON group_spend.group_id = queried_groups.id
+ORDER BY queried_groups.id
 `
 
 type GetOrganizationGroupsAISpendParams struct {
-	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 }
 
 type GetOrganizationGroupsAISpendRow struct {
-	GroupID            uuid.UUID     `db:"group_id" json:"group_id"`
-	OrganizationID     uuid.UUID     `db:"organization_id" json:"organization_id"`
-	SpendLimitMicros   sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
-	CurrentSpendMicros int64         `db:"current_spend_micros" json:"current_spend_micros"`
+	GroupID               uuid.UUID     `db:"group_id" json:"group_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	SpendLimitMicros      sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+	TotalSpendLimitMicros sql.NullInt64 `db:"total_spend_limit_micros" json:"total_spend_limit_micros"`
+	CurrentSpendMicros    int64         `db:"current_spend_micros" json:"current_spend_micros"`
 }
 
 // Returns AI spend limits and aggregate spend for groups in @group_ids that
-// belong to @organization_id, on or after period_start until NOW. The spend
-// limit is null when the group has no configured budget.
+// belong to @organization_id, on or after period_start until NOW.
+// spend_limit_micros is the per-member limit, null when the group has no budget.
+// total_spend_limit_micros is the per-member limit applied to the members
+// attributed to the group, replaced by their override where one exists. It is
+// null when the group has no budget, because those members spend without a cap.
 // The period_start parameter is normalized to its UTC calendar day.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.PeriodStart, arg.OrganizationID, pq.Array(arg.GroupIds))
+	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.OrganizationID, pq.Array(arg.GroupIds), arg.PeriodStart)
 	if err != nil {
 		return nil, err
 	}
@@ -2906,6 +2985,7 @@ func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOr
 			&i.GroupID,
 			&i.OrganizationID,
 			&i.SpendLimitMicros,
+			&i.TotalSpendLimitMicros,
 			&i.CurrentSpendMicros,
 		); err != nil {
 			return nil, err

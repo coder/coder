@@ -6884,10 +6884,17 @@ export interface Organization extends MinimalOrganization {
 export interface OrganizationGroupAISpend {
 	readonly group_id: string;
 	/**
-	 * SpendLimitMicros is the group's configured AI spend limit. Null when
-	 * the group has no configured budget.
+	 * SpendLimitMicros is the group's configured per-member AI spend limit.
+	 * Null when the group has no configured budget.
 	 */
 	readonly spend_limit_micros: number | null;
+	/**
+	 * TotalSpendLimitMicros is the combined limit of the members whose spend is
+	 * attributed to this group, applying each member's override where one
+	 * exists. Null when any of those members has no limit, and zero when no
+	 * members are attributed to the group.
+	 */
+	readonly total_spend_limit_micros: number | null;
 	/**
 	 * CurrentSpendMicros is the group's spend over the current budget
 	 * period.

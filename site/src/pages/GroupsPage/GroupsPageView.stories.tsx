@@ -51,6 +51,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-unlimited",
 					current_spend_micros: 25_492_000_000,
 					spend_limit_micros: null,
+					total_spend_limit_micros: null,
 				},
 			},
 			{
@@ -59,6 +60,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-under",
 					current_spend_micros: 10_000_000,
 					spend_limit_micros: 50_000_000,
+					total_spend_limit_micros: 50_000_000,
 				},
 			},
 			{
@@ -67,6 +69,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-warning",
 					current_spend_micros: 46_000_000,
 					spend_limit_micros: 50_000_000,
+					total_spend_limit_micros: 50_000_000,
 				},
 			},
 			{
@@ -75,6 +78,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-at-limit",
 					current_spend_micros: 50_000_000,
 					spend_limit_micros: 50_000_000,
+					total_spend_limit_micros: 50_000_000,
 				},
 			},
 			{
@@ -83,6 +87,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-over",
 					current_spend_micros: 75_000_000,
 					spend_limit_micros: 50_000_000,
+					total_spend_limit_micros: 50_000_000,
 				},
 			},
 			{
@@ -91,6 +96,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-zero-budget",
 					current_spend_micros: 5_000_000,
 					spend_limit_micros: 0,
+					total_spend_limit_micros: 0,
 				},
 			},
 			{
@@ -99,6 +105,7 @@ export const WithAIBudgets: Story = {
 					group_id: "ai-zero-both",
 					current_spend_micros: 0,
 					spend_limit_micros: 0,
+					total_spend_limit_micros: 0,
 				},
 			},
 			// No spend exercises the missing-spend em-dash fallback.
