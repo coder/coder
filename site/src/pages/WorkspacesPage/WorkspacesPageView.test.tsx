@@ -94,4 +94,18 @@ describe("WorkspacesPageView", () => {
 			screen.queryByRole("button", { name: /new workspace/i }),
 		).not.toBeInTheDocument();
 	});
+
+	it("shows the filter empty state when the user can create workspaces but the filter matches nothing", async () => {
+		renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				filterState={createFilterState(true)}
+			/>,
+		);
+
+		await screen.findByText(/no results matched your search/i);
+		expect(
+			screen.queryByText(/don't have permission to create workspaces/i),
+		).not.toBeInTheDocument();
+	});
 });
