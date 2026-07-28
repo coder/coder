@@ -7,6 +7,8 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
+const ROOT_CHAT_ID = "root-chat-id";
+
 const mockCost: TypesGen.ChatCost = {
 	chat_id: MockChat.id,
 	total_cost_micros: 1_250_000,
@@ -27,6 +29,7 @@ type MockRequestOptions = {
 	summary?: string | null;
 	chatError?: boolean;
 	parentChatId?: string;
+	rootChatId?: string;
 };
 
 const mockRequests = ({
@@ -34,6 +37,7 @@ const mockRequests = ({
 	summary = null,
 	chatError,
 	parentChatId,
+	rootChatId,
 }: MockRequestOptions = {}) => {
 	if (chatError) {
 		spyOn(API.experimental, "getChat").mockRejectedValue(
@@ -44,6 +48,7 @@ const mockRequests = ({
 			...MockChat,
 			summary,
 			...(parentChatId ? { parent_chat_id: parentChatId } : {}),
+			...(rootChatId ? { root_chat_id: rootChatId } : {}),
 		});
 	}
 
@@ -99,6 +104,26 @@ export const SubagentSummaryPending: Story = {
 				canvas.getByText("Summary pending agent completion."),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const SubagentTreeCost: Story = {
+	beforeEach: () =>
+		mockRequests({
+			parentChatId: "parent-chat-id",
+			rootChatId: ROOT_CHAT_ID,
+			cost: { ...mockCost, chat_id: ROOT_CHAT_ID },
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("$1.25")).toBeInTheDocument();
+		});
+		expect(
+			canvas.getByText(/Cost covers this agent's whole chat/),
+		).toBeInTheDocument();
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(ROOT_CHAT_ID);
+		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(MockChat.id);
 	},
 };
 

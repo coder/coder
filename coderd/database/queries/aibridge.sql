@@ -665,13 +665,12 @@ OFFSET @offset_
 ;
 
 -- name: GetAIBridgeChatCost :one
--- AI Gateway cost for one chat tree: the root chat plus every subagent chat
--- beneath it. Coder Agents traffic records the spawning chat's ID as the
--- interception session ID (chatprovider.CoderHeaders), so a subagent's
--- requests are attributed to its parent and only the whole tree can be
--- summed. The owner check guards against session-id collisions from other
--- users. Usage without an effective group never reaches ai_user_daily_spend,
--- so excluding it keeps this total consistent with AI budget spend.
+-- AI Gateway cost for one chat tree: the root chat plus every subagent
+-- beneath it. The spawning chat's ID is recorded as the interception session
+-- ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+-- to its parent rather than the root, and only whole trees can be summed. The
+-- owner check guards against session-id collisions. Usage without an
+-- effective group never reaches ai_user_daily_spend.
 SELECT
 	COALESCE(SUM(tu.cost_micros), 0)::bigint AS total_cost_micros,
 	COUNT(DISTINCT i.id)::bigint AS request_count,

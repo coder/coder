@@ -1299,9 +1299,8 @@ curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/cost \
 Experimental: this endpoint is subject to change.
 
 Cost covers the whole chat tree: the root chat plus every
-subagent chat beneath it. Requesting a subagent chat returns
-that same tree total, because AI Gateway attributes a
-subagent's requests to the chat that spawned it.
+subagent chat beneath it. Requesting cost for a subagent chat
+returns that same total.
 
 ### Parameters
 

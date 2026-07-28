@@ -126,18 +126,20 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// Chat ID whose cost query must refetch after a watch event, or undefined
-// when the event cannot change any cost. Cost accrues while a chat
-// generates, so refetch when a status change lands in a non-active status.
-// Title generation bills its own gateway request and can land while the chat
-// is idle, so a title change refetches regardless of status.
-// The cost endpoint reports the whole chat tree and the sidebar keys that
-// query by root, so the root covers subagents at any depth.
+// Titles, turn status labels, and whole-chat summaries are generated after the
+// turn already reported a non-active status, so their gateway spend lands after
+// a status-driven refetch would have run.
+const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"summary_change",
+	"title_change",
+]);
+
 export const chatCostIdToInvalidate = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
 ): string | undefined => {
-	if (eventKind === "title_change") {
+	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
 		return chat.root_chat_id ?? chat.id;
 	}
 	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {

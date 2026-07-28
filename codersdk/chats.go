@@ -1990,10 +1990,10 @@ type ChatCostChatBreakdown struct {
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
-// ChatCost is the AI Gateway cost for the requested chat's whole tree. AI
-// Gateway attributes a subagent's requests to the chat that spawned it, so
-// every chat in a tree reports the same total. UnpricedRequestCount counts
-// requests whose model had no recorded price, so the total excludes them.
+// ChatCost is the AI Gateway cost for the requested chat's whole tree.
+// Both root and leaves in a tree report the same total.
+// UnpricedRequestCount counts requests whose model had no recorded price.
+// RequestCount includes them; TotalCostMicros does not.
 type ChatCost struct {
 	ChatID               uuid.UUID `json:"chat_id" format:"uuid"`
 	TotalCostMicros      int64     `json:"total_cost_micros"`

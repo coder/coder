@@ -1966,7 +1966,6 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-// Cost covers the whole chat tree, so callers key this by the root chat.
 export const chatCostKey = (rootChatId: string) =>
 	[...chatsKey, rootChatId, "cost"] as const;
 

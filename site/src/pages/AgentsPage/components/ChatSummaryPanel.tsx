@@ -17,8 +17,6 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	isVisible,
 }) => {
 	const { experiments } = useDashboard();
-	// Cost is derived from AI Gateway interception data, so it is unavailable
-	// when the gateway is off or unlicensed.
 	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
 	const showCost =
 		Boolean(useFeatureVisibility().aibridge) &&
@@ -26,9 +24,6 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
-	// Cost covers the whole chat tree, so every chat in a tree shares one
-	// cache entry keyed by the root. Waiting for the chat keeps a subagent
-	// from caching the tree total under its own id.
 	const rootChatId = chatData?.root_chat_id ?? chatId;
 	const costQuery = useQuery({
 		...chatCost(rootChatId),

@@ -582,7 +582,7 @@ const docTemplate = `{
         },
         "/api/experimental/chats/{chat}/cost": {
             "get": {
-                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting a subagent chat returns\nthat same tree total, because AI Gateway attributes a\nsubagent's requests to the chat that spawned it.",
+                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.",
                 "produces": [
                     "application/json"
                 ],

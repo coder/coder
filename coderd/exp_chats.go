@@ -2474,9 +2474,8 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Description Experimental: this endpoint is subject to change.
 // @Description
 // @Description Cost covers the whole chat tree: the root chat plus every
-// @Description subagent chat beneath it. Requesting a subagent chat returns
-// @Description that same tree total, because AI Gateway attributes a
-// @Description subagent's requests to the chat that spawned it.
+// @Description subagent chat beneath it. Requesting cost for a subagent chat
+// @Description returns that same total.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {

@@ -15,8 +15,7 @@ interface ChatSummaryProps {
 	costError?: boolean;
 	/** Requests whose model had no recorded price; when > 0 the cost is partial and a note is shown. */
 	unpricedRequestCount?: number;
-	/** Cost comes from AI Gateway, so the row is hidden where the gateway is unavailable. */
-	showCost?: boolean;
+	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
 	isSubagent?: boolean;
 }
@@ -29,7 +28,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	isCostLoading,
 	costError,
 	unpricedRequestCount,
-	showCost = true,
+	showCost,
 	isSubagent,
 }) => {
 	const trimmedSummary = summary?.trim();

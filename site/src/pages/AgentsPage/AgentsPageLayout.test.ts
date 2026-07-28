@@ -992,9 +992,9 @@ describe(chatCostIdToInvalidate.name, () => {
 			expected: undefined,
 		},
 		{
-			name: "ignores non-status events",
+			name: "ignores events that bill no gateway request",
 			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
-			eventKind: "summary_change",
+			eventKind: "diff_status_change",
 			expected: undefined,
 		},
 		{
@@ -1012,6 +1012,29 @@ describe(chatCostIdToInvalidate.name, () => {
 				status: "running",
 			}),
 			eventKind: "title_change",
+			expected: "root-1",
+		},
+		{
+			name: "invalidates when a generated turn status label lands",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "summary_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates when a generated whole-chat summary lands",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "chat_summary_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates the root's tree cost for a subagent summary change",
+			updatedChat: chatForFilterInvalidation({
+				id: "child-1",
+				parent_chat_id: "root-1",
+				root_chat_id: "root-1",
+				status: "running",
+			}),
+			eventKind: "chat_summary_change",
 			expected: "root-1",
 		},
 	])("$name", ({ updatedChat, eventKind, expected }) => {
