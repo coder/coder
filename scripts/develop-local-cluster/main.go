@@ -941,19 +941,17 @@ func (cfg *clusterConfig) installGateway(ctx context.Context) error {
     requests:
       cpu: 250m
       memory: 512Mi
+  env:
+    - name: CODER_URL
+      value: http://coder.%s.svc.cluster.local:80
 aigateway:
   keySecret:
     name: %s
     key: key
-  coderService:
-    name: coder
-    namespace: %s
-    scheme: http
-    port: 80
 service:
   type: NodePort
   nodePort: %d
-`, cfg.imageRepository(), cfg.imageTag(), gatewayKeyName, cfg.namespace, gatewayNodePort))
+`, cfg.imageRepository(), cfg.imageTag(), cfg.namespace, gatewayKeyName, gatewayNodePort))
 	if err != nil {
 		return err
 	}
