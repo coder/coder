@@ -54,9 +54,9 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // and headers. It understands both the top-level `{"message":...}` shape
 // used by many providers and the nested `{"error":{"message":...}}`
 // envelope. When the extracted message is itself an SDK-formatted transport
-// error wrapper, the clean inner provider message is returned. Non-JSON
-// text/plain bodies (e.g. aibridge's budget errors) fall back to the first
-// line of the body.
+// error wrapper, the clean inner provider message is returned. For
+// non-JSON text/plain bodies (e.g. aibridge's budget errors) it returns
+// the first line of the body.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
@@ -68,11 +68,11 @@ func providerErrorResponseMessage(responseDump []byte) string {
 	return unwrapTransportErrorMessage(plainTextErrorMessage(headers, body))
 }
 
-// plainTextErrorMessage returns the first line of a plain-text error body,
-// trimmed. It applies only when the dumped response declares a text/plain
-// Content-Type (keeping proxy/LB HTML and other opaque bodies out of the
-// user-facing detail) and the body is not valid JSON (valid JSON without an
-// extractable message must not leak raw JSON).
+// plainTextErrorMessage returns the trimmed first line of a plain-text
+// error body. The result is user-facing, so it requires a text/plain
+// Content-Type (excluding proxy HTML and other opaque bodies) and rejects
+// valid JSON (which jsonErrorMessage already handled; passing it through
+// would leak raw JSON).
 func plainTextErrorMessage(headers, body []byte) string {
 	if !headersDeclareTextPlain(headers) || json.Valid(body) {
 		return ""
@@ -82,7 +82,7 @@ func plainTextErrorMessage(headers, body []byte) string {
 }
 
 // headersDeclareTextPlain reports whether a dumped HTTP header block
-// declares Content-Type text/plain, tolerating media-type parameters such
+// declares Content-Type text/plain, ignoring media-type parameters such
 // as charset.
 func headersDeclareTextPlain(headers []byte) bool {
 	for line := range strings.Lines(string(headers)) {
@@ -150,10 +150,9 @@ func jsonErrorMessage(body []byte) string {
 }
 
 // splitResponseDump separates a dumped HTTP response into its header block
-// and body. Non-dump payloads (e.g. fantasy's Google adapter stores a raw
-// message in ResponseBody) are returned whole as the body with no headers,
-// so a blank line inside a raw message is never mistaken for the
-// header/body separator.
+// and body. It returns non-dump payloads whole as the body: fantasy's
+// Google adapter stores a raw message in ResponseBody, and a blank line
+// inside that message is not a header/body separator.
 func splitResponseDump(responseDump []byte) (headers, body []byte) {
 	if !bytes.HasPrefix(responseDump, []byte("HTTP/")) {
 		return nil, responseDump

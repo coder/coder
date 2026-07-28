@@ -1442,8 +1442,8 @@ func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
 
 	// aibridge returns its budget error as a plain-text 403. The Anthropic
 	// adapter's Message is the SDK transport string without the body, so
-	// the budget text is only present in the dumped ResponseBody. It must
-	// still classify as a usage limit, not auth.
+	// the budget text appears only in the dumped ResponseBody. Classify
+	// must still report a usage limit, not auth.
 	classified := chaterror.Classify(testProviderError(
 		`POST "https://api.example.com/v1/messages": 403 Forbidden`,
 		403,
@@ -1466,8 +1466,8 @@ func TestClassify_SkipsHTMLBodyForDetail(t *testing.T) {
 	t.Parallel()
 
 	// Proxies and load balancers return HTML error pages with a text/html
-	// Content-Type; the text/plain gate keeps them out of the user-facing
-	// detail, so fall back to the provider message.
+	// Content-Type. The text/plain gate keeps them out of the user-facing
+	// detail, so detail falls back to the provider message.
 	classified := chaterror.Classify(testProviderError(
 		"upstream failed",
 		502,
@@ -1522,9 +1522,8 @@ func TestClassify_JSONBodyWithoutMessageFallsBackToMessage(t *testing.T) {
 func TestClassify_PlainTextQuotaBodyOn503(t *testing.T) {
 	t.Parallel()
 
-	// A plain-text body feeds the same pattern matching as a JSON message,
-	// so "quota" beats the 503 timeout signal. This is intended: it
-	// mirrors the behavior for JSON bodies carrying the same text.
+	// Intended: a plain-text body feeds the same pattern matching as a
+	// JSON message, so "quota" beats the 503 timeout signal.
 	classified := chaterror.Classify(testProviderError(
 		"",
 		503,
@@ -1540,9 +1539,9 @@ func TestClassify_GoogleRawMessageWithBlankLine(t *testing.T) {
 	t.Parallel()
 
 	// Fantasy's Google adapter stores a raw message (not an HTTP dump) in
-	// ResponseBody. A blank line inside it must not be mistaken for a
-	// header/body separator; detail falls back to the full trimmed
-	// Message, not a mangled second paragraph.
+	// ResponseBody. A blank line inside it is not a header/body separator:
+	// detail must fall back to the full trimmed Message, not the second
+	// paragraph.
 	classified := chaterror.Classify(testProviderError(
 		"google: model overloaded",
 		500,
