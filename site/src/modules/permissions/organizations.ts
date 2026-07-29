@@ -115,6 +115,27 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
+		createChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		editChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
 	}) as const satisfies Record<string, AuthorizationCheck>;
 
 /**

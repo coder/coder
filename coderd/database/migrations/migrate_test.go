@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -2589,4 +2590,463 @@ func mustJSON(t *testing.T, v any) []byte {
 	raw, err := json.Marshal(v)
 	require.NoError(t, err)
 	return raw
+}
+
+func TestMigration000564ChatModelConfigOrgExplosion(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 564
+
+	sqlDB := testSQLDB(t)
+
+	// stepperUpToLatest runs the stepper to completion: a Stepper cannot
+	// stop early, it closes only when the steps are exhausted, and each
+	// call commits the driver's transaction. The assertion only requires
+	// that target was APPLIED, not that it is the latest: a stacked PR may
+	// add a later migration, so encoding "target is latest" would redden
+	// any such child on its merge ref.
+	stepperUpToLatest := func(target uint) {
+		t.Helper()
+		next, err := migrations.Stepper(sqlDB)
+		require.NoError(t, err)
+		last := uint(0)
+		for {
+			version, more, err := next()
+			require.NoError(t, err)
+			if !more {
+				break
+			}
+			last = version
+		}
+		require.GreaterOrEqual(t, last, target, "migration %d must be applied", target)
+	}
+
+	// Migrate fully up first. The Stepper cannot stop at an intermediate
+	// version (it runs to completion and each run is one transaction), so
+	// fixtures are seeded post-schema and the explosion is exercised as
+	// DOWN (restore pre-explosion state) then UP (re-explode from it).
+	stepperUpToLatest(migrationVersion)
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	providerID := uuid.New()
+	user1ID := uuid.New()
+	user2ID := uuid.New()
+	orgBID := uuid.New() // live org with chats
+	orgCID := uuid.New() // live zero-member org: receives the full live set
+	orgDID := uuid.New() // soft-deleted org: receives nothing, chats untouched
+	c1ID := uuid.New()   // live default config
+	c2ID := uuid.New()   // live plain config
+	c3ID := uuid.New()   // soft-deleted, referenced in orgB only
+	c4ID := uuid.New()   // soft-deleted, unreferenced: never copied
+	c5ID := uuid.New()   // live plain config
+	// aclLateConfigID simulates a config created between 000562 and 000564 by
+	// the pre-cutover handlers, which did not seed the everyone ACL entry.
+	aclLateConfigID := uuid.New()
+	chatBID := uuid.New()  // chat in orgB pinned to live c1
+	chatB3ID := uuid.New() // chat in orgB pinned to deleted c3
+	chatDID := uuid.New()  // chat in soft-deleted orgD pinned to live c1
+
+	execFixture := func(query string, args ...any) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, query, args...)
+		require.NoError(t, err)
+	}
+
+	for i, id := range []uuid.UUID{user1ID, user2ID} {
+		execFixture(
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, 'active', '{}', 'password')`,
+			id, fmt.Sprintf("m3user%d", i+1), fmt.Sprintf("m3user%d@coder.com", i+1), []byte{}, now, now,
+		)
+	}
+
+	execFixture(
+		`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		providerID, "openai", "openai-564", true, "https://api.openai.com/v1", now, now,
+	)
+
+	// Three non-default orgs: live B, live zero-member C, soft-deleted D.
+	for _, o := range []struct {
+		id      uuid.UUID
+		name    string
+		deleted bool
+	}{
+		{orgBID, "org-b-564", false},
+		{orgCID, "org-c-564", false},
+		{orgDID, "org-d-564", true},
+	} {
+		execFixture(
+			`INSERT INTO organizations (id, name, description, display_name, default_org_member_roles, created_at, updated_at, deleted)
+			VALUES ($1, $2, '', '', '{}', $3, $3, $4)`,
+			o.id, o.name, now, o.deleted,
+		)
+	}
+
+	var defaultOrgID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT id FROM organizations WHERE is_default = true").Scan(&defaultOrgID))
+
+	// Model configs in the default org (pre-564 state: every config lives
+	// there, backfilled by 000562 with the everyone ACL entry).
+	insertConfig := func(id uuid.UUID, model string, isDefault, deleted bool, acl string) {
+		t.Helper()
+		execFixture(
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, deleted, deleted_at,
+				context_limit, compression_threshold, ai_provider_id, organization_id, group_acl, created_at, updated_at)
+			VALUES ($1, $2, $3, true, $4, $5, (CASE WHEN $5 THEN $6::timestamptz ELSE NULL END),
+				200000, 70, $7, $8, $9::jsonb, $6, $6)`,
+			id, model, model+" display", isDefault, deleted, now, providerID, defaultOrgID, acl,
+		)
+	}
+	everyoneACL := `{"` + defaultOrgID.String() + `": {"permissions": ["read"]}}`
+	insertConfig(c1ID, "gpt-5.2", true, false, everyoneACL)
+	insertConfig(c2ID, "gpt-5.2-mini", false, false, everyoneACL)
+	insertConfig(c3ID, "gpt-4-legacy", false, true, everyoneACL)
+	insertConfig(c4ID, "gpt-4-ancient", false, true, everyoneACL)
+	insertConfig(c5ID, "gpt-5.2-nano", false, false, everyoneACL)
+	insertConfig(aclLateConfigID, "gpt-5.2-late", false, false, `{}`)
+
+	// Chats: orgB pinned to live c1, orgB second chat pinned to deleted c3,
+	// soft-deleted orgD pinned to live c1.
+	for _, ch := range []struct {
+		id      uuid.UUID
+		orgID   uuid.UUID
+		ownerID uuid.UUID
+		cfgID   uuid.UUID
+	}{
+		{chatBID, orgBID, user1ID, c1ID},
+		{chatB3ID, orgBID, user2ID, c3ID},
+		{chatDID, orgDID, user1ID, c1ID},
+	} {
+		execFixture(
+			`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $5)`,
+			ch.id, ch.ownerID, ch.orgID, ch.cfgID, now,
+		)
+	}
+
+	// Messages in each chat referencing the chat's pinned config.
+	for _, m := range []struct {
+		chatID uuid.UUID
+		cfgID  uuid.UUID
+	}{
+		{chatBID, c1ID},
+		{chatB3ID, c3ID},
+		{chatDID, c1ID},
+	} {
+		execFixture(
+			`INSERT INTO chat_messages (chat_id, model_config_id, role, content, content_version)
+			VALUES ($1, $2, 'user', '[]'::jsonb, 2)`,
+			m.chatID, m.cfgID,
+		)
+	}
+
+	// Queued messages (FK-less) referencing configs via their chat's org.
+	execFixture(
+		`INSERT INTO chat_queued_messages (chat_id, model_config_id, content, created_by)
+		VALUES ($1, $2, '[]'::jsonb, $3)`,
+		chatBID, c1ID, user1ID,
+	)
+	execFixture(
+		`INSERT INTO chat_queued_messages (chat_id, model_config_id, content, created_by)
+		VALUES ($1, $2, '[]'::jsonb, $3)`,
+		chatDID, c1ID, user1ID,
+	)
+
+	// Debug runs (FK-less, attribution).
+	execFixture(
+		`INSERT INTO chat_debug_runs (id, chat_id, model_config_id, kind, status)
+		VALUES ($1, $2, $3, 'turn', 'finished')`,
+		uuid.New(), chatBID, c1ID,
+	)
+	execFixture(
+		`INSERT INTO chat_debug_runs (id, chat_id, model_config_id, kind, status)
+		VALUES ($1, $2, $3, 'turn', 'finished')`,
+		uuid.New(), chatDID, c1ID,
+	)
+
+	// Compaction-threshold keys: c1 (live, users 1+2), c3 (deleted but
+	// referenced in orgB, user 1), c4 (deleted unreferenced, user 1: must
+	// never fan out), plus a non-threshold key that must stay untouched.
+	thresholdKey := func(id uuid.UUID) string {
+		return "chat_compaction_threshold_pct:" + id.String()
+	}
+	for _, tc := range []struct {
+		userID uuid.UUID
+		key    string
+		value  string
+	}{
+		{user1ID, thresholdKey(c1ID), "80"},
+		{user2ID, thresholdKey(c1ID), "75"},
+		{user1ID, thresholdKey(c3ID), "60"},
+		{user1ID, thresholdKey(c4ID), "55"},
+		// Hostile keys: a malformed and an empty suffix. The up leaves
+		// them alone; the down must not abort on their uuid cast.
+		{user1ID, "chat_compaction_threshold_pct:not-a-uuid", "50"},
+		{user1ID, "chat_compaction_threshold_pct:", "45"},
+		{user1ID, "chat_personal_model_override:root", "chat_default"},
+	} {
+		execFixture(
+			`INSERT INTO user_configs (user_id, key, value) VALUES ($1, $2, $3)`,
+			tc.userID, tc.key, tc.value,
+		)
+	}
+
+	// The fixtures were seeded post-schema in pre-explosion shape
+	// (default-org configs, references pointing at originals). The Stepper
+	// cannot stop mid-way, so the explosion of the seeded data is driven by
+	// rewinding the version row to the predecessor and stepping to latest:
+	// only 564's up re-applies.
+	_, err := sqlDB.ExecContext(ctx,
+		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (563, false)")
+	require.NoError(t, err)
+	stepperUpToLatest(migrationVersion)
+
+	// copyID resolves the copy of orig in org by natural attributes (the
+	// migration persists no mapping; this is also what the down relies on).
+	copyID := func(origID, orgID uuid.UUID) (uuid.UUID, bool) {
+		t.Helper()
+		var id uuid.UUID
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT cp.id FROM chat_model_configs cp
+			JOIN chat_model_configs orig ON orig.id = $1
+			WHERE cp.organization_id = $2
+			  AND cp.model = orig.model
+			  AND cp.ai_provider_id IS NOT DISTINCT FROM orig.ai_provider_id
+			  AND cp.id <> orig.id`, origID, orgID).Scan(&id)
+		if err == sql.ErrNoRows {
+			return uuid.Nil, false
+		}
+		require.NoError(t, err)
+		return id, true
+	}
+
+	// --- Per-org row counts ---
+	// Default org keeps its 6 originals; orgB gets 4 live copies (c1, c2,
+	// c5, late) plus the referenced-deleted c3 copy; orgC (zero-member) gets
+	// the full live set (4) and nothing deleted; orgD gets nothing.
+	assertCount := func(orgID uuid.UUID, want int, msg string) {
+		t.Helper()
+		var got int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM chat_model_configs WHERE organization_id = $1", orgID).Scan(&got))
+		require.Equal(t, want, got, msg)
+	}
+	assertCount(defaultOrgID, 6, "default org keeps only its originals")
+	assertCount(orgBID, 5, "orgB: 4 live fan-out + referenced-deleted c3")
+	assertCount(orgCID, 4, "orgC: full live set, no deleted copies")
+	assertCount(orgDID, 0, "soft-deleted org receives no copies")
+
+	// The deleted copy preserves deleted/deleted_at.
+	c3CopyB, ok := copyID(c3ID, orgBID)
+	require.True(t, ok, "orgB received the referenced-deleted c3 copy")
+	var deletedAtNull bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT deleted_at IS NULL FROM chat_model_configs WHERE id = $1", c3CopyB).Scan(&deletedAtNull))
+	require.False(t, deletedAtNull, "deleted copy preserves deleted_at")
+
+	// c4 is copied nowhere.
+	for _, orgID := range []uuid.UUID{orgBID, orgCID, orgDID} {
+		_, ok := copyID(c4ID, orgID)
+		require.False(t, ok, "unreferenced deleted c4 must not be copied")
+	}
+
+	// --- Exactly one live default per org that received copies ---
+	for _, orgID := range []uuid.UUID{defaultOrgID, orgBID, orgCID} {
+		var defaults int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM chat_model_configs WHERE organization_id = $1 AND is_default AND NOT deleted", orgID).Scan(&defaults))
+		require.Equal(t, 1, defaults, "exactly one live default per org")
+	}
+
+	// --- Remaps ---
+	// Chats in live orgB remap to same-org copies; the chat in soft-deleted
+	// orgD keeps the original reference.
+	c1CopyB, ok := copyID(c1ID, orgBID)
+	require.True(t, ok)
+	assertChatPinned := func(chatID, want uuid.UUID, msg string) {
+		t.Helper()
+		var got uuid.UUID
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT last_model_config_id FROM chats WHERE id = $1", chatID).Scan(&got))
+		require.Equal(t, want, got, msg)
+	}
+	assertChatPinned(chatBID, c1CopyB, "orgB chat remapped to same-org live copy")
+	assertChatPinned(chatB3ID, c3CopyB, "orgB chat on deleted model remapped to the deleted copy")
+	assertChatPinned(chatDID, c1ID, "soft-deleted org chat keeps original reference")
+
+	var msgCfg uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_messages WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1CopyB, msgCfg, "orgB message remapped")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_messages WHERE chat_id = $1", chatB3ID).Scan(&msgCfg))
+	require.Equal(t, c3CopyB, msgCfg, "orgB deleted-model message remapped")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_messages WHERE chat_id = $1", chatDID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "orgD message untouched")
+
+	// Queued messages (FK-less): orgB remapped, orgD untouched.
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_queued_messages WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1CopyB, msgCfg, "orgB queued message remapped")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_queued_messages WHERE chat_id = $1", chatDID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "orgD queued message untouched")
+
+	// Debug runs (FK-less): orgB remapped, orgD untouched.
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_debug_runs WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1CopyB, msgCfg, "orgB debug run remapped")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_debug_runs WHERE chat_id = $1", chatDID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "orgD debug run untouched")
+
+	// No reference in a live non-default org still points at a default-org
+	// config.
+	var dangling int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM chats c
+		JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
+		JOIN organizations def ON def.id = cmc.organization_id AND def.is_default
+		JOIN organizations co ON co.id = c.organization_id
+		WHERE NOT co.is_default AND NOT co.deleted`).Scan(&dangling))
+	require.Zero(t, dangling, "no live-org chat references a default-org config")
+
+	// --- ACL re-key and backfill ---
+	// Copies carry the everyone entry keyed by their own org.
+	for _, orgID := range []uuid.UUID{orgBID, orgCID} {
+		var missingACL int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM chat_model_configs
+			WHERE organization_id = $1 AND NOT (group_acl ? $2)`,
+			orgID, orgID.String()).Scan(&missingACL))
+		require.Zero(t, missingACL, "every copy carries the everyone entry keyed by its org")
+	}
+	// Copies never carry the default org's ACL key.
+	var leakedACL int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM chat_model_configs
+		WHERE organization_id <> $1 AND (group_acl ? $2)`,
+		defaultOrgID, defaultOrgID.String()).Scan(&leakedACL))
+	require.Zero(t, leakedACL, "copies must not inherit the default org's ACL key")
+	// The pre-existing row with an empty group_acl was backfilled.
+	var aclRaw []byte
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT group_acl FROM chat_model_configs WHERE id = $1", aclLateConfigID).Scan(&aclRaw))
+	require.JSONEq(t, string(mustJSON(t, map[string]any{
+		defaultOrgID.String(): map[string]any{"permissions": []string{"read"}},
+	})), string(aclRaw), "row missing the everyone entry is backfilled")
+
+	// --- Threshold fan-out ---
+	// c1 keys fanned out to the orgB and orgC copies for both users (follows
+	// copies, not membership); the c3 key fanned out to the orgB copy only;
+	// c4 produced nothing.
+	c1CopyC, ok := copyID(c1ID, orgCID)
+	require.True(t, ok)
+	for _, tc := range []struct {
+		userID uuid.UUID
+		cfgID  uuid.UUID
+	}{
+		{user1ID, c1CopyB},
+		{user1ID, c1CopyC},
+		{user2ID, c1CopyB},
+		{user2ID, c1CopyC},
+		{user1ID, c3CopyB},
+	} {
+		var exists bool
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT EXISTS(SELECT 1 FROM user_configs WHERE user_id = $1 AND key = $2)",
+			tc.userID, thresholdKey(tc.cfgID)).Scan(&exists))
+		require.True(t, exists, "threshold key fanned out to copy %s for user %s", tc.cfgID, tc.userID)
+	}
+	// c3 produced no orgC key (its only copy is in orgB).
+	var c3CCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_configs uc
+		JOIN chat_model_configs cp ON cp.id = substring(uc.key FROM 'chat_compaction_threshold_pct:(.*)')::uuid
+		WHERE uc.key LIKE 'chat_compaction_threshold_pct:%'
+		  AND substring(uc.key FROM 'chat_compaction_threshold_pct:(.*)') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+		  AND cp.organization_id = $1 AND cp.model = 'gpt-4-legacy'`,
+		orgCID).Scan(&c3CCount))
+	require.Zero(t, c3CCount, "deleted config with no orgC copy produces no orgC key")
+	// c4 (deleted, unreferenced): the only ancient-model threshold key is the
+	// seeded original.
+	var c4Keys []string
+	rows, err := sqlDB.QueryContext(ctx,
+		`SELECT key FROM user_configs WHERE key LIKE 'chat_compaction_threshold_pct:%'
+		AND substring(key FROM 'chat_compaction_threshold_pct:(.*)') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+		AND substring(key FROM 'chat_compaction_threshold_pct:(.*)')::uuid = $1`, c4ID)
+	require.NoError(t, err)
+	for rows.Next() {
+		var k string
+		require.NoError(t, rows.Scan(&k))
+		c4Keys = append(c4Keys, k)
+	}
+	require.NoError(t, rows.Err())
+	require.NoError(t, rows.Close())
+	require.Equal(t, []string{thresholdKey(c4ID)}, c4Keys, "unreferenced deleted c4 fans out zero keys")
+	// Seeded original keys survive; the non-threshold key is untouched.
+	for _, key := range []string{thresholdKey(c1ID), thresholdKey(c3ID)} {
+		var exists bool
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT EXISTS(SELECT 1 FROM user_configs WHERE user_id = $1 AND key = $2)",
+			user1ID, key).Scan(&exists))
+		require.True(t, exists, "original threshold key survives")
+	}
+	var overrideValue string
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT value FROM user_configs WHERE user_id = $1 AND key = 'chat_personal_model_override:root'",
+		user1ID).Scan(&overrideValue))
+	require.Equal(t, "chat_default", overrideValue, "non-threshold keys are untouched")
+
+	// --- Down round-trip on the exploded state. The framework's Stepper
+	// cannot commit after exactly one down step (its driver commits only
+	// when the stepper exhausts), so the down file is executed directly:
+	// migrations are plain SQL and this is the same text golang-migrate
+	// would run.
+	downSQL, err := fs.ReadFile(migrations.MigrationFS(), "000564_chat_model_config_org_explosion.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	// Copies are gone; references restored to the default-org originals.
+	assertCount(defaultOrgID, 6, "down: default org keeps its originals")
+	assertCount(orgBID, 0, "down: copies deleted from orgB")
+	assertCount(orgCID, 0, "down: copies deleted from orgC")
+	assertChatPinned(chatBID, c1ID, "down: orgB chat restored to original c1")
+	assertChatPinned(chatB3ID, c3ID, "down: orgB chat restored to original c3")
+	assertChatPinned(chatDID, c1ID, "down: orgD chat unchanged")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_messages WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "down: orgB message restored")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_queued_messages WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "down: orgB queued message restored")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_debug_runs WHERE chat_id = $1", chatBID).Scan(&msgCfg))
+	require.Equal(t, c1ID, msgCfg, "down: orgB debug run restored")
+
+	// Fanned-out threshold keys are gone; exactly the seeded valid key set
+	// remains. The two hostile keys (malformed/empty suffix) are pruned as
+	// dangling: they cannot name an existing config, and the down must not
+	// abort on their uuid cast.
+	var thresholdCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM user_configs WHERE key LIKE 'chat_compaction_threshold_pct:%'").Scan(&thresholdCount))
+	require.Equal(t, 4, thresholdCount, "down: only the 4 seeded valid threshold keys remain")
+
+	// Step forward again: the down executed outside the driver, so rewind
+	// the version row and re-apply the up. Shape re-asserted at count
+	// level.
+	_, err = sqlDB.ExecContext(ctx,
+		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (563, false)")
+	require.NoError(t, err)
+	stepperUpToLatest(migrationVersion)
+	assertCount(orgBID, 5, "re-up: orgB copies recreated")
+	assertCount(orgCID, 4, "re-up: orgC copies recreated")
+	assertChatPinned(chatDID, c1ID, "re-up: orgD still untouched")
 }

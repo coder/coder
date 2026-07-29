@@ -74,7 +74,7 @@ const isProviderConfiguredInCatalog = (
 	return unavailableReason !== "" && unavailableReason !== "missing_api_key";
 };
 
-export const hasConfiguredModelsInCatalog = (
+const hasConfiguredModelsInCatalog = (
 	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);

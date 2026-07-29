@@ -20,6 +20,31 @@ export type ProviderState = {
 	baseURL: string;
 };
 
+// The Models admin pages source provider metadata from the redacted AI
+// provider catalog (chatAIProviderCatalog) instead of the deployment-scoped
+// chatProviderConfigs endpoint, which org model admins cannot read. The
+// catalog carries no base URL, source, or timestamps; those fields are
+// filled with database/empty defaults below. baseURL in particular is dead
+// derived data (no ModelsPage component renders it), so the canonical
+// default for the provider type is used.
+export const providerConfigFromCatalogEntry = (
+	entry: TypesGen.ChatAIProviderCatalogEntry,
+): TypesGen.ChatProviderConfig => ({
+	id: entry.id,
+	provider: entry.type,
+	display_name: entry.display_name || entry.type,
+	icon: entry.icon,
+	enabled: entry.enabled,
+	has_api_key: entry.has_api_key,
+	central_api_key_enabled: entry.has_api_key,
+	allow_user_api_key: entry.allow_user_api_key,
+	allow_central_api_key_fallback: true,
+	base_url: "",
+	source: "database",
+	created_at: "",
+	updated_at: "",
+});
+
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const envPresetProviders = new Set(["openai", "anthropic"]);

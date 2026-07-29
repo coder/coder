@@ -283,11 +283,8 @@ func (c *chatConfigCache) storeModelConfig(snap modelConfigSnapshot, config data
 }
 
 // DefaultModelConfig returns the default model config for the given
-// organization. Until the org-scoping cutover, an org without its own
-// default falls back to the default org's config.
-// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover);
-// orgs resolve strictly within their own configs after the explosion
-// migration.
+// organization. Orgs resolve strictly within their own configs; an org
+// without its own default reports absence.
 func (c *chatConfigCache) DefaultModelConfig(ctx context.Context, orgID uuid.UUID) (database.ChatModelConfig, error) {
 	if config, ok := c.cachedDefaultModelConfig(orgID); ok {
 		return config, nil
@@ -301,23 +298,7 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context, orgID uuid.UUI
 
 		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx, orgID)
 		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				return database.ChatModelConfig{}, err
-			}
-			// TODO(mafredri): remove after CODAGT-709 M3
-			// (org-scoping cutover); orgs without their own
-			// default error after the explosion migration.
-			defaultOrg, err := c.db.GetDefaultOrganization(c.ctx)
-			if err != nil {
-				return database.ChatModelConfig{}, err
-			}
-			if defaultOrg.ID == orgID {
-				return database.ChatModelConfig{}, sql.ErrNoRows
-			}
-			fetched, err = c.db.GetDefaultChatModelConfig(c.ctx, defaultOrg.ID)
-			if err != nil {
-				return database.ChatModelConfig{}, err
-			}
+			return database.ChatModelConfig{}, err
 		}
 		c.storeDefaultModelConfig(snap, orgID, fetched)
 		return cloneModelConfig(fetched), nil
@@ -436,8 +417,8 @@ func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 	delete(c.modelConfigs, id)
 	c.modelTopologyEpoch++
 	// Coarse invalidation: the event does not say whether the changed
-	// config was a default, nor which orgs resolve to it through the
-	// default-org fallback, so every per-org default is dropped.
+	// config was a default, nor for which org, so every per-org default
+	// is dropped.
 	clear(c.defaultModelConfigs)
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()

@@ -58,15 +58,6 @@ type customQuerier interface {
 
 type chatModelConfigQuerier interface {
 	GetAuthorizedChatModelConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error)
-	// GetDefaultChatModelConfigCandidates enumerates the configs that
-	// ensureDefaultChatModelConfig may promote to default. It is the
-	// unfiltered list, kept separate from the authorized management list so
-	// the two contracts are not overloaded on one method.
-	GetDefaultChatModelConfigCandidates(ctx context.Context) ([]ChatModelConfig, error)
-}
-
-func (q *sqlQuerier) GetDefaultChatModelConfigCandidates(ctx context.Context) ([]ChatModelConfig, error) {
-	return q.GetChatModelConfigs(ctx)
 }
 
 func (q *sqlQuerier) GetAuthorizedChatModelConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error) {

@@ -24,6 +24,11 @@ type OrganizationAutocompleteProps = {
 	options: readonly Organization[];
 	id?: string;
 	required?: boolean;
+	/**
+	 * Overrides the trigger button's width/layout classes when the default
+	 * full-width treatment does not fit (e.g. a fixed-width switcher).
+	 */
+	triggerClassName?: string;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
@@ -32,6 +37,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	options,
 	id,
 	required,
+	triggerClassName,
 }) => {
 	const [open, setOpen] = useState(false);
 
@@ -44,7 +50,9 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					aria-expanded={open}
 					aria-required={required}
 					data-testid="organization-autocomplete"
-					className="w-full justify-start gap-2 font-normal"
+					className={
+						triggerClassName ?? "w-full justify-start gap-2 font-normal"
+					}
 				>
 					{value ? (
 						<>

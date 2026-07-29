@@ -52,13 +52,16 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						Providers
 					</SidebarNavItem>
 				)}
+				{(permissions.createAnyChatModelConfig ||
+					permissions.editAnyChatModelConfig) && (
+					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
+				)}
 				{permissions.editDeploymentConfig && (
 					<>
 						<SidebarNavItem href="/ai/settings/coder-agents">
 							Coder Agents
 						</SidebarNavItem>
 						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-							<SubNavItem href="/ai/settings/models">Models</SubNavItem>
 							<SubNavItem href="/ai/settings/mcp-servers">
 								MCP servers
 							</SubNavItem>

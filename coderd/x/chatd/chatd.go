@@ -1700,17 +1700,9 @@ func resolveFallbackModelConfigID(
 	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx, organizationID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// TODO(mafredri): remove after CODAGT-709 M3
-			// (org-scoping cutover); orgs without their own
-			// default error after the explosion migration.
-			defaultConfig, err = defaultOrgChatModelConfig(chatdCtx, store, organizationID)
+			return uuid.Nil, ErrNoDefaultChatModelConfig
 		}
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return uuid.Nil, ErrNoDefaultChatModelConfig
-			}
-			return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
-		}
+		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
 	}
 	// The default may itself be disabled or under a disabled provider.
 	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, defaultConfig.ID); err != nil {
@@ -1759,26 +1751,6 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 		return ErrEditedMessageNotUser
 	}
 	return nil
-}
-
-// defaultOrgChatModelConfig resolves the default org's default model
-// config for an org that has none of its own. The default org itself
-// never falls back: a miss there is a real absence.
-// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover);
-// per-org resolution becomes strict.
-func defaultOrgChatModelConfig(
-	ctx context.Context,
-	store database.Store,
-	organizationID uuid.UUID,
-) (database.ChatModelConfig, error) {
-	defaultOrg, err := store.GetDefaultOrganization(ctx)
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	if defaultOrg.ID == organizationID {
-		return database.ChatModelConfig{}, sql.ErrNoRows
-	}
-	return store.GetDefaultChatModelConfig(ctx, defaultOrg.ID)
 }
 
 // EditMessage replaces an earlier user message and discards the
@@ -2877,9 +2849,6 @@ func (p *Server) resolveManualTitleModel(
 	}
 
 	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)
-	if err == nil {
-		configs, err = enabledChatModelConfigsWithDefaultOrgFallback(ctx, store, chat.OrganizationID, configs)
-	}
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),

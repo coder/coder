@@ -125,5 +125,17 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		// filter admits both orgs' rows; the probe's contract is that the
 		// request uses the authorized list (no 500, own disabled visible).
 		require.True(t, contains(configs, ownDisabled.ID), "site reader must see own disabled config")
+
+		// The role holds only chat_model_config:read: it cannot read the
+		// other org as an organization, yet every union row must still
+		// carry its org display name (the label fetch is scoped to exactly
+		// the returned rows' orgs, not gated on org read).
+		require.True(t, contains(configs, otherEnabled.ID), "site reader sees the cross-org row via the authorized filter")
+		for _, c := range configs {
+			if c.ID == otherEnabled.ID {
+				require.Equal(t, otherOrg.DisplayName, c.OrganizationDisplayName,
+					"cross-org row must carry its org display name despite the caller lacking org read")
+			}
+		}
 	})
 }

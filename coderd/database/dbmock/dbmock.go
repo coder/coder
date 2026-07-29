@@ -3703,21 +3703,6 @@ func (mr *MockStoreMockRecorder) GetDefaultChatModelConfig(ctx, organizationID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfig), ctx, organizationID)
 }
 
-// GetDefaultChatModelConfigCandidates mocks base method.
-func (m *MockStore) GetDefaultChatModelConfigCandidates(ctx context.Context) ([]database.ChatModelConfig, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDefaultChatModelConfigCandidates", ctx)
-	ret0, _ := ret[0].([]database.ChatModelConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDefaultChatModelConfigCandidates indicates an expected call of GetDefaultChatModelConfigCandidates.
-func (mr *MockStoreMockRecorder) GetDefaultChatModelConfigCandidates(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfigCandidates", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfigCandidates), ctx)
-}
-
 // GetDefaultOrganization mocks base method.
 func (m *MockStore) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
 	m.ctrl.T.Helper()

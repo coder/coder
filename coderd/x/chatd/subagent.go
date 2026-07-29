@@ -634,10 +634,6 @@ func (p *Server) listSpawnableModelConfigs(
 	if err != nil {
 		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
 	}
-	rows, err = enabledChatModelConfigsWithDefaultOrgFallback(chatdCtx, p.db, organizationID, rows)
-	if err != nil {
-		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
-	}
 	models := make([]map[string]any, 0, len(rows))
 	providerKeysByID := make(map[uuid.UUID]chatprovider.ProviderAPIKeys)
 	for _, row := range rows {
@@ -686,36 +682,6 @@ func (p *Server) listSpawnableModelConfigs(
 		models = append(models, entry)
 	}
 	return models, nil
-}
-
-// enabledChatModelConfigsWithDefaultOrgFallback substitutes the
-// default org's enabled chat model configs when the chat's org has
-// none of its own, preserving the pre-org-scoping behavior where
-// every chat saw the deployment-wide list. The default org itself
-// never falls back.
-// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover);
-// orgs list strictly within their own configs.
-func enabledChatModelConfigsWithDefaultOrgFallback(
-	ctx context.Context,
-	db database.Store,
-	organizationID uuid.UUID,
-	rows []database.GetEnabledChatModelConfigsByOrganizationRow,
-) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
-	if len(rows) > 0 {
-		return rows, nil
-	}
-	defaultOrg, err := db.GetDefaultOrganization(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get default organization: %w", err)
-	}
-	if defaultOrg.ID == organizationID {
-		return rows, nil
-	}
-	fallbackRows, err := db.GetEnabledChatModelConfigsByOrganization(ctx, defaultOrg.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get default org enabled chat model configs: %w", err)
-	}
-	return fallbackRows, nil
 }
 
 func (p *Server) subagentTools(
