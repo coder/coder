@@ -433,6 +433,9 @@ export const StopsOnlySelectedWorkspaces: Story = {
 		await openBulkActions(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: /stop/i }));
 
+		const confirmButton = await body.findByTestId("confirm-button");
+		await user.click(confirmButton);
+
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(2));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("1");
 		expect(API.stopWorkspace).toHaveBeenCalledWith("2");
@@ -531,6 +534,9 @@ export const StopIgnoresAlreadyStoppedWorkspaces: Story = {
 		const stopItem = await body.findByRole("menuitem", { name: /stop/i });
 		expect(stopItem).not.toHaveAttribute("data-disabled");
 		await user.click(stopItem);
+
+		const confirmButton = await body.findByTestId("confirm-button");
+		await user.click(confirmButton);
 
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(1));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("2");
