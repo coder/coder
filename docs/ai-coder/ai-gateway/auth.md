@@ -3,11 +3,11 @@
 > [!NOTE]
 > AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
 
-AI Gateway uses different credentials for connections from clients to the Gateway, standalone Gateway replicas to the Coder control plane, and the Gateway to upstream providers:
+AI Gateway uses different credentials for different kinds of connections:
 
-- AI clients use a Coder API token to authenticate as a user.
-- Standalone Gateway replicas use AI Gateway keys to connect to `coderd`.
-- AI Gateway uses provider credentials configured by an administrator to authenticate to upstream AI services.
+- AI clients use a Coder API token to authenticate with AI Gateway as a user.
+- Standalone Gateway replicas use AI Gateway keys to connect to the Coder control plane.
+- AI Gateway uses provider credentials configured by an administrator to authenticate to upstream AI providers.
 - In Bring Your Own Key (BYOK) mode, a user also supplies a personal provider credential or subscription token.
 
 These credentials are not interchangeable.
