@@ -5804,6 +5804,13 @@ export interface MatchedProvisioners {
 	readonly most_recently_seen?: string;
 }
 
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
+ * $1,000,000 per member per budget period.
+ */
+export const MaxAISpendLimitMicros = 1000000000000;
+
 // From codersdk/chats.go
 /**
  * MaxChatFileIDs is the maximum number of file IDs that can be
@@ -9918,6 +9925,9 @@ export interface UpsertChatUsageLimitOverrideRequest {
 
 // From codersdk/aibridge.go
 export interface UpsertGroupAIBudgetRequest {
+	/**
+	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 */
 	readonly spend_limit_micros: number;
 }
 
@@ -9928,6 +9938,9 @@ export interface UpsertUserAIBudgetOverrideRequest {
 	 * be a member of this group.
 	 */
 	readonly group_id: string;
+	/**
+	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 */
 	readonly spend_limit_micros: number;
 }
 
