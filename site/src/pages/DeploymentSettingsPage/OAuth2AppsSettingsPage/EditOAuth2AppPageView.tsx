@@ -18,9 +18,9 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -169,6 +169,15 @@ export const EditOAuth2AppPageView: FC = () => {
 					Configure this application to use Coder as an OAuth2 provider.
 				</p>
 
+				<dl className="m-0 grid w-full max-w-3xl grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-6 gap-y-3">
+					<EndpointField label="Client ID" value={app.id} />
+					<EndpointField
+						label="Authorization URL"
+						value={app.endpoints.authorization}
+					/>
+					<EndpointField label="Token URL" value={app.endpoints.token} />
+				</dl>
+
 				{searchParams.has("created") && (
 					<Alert severity="info" dismissible>
 						Your OAuth2 application has been created. Generate a client secret
@@ -209,22 +218,6 @@ export const EditOAuth2AppPageView: FC = () => {
 						disabled={!canEditApp}
 						onIconChange={setIconOverride}
 					/>
-				</div>
-
-				<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
-					<h2 className="m-0 text-xl font-semibold">Endpoints</h2>
-					<div className="flex flex-col gap-2">
-						<Label>Client ID</Label>
-						<CodeExample secret={false} code={app.id} />
-					</div>
-					<div className="flex flex-col gap-2">
-						<Label>Authorization URL</Label>
-						<CodeExample secret={false} code={app.endpoints.authorization} />
-					</div>
-					<div className="flex flex-col gap-2">
-						<Label>Token URL</Label>
-						<CodeExample secret={false} code={app.endpoints.token} />
-					</div>
 				</div>
 
 				{canViewAppSecrets && (
@@ -365,6 +358,32 @@ export const EditOAuth2AppPageView: FC = () => {
 					});
 				}}
 			/>
+		</>
+	);
+};
+
+type EndpointFieldProps = {
+	label: string;
+	value: string;
+};
+
+const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
+	return (
+		<>
+			<dt className="text-sm text-content-secondary">{label}</dt>
+			<dd className="m-0 min-w-0">
+				<div className="flex items-center gap-1 min-w-0">
+					<code className="min-w-0 flex-1 truncate rounded-md border border-solid border-border bg-surface-secondary px-2 py-1 font-mono text-xs text-content-primary">
+						{value}
+					</code>
+					<CopyButton
+						text={value}
+						label={`Copy ${label}`}
+						size="icon"
+						variant="subtle"
+					/>
+				</div>
+			</dd>
 		</>
 	);
 };
