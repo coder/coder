@@ -53,6 +53,7 @@ const (
 	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
 	ResourceTypeUserAIBudgetOverride ResourceType = "user_ai_budget_override"
 	ResourceTypeChat                 ResourceType = "chat"
+	ResourceTypeChatModelConfig      ResourceType = "chat_model_config"
 	ResourceTypeUserSecret           ResourceType = "user_secret"
 	ResourceTypeUserSkill            ResourceType = "user_skill"
 )
@@ -129,6 +130,8 @@ func (r ResourceType) FriendlyString() string {
 		return "user ai budget override"
 	case ResourceTypeChat:
 		return "chat"
+	case ResourceTypeChatModelConfig:
+		return "chat model config"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:

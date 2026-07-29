@@ -35,6 +35,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
@@ -490,6 +491,26 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+	},
+	&database.ChatModelConfig{}: {
+		"id":                    ActionIgnore, // Conveyed by resource_id, not useful in a diff.
+		"model":                 ActionTrack,
+		"display_name":          ActionTrack,
+		"created_by":            ActionTrack,
+		"updated_by":            ActionTrack,
+		"enabled":               ActionTrack,
+		"is_default":            ActionTrack,
+		"deleted":               ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"deleted_at":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"created_at":            ActionIgnore, // Never changes.
+		"updated_at":            ActionIgnore, // Bumped on every mutation.
+		"context_limit":         ActionTrack,
+		"compression_threshold": ActionTrack,
+		"options":               ActionTrack, // Model call options and pricing, not secrets (keys live on ai_providers).
+		"ai_provider_id":        ActionTrack,
+		"organization_id":       ActionIgnore, // Never changes; carried by the audit log's organization ID.
+		"group_acl":             ActionTrack,
+		"user_acl":              ActionTrack,
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
