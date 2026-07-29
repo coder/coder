@@ -73,6 +73,9 @@ You cannot set either value per organization or per group.
 
 ## Set a group budget
 
+You must have the Owner, User Admin, Organization Admin, or Organization User
+Admin [role](../../admin/users/groups-roles.md) to set a group budget.
+
 A group budget is a limit for each member of the group. It is not a shared pool.
 A budget of $200 in a group of ten members allows up to $200 of spend per
 member.
@@ -91,6 +94,10 @@ Keep the following in mind:
 - The maximum budget is `$1,000,000` per member per period.
 
 ## Override a budget for a user
+
+You must have the Owner or User Admin
+[role](../../admin/users/groups-roles.md) to add or remove a user override.
+Organization admins can view overrides but not change them.
 
 Use an override when one person needs a different limit from the rest of their
 group, such as a heavy user during a migration.
@@ -176,6 +183,14 @@ To configure delivery, see
 
 ### In the dashboard
 
+What each person sees depends on their role:
+
+| Who                                                  | Can see                                                |
+|------------------------------------------------------|--------------------------------------------------------|
+| Every user                                           | Their own spend and budget in their avatar menu        |
+| Members of a group                                   | The group's spend and budget, and their own member row |
+| Owners, User Admins, and organization administrators | Spend and budgets for every group and every member     |
+
 - **Groups** lists each group's spend against its budget. The AI budget column
   totals the limits of the members that the group is responsible for.
 - A group's **Members** tab shows each member's spend, their effective budget,
@@ -189,7 +204,8 @@ resets or when another group manages a user's budget.
 
 ### As a CSV export
 
-Organization admins can export spend for reporting or chargeback:
+Organization admins can export spend for reporting or chargeback. The export is
+available through the API only:
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
