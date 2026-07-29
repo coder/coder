@@ -401,6 +401,32 @@ export const ExecuteError: Story = {
 	},
 };
 
+export const ExecuteDeniedByHook: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: "cat /etc/secrets" },
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Failed to run cat \/etc\/secrets/)).toBeVisible();
+		expect(
+			canvas.queryByText(/Ran cat \/etc\/secrets/),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("img", {
+				name: /blocked by an external policy/,
+			}),
+		).toBeVisible();
+		expect(canvas.getByText(/Reason: secret reads are blocked/)).toBeVisible();
+	},
+};
+
 export const ExecuteBackgrounded: Story = {
 	args: {
 		name: "execute",
@@ -1781,6 +1807,34 @@ export const WriteFileAlwaysExpanded: Story = {
 	},
 };
 
+export const WriteFileDeniedByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "error",
+		isError: true,
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: writes to src are blocked.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Failed to write helpers\.ts/)).toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/blocked by an external policy/)).toBeVisible();
+		});
+		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // EditFiles stories
 // ---------------------------------------------------------------------------
@@ -1954,7 +2008,10 @@ export const EditFilesError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		expect(canvas.getByText(/Failed to edit missing\.ts/)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(canvas.getByText("File not found")).toBeVisible();
+		});
 		// On error, no diff body: the synthetic fallback would
 		// misrepresent a rejected edit as applied.
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);

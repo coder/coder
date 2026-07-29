@@ -82,6 +82,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Email Auth: Password": {
 			yaml: true,
 		},
+		"Chat: Hook Secret": {
+			yaml: true,
+		},
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
@@ -739,6 +742,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		dv := &codersdk.DeploymentValues{}
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
+		dv.AI.Chat.HookTimeout = serpent.Duration(1500 * time.Millisecond)
 		return dv
 	}
 
@@ -781,6 +785,125 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		err := dv.Validate()
 		require.NoError(t, err)
 	})
+}
+
+func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		disabled bool
+		url      string
+		secret   string
+		timeout  time.Duration
+		wantErr  string
+	}{
+		{
+			name:    "NoURL",
+			timeout: 1500 * time.Millisecond,
+		},
+		{
+			name:     "DisabledSkipsValidation",
+			disabled: true,
+			url:      "http://hooks.example.com/agent",
+			timeout:  0,
+		},
+		{
+			name:    "Valid",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5 * time.Second,
+		},
+		{
+			name:    "HTTPURL",
+			url:     "http://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook URL must use HTTPS",
+		},
+		{
+			name:    "HostlessURL",
+			url:     "https:///hook",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
+			name:    "FragmentURL",
+			url:     "https://hooks.example.com/agent#frag",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:    "UserinfoURL",
+			url:     "https://user:pass@hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:    "MissingSecret",
+			url:     "https://hooks.example.com/agent",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret is required",
+		},
+		{
+			name:    "ShortSecret",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcde",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret must be at least 32 bytes",
+		},
+		{
+			name:    "ZeroTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 0,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NegativeTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: -time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "TimeoutAboveMaximum",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5*time.Second + time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NoURLSkipsTimeoutValidation",
+			timeout: 10 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := &codersdk.DeploymentValues{}
+			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
+			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
+			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
+			if tt.url != "" {
+				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
+			}
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
