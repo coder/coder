@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
+import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -8,22 +11,18 @@ import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import { MockGroup } from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
+type FilterProps = ComponentProps<typeof UsersFilter>;
+
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
 	component: GroupsPageView,
 	args: {
 		canCreateGroup: true,
 		groupsEnabled: true,
-		filterProps: {
-			filter: {
-				query: "",
-				values: {},
-				update: () => {},
-				debounceUpdate: () => {},
-				cancelDebounce: () => {},
-				used: false,
-			},
-		},
+		filterProps: getDefaultFilterProps<FilterProps>({
+			values: {},
+			menus: {},
+		}),
 		groupsQuery: {
 			...mockSuccessResult,
 			totalRecords: 1,
@@ -71,16 +70,12 @@ export const WithSearchAndPagination: Story = {
 		groups: Array.from({ length: limit }, (_, i) =>
 			aiGroup(`group-${i}`, `Group ${i}`),
 		),
-		filterProps: {
-			filter: {
-				query: "group",
-				values: {},
-				update: () => {},
-				debounceUpdate: () => {},
-				cancelDebounce: () => {},
-				used: true,
-			},
-		},
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "group",
+			values: {},
+			menus: {},
+			used: true,
+		}),
 		groupsQuery: {
 			...mockSuccessResult,
 			totalRecords,
@@ -285,16 +280,12 @@ export const EmptyGroupWithPermission: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		groups: [],
-		filterProps: {
-			filter: {
-				query: "nomatch",
-				values: {},
-				update: () => {},
-				debounceUpdate: () => {},
-				cancelDebounce: () => {},
-				used: true,
-			},
-		},
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "nomatch",
+			values: {},
+			menus: {},
+			used: true,
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
