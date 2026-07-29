@@ -80,15 +80,17 @@ const shouldRenderSubagentLifecycleTool = ({
 		return true;
 	}
 
-	// Wait, message, and interrupt rows can stream before their target
-	// chat_id arrives. Hiding them until that id exists avoids flashing generic
-	// lifecycle copy before the transcript can resolve the real title.
+	// Wait, message, and interrupt rows can stream before their target chat_id
+	// arrives. They get silence rather than a placeholder, because generic
+	// lifecycle copy is wrong until the transcript resolves the real title.
 	return Boolean(getSubagentChatId({ args, result }));
 };
 
 /**
- * True while a row's arguments have not streamed far enough to render it, which
- * earns a placeholder rather than the silence a hidden row gets.
+ * True while an `execute` row has neither a command nor a result: nothing can
+ * render from it, and `toTimelineBlocks` holds its place with an
+ * `unresolved-tool` row while the stream is live. A row with a result is never
+ * pending, so an error about the missing command still reaches the transcript.
  */
 export const isToolPendingArgs = ({
 	name,
@@ -100,12 +102,12 @@ export const isToolPendingArgs = ({
 	result?: unknown;
 }): boolean =>
 	name === "execute" &&
-	getExecuteRenderData(args, result).command.trim().length === 0;
+	result === undefined &&
+	asString(parseArgs(args)?.command).trim().length === 0;
 
 /**
  * Centralize tool-row visibility so transcript message hiding stays in sync
- * with <Tool> row rendering and hidden rows never leave empty gaps behind. A
- * row waiting only on its arguments is not hidden: see `isToolPendingArgs`.
+ * with <Tool> row rendering and hidden rows never leave empty gaps behind.
  */
 export const shouldRenderTool = ({
 	name,
@@ -118,8 +120,8 @@ export const shouldRenderTool = ({
 	args?: unknown;
 	result?: unknown;
 }): boolean => {
-	if (name === "execute") {
-		return !isToolPendingArgs({ name, args, result });
+	if (isToolPendingArgs({ name, args, result })) {
+		return false;
 	}
 
 	return shouldRenderSubagentLifecycleTool({ name, status, args, result });

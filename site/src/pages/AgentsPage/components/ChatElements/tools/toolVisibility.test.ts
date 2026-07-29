@@ -62,13 +62,12 @@ describe("toolVisibility", () => {
 	});
 
 	describe("shouldRenderTool", () => {
-		it("hides execute rows with no command", () => {
+		it("hides execute rows with no command and no result", () => {
 			expect(
 				shouldRenderTool({
 					name: "execute",
 					status: "completed",
 					args: {},
-					result: { output: "ignored" },
 				}),
 			).toBe(false);
 		});

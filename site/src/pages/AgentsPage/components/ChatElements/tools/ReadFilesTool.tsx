@@ -35,7 +35,7 @@ export const ReadFilesTool: FC<{
 	const errorMessage = items.find((item) => item.errorMessage)?.errorMessage;
 
 	return (
-		<div data-tool-call="">
+		<div data-transcript-row="">
 			<ToolCall.Root
 				className="w-full"
 				status={isRunning ? "running" : isError ? "error" : "completed"}

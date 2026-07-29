@@ -54,7 +54,17 @@ export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ): TimelineBlock[] => {
-	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
+	// Merged read-file messages can carry two tools with the same id, so each
+	// block takes the next one instead of all of them collapsing onto the last.
+	const toolsByID = new Map<string, MergedTool[]>();
+	for (const tool of tools) {
+		const queued = toolsByID.get(tool.id);
+		if (queued) {
+			queued.push(tool);
+		} else {
+			toolsByID.set(tool.id, [tool]);
+		}
+	}
 	const timeline: TimelineBlock[] = [];
 	let readFileRun: [MergedTool, ...MergedTool[]] | undefined;
 
@@ -73,7 +83,7 @@ export const toTimelineBlocks = (
 			continue;
 		}
 
-		const tool = toolByID.get(block.id);
+		const tool = toolsByID.get(block.id)?.shift();
 		if (!tool || isToolPendingArgs(tool)) {
 			flushReadFileRun();
 			timeline.push({ type: "unresolved-tool", id: block.id });

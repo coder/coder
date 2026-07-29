@@ -118,12 +118,29 @@ describe("toTimelineBlocks", () => {
 		isError: false,
 		status: "running",
 	};
+	// A truncated args fragment, as it arrives mid-stream.
+	const streamingExecuteTool: MergedTool = {
+		id: "execute-pending",
+		name: "execute",
+		args: '{"command": "git ch',
+		isError: false,
+		status: "running",
+	};
+	const commandlessExecuteWithError: MergedTool = {
+		id: "execute-failed",
+		name: "execute",
+		args: {},
+		result: { error: "command is required" },
+		isError: true,
+		status: "error",
+	};
 	const tools = [
 		tool("read-1"),
 		tool("read-2"),
 		executeTool("execute-1"),
-		tool("execute-pending", "execute"),
+		streamingExecuteTool,
 		suppressedWaitTool,
+		commandlessExecuteWithError,
 	];
 
 	it("collapses consecutive read_file tool blocks", () => {
@@ -187,7 +204,7 @@ describe("toTimelineBlocks", () => {
 			],
 		],
 		[
-			"a tool whose row cannot render yet",
+			"a tool with neither a command nor a result yet",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "execute-pending" },
@@ -233,5 +250,28 @@ describe("toTimelineBlocks", () => {
 		expect(toTimelineBlocks([{ type: "tool", id: "wait-1" }], tools)).toEqual([
 			{ type: "tool", tool: suppressedWaitTool },
 		]);
+	});
+
+	// A settled execute with no command carries the error explaining why, so it
+	// must reach <Tool> rather than sit behind a placeholder forever.
+	it("keeps an execute whose result explains its missing command", () => {
+		expect(
+			toTimelineBlocks([{ type: "tool", id: "execute-failed" }], tools),
+		).toEqual([{ type: "tool", tool: commandlessExecuteWithError }]);
+	});
+
+	it("hands two tools sharing one id to one block each", () => {
+		const first = { ...tool("dup"), args: { path: "a.ts" } };
+		const second = { ...tool("dup"), args: { path: "b.ts" } };
+
+		expect(
+			toTimelineBlocks(
+				[
+					{ type: "tool", id: "dup" },
+					{ type: "tool", id: "dup" },
+				],
+				[first, second],
+			),
+		).toEqual([{ type: "read-files", tools: [first, second] }]);
 	});
 });

@@ -136,7 +136,9 @@ type MergeToolsOptions = {
 
 /**
  * Iterates blocks rather than the call list, so every tool is paired with the
- * block that renders it and one id cannot produce two rows.
+ * block that renders it and one id cannot produce two rows in a message. Across
+ * messages a back-patched result reaches the second message as a `role: "tool"`
+ * entry, which `buildDisplayMessages` hides.
  */
 export const mergeTools = (
 	blocks: readonly RenderBlock[],

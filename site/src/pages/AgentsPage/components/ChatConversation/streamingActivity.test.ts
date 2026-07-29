@@ -48,8 +48,8 @@ const streamState = (blocks: StreamState["blocks"]): StreamState => ({
 	sources: [],
 });
 
-const tool = (status: MergedTool["status"]): MergedTool => ({
-	id: status,
+const tool = (id: string, status: MergedTool["status"]): MergedTool => ({
+	id,
 	name: "read_file",
 	isError: false,
 	status,
@@ -81,7 +81,19 @@ describe("shouldShowGenericThinking", () => {
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
 				streamState: streamState([{ type: "tool", id: "read-1" }]),
-				streamTools: [tool("running")],
+				streamTools: [tool("read-1", "running")],
+			}),
+		).toBe(false);
+	});
+
+	// The block renders the waiting placeholder, so a shimmer beside it would
+	// show two progress indicators for one tool.
+	it("hides for streaming with a tool block whose tool has not arrived", () => {
+		expect(
+			shouldShowGenericThinking({
+				liveStatus: liveStatus("streaming"),
+				streamState: streamState([{ type: "tool", id: "unresolved-1" }]),
+				streamTools: [],
 			}),
 		).toBe(false);
 	});
@@ -91,7 +103,7 @@ describe("shouldShowGenericThinking", () => {
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
 				streamState: streamState([{ type: "tool", id: "read-1" }]),
-				streamTools: [tool("completed")],
+				streamTools: [tool("read-1", "completed")],
 			}),
 		).toBe(true);
 	});

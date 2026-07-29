@@ -219,7 +219,7 @@ const ReadFileTimelineBlock = memo<{
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			<div data-tool-call="">
+			<div data-transcript-row="">
 				<ReadFileTool
 					{...readFile}
 					status={firstTool.status}

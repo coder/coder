@@ -15,7 +15,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { BlockList, ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import type { MergedTool, ParsedMessageEntry } from "./types";
+import type { MergedTool, ParsedMessageEntry, RenderBlock } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -2531,7 +2531,31 @@ const readFileTool = (id: string, path: string): MergedTool => ({
 	status: "completed",
 });
 
-const ReadFileRunCollapseHarness: FC = () => {
+// One block of every kind that carries a source index, behind a read-file run
+// that collapses two rows into one and shifts every later timeline position.
+const SOURCE_INDEX_BLOCKS: readonly RenderBlock[] = [
+	{ type: "tool", id: "read-1" },
+	{ type: "tool", id: "read-2" },
+	{ type: "thinking", text: "Let me think about this step by step." },
+	{ type: "response", text: "The collapse must not remount this response." },
+	{
+		type: "file-reference",
+		file_name: "notes.ts",
+		start_line: 12,
+		end_line: 12,
+		content: "const notes = [];",
+	},
+	// No file_id, so the key falls through to the source index.
+	{ type: "file", media_type: "image/png", data: TEST_PNG_B64 },
+	{
+		type: "sources",
+		sources: [{ url: "https://example.com", title: "Example" }],
+	},
+];
+
+const ReadFileRunCollapseHarness: FC<{ isStreaming?: boolean }> = ({
+	isStreaming,
+}) => {
 	const [secondReadResolved, setSecondReadResolved] = useState(false);
 	return (
 		<div className="flex flex-col gap-2">
@@ -2539,50 +2563,60 @@ const ReadFileRunCollapseHarness: FC = () => {
 				Resolve second read
 			</button>
 			<BlockList
-				blocks={[
-					{ type: "tool", id: "read-1" },
-					{ type: "tool", id: "read-2" },
-					{ type: "thinking", text: "Let me think about this step by step." },
-				]}
+				blocks={SOURCE_INDEX_BLOCKS}
 				tools={
 					secondReadResolved
 						? [readFileTool("read-1", "a.ts"), readFileTool("read-2", "b.ts")]
 						: [readFileTool("read-1", "a.ts")]
 				}
 				keyPrefix="read-run"
+				isStreaming={isStreaming}
 			/>
 		</div>
 	);
 };
 
+const expectRowsSurviveCollapse: Story["play"] = async ({ canvasElement }) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByText("Thinking"));
+	const thinking = await canvas.findByText(
+		/Let me think about this step by step/,
+	);
+	const response = await canvas.findByText(/must not remount this response/);
+	const fileReference = canvas.getByText(/notes\.ts:12/);
+	const attachment = canvas.getByRole("img", { name: "Attached image" });
+	const sources = canvas.getByRole("button", { name: /Searched 1 result/ });
+
+	await userEvent.click(
+		canvas.getByRole("button", { name: "Resolve second read" }),
+	);
+	await waitFor(() => {
+		expect(canvas.getByRole("button", { name: /read 2 files/i })).toBeVisible();
+	});
+
+	// A key that moved with the timeline would unmount its row, which detaches
+	// the node and loses the expanded thinking body with it.
+	expect(thinking).toBeInTheDocument();
+	expect(response).toBeInTheDocument();
+	expect(fileReference).toBeInTheDocument();
+	expect(attachment).toBeInTheDocument();
+	expect(sources).toBeInTheDocument();
+};
+
 /**
  * Resolving the second read collapses two rows into one, shortening the
- * timeline. The thinking disclosure below keeps its expanded state because its
- * key comes from its position in `blocks`, which did not move.
+ * timeline. Every row below keeps its state because its key comes from its
+ * position in `blocks`, which did not move.
  */
-export const ReadFileRunCollapseKeepsThinkingExpanded: Story = {
+export const ReadFileRunCollapseKeepsRowsMounted: Story = {
 	render: () => <ReadFileRunCollapseHarness />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByText("Thinking"));
-		await waitFor(() => {
-			expect(
-				canvas.getByText(/Let me think about this step by step/),
-			).toBeVisible();
-		});
+	play: expectRowsSurviveCollapse,
+};
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Resolve second read" }),
-		);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /read 2 files/i }),
-			).toBeVisible();
-		});
-		expect(
-			canvas.getByText(/Let me think about this step by step/),
-		).toBeVisible();
-	},
+/** The same guarantee on the streaming arm, which keys its own response row. */
+export const ReadFileRunCollapseKeepsRowsMountedWhileStreaming: Story = {
+	render: () => <ReadFileRunCollapseHarness isStreaming />,
+	play: expectRowsSurviveCollapse,
 };
 
 export const SequentialReadFilesEmptyAndErrorStates: Story = {

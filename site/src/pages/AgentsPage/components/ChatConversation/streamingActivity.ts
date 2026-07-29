@@ -6,8 +6,20 @@ const hasTextOrThinkingBlock = (streamState: StreamState | null): boolean =>
 		(block) => block.type === "response" || block.type === "thinking",
 	) ?? false;
 
-const hasRunningTool = (streamTools: readonly MergedTool[]): boolean =>
-	streamTools.some((tool) => tool.status === "running");
+// A tool block shows its own progress, so the generic shimmer would double up.
+// A block whose tool has not arrived renders the waiting placeholder, which is
+// a running row like any other.
+const hasRunningToolBlock = (
+	streamState: StreamState | null,
+	streamTools: readonly MergedTool[],
+): boolean =>
+	streamState?.blocks.some((block) => {
+		if (block.type !== "tool") {
+			return false;
+		}
+		const tool = streamTools.find((candidate) => candidate.id === block.id);
+		return !tool || tool.status === "running";
+	}) ?? false;
 
 export const shouldShowGenericThinking = ({
 	liveStatus,
@@ -21,4 +33,4 @@ export const shouldShowGenericThinking = ({
 	liveStatus.phase === "starting" ||
 	(liveStatus.phase === "streaming" &&
 		!hasTextOrThinkingBlock(streamState) &&
-		!hasRunningTool(streamTools));
+		!hasRunningToolBlock(streamState, streamTools));

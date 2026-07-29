@@ -507,9 +507,15 @@ describe("mergeTools", () => {
 			[],
 			[{ id: "1", name: "bash", result: "output", isError: false }],
 		);
-		expect(merged).toHaveLength(1);
-		expect(merged[0].id).toBe("1");
-		expect(merged[0].status).toBe("completed");
+		expect(merged).toEqual([
+			{
+				id: "1",
+				name: "bash",
+				result: "output",
+				isError: false,
+				status: "completed",
+			},
+		]);
 	});
 
 	it("skips a tool block with neither a call nor a result", () => {
