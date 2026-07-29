@@ -13,7 +13,7 @@ func TestComputeCost(t *testing.T) {
 	t.Parallel()
 
 	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
-	
+
 	const oneMicroPerToken = 1_000_000
 	bound := maxCostMicros.IntPart()
 
@@ -116,7 +116,6 @@ func TestComputeCost(t *testing.T) {
 			want:        9_150_000_000_000,
 		},
 		{
-			// The bound is inclusive.
 			name:        "cost exactly at the bound is in range",
 			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens: bound,
@@ -129,10 +128,7 @@ func TestComputeCost(t *testing.T) {
 			wantOutOfRange: true,
 		},
 		{
-			// Pins the bound below the column ceiling. A cost the column could
-			// hold is still rejected, because it would poison the running total
-			// it feeds.
-			name:           "cost the column could hold is out of range",
+			name:           "cost of int64 max is out of range",
 			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens:    math.MaxInt64,
 			wantOutOfRange: true,
