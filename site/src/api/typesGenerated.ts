@@ -5021,7 +5021,7 @@ export interface Feature {
 	 */
 	readonly soft_limit?: number;
 	/**
-	 * HardLimit is the enforcement ceiling that accompanies Limit for
+	 * HardLimit is the enforcement threshold that accompanies Limit for
 	 * features whose license carries it. See SoftLimit for the set of
 	 * features that use these thresholds.
 	 */

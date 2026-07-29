@@ -20247,7 +20247,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.Entitlement"
                 },
                 "hard_limit": {
-                    "description": "HardLimit is the enforcement ceiling that accompanies Limit for\nfeatures whose license carries it. See SoftLimit for the set of\nfeatures that use these thresholds.",
+                    "description": "HardLimit is the enforcement threshold that accompanies Limit for\nfeatures whose license carries it. See SoftLimit for the set of\nfeatures that use these thresholds.",
                     "type": "integer"
                 },
                 "limit": {

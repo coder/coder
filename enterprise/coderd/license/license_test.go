@@ -81,8 +81,6 @@ func TestEntitlements(t *testing.T) {
 							continue
 						}
 						if name == codersdk.FeatureAgentRuntimeHours {
-							// The feature is never a claim itself; it is
-							// granted through the allocation claim.
 							f[license.ClaimAgentRuntimeHoursAllocation] = 100
 							continue
 						}
@@ -2322,9 +2320,10 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		require.NotNil(t, feature.UsagePeriod)
 	})
 
-	// Ensures that the license with the newest iat wins regardless of load
-	// order or a larger allocation, and that the winning license's soft and
-	// hard limits ride along. Mirrors TestUsageLimitFeatures/IssuedAtRanking.
+	// The license with the newest issued-at claim wins, even if another
+	// license was loaded first or has a larger allocation. The soft and hard
+	// limits come from the winning license.
+	// Mirrors TestUsageLimitFeatures/IssuedAtRanking.
 	t.Run("IssuedAtRanking", func(t *testing.T) {
 		t.Parallel()
 

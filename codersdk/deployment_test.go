@@ -1002,8 +1002,6 @@ func TestFeatureComparison(t *testing.T) {
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
-		// Soft and hard limits are not comparison inputs; they ride along
-		// with whichever feature wins.
 		{
 			Name:     "SoftHardLimitsIgnored",
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), SoftLimit: ptr.Ref(int64(80)), HardLimit: ptr.Ref(int64(120))},

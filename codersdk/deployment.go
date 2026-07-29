@@ -200,7 +200,7 @@ const (
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 	// FeatureAgentRuntimeHours is a usage period feature. It is never a
-	// license claim itself; it is populated from the
+	// license claim itself. It is populated from the
 	// agent_runtime_hours_allocation, agent_runtime_hours_limit_soft and
 	// agent_runtime_hours_limit_hard claims. Refer to
 	// enterprise/coderd/license/license.go for the license format.
@@ -388,7 +388,7 @@ type Feature struct {
 	// Only certain features set this field:
 	// - FeatureAgentRuntimeHours
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
-	// HardLimit is the enforcement ceiling that accompanies Limit for
+	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
@@ -429,8 +429,7 @@ type UsagePeriod struct {
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 //
-// SoftLimit and HardLimit are not comparison inputs; they ride along with
-// whichever feature wins the comparison.
+// SoftLimit and HardLimit are not comparison inputs.
 func (f Feature) Compare(b Feature) int {
 	// For features with usage period constraints only, check the issued at and
 	// end dates.

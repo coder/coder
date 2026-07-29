@@ -300,7 +300,7 @@ func LicensesEntitlements(
 			// Agent runtime hours are encoded as up to three claims and are
 			// decoded together after this loop, see
 			// decodeAgentRuntimeHours. The feature name itself is never a
-			// valid claim: the allocation must come from the dedicated claim
+			// valid claim. The allocation must come from the dedicated claim
 			// so it is validated against the soft and hard limits.
 			if featureName == codersdk.FeatureAgentRuntimeHours ||
 				isAgentRuntimeHoursClaim(featureName) {
@@ -366,7 +366,7 @@ func LicensesEntitlements(
 			}
 		}
 
-		// Agent runtime hours are skipped by the loop above because the
+		// The loop above skips Agent runtime hours because the
 		// three claims that encode them decode into a single feature.
 		if feature, ok := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
 			IssuedAt: claims.IssuedAt.Time,
@@ -680,8 +680,7 @@ type Features map[codersdk.FeatureName]int64
 
 // isAgentRuntimeHoursClaim reports whether the claim name is one of the three
 // claims that encode the codersdk.FeatureAgentRuntimeHours feature. These
-// claims are decoded together by decodeAgentRuntimeHours rather than
-// individually as al-la-carte features.
+// claims are decoded together, see decodeAgentRuntimeHours.
 func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 	switch name {
 	case ClaimAgentRuntimeHoursAllocation,
@@ -698,7 +697,7 @@ func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 // allocation claim, in which case the license does not grant the feature.
 //
 // The claim combination is validated when the license is parsed, see
-// Features.validateAgentRuntimeHours, so the allocation is never negative here
+// Features.validateAgentRuntimeHours. The allocation is never negative here
 // and the soft and hard limits are only present alongside a positive
 // allocation.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (codersdk.Feature, bool) {
@@ -723,9 +722,7 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 }
 
 // validateAgentRuntimeHours validates the relationship between the agent
-// runtime hour claims. Invalid combinations reject the entire license rather
-// than ignoring the feature, since these claims form a contract with the
-// license issuer.
+// runtime hour claims. Invalid combinations reject the entire license.
 func (f Features) validateAgentRuntimeHours() error {
 	allocation, hasAllocation := f[ClaimAgentRuntimeHoursAllocation]
 	soft, hasSoft := f[ClaimAgentRuntimeHoursLimitSoft]
@@ -739,10 +736,8 @@ func (f Features) validateAgentRuntimeHours() error {
 	if allocation < 0 {
 		return ErrInvalidAgentRuntimeHoursAllocation
 	}
-	// A zero allocation leaves the feature disabled, so neither threshold has
-	// anything to describe. A zero hard limit would additionally read as an
-	// enforcement ceiling that blocks all agent runtime, so both claims are
-	// rejected instead of silently ignored.
+	// A zero allocation disables the feature.
+	// A zero hard limit is not permitted.
 	if allocation == 0 && (hasSoft || hasHard) {
 		return ErrAgentRuntimeHoursLimitsWithZeroAllocation
 	}
