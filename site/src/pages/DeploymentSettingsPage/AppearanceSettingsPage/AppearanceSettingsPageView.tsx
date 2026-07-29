@@ -19,6 +19,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -154,6 +155,27 @@ export const AppearanceSettingsPageView: FC<
 					onSaveAppearance({ announcement_banners: announcementBanners })
 				}
 			/>
+
+			<div className="mt-8 overflow-hidden rounded-lg border border-solid border-border">
+				<div className="flex items-center justify-between gap-4 p-6">
+					<div>
+						<h3 className="m-0 text-xl font-semibold">
+							<label htmlFor="hide-codernauts">Hide Codernauts game</label>
+						</h3>
+						<div className="mt-2 text-sm text-content-secondary">
+							Remove the Codernauts game link from the user dropdown menu.
+							Available on all licenses.
+						</div>
+					</div>
+					<Switch
+						id="hide-codernauts"
+						checked={appearance.hide_codernauts}
+						onCheckedChange={(checked) =>
+							onSaveAppearance({ hide_codernauts: checked })
+						}
+					/>
+				</div>
+			</div>
 		</>
 	);
 };

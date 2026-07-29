@@ -3984,6 +3984,11 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
+func (q *querier) GetHideCodernauts(ctx context.Context) (bool, error) {
+	// No authz checks
+	return q.db.GetHideCodernauts(ctx)
+}
+
 func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
 		return database.GetHighestGroupAIBudgetByUserRow{}, err
@@ -9059,6 +9064,13 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
+}
+
+func (q *querier) UpsertHideCodernauts(ctx context.Context, hide bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertHideCodernauts(ctx, hide)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {

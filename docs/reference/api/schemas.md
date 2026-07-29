@@ -1503,6 +1503,7 @@ None
   ],
   "application_name": "string",
   "docs_url": "string",
+  "hide_codernauts": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -1522,14 +1523,15 @@ None
 
 ### Properties
 
-| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
-|------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
-| `application_name`     | string                                                  | false    |              |                                                                     |
-| `docs_url`             | string                                                  | false    |              |                                                                     |
-| `logo_url`             | string                                                  | false    |              |                                                                     |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
-| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                               |
+|------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                           |
+| `application_name`     | string                                                  | false    |              |                                                                           |
+| `docs_url`             | string                                                  | false    |              |                                                                           |
+| `hide_codernauts`      | boolean                                                 | false    |              | Hide codernauts hides the Codernauts game link in the user dropdown menu. |
+| `logo_url`             | string                                                  | false    |              |                                                                           |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners.       |
+| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                           |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 
@@ -13727,6 +13729,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "application_name": "string",
+  "hide_codernauts": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -13738,12 +13741,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
-|------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
-| `application_name`     | string                                                  | false    |              |                                                                     |
-| `logo_url`             | string                                                  | false    |              |                                                                     |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                               |
+|------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                           |
+| `application_name`     | string                                                  | false    |              |                                                                           |
+| `hide_codernauts`      | boolean                                                 | false    |              | Hide codernauts hides the Codernauts game link in the user dropdown menu. |
+| `logo_url`             | string                                                  | false    |              |                                                                           |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners.       |
 
 ## codersdk.UpdateChatACL
 

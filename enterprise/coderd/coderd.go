@@ -1136,7 +1136,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			} else {
-				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+				f := appearance.NewDefaultFetcher(api.Database, api.DeploymentValues.DocsURL.String())
 				api.AGPL.AppearanceFetcher.Store(&f)
 			}
 		}

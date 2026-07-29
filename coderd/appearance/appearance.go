@@ -3,6 +3,9 @@ package appearance
 import (
 	"context"
 
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -11,22 +14,35 @@ type Fetcher interface {
 }
 
 type AGPLFetcher struct {
-	docsURL string
+	// database may be nil when no store is available, in which case
+	// runtime settings fall back to their zero values.
+	database database.Store
+	docsURL  string
 }
 
-func (f AGPLFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
+func (f AGPLFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfig, error) {
+	hideCodernauts := false
+	if f.database != nil {
+		var err error
+		hideCodernauts, err = f.database.GetHideCodernauts(ctx)
+		if err != nil {
+			return codersdk.AppearanceConfig{}, xerrors.Errorf("get hide codernauts: %w", err)
+		}
+	}
 	return codersdk.AppearanceConfig{
 		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
 		DocsURL:             f.docsURL,
+		HideCodernauts:      hideCodernauts,
 	}, nil
 }
 
-func NewDefaultFetcher(docsURL string) Fetcher {
+func NewDefaultFetcher(db database.Store, docsURL string) Fetcher {
 	if docsURL == "" {
 		docsURL = codersdk.DefaultDocsURL()
 	}
 	return &AGPLFetcher{
-		docsURL: docsURL,
+		database: db,
+		docsURL:  docsURL,
 	}
 }

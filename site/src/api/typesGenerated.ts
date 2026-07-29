@@ -1493,6 +1493,10 @@ export interface AppearanceConfig {
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
 	readonly support_links?: readonly LinkConfig[];
+	/**
+	 * HideCodernauts hides the Codernauts game link in the user dropdown menu.
+	 */
+	readonly hide_codernauts: boolean;
 }
 
 // From codersdk/templates.go
@@ -9570,6 +9574,10 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+	/**
+	 * HideCodernauts hides the Codernauts game link in the user dropdown menu.
+	 */
+	readonly hide_codernauts: boolean;
 }
 
 // From codersdk/chats.go

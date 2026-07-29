@@ -5239,6 +5239,8 @@ type AppearanceConfig struct {
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
+	// HideCodernauts hides the Codernauts game link in the user dropdown menu.
+	HideCodernauts bool `json:"hide_codernauts"`
 }
 
 type UpdateAppearanceConfig struct {
@@ -5247,6 +5249,8 @@ type UpdateAppearanceConfig struct {
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
+	// HideCodernauts hides the Codernauts game link in the user dropdown menu.
+	HideCodernauts bool `json:"hide_codernauts"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.

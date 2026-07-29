@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
@@ -20,8 +21,10 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 					background_color: "#ffaff3",
 				},
 			],
+			hide_codernauts: false,
 		},
 		isEntitled: false,
+		onSaveAppearance: fn(),
 	},
 };
 
@@ -35,3 +38,40 @@ export const Entitled: Story = {
 };
 
 export const NotEntitled: Story = {};
+
+export const HideCodernautsToggle: Story = {
+	args: {
+		isEntitled: true,
+	},
+	play: async ({ canvasElement, args, step }) => {
+		const canvas = within(canvasElement);
+		await step("toggling the switch saves the setting", async () => {
+			await userEvent.click(
+				canvas.getByRole("switch", { name: "Hide Codernauts game" }),
+			);
+			await waitFor(() =>
+				expect(args.onSaveAppearance).toHaveBeenCalledWith({
+					hide_codernauts: true,
+				}),
+			);
+		});
+	},
+};
+
+export const HideCodernautsNotEntitled: Story = {
+	play: async ({ canvasElement, args, step }) => {
+		const canvas = within(canvasElement);
+		await step("the switch saves even without entitlement", async () => {
+			const switchEl = canvas.getByRole("switch", {
+				name: "Hide Codernauts game",
+			});
+			expect(switchEl).toBeEnabled();
+			await userEvent.click(switchEl);
+			await waitFor(() =>
+				expect(args.onSaveAppearance).toHaveBeenCalledWith({
+					hide_codernauts: true,
+				}),
+			);
+		});
+	},
+};
