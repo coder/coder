@@ -143,9 +143,9 @@ AI Gateway supports 2 deployment topologies:
 - **Embedded:** `coderd` runs the AI Gateway data plane in its own process.
 - **Standalone:** AI Gateway runs outside `coderd`, as replicas that serve AI traffic and send requests directly to upstream providers.
 
-Standalone replicas hold no authoritative state.
+Standalone replicas hold no state. `coderd` is the source of truth and the only component that writes durable AI Gateway state to the database.
 Each replica maintains a control connection to `coderd` for Coder API key validation, provider configuration, and AI session recording, and becomes unready when that connection is unavailable.
-`coderd` remains the source of truth and the only component that writes durable AI Gateway state to PostgreSQL.
+
 
 Refer to [AI Gateway](../../ai-coder/ai-gateway/index.md) and [standalone deployment](../../ai-coder/ai-gateway/standalone.md) for configuration and operational guidance.
 
