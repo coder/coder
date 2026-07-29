@@ -517,10 +517,12 @@ const mockOwnerSpend: GroupMemberAISpend = {
 	user_id: MockUserOwner.id,
 };
 
-const mockOwnerMembersSpend: GroupMembersAISpend = {
-	period_start: "2026-06-01T00:00:00Z",
-	period_end: "2026-07-01T00:00:00Z",
-	members: [mockOwnerSpend],
+const mockOwnerOverrideSpend: GroupMemberAISpend = {
+	...mockOwnerSpend,
+	group_budget: {
+		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
+		limit_source: "user_override",
+	},
 };
 
 export const SaveMemberAIBudgetRefreshesRow: Story = {
@@ -531,18 +533,9 @@ export const SaveMemberAIBudgetRefreshesRow: Story = {
 		spyOn(API, "getUserAIBudgetOverride").mockResolvedValue(
 			mockUserBudgetOverride,
 		);
-		spyOn(API, "getGroupMembersAISpend").mockResolvedValue({
-			...mockOwnerMembersSpend,
-			members: [
-				{
-					...mockOwnerSpend,
-					group_budget: {
-						spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
-						limit_source: "user_override",
-					},
-				},
-			],
-		});
+		spyOn(API, "getGroupMembersAISpend").mockResolvedValue(
+			membersSpendQuery([mockOwnerOverrideSpend]).data,
+		);
 	},
 	parameters: {
 		features: ["aibridge"],
@@ -595,7 +588,7 @@ export const DeleteMemberAIBudgetRefreshesRow: Story = {
 	beforeEach: () => {
 		spyOn(API, "deleteUserAIBudgetOverride").mockResolvedValue();
 		spyOn(API, "getGroupMembersAISpend").mockResolvedValue(
-			mockOwnerMembersSpend,
+			membersSpendQuery([mockOwnerSpend]).data,
 		);
 	},
 	parameters: {
@@ -604,15 +597,7 @@ export const DeleteMemberAIBudgetRefreshesRow: Story = {
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
-			membersSpendQuery([
-				{
-					...mockOwnerSpend,
-					group_budget: {
-						spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
-						limit_source: "user_override",
-					},
-				},
-			]),
+			membersSpendQuery([mockOwnerOverrideSpend]),
 			permissionsQuery({ canUpdateGroup: true }),
 			{ key: meAISpendKey, data: mockUserAISpend },
 			{
