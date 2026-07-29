@@ -748,12 +748,13 @@ func (s *taskStarter) generateAssistant(
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(outcome.Step),
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:          prepared.ModelConfigID,
+		modelCallConfig:        prepared.ModelConfig,
+		step:                   stepDataFromPersisted(outcome.Step),
+		toolNameToConfigID:     prepared.ToolNameToConfigID,
+		logger:                 s.opts.Logger,
+		contentVersion:         chatprompt.CurrentContentVersion,
+		hookRewrittenToolCalls: preflight.Overrides,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))

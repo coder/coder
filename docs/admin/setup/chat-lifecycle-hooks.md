@@ -126,7 +126,8 @@ Permission rules depend on the event:
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
-  Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
+  The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
+  The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.
   A denied prompt isn't persisted: Coder rejects the submission and surfaces any returned `user_message` in the rejection, ignoring `model_context`.
   A denied tool call becomes a synthetic error result, and any returned `model_context` reaches the model separately, so the model can choose another action.

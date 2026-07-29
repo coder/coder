@@ -244,6 +244,7 @@ const buildParsedReadFileEntry = ({
 	content = "",
 	errorMessage,
 	isError = status === "error",
+	hookRewritten = false,
 }: {
 	messageId: number;
 	toolId: string;
@@ -252,6 +253,7 @@ const buildParsedReadFileEntry = ({
 	content?: string;
 	errorMessage?: string;
 	isError?: boolean;
+	hookRewritten?: boolean;
 }): ParsedMessageEntry => {
 	const args = { path };
 	const result =
@@ -289,6 +291,7 @@ const buildParsedReadFileEntry = ({
 					result,
 					isError,
 					status,
+					hookRewritten,
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
@@ -2617,6 +2620,93 @@ export const SequentialReadFilesCollapsed: Story = {
 		await waitFor(() => {
 			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
 		});
+	},
+};
+
+export const ReadFileRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-rewritten-1",
+				path: "site/src/redacted.ts",
+				status: "completed",
+				content: "export const redacted = true;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const GroupedReadFilesRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-grouped-1",
+				path: "site/src/a.ts",
+				status: "completed",
+				content: "export const a = 1;\n",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-grouped-2",
+				path: "site/src/b.ts",
+				status: "completed",
+				content: "export const b = 2;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		await step("group header shows the aggregate badge", async () => {
+			expect(await canvas.findByText("Modified by policy")).toBeVisible();
+		});
+		await step("expanded rows credit only the rewritten file", async () => {
+			await userEvent.click(
+				await canvas.findByRole("button", { name: /Read 2 files/ }),
+			);
+			const rewrittenRow = await canvas.findByRole("button", {
+				name: /Read b\.ts/,
+			});
+			expect(
+				within(rewrittenRow).getByText("Modified by policy"),
+			).toBeVisible();
+			const untouchedRow = await canvas.findByRole("button", {
+				name: /Read a\.ts/,
+			});
+			expect(
+				within(untouchedRow).queryByText("Modified by policy"),
+			).not.toBeInTheDocument();
+			expect(canvas.getAllByText("Modified by policy")).toHaveLength(2);
+		});
+	},
+};
+
+export const ReadFileNotRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-plain-1",
+				path: "site/src/plain.ts",
+				status: "completed",
+				content: "export const plain = true;\n",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText(/plain\.ts/)).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
 	},
 };
 

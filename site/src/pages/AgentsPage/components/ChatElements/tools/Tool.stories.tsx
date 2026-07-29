@@ -394,6 +394,7 @@ export const ExecuteDeniedByHook: Story = {
 		status: "error",
 		isError: true,
 		args: { command: "cat /etc/secrets" },
+		parsedCommands: [["cat", "/etc/secrets"]],
 		result: {
 			error:
 				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
@@ -401,16 +402,91 @@ export const ExecuteDeniedByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Failed to run cat \/etc\/secrets/)).toBeVisible();
-		expect(
-			canvas.queryByText(/Ran cat \/etc\/secrets/),
-		).not.toBeInTheDocument();
+		// parsed_commands summarizes the label, as it does for stored calls.
+		expect(canvas.getByText(/Failed to run cat/)).toBeVisible();
+		expect(canvas.queryByText(/Ran cat/)).not.toBeInTheDocument();
 		await expect(
 			canvas.getByRole("img", {
 				name: /blocked by an external policy/,
 			}),
 		).toBeVisible();
 		expect(canvas.getByText(/Reason: secret reads are blocked/)).toBeVisible();
+	},
+};
+
+export const ExecuteRewrittenByHook: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo REWRITTEN_BY_HOOK" },
+		parsedCommands: [["echo", "REWRITTEN_BY_HOOK"]],
+		hookRewritten: true,
+		result: { output: "REWRITTEN_BY_HOOK", exit_code: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: /^(Expand|Collapse) command, modified by policy$/,
+		});
+		expect(within(header).getByText(/Ran echo/)).toBeVisible();
+		expect(within(header).getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const ExecuteNotRewrittenByHook: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo original" },
+		parsedCommands: [["echo", "original"]],
+		result: { output: "original", exit_code: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Ran echo/)).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
+	},
+};
+
+export const WriteFileRewrittenByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		hookRewritten: true,
+		result: { success: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const SubagentRewrittenByHook: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		hookRewritten: true,
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(within(header).getByText("Modified by policy")).toBeVisible();
 	},
 };
 

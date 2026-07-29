@@ -17938,6 +17938,10 @@ const docTemplate = `{
                 "file_name": {
                     "type": "string"
                 },
+                "hook_rewritten": {
+                    "description": "HookRewritten indicates a lifecycle hook replaced the input the\nmodel proposed for this call. Without it the stored call is\nindistinguishable from one the model authored.",
+                    "type": "boolean"
+                },
                 "is_error": {
                     "type": "boolean"
                 },

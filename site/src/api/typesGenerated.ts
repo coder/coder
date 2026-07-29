@@ -3557,6 +3557,12 @@ export interface ChatToolCallPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
+	 * HookRewritten indicates a lifecycle hook replaced the input the
+	 * model proposed for this call. Without it the stored call is
+	 * indistinguishable from one the model authored.
+	 */
+	readonly hook_rewritten?: boolean;
+	/**
 	 * CreatedAt is the timestamp this part carries. The semantics
 	 * depend on the part type: for tool-call and tool-result parts
 	 * it is the time the call was emitted or the result was

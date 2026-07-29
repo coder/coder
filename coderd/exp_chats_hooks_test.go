@@ -309,17 +309,26 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 
 	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
-	var allowedCall *codersdk.ChatMessagePart
+	var allowedCall, deniedCall *codersdk.ChatMessagePart
 	for _, message := range messages.Messages {
 		for i := range message.Content {
 			part := &message.Content[i]
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID == allowedToolCallID {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall {
+				continue
+			}
+			switch part.ToolCallID {
+			case allowedToolCallID:
 				allowedCall = part
+			case deniedToolCallID:
+				deniedCall = part
 			}
 		}
 	}
 	require.NotNil(t, allowedCall)
 	require.JSONEq(t, `{"query":"public documentation"}`, string(allowedCall.Args))
+	require.True(t, allowedCall.HookRewritten)
+	require.NotNil(t, deniedCall)
+	require.False(t, deniedCall.HookRewritten)
 
 	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{

@@ -832,3 +832,37 @@ func (s *partialConversionLogSink) entriesAtLevelWithMessage(level slog.Level, m
 	}
 	return entries
 }
+
+func TestBuildCommitStepMessages_MarksHookRewrittenToolCalls(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{
+					ToolCallID: "rewritten",
+					ToolName:   "execute",
+					Input:      `{"command":"echo admitted"}`,
+				},
+				fantasy.ToolCallContent{
+					ToolCallID: "untouched",
+					ToolName:   "execute",
+					Input:      `{"command":"echo original"}`,
+				},
+			},
+		},
+		hookRewrittenToolCalls: map[string]json.RawMessage{"rewritten": {}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	parts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.Equal(t, "rewritten", parts[0].ToolCallID)
+	require.True(t, parts[0].HookRewritten)
+	require.Equal(t, "untouched", parts[1].ToolCallID)
+	require.False(t, parts[1].HookRewritten)
+}

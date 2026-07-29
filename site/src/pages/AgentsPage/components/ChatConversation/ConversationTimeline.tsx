@@ -222,18 +222,21 @@ const ReadFileTimelineBlock = memo<{
 }>(({ tools }) => {
 	const [expanded, setExpanded] = useState(false);
 	const [firstTool] = tools;
-
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			<div data-tool-call="">
-				<ReadFileTool
-					{...readFile}
-					status={firstTool.status}
-					expanded={expanded}
-					onExpandedChange={setExpanded}
-				/>
-			</div>
+			// This row renders ReadFileTool directly instead of going through
+			// Tool, which is what supplies the policy state everywhere else.
+			<ToolCall.PolicyProvider hookRewritten={firstTool.hookRewritten ?? false}>
+				<div data-tool-call="">
+					<ReadFileTool
+						{...readFile}
+						status={firstTool.status}
+						expanded={expanded}
+						onExpandedChange={setExpanded}
+					/>
+				</div>
+			</ToolCall.PolicyProvider>
 		);
 	}
 
@@ -451,6 +454,7 @@ export const BlockList: FC<{
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								hookRewritten={tool.hookRewritten}
 							/>
 						);
 					}

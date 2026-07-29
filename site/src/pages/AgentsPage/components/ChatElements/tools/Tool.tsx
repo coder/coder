@@ -88,6 +88,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
+	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
@@ -1063,6 +1064,7 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
@@ -1088,29 +1090,31 @@ export const Tool = memo(
 				)}
 				{...props}
 			>
-				<Renderer
-					name={name}
-					status={status}
-					args={args}
-					result={result}
-					isError={isError}
-					killedBySignal={killedBySignal}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={subagentStatusOverrides}
-					mcpServerConfigId={mcpServerConfigId}
-					mcpServers={mcpServers}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					isLatestAskUserQuestion={isLatestAskUserQuestion}
-					previousResponseText={previousResponseText}
-					modelIntent={modelIntent}
-					parsedCommands={parsedCommands}
-					shellToolDisplayMode={shellToolDisplayMode}
-					codeDiffDisplayMode={codeDiffDisplayMode}
-				/>
+				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
+					<Renderer
+						name={name}
+						status={status}
+						args={args}
+						result={result}
+						isError={isError}
+						killedBySignal={killedBySignal}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						showDesktopPreviews={showDesktopPreviews}
+						subagentStatusOverrides={subagentStatusOverrides}
+						mcpServerConfigId={mcpServerConfigId}
+						mcpServers={mcpServers}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						isLatestAskUserQuestion={isLatestAskUserQuestion}
+						previousResponseText={previousResponseText}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						shellToolDisplayMode={shellToolDisplayMode}
+						codeDiffDisplayMode={codeDiffDisplayMode}
+					/>
+				</ToolCall.PolicyProvider>
 			</div>
 		);
 	},

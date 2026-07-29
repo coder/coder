@@ -693,6 +693,14 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 				</ToolCall.Root>
 			)}
 
+			{/* The completed and interactive paths render no ToolCall.Header, so
+			the badge that the header would carry is placed here instead. */}
+			{!isRunning && (
+				<div className="flex">
+					<ToolCall.PolicyBadge />
+				</div>
+			)}
+
 			{isInteractive ? (
 				<form onSubmit={handleFormSubmit}>{content}</form>
 			) : (

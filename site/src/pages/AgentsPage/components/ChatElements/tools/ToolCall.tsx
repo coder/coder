@@ -1,4 +1,9 @@
-import { ChevronDownIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	LoaderIcon,
+	ShieldIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	createContext,
@@ -43,6 +48,37 @@ type ToolCallContextValue = {
 };
 
 const ToolCallContext = createContext<ToolCallContextValue | null>(null);
+
+// Keep policy state in context so HeaderButton can render the badge without
+// threading another prop through each renderer.
+const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
+	hookRewritten: false,
+});
+
+const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
+	hookRewritten,
+	children,
+}) => (
+	<ToolPolicyContext.Provider value={{ hookRewritten }}>
+		{children}
+	</ToolPolicyContext.Provider>
+);
+
+const PolicyBadge: FC = () => {
+	const { hookRewritten } = useContext(ToolPolicyContext);
+	if (!hookRewritten) {
+		return null;
+	}
+	// No tooltip: the badge sits inside the header button, and a tooltip
+	// trigger there is either unfocusable or nests interactive content in a
+	// button. The visible text and the button's accessible name carry it.
+	return (
+		<span className="flex shrink-0 items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary">
+			<ShieldIcon aria-hidden className="size-3 shrink-0" />
+			Modified by policy
+		</span>
+	);
+};
 
 const useToolCallContext = () => {
 	const context = useContext(ToolCallContext);
@@ -173,9 +209,21 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 	alwaysButton = false,
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
+	const { hookRewritten } = useContext(ToolPolicyContext);
+	const resolvedAriaLabel =
+		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
+	// An aria-label replaces the badge's visible text in the button's
+	// accessible name, so the policy state has to be restated here.
+	const buttonAriaLabel =
+		resolvedAriaLabel && hookRewritten
+			? `${resolvedAriaLabel}, modified by policy`
+			: resolvedAriaLabel;
 	if (!collapsible && !alwaysButton) {
 		return (
-			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
+			<HeaderRow className={cn("min-w-0", className)}>
+				{children}
+				<PolicyBadge />
+			</HeaderRow>
 		);
 	}
 
@@ -191,12 +239,11 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 			<button
 				type="button"
 				aria-expanded={collapsible ? expanded : undefined}
-				aria-label={
-					typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
-				}
+				aria-label={buttonAriaLabel}
 				onClick={collapsible ? onToggle : undefined}
 			>
 				{children}
+				<PolicyBadge />
 			</button>
 		</TranscriptRow>
 	);
@@ -305,7 +352,9 @@ const Chevron: FC<{ className?: string }> = ({ className }) => {
 	return (
 		<ChevronDownIcon
 			className={cn(
-				"size-3 shrink-0 text-current transition-transform",
+				// The chevron is already the last header child everywhere, so
+				// this only keeps it last once a badge is appended after it.
+				"order-last size-3 shrink-0 text-current transition-transform",
 				expanded ? "rotate-0" : "-rotate-90",
 				className,
 			)}
@@ -407,6 +456,8 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 
 export const ToolCall = {
 	Root,
+	PolicyProvider,
+	PolicyBadge,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,
