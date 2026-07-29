@@ -55,8 +55,11 @@ func readTitleGenerationModelOverride(
 
 // resolveTitleGenerationModelOverride resolves the deployment-wide title
 // generation model override. overrideSet is true when an override was
-// configured; in that case any returned error is a hard failure. When
-// overrideSet is false, callers may fall back to the default title model.
+// configured and resolved; a configured override that does not resolve
+// (unknown, disabled, or cross-org config) is ignored, and model
+// construction failures after a successful resolution stay hard failures.
+// When overrideSet is false, callers may fall back to the default title
+// model.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -79,7 +82,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},
-		modelOverrideFailureModeHard,
+		modelOverrideFailureModeSoft,
 	)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, overrideSet, err

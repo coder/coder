@@ -9,6 +9,12 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import {
+	chatModelConfigsByOrganizationKey,
+	chatModelsKey,
+	chatProviderConfigsKey,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -34,26 +40,12 @@ const permittedOrgsKey = [
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
 
-const modelOptions = [
-	{
-		id: modelConfigID,
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-	{
-		id: claudeModelConfigID,
-		provider: "anthropic",
-		model: "claude-sonnet-4",
-		displayName: "Claude Sonnet 4",
-	},
-] as const;
-
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
 	...MockChatModelConfig,
 	id: modelConfigID,
+	organization_id: MockDefaultOrganization.id,
 	model: "gpt-4o",
 	display_name: "GPT-4o",
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -70,6 +62,59 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
 	}),
+];
+
+// Model catalog with both providers available, matching defaultModelConfigs.
+const defaultModelCatalog: TypesGen.ChatModelsResponse = {
+	providers: [
+		{ provider: "openai", available: true, models: [] },
+		{ provider: "anthropic", available: true, models: [] },
+	],
+	unsupported_providers: [],
+};
+
+const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
+	{
+		provider_id: "provider-1",
+		provider: "openai",
+		display_name: "OpenAI",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: false,
+	},
+	{
+		provider_id: "provider-anthropic",
+		provider: "anthropic",
+		display_name: "Anthropic",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: false,
+	},
+];
+
+// The form queries model configs for the selected organization, the model
+// catalog, and the user provider configs. These entries feed the defaults
+// those queries resolve to in every story; individual stories override
+// them through parameters.queries.
+const modelQueries = ({
+	configs = defaultModelConfigs,
+	catalog = defaultModelCatalog,
+	userProviderConfigs = defaultUserProviderConfigs,
+}: {
+	configs?: TypesGen.ChatModelConfig[];
+	catalog?: TypesGen.ChatModelsResponse;
+	userProviderConfigs?: TypesGen.UserChatProviderConfig[];
+} = {}) => [
+	{
+		key: chatModelConfigsByOrganizationKey(MockDefaultOrganization.id),
+		data: configs,
+	},
+	{ key: chatModelsKey, data: catalog },
+	{ key: userChatProviderConfigsKey, data: userProviderConfigs },
 ];
 
 const buildRootPersonalModelOverride = (
@@ -112,15 +157,13 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
-		modelCatalog: null,
-		modelOptions: [...modelOptions],
-		isModelCatalogLoading: false,
-		modelConfigs: [],
-		isModelConfigsLoading: false,
 		workspaceCount: 0,
 		workspaceOptions: [],
 		workspacesError: undefined,
 		isWorkspacesLoading: false,
+	},
+	parameters: {
+		queries: modelQueries(),
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -168,7 +211,6 @@ export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -191,7 +233,6 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -214,7 +255,6 @@ export const RootOverrideMissingFromCatalog: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: "model-does-not-exist",
@@ -239,7 +279,6 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -266,7 +305,6 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -289,7 +327,6 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -310,13 +347,13 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	},
 };
 
-// Model options with reasoning effort bounds configured. GPT-4o uses the
+// Model configs with reasoning effort bounds configured. GPT-4o uses the
 // full global scale; Claude is capped at medium.
-const effortModelOptions = [
-	{
-		...modelOptions[0],
-		reasoningEffortDefault: "medium",
-		reasoningEfforts: [
+const effortModelConfigs: TypesGen.ChatModelConfig[] = [
+	buildModelConfig({
+		is_default: true,
+		model_config: { reasoning_effort: { default: "medium" } },
+		reasoning_efforts: [
 			"none",
 			"minimal",
 			"low",
@@ -325,18 +362,24 @@ const effortModelOptions = [
 			"xhigh",
 			"max",
 		],
-	},
-	{
-		...modelOptions[1],
-		reasoningEffortDefault: "low",
-		reasoningEfforts: ["low", "medium"],
-	},
-] as const;
+	}),
+	buildModelConfig({
+		id: claudeModelConfigID,
+		ai_provider_id: "provider-anthropic",
+		model: "claude-sonnet-4",
+		display_name: "Claude Sonnet 4",
+		context_limit: 200_000,
+		model_config: { reasoning_effort: { default: "low" } },
+		reasoning_efforts: ["low", "medium"],
+	}),
+];
 
 export const RemembersReasoningEffortByModel: Story = {
 	args: {
 		...defaultArgs,
-		modelOptions: [...effortModelOptions],
+	},
+	parameters: {
+		queries: modelQueries({ configs: effortModelConfigs }),
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -382,13 +425,14 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: modelConfigID,
 			reasoning_effort: "high",
 		}),
+	},
+	parameters: {
+		queries: modelQueries({ configs: effortModelConfigs }),
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -417,13 +461,14 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 export const ManualReselectKeepsRootOverrideEffort: Story = {
 	args: {
 		...defaultArgs,
-		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: modelConfigID,
 			reasoning_effort: "high",
 		}),
+	},
+	parameters: {
+		queries: modelQueries({ configs: effortModelConfigs }),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -445,18 +490,21 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [
-			{
-				...modelOptions[0],
-				reasoningEffortDefault: "low",
-				reasoningEfforts: ["low", "medium"],
-			},
-		],
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: modelConfigID,
 			reasoning_effort: "medium",
+		}),
+	},
+	parameters: {
+		queries: modelQueries({
+			configs: [
+				buildModelConfig({
+					is_default: true,
+					model_config: { reasoning_effort: { default: "low" } },
+					reasoning_efforts: ["low", "medium"],
+				}),
+			],
 		}),
 	},
 	beforeEach: () => {
@@ -486,11 +534,13 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 
 export const SubmitsReasoningEffort: Story = {
 	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
-	parameters: { pixel: { exclude: true } },
+	parameters: {
+		pixel: { exclude: true },
+		queries: modelQueries({ configs: effortModelConfigs }),
+	},
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [...effortModelOptions],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -654,12 +704,10 @@ export const SelectWorkspaceViaSearch: Story = {
 };
 
 export const LoadingModelCatalog: Story = {
+	// Leave the model queries unseeded so they stay pending.
+	parameters: { queries: [] },
 	args: {
 		...defaultArgs,
-		modelCatalog: null,
-		modelOptions: [],
-		isModelCatalogLoading: true,
-		isModelConfigsLoading: true,
 	},
 };
 
@@ -677,26 +725,30 @@ export const LoadingPersonalModelOverrides: Story = {
 	},
 };
 
+const emptyModelCatalog: TypesGen.ChatModelsResponse = {
+	providers: [],
+	unsupported_providers: [],
+};
+
 export const NoModelsConfigured: Story = {
+	parameters: {
+		queries: modelQueries({ configs: [], catalog: emptyModelCatalog }),
+	},
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
 	},
 };
 
 export const MissingProviderAndModelSetup: Story = {
+	parameters: {
+		queries: [
+			...modelQueries({ configs: [], catalog: emptyModelCatalog }),
+			{ key: chatProviderConfigsKey, data: [] },
+		],
+	},
 	args: {
 		...defaultArgs,
 		canConfigureAgentSetup: true,
-		providerCount: 0,
-		modelCount: 0,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1009,6 +1061,16 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...modelQueries(),
+			{
+				key: chatModelConfigsByOrganizationKey(MockOrganization2.id),
+				data: defaultModelConfigs.map((config) => ({
+					...config,
+					organization_id: MockOrganization2.id,
+				})),
+			},
+		],
 	},
 	args: {
 		...defaultArgs,

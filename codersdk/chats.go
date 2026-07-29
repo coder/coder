@@ -1307,17 +1307,21 @@ type CreateUserChatProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
 }
 
-// ChatModelConfig is an admin-managed model configuration.
+// ChatModelConfig is an org-scoped model configuration.
 type ChatModelConfig struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
-	Model                string               `json:"model"`
-	DisplayName          string               `json:"display_name"`
-	Enabled              bool                 `json:"enabled"`
-	IsDefault            bool                 `json:"is_default"`
-	ContextLimit         int64                `json:"context_limit"`
-	CompressionThreshold int32                `json:"compression_threshold"`
-	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OrganizationDisplayName is set on union-list responses so user-context
+	// pages can label which org each copy belongs to.
+	OrganizationDisplayName string               `json:"organization_display_name,omitempty"`
+	AIProviderID            uuid.UUID            `json:"ai_provider_id" format:"uuid"`
+	Model                   string               `json:"model"`
+	DisplayName             string               `json:"display_name"`
+	Enabled                 bool                 `json:"enabled"`
+	IsDefault               bool                 `json:"is_default"`
+	ContextLimit            int64                `json:"context_limit"`
+	CompressionThreshold    int32                `json:"compression_threshold"`
+	ModelConfig             *ChatModelCallConfig `json:"model_config,omitempty"`
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
 	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
@@ -2506,9 +2510,11 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 	return nil
 }
 
-// ListChatModelConfigs returns admin-managed chat model configs.
+// ListChatModelConfigs returns the union of chat model configs the caller
+// can read across all of their organizations. Rows carry the organization
+// ID and display name so user-context pages can label each copy.
 func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chat-model-configs", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2521,24 +2527,27 @@ func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatMo
 	return configs, json.NewDecoder(res.Body).Decode(&configs)
 }
 
-// CreateChatModelConfig creates an admin-managed chat model config.
-func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
+// ListChatModelConfigsByOrganization returns the chat model configs the
+// caller can read in one organization, for org-scoped management and
+// picker surfaces.
+func (c *ExperimentalClient) ListChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chat-model-configs", organizationID), nil)
 	if err != nil {
-		return ChatModelConfig{}, err
+		return nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatModelConfig{}, ReadBodyAsError(res)
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
 	}
 
-	var config ChatModelConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	var configs []ChatModelConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
 }
 
-// UpdateChatModelConfig updates an admin-managed chat model config.
-func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
+// GetChatModelConfig fetches one chat model config by ID; the config's org
+// is resolved from the row.
+func (c *ExperimentalClient) GetChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) (ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chat-model-configs/%s", modelConfigID), nil)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
@@ -2551,9 +2560,42 @@ func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelCon
 	return config, json.NewDecoder(res.Body).Decode(&config)
 }
 
-// DeleteChatModelConfig deletes an admin-managed chat model config.
+// CreateChatModelConfig creates a chat model config in the given
+// organization.
+func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, organizationID uuid.UUID, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/chat-model-configs", organizationID), req)
+	if err != nil {
+		return ChatModelConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatModelConfig{}, ReadBodyAsError(res)
+	}
+
+	var config ChatModelConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// UpdateChatModelConfig updates a chat model config; the config's org is
+// resolved from the row.
+func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chat-model-configs/%s", modelConfigID), req)
+	if err != nil {
+		return ChatModelConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelConfig{}, ReadBodyAsError(res)
+	}
+
+	var config ChatModelConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteChatModelConfig deletes a chat model config; the config's org is
+// resolved from the row.
 func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chat-model-configs/%s", modelConfigID), nil)
 	if err != nil {
 		return err
 	}
@@ -2562,6 +2604,37 @@ func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelCon
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ChatAIProviderCatalogEntry is the redacted view of an AI provider that
+// org model admins may read. It carries only the capability metadata the
+// Models UI needs; key material, base URLs, and headers are never exposed.
+type ChatAIProviderCatalogEntry struct {
+	ID              uuid.UUID `json:"id" format:"uuid"`
+	Type            string    `json:"type"`
+	DisplayName     string    `json:"display_name"`
+	Icon            string    `json:"icon"`
+	Enabled         bool      `json:"enabled"`
+	HasAPIKey       bool      `json:"has_api_key"`
+	HasUserAPIKey   bool      `json:"has_user_api_key"`
+	AllowUserAPIKey bool      `json:"allow_user_api_key"`
+}
+
+// GetChatAIProviderCatalog returns the redacted AI provider catalog for org
+// model admins. Access requires create or update on chat model configs in
+// at least one of the caller's organizations.
+func (c *ExperimentalClient) GetChatAIProviderCatalog(ctx context.Context) ([]ChatAIProviderCatalogEntry, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/ai-providers/catalog", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var entries []ChatAIProviderCatalogEntry
+	return entries, json.NewDecoder(res.Body).Decode(&entries)
 }
 
 // GetChatCostSummary returns an aggregate cost summary for the specified

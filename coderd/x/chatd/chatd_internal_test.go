@@ -1129,10 +1129,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		},
 	).Return(nil, nil)
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
-	// An empty org list triggers the pre-cutover fallback, which
-	// resolves the default org and finds no configs there either.
-	db.EXPECT().GetDefaultOrganization(gomock.Any()).Return(database.Organization{ID: uuid.New()}, nil)
+	// An empty org list falls through to the chat's fallback model;
+	// strict org scoping reads no other org's configs.
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -1278,10 +1276,8 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 		},
 	).Return(nil, nil)
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
-	// An empty org list triggers the pre-cutover fallback, which
-	// resolves the default org and finds no configs there either.
-	db.EXPECT().GetDefaultOrganization(gomock.Any()).Return(database.Organization{ID: uuid.New()}, nil)
+	// An empty org list falls through to the chat's fallback model;
+	// strict org scoping reads no other org's configs.
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -3801,41 +3797,38 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		require.Equal(t, defaultModel.ID, resolved)
 	})
 
-	t.Run("NonDefaultOrgFallsBackToDefaultOrgDefault", func(t *testing.T) {
+	t.Run("NonDefaultOrgWithoutOwnDefaultMisses", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// The chat's org has no configs of its own; the deployment
-		// default lives in the default org. Pre-cutover behavior must
-		// resolve it for chats in any org.
+		// The chat's org has no configs of its own; the default org has
+		// one. Strict scoping resolves configs only within the chat's
+		// org, so the lookup reports no default.
 		otherOrgID := newModelConfigOrg(t, db)
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 		provider := newProvider(t, db, true)
-		defaultModel := newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
+		_ = newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, otherOrgID, uuid.Nil)
-		require.NoError(t, err)
-		require.Equal(t, defaultModel.ID, resolved)
+		_, err = resolveFallbackModelConfigID(ctx, db, otherOrgID, uuid.Nil)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
-	t.Run("FallbackReadsDefaultOrgAsChatd", func(t *testing.T) {
+	t.Run("OrgDefaultResolvesAsChatd", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// The pre-cutover fallback reads the default organization under
-		// the chatd subject, which must be authorized to read
-		// organizations or every fallback path fails closed.
-		otherOrgID := newModelConfigOrg(t, db)
-		defaultOrg, err := db.GetDefaultOrganization(ctx)
-		require.NoError(t, err)
+		// The fallback reads the org default under the chatd subject,
+		// which must be authorized to read chat model configs or every
+		// fallback path fails closed.
+		orgID := newModelConfigOrg(t, db)
 		provider := newProvider(t, db, true)
-		defaultModel := newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
+		defaultModel := newModelConfig(t, db, orgID, provider.ID, true)
 
 		chatdCtx := dbauthz.AsChatd(ctx)
-		resolved, err := resolveFallbackModelConfigID(chatdCtx, db, otherOrgID, uuid.Nil)
+		resolved, err := resolveFallbackModelConfigID(chatdCtx, db, orgID, uuid.Nil)
 		require.NoError(t, err)
 		require.Equal(t, defaultModel.ID, resolved)
 	})

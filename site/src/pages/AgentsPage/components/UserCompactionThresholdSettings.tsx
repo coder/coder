@@ -295,6 +295,11 @@ export const UserCompactionThresholdSettings: FC<
 											<ProviderIcon provider={provider} className="size-4" />
 											{modelName}
 										</Badge>
+										{modelConfig.organization_display_name && (
+											<span className="mt-0.5 block text-2xs font-normal text-content-secondary">
+												{modelConfig.organization_display_name}
+											</span>
+										)}
 										{rowError && (
 											<p
 												aria-live="polite"

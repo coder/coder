@@ -10,6 +10,8 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 	modelConfigsData: [
 		{
 			id: "model-config-1",
+			organization_id: "org-default",
+			organization_display_name: "Default Organization",
 			ai_provider_id: "prov-openai",
 			model: "gpt-4.1-mini",
 			display_name: "GPT 4.1 Mini",

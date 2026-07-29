@@ -1336,6 +1336,35 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		// Org-scoped chat model config management. Configs are org-scoped;
+		// creation and org listing resolve the org from the route.
+		r.Route("/organizations/{organization}/chat-model-configs", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listChatModelConfigsByOrganization)
+			r.Post("/", api.createChatModelConfig)
+		})
+		// Item-level chat model config routes resolve the org from the row.
+		r.Route("/chat-model-configs", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Get("/", api.listChatModelConfigs)
+			r.Route("/{modelConfig}", func(r chi.Router) {
+				r.Get("/", api.getChatModelConfig)
+				r.Patch("/", api.updateChatModelConfig)
+				r.Delete("/", api.deleteChatModelConfig)
+			})
+		})
+		// Redacted AI provider catalog for org model admins.
+		r.Route("/ai-providers/catalog", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Get("/", api.getChatAIProviderCatalog)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1405,15 +1434,6 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
 			r.Route("/usage-limits", func(r chi.Router) {

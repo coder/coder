@@ -28,7 +28,7 @@ import {
 	chat,
 	chatKey,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
+	chatModelConfigsByOrganization,
 	chatModels,
 	chatProviderConfigs,
 	compactChat,
@@ -791,7 +791,10 @@ const AgentChatPage: FC = () => {
 	const workspace = workspaceQuery.data;
 
 	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
+	const chatModelConfigsQuery = useQuery(
+		chatModelConfigsByOrganization(chatOrganizationId),
+	);
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,

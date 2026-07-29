@@ -1943,6 +1943,23 @@ export interface ChatACL {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatAIProviderCatalogEntry is the redacted view of an AI provider that
+ * org model admins may read. It carries only the capability metadata the
+ * Models UI needs; key material, base URLs, and headers are never exposed.
+ */
+export interface ChatAIProviderCatalogEntry {
+	readonly id: string;
+	readonly type: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+	readonly has_user_api_key: boolean;
+	readonly allow_user_api_key: boolean;
+}
+
+// From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
 	| "application/pdf"
@@ -2875,10 +2892,16 @@ export interface ChatModelCallConfig {
 
 // From codersdk/chats.go
 /**
- * ChatModelConfig is an admin-managed model configuration.
+ * ChatModelConfig is an org-scoped model configuration.
  */
 export interface ChatModelConfig {
 	readonly id: string;
+	readonly organization_id: string;
+	/**
+	 * OrganizationDisplayName is set on union-list responses so user-context
+	 * pages can label which org each copy belongs to.
+	 */
+	readonly organization_display_name?: string;
 	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;

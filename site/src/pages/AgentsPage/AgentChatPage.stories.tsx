@@ -13,7 +13,7 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
-	chatModelConfigs,
+	chatModelConfigsByOrganizationKey,
 	chatModelsKey,
 	chatPromptsKey,
 	chatsKey,
@@ -278,7 +278,10 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		{
+			key: chatModelConfigsByOrganizationKey("test-org-id"),
+			data: mockModelConfigs,
+		},
 		{ key: mcpServerConfigsKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {

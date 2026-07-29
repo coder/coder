@@ -1,30 +1,32 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import {
-	chatModelConfigs,
+	chatAIProviderCatalog,
+	chatModelConfigsByOrganization,
 	chatModels,
-	chatProviderConfigs,
 } from "#/api/queries/chats";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { deriveProviderStates } from "#/modules/aiModels/providerStates";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import {
+	deriveProviderStates,
+	providerConfigFromCatalogEntry,
+} from "#/modules/aiModels/providerStates";
 import { providerTypeByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import ModelsPageView from "./ModelsPageView";
+import { useOrganizationModels } from "./organizationModels";
 
 const ModelsPage: FC = () => {
-	const { permissions } = useAuthenticated();
+	const { organization } = useOrganizationModels();
 
-	const providerConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: permissions.editDeploymentConfig,
-	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const providerCatalogQuery = useQuery(chatAIProviderCatalog());
+	const modelConfigsQuery = useQuery(
+		chatModelConfigsByOrganization(organization.id),
+	);
 	const modelCatalogQuery = useQuery(chatModels());
 
-	const providerTypeByID = providerTypeByIDFromConfigs(
-		providerConfigsQuery.data,
+	const providerConfigs = providerCatalogQuery.data?.map(
+		providerConfigFromCatalogEntry,
 	);
+	const providerTypeByID = providerTypeByIDFromConfigs(providerConfigs);
 
 	const models = (modelConfigsQuery.data ?? []).slice().sort((a, b) => {
 		const aProvider = providerTypeByID.get(a.ai_provider_id) ?? "";
@@ -34,22 +36,22 @@ const ModelsPage: FC = () => {
 	});
 	const providerStates = deriveProviderStates(
 		models,
-		providerConfigsQuery.data,
+		providerConfigs,
 		modelCatalogQuery.data,
 	);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<>
 			<title>{pageTitle("Models", "AI Settings")}</title>
 
 			<ModelsPageView
 				isLoading={
-					providerConfigsQuery.isLoading ||
+					providerCatalogQuery.isLoading ||
 					modelConfigsQuery.isLoading ||
 					modelCatalogQuery.isLoading
 				}
 				error={
-					providerConfigsQuery.error ??
+					providerCatalogQuery.error ??
 					modelConfigsQuery.error ??
 					modelCatalogQuery.error
 				}
@@ -57,7 +59,7 @@ const ModelsPage: FC = () => {
 				providerStates={providerStates}
 				providerTypeByID={providerTypeByID}
 			/>
-		</RequirePermission>
+		</>
 	);
 };
 

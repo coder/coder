@@ -4857,81 +4857,7 @@ func TestListAgents(t *testing.T) {
 	})
 }
 
-func TestEnabledChatModelConfigsWithDefaultOrgFallback(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	defaultOrg, err := db.GetDefaultOrganization(ctx)
-	require.NoError(t, err)
-	otherOrg := dbgen.Organization(t, db, database.Organization{})
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type: database.AIProviderTypeOpenai,
-	}, "test-key")
-	defaultOrgConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-		OrganizationID: defaultOrg.ID,
-	})
-
-	t.Run("OrgListEmptyFallsBackToDefaultOrg", func(t *testing.T) {
-		t.Parallel()
-
-		// A fresh org is guaranteed empty even when the test database
-		// carries seeded configs in previously created orgs.
-		emptyOrg := dbgen.Organization(t, db, database.Organization{})
-		ctx := testutil.Context(t, testutil.WaitShort)
-		rows, err := db.GetEnabledChatModelConfigsByOrganization(ctx, emptyOrg.ID)
-		require.NoError(t, err)
-		require.Empty(t, rows)
-
-		rows, err = enabledChatModelConfigsWithDefaultOrgFallback(ctx, db, emptyOrg.ID, rows)
-		require.NoError(t, err)
-		require.NotEmpty(t, rows)
-
-		found := slices.ContainsFunc(rows, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
-			return row.ChatModelConfig.ID == defaultOrgConfig.ID
-		})
-		require.True(t, found, "default org list should include its config")
-	})
-
-	t.Run("OrgListPresentNeverFallsBack", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Give the other org its own enabled config: the default org's
-		// list must not leak in.
-		ownConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-			OrganizationID: otherOrg.ID,
-		})
-
-		rows, err := db.GetEnabledChatModelConfigsByOrganization(ctx, otherOrg.ID)
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-
-		rows, err = enabledChatModelConfigsWithDefaultOrgFallback(ctx, db, otherOrg.ID, rows)
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.Equal(t, ownConfig.ID, rows[0].ChatModelConfig.ID)
-	})
-
-	t.Run("DefaultOrgNeverFallsBack", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// A miss inside the default org must not recurse into the
-		// fallback: the empty result stands.
-		rows := []database.GetEnabledChatModelConfigsByOrganizationRow{}
-		got, err := enabledChatModelConfigsWithDefaultOrgFallback(ctx, db, defaultOrg.ID, rows)
-		require.NoError(t, err)
-		require.Empty(t, got)
-	})
-}
-
-func TestListSubagentModels_NonDefaultOrgSeesDefaultOrgConfigs(t *testing.T) {
+func TestListSubagentModels_NonDefaultOrgSeesOnlyOwnOrgConfigs(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -4942,8 +4868,7 @@ func TestListSubagentModels_NonDefaultOrgSeesDefaultOrgConfigs(t *testing.T) {
 
 	// The chat's org has its own config (the seed model), so the
 	// list is org-local and the default org's config must not leak
-	// in. The empty-org fallback is covered by
-	// TestEnabledChatModelConfigsWithDefaultOrgFallback.
+	// in.
 	defaultOrg, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 	defaultOrgProvider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{

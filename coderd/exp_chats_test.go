@@ -302,20 +302,37 @@ func insertAssistantCostMessage(
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SuccessNonDefaultOrgUsesDeploymentDefault", func(t *testing.T) {
+	t.Run("SuccessNonDefaultOrgUsesOrgDefault", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
+		aiProvider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
 
 		// A member of a non-default org cannot read the default
-		// organization object, but omitting model_config_id must still
-		// resolve the deployment default while every config lives there.
+		// organization object; omitting model_config_id resolves the
+		// default inside the chat's own org, never the default org's.
 		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		// The org's Everyone group shares the org ID (migration 000058);
+		// dbgen.Organization does not seed it, and the config's
+		// everyone-read ACL resolves through that group.
+		dbgen.Group(t, db, database.Group{
+			ID:             org.ID,
+			Name:           database.EveryoneGroup,
+			OrganizationID: org.ID,
+		})
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, org.ID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.True(t, modelConfig.IsDefault, "first config in the org must self-elect as default")
 
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: org.ID,
@@ -580,6 +597,46 @@ func TestPostChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
 		require.Equal(t, "The default chat model or its provider is disabled.", sdkErr.Detail)
+	})
+
+	t.Run("DeniedDefaultModelResolvesAsBadRequest", func(t *testing.T) {
+		t.Parallel()
+
+		// A member denied read on the org default (ACL restriction) must get
+		// the same 400 "no default model" response as a missing default, not
+		// a 500: the dbauthz object read returns a denial that does not
+		// unwrap to sql.ErrNoRows, so the resolver's miss branch must match
+		// denials via httpapi.Is404Error.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// Seed the org default with an EMPTY group_acl: the everyone-in-org
+		// entry is absent, so the member below has no ACL read path and the
+		// dbauthz object read denies them.
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:         uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+			Model:                "gpt-4o-denied-default",
+			IsDefault:            true,
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+			OrganizationID:       firstUser.OrganizationID,
+			GroupACL:             database.ChatACL{},
+		})
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
 	})
 
 	t.Run("WithPerChatSystemPrompt", func(t *testing.T) {
@@ -1903,13 +1960,13 @@ func TestListChatModels(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		providerType := database.AIProviderTypeAnthropic
 		provider := createAIProviderForTest(t, client, string(providerType), "")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &provider.ID,
 			Model:        "claude-sonnet",
 			ContextLimit: &contextLimit,
@@ -1954,12 +2011,12 @@ func TestListChatModels(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		provider := createAIProviderForTest(t, client, "google", "provider-api-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &provider.ID,
 			Model:        "gemini-1.5-pro",
 			ContextLimit: &contextLimit,
@@ -2005,12 +2062,12 @@ func TestListChatModels(t *testing.T) {
 		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		provider := createAIProviderForTest(t, client, "openai", "test-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &provider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -3827,13 +3884,13 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
 		enabled := false
-		disabledConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		disabledConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-disabled",
 			DisplayName:  "GPT-4o Disabled",
@@ -3857,7 +3914,10 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
-	t.Run("NonAdminExcludesDisabledModelConfigs", func(t *testing.T) {
+	// The union list is ACL-driven: every caller-readable config is
+	// returned, including disabled rows. Use-time rejection is enforced
+	// when the chat is created, not at list time.
+	t.Run("NonAdminSeesDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -3869,7 +3929,7 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		contextLimit := int64(4096)
 		enabled := false
-		_, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		disabledConfig, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &enabledConfig.AIProviderID,
 			Model:        "gpt-4o-disabled",
 			DisplayName:  "GPT-4o Disabled",
@@ -3880,21 +3940,28 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		configs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		require.Equal(t, enabledConfig.ID, configs[0].ID)
-		require.True(t, configs[0].Enabled)
+		require.Len(t, configs, 2)
+
+		byID := make(map[uuid.UUID]codersdk.ChatModelConfig, len(configs))
+		for _, config := range configs {
+			byID[config.ID] = config
+		}
+		require.True(t, byID[enabledConfig.ID].Enabled)
+		require.Contains(t, byID, disabledConfig.ID)
+		require.False(t, byID[disabledConfig.ID].Enabled)
+		require.Equal(t, "GPT-4o Disabled", byID[disabledConfig.ID].DisplayName)
 	})
 
-	// An enabled config under a disabled provider must stay visible to
-	// admins (management view) while being hidden from non-admins (usage
-	// view).
-	t.Run("ProviderDisabled", func(t *testing.T) {
+	// An enabled config under a disabled provider stays visible through
+	// the ACL-driven union list for admins and members alike; only
+	// use-time resolution treats the disabled provider as unusable.
+	t.Run("ProviderDisabledStillListedForMembers", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		enabledConfig := createChatModelConfig(t, adminClient)
+		_ = createChatModelConfig(t, adminClient)
 		providerDisabledConfig := createProviderDisabledChatModelConfig(
 			t,
 			adminClient,
@@ -3914,8 +3981,11 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
-		require.Len(t, memberConfigs, 1)
-		require.Equal(t, enabledConfig.ID, memberConfigs[0].ID)
+		memberIDs := make([]uuid.UUID, 0, len(memberConfigs))
+		for _, config := range memberConfigs {
+			memberIDs = append(memberIDs, config.ID)
+		}
+		require.Contains(t, memberIDs, providerDisabledConfig.ID)
 	})
 
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
@@ -3963,7 +4033,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		// Non-admin users should see only enabled model configs.
+		// Members see the configs their ACL admits (including disabled).
 		configs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, configs)
@@ -3983,12 +4053,54 @@ func TestListChatModelConfigs(t *testing.T) {
 func TestCreateChatModelConfig(t *testing.T) {
 	t.Parallel()
 
+	t.Run("UnauthorizedPrincipalCannotProbeProviderState", func(t *testing.T) {
+		t.Parallel()
+
+		// The write is authorized before any privileged provider lookup, so
+		// a principal without create-in-org gets an identical denial whether
+		// the provider ID is missing, disabled, or configured: no provider
+		// state is disclosed.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		configuredProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		disabledProvider := createAIProviderForTest(t, client, "google", "test-api-key-2")
+		enabled := false
+		_, err := client.UpdateAIProvider(ctx, disabledProvider.ID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			name       string
+			providerID uuid.UUID
+		}{
+			{"missing", uuid.New()},
+			{"disabled", disabledProvider.ID},
+			{"configured", configuredProvider.ID},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				contextLimit := int64(4096)
+				_, err := memberClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+					AIProviderID: &tc.providerID,
+					Model:        "probe-" + tc.name,
+					ContextLimit: &contextLimit,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusForbidden)
+				require.Equal(t, "Forbidden.", sdkErr.Message)
+			})
+		}
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
@@ -4002,7 +4114,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 				CacheWritePricePerMillionTokens: decRef("0.3"),
 			},
 		}
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4028,7 +4140,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
@@ -4041,7 +4153,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		var eg errgroup.Group
 		for i := range creators - 1 {
 			eg.Go(func() error {
-				_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+				_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 					AIProviderID: &aiProvider.ID,
 					Model:        fmt.Sprintf("gpt-4o-mini-%d", i),
 					ContextLimit: &contextLimit,
@@ -4050,7 +4162,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			})
 		}
 		eg.Go(func() error {
-			created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			created, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 				AIProviderID: &aiProvider.ID,
 				Model:        "gpt-4o",
 				ContextLimit: &contextLimit,
@@ -4080,60 +4192,63 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
 	})
 
-	t.Run("SuccessCustomDeploymentConfigRole", func(t *testing.T) {
+	t.Run("SuccessCustomOrgRole", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// dbauthz rejects site-permission roles on the authorized
 		// querier; seed the role through the raw store, as persisted
-		// site custom roles exist in production deployments.
+		// org custom roles exist in production deployments.
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		client := newChatClient(t, func(opts *coderdtest.Options) {
 			opts.Database = rawDB
 			opts.Pubsub = pubsub
 		})
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
 
-		// A custom site role holding only deployment-config permissions
-		// passes the route gate but cannot read the default organization
-		// object; the default-org resolution is an internal step and must
-		// not require caller-held organization read. The owning org is a
-		// label on the role; the site permissions apply deployment-wide.
+		// A custom org role holding only chat_model_config permissions
+		// passes write authorization for configs in its org and holds no
+		// grant anywhere else; org role permissions are scoped to the
+		// organization the role belongs to.
 		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 			Name:           testutil.GetRandomName(t),
-			DisplayName:    "Deployment Config Admin",
-			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
-			SitePermissions: database.CustomRolePermissions{
+			DisplayName:    "Chat Model Config Admin",
+			OrganizationID: uuid.NullUUID{UUID: defaultOrg.ID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{
 				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					ResourceType: rbac.ResourceChatModelConfig.Type,
+					Action:       policy.ActionCreate,
+				},
+				{
+					ResourceType: rbac.ResourceChatModelConfig.Type,
 					Action:       policy.ActionRead,
 				},
 				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					ResourceType: rbac.ResourceChatModelConfig.Type,
 					Action:       policy.ActionUpdate,
 				},
 			},
 		})
 		require.NoError(t, err)
 
+		// An existing org default keeps the create off the self-promotion
+		// path; the writer below holds no chat_model_config:update grant
+		// beyond its own org. The owner seeds the provider and the
+		// default: both operations need site-wide permissions a
+		// non-owner lacks.
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
-		// An existing deployment default keeps the create off the
-		// self-promotion path, which is a separate system-scoped
-		// authorization requirement.
-		_ = createChatModelConfig(t, client)
+		_ = createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-existing")
 
-		// A member of a non-default org cannot read the default
-		// organization object; the implicit organization-member role
-		// grants organization read only within its own org.
 		adminClientRaw, adminUser := coderdtest.CreateAnotherUser(
 			t,
 			client.Client,
-			nonDefaultOrg.ID,
+			defaultOrg.ID,
 		)
 		_, err = client.Client.UpdateOrganizationMemberRoles(
 			ctx,
-			nonDefaultOrg.ID,
+			defaultOrg.ID,
 			adminUser.ID.String(),
 			codersdk.UpdateRoles{Roles: []string{role.Name}},
 		)
@@ -4141,15 +4256,13 @@ func TestCreateChatModelConfig(t *testing.T) {
 		adminClient := codersdk.NewExperimentalClient(adminClientRaw)
 
 		contextLimit := int64(4096)
-		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, defaultOrg.ID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 		})
 		require.NoError(t, err)
 
-		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
-		require.NoError(t, err)
 		row, err := rawDB.GetChatModelConfigByID(ctx, modelConfig.ID)
 		require.NoError(t, err)
 		require.Equal(t, defaultOrg.ID, row.OrganizationID)
@@ -4163,18 +4276,20 @@ func TestCreateChatModelConfig(t *testing.T) {
 		)
 		require.Equal(t, database.ChatACL{}, row.UserACL)
 	})
-
-	// A persisted custom role holding only deployment-config permissions is
-	// the pre-RBAC-resource admission set for the old write routes. While the
-	// default-org fallback keeps every config deployment-serving (until the
-	// M3 cutover), the interim gates and the reverted dbauthz write checks
-	// must keep admitting exactly that set for the full write lifecycle.
-	t.Run("DeploymentConfigOnlyRoleWritesThroughWindow", func(t *testing.T) {
+	// A custom org role holding chat_model_config permissions admits the
+	// full write lifecycle within its org: create, update, delete, and the
+	// default-election mutations, which run under the caller's subject as
+	// object updates while the election reads run call-scoped. The demote
+	// and delete subtests prove the transaction rolls back when default
+	// election fails: the create/update/delete commits, then the election
+	// promotion's object update rejects on a candidate owned by another
+	// org that sorts first, leaving the original default untouched.
+	t.Run("OrgRoleWritesThroughLifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// dbauthz rejects site-permission roles on the authorized querier;
-		// seed the role through the raw store, as persisted site custom
+		// seed the role through the raw store, as persisted org custom
 		// roles exist in production deployments.
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		client := newChatClient(t, func(opts *coderdtest.Options) {
@@ -4182,122 +4297,171 @@ func TestCreateChatModelConfig(t *testing.T) {
 			opts.Pubsub = pubsub
 		})
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
-		// The org's Everyone group shares the org ID (migration 000058), and
-		// M1 seeds every config's everyone-read ACL under that key.
-		dbgen.Group(t, rawDB, database.Group{
-			ID:             nonDefaultOrg.ID,
-			Name:           database.EveryoneGroup,
-			OrganizationID: nonDefaultOrg.ID,
-		})
+		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
 
+		// The writer role holds chat_model_config permissions in the
+		// default org and nothing else: user-scoped member permissions do
+		// not carry the org-wide create grant the route needs, so the role
+		// must supply every action the lifecycle touches.
 		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 			Name:           testutil.GetRandomName(t),
-			DisplayName:    "Deployment Config Admin",
-			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
-			SitePermissions: database.CustomRolePermissions{
+			DisplayName:    "Chat Model Config Admin",
+			OrganizationID: uuid.NullUUID{UUID: defaultOrg.ID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{
 				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					ResourceType: rbac.ResourceChatModelConfig.Type,
+					Action:       policy.ActionCreate,
+				},
+				{
+					ResourceType: rbac.ResourceChatModelConfig.Type,
 					Action:       policy.ActionRead,
 				},
 				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					ResourceType: rbac.ResourceChatModelConfig.Type,
 					Action:       policy.ActionUpdate,
+				},
+				{
+					ResourceType: rbac.ResourceChatModelConfig.Type,
+					Action:       policy.ActionDelete,
 				},
 			},
 		})
 		require.NoError(t, err)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
-		// The first config self-elects as the deployment default; the
-		// default-transition subtests below exercise demote/delete/promote
-		// against it. A second existing config keeps the writer's own create
-		// off the self-promotion path.
-		defaultConfig := createChatModelConfig(t, client)
 
 		writerClientRaw, writerUser := coderdtest.CreateAnotherUser(
 			t,
 			client.Client,
-			nonDefaultOrg.ID,
+			defaultOrg.ID,
 		)
 		_, err = client.Client.UpdateOrganizationMemberRoles(
 			ctx,
-			nonDefaultOrg.ID,
+			defaultOrg.ID,
 			writerUser.ID.String(),
 			codersdk.UpdateRoles{Roles: []string{role.Name}},
 		)
 		require.NoError(t, err)
 		writerClient := codersdk.NewExperimentalClient(writerClientRaw)
 
+		// The first config self-elects as the org default; the
+		// default-transition subtests below exercise demote/delete/promote
+		// against it.
 		contextLimit := int64(4096)
-		modelConfig, err := writerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		defaultConfig, err := writerClient.CreateChatModelConfig(ctx, defaultOrg.ID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 		})
 		require.NoError(t, err)
+		require.True(t, defaultConfig.IsDefault, "first config in the org must self-elect as default")
 
-		updated, err := writerClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+		updated, err := writerClient.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "Window Write",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "Window Write", updated.DisplayName)
 
-		require.NoError(t, writerClient.DeleteChatModelConfig(ctx, modelConfig.ID))
+		// A candidate in another org sorts first in default-election
+		// order; a writer without a chat_model_config update grant there
+		// cannot promote it, so the election rejects and rolls the
+		// transition back. Seed it after the default org has a config so
+		// it never self-elects; the writer's config above holds the
+		// default org's default in place. The blocked writer holds the
+		// same role in the candidate's org, which authorizes the initial
+		// demote/delete on the shared default but not the cross-org
+		// promotion.
+		// A candidate in another org sorts first in default-election
+		// order. Its everyone-read ACL is dropped at seed time, so the
+		// writer (a default-org member with no blockedOrg grant) cannot
+		// promote it: the election's object update rejects and rolls the
+		// transition back. The writer still reaches the election because
+		// member update/delete on the shared default comes from the
+		// default org's everyone-ACL.
+		blockedOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+		dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
+			Model:          "a-first-alphabetical",
+			AIProviderID:   uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+			OrganizationID: blockedOrg.ID,
+			GroupACL:       database.ChatACL{},
+		})
 
-		// Demoting or deleting the current default forces
-		// ensureDefaultChatModelConfig to enumerate replacement candidates.
-		// A deployment-config-only role has no chat_model_config read grant,
-		// so the promotion's UnsetDefaultChatModelConfigs (system update)
-		// must reject and roll the transition back, exactly as before the
-		// RBAC resource existed. An authorized-filter candidate list would
-		// instead return zero rows and commit with no default.
-		// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
+		// A promotable candidate in the default org, sorting AFTER the
+		// cross-org one in (provider type, model) election order. At HEAD
+		// the org filter selects it and the election promotes it, so the
+		// transitions commit; if the filter is removed the election picks
+		// the cross-org unpromotable candidate first and rolls back. The
+		// writer's member update on it comes from the default org's
+		// everyone-ACL, seeded by dbgen with the Everyone group.
+		// The same-org candidate's provider is disabled, so it is not
+		// usable-preference-eligible (the enabled-provider JOIN excludes
+		// it). Under the org-filter-removal mutation the election's first
+		// candidate is the cross-org unpromotable one and the promotion
+		// rolls back; at HEAD the org filter leaves this same-org candidate
+		// as the only option and the election promotes it.
+		disabledProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+			Type: database.AIProviderTypeOpenai,
+		})
+		// dbgen cannot seed a disabled provider (takeFirst replaces the
+		// false zero value), so disable it through the store.
+		disabledProvider, err = rawDB.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:       disabledProvider.ID,
+			Type:     disabledProvider.Type,
+			Icon:     disabledProvider.Icon,
+			Enabled:  false,
+			BaseUrl:  disabledProvider.BaseUrl,
+			Settings: disabledProvider.Settings,
+		})
+		require.NoError(t, err)
+		sameOrgCandidate := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
+			Model:          "z-last-alphabetical",
+			AIProviderID:   uuid.NullUUID{UUID: disabledProvider.ID, Valid: true},
+			OrganizationID: defaultOrg.ID,
+		})
 
-		t.Run("DefaultDemoteRollsBack", func(t *testing.T) {
-			// Demote the current default; the replacement promotion's
-			// UnsetDefaultChatModelConfigs (system update) must reject and
-			// roll the whole transition back, exactly as before the RBAC
-			// resource existed.
+		t.Run("DefaultDemoteElectsSameOrgCandidate", func(t *testing.T) {
+			// Demoting the current default triggers the replacement
+			// election; the org filter selects the same-org candidate and
+			// the transition commits. Under the org-filter-removal mutation
+			// the election would instead reach the cross-org unpromotable
+			// candidate and roll back.
 			notDefault := false
 			_, err := writerClient.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
 				IsDefault: &notDefault,
 			})
-			require.Error(t, err, "demote-default must fail for a deployment-config-only role")
+			require.NoError(t, err, "demote-default commits when the election promotes the same-org candidate")
 			row, dbErr := rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
 			require.NoError(t, dbErr)
-			require.True(t, row.IsDefault, "demote must have rolled back")
+			require.False(t, row.IsDefault, "demote committed")
+			candidate, dbErr := rawDB.GetChatModelConfigByID(ctx, sameOrgCandidate.ID)
+			require.NoError(t, dbErr)
+			require.True(t, candidate.IsDefault, "election promoted the same-org candidate")
 		})
 
-		t.Run("DefaultDeleteRollsBack", func(t *testing.T) {
-			// A second config exists so the deletion triggers a replacement
-			// promotion; the promotion's UnsetDefaultChatModelConfigs
-			// (system update) must reject and roll the delete back.
-			replacement, err := writerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-				AIProviderID: &aiProvider.ID,
-				Model:        "gpt-4o-mini-replacement",
-				ContextLimit: &contextLimit,
-			})
-			require.NoError(t, err)
-			err = writerClient.DeleteChatModelConfig(ctx, defaultConfig.ID)
-			require.Error(t, err, "delete-default with a replacement must fail for a deployment-config-only role")
-			row, dbErr := rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
+		t.Run("DefaultDeleteElectsSameOrgCandidate", func(t *testing.T) {
+			// Deleting the current default triggers the replacement
+			// election. Resolve whatever the org default is now (the demote
+			// subtest left sameOrgCandidate as the default at HEAD) so the
+			// delete genuinely runs a default election. Under the
+			// org-filter-removal mutation the election would instead reach
+			// the cross-org unpromotable candidate and roll back.
+			currentDefault, dbErr := rawDB.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), defaultOrg.ID)
 			require.NoError(t, dbErr)
-			require.True(t, row.IsDefault, "delete must have rolled back")
-			require.False(t, row.Deleted)
-			rep, dbErr := rawDB.GetChatModelConfigByID(ctx, replacement.ID)
+			err := writerClient.DeleteChatModelConfig(ctx, currentDefault.ID)
+			require.NoError(t, err, "delete-default commits when the election promotes the same-org candidate")
+			// Exactly one same-org config remains the default afterward.
+			newDefault, dbErr := rawDB.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), defaultOrg.ID)
 			require.NoError(t, dbErr)
-			require.False(t, rep.IsDefault, "replacement must not have been promoted")
+			require.NotEqual(t, currentDefault.ID, newDefault.ID, "election promoted a different same-org candidate")
+			require.Equal(t, defaultOrg.ID, newDefault.OrganizationID, "the new default is in the org, not the cross-org candidate")
 		})
 
-		t.Run("PromoteNonDefaultRequiresSystemUpdate", func(t *testing.T) {
-			// Promoting a non-default config to default requires
-			// UnsetDefaultChatModelConfigs (system update), which a
-			// deployment-config-only role does not hold. This covers only the
-			// system-update check: UnsetDefaultChatModelConfigs runs before
-			// any candidate lookup, so it does not exercise the candidate-list
-			// path and is not candidate-list coverage.
-			candidate, err := writerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		t.Run("PromoteNonDefaultSucceeds", func(t *testing.T) {
+			// Promoting a non-default config unsets the old default and
+			// sets the new one; both mutations are org-scoped updates the
+			// writer's role holds.
+			candidate, err := writerClient.CreateChatModelConfig(ctx, defaultOrg.ID, codersdk.CreateChatModelConfigRequest{
 				AIProviderID: &aiProvider.ID,
 				Model:        "gpt-4o-mini-promote",
 				ContextLimit: &contextLimit,
@@ -4307,13 +4471,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 			_, err = writerClient.UpdateChatModelConfig(ctx, candidate.ID, codersdk.UpdateChatModelConfigRequest{
 				IsDefault: &isDefault,
 			})
-			require.Error(t, err, "promote must fail for a deployment-config-only role")
+			require.NoError(t, err, "promote must succeed for a role holding chat_model_config update in the org")
 			row, dbErr := rawDB.GetChatModelConfigByID(ctx, candidate.ID)
 			require.NoError(t, dbErr)
-			require.False(t, row.IsDefault, "promote must have rolled back")
-			defaultRow, dbErr := rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
-			require.NoError(t, dbErr)
-			require.True(t, defaultRow.IsDefault, "existing default must be untouched")
+			require.True(t, row.IsDefault, "promote must have committed")
 		})
 	})
 
@@ -4322,12 +4483,12 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4351,12 +4512,12 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4382,12 +4543,12 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4407,12 +4568,12 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4437,12 +4598,12 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4463,10 +4624,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 		})
@@ -4479,10 +4640,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 		})
@@ -4495,11 +4656,11 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		contextLimit := int64(4096)
 		missingProviderID := uuid.New()
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &missingProviderID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4513,7 +4674,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
 			Name:    "test-model-config-provider-" + uuid.NewString(),
@@ -4523,7 +4684,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &provider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4538,11 +4699,11 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		missingProviderID := uuid.New()
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &missingProviderID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4556,7 +4717,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
 			Name:    "test-disabled-model-provider-" + uuid.NewString(),
@@ -4566,7 +4727,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err = client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &provider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4580,7 +4741,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
@@ -4592,7 +4753,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err = client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "anthropic/claude-opus-4.6",
 			ContextLimit: &contextLimit,
@@ -4614,12 +4775,16 @@ func TestCreateChatModelConfig(t *testing.T) {
 		aiProvider := createAIProviderForTest(t, adminClient, "openai", "test-api-key")
 
 		contextLimit := int64(4096)
-		_, err := memberClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := memberClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 		})
-		requireSDKError(t, err, http.StatusForbidden)
+		// A plain org member holds no chat model config permissions in the
+		// org, so the create is rejected by the write pre-check before any
+		// privileged provider lookup.
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Forbidden.", sdkErr.Message)
 	})
 }
 
@@ -4683,7 +4848,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
@@ -4695,7 +4860,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
@@ -4744,7 +4909,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		validProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenrouter,
@@ -4764,7 +4929,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &validProvider.ID,
 			Model:        "anthropic/claude-opus-4.6",
 			ContextLimit: &contextLimit,
@@ -4779,13 +4944,15 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
-	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
+	// Disabling preserves the record and keeps it visible through the
+	// ACL-driven union list, but using it for a new chat is rejected.
+	t.Run("DisablePreservesRecordAndRejectsUseForMembers", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		modelConfig := createChatModelConfig(t, adminClient)
 
@@ -4811,12 +4978,30 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
+		foundForMember := false
 		for _, config := range memberConfigs {
-			require.NotEqual(t, modelConfig.ID, config.ID)
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+				require.False(t, config.Enabled)
+			}
 		}
+		require.True(t, foundForMember, "disabled config stays visible through the union list")
+
+		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "use a disabled model config",
+			}},
+			ModelConfigID: &modelConfig.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
 
-	t.Run("ReEnableRestoresVisibilityForNonAdmins", func(t *testing.T) {
+	// The union list is ACL-driven, so the disabled config never leaves
+	// the member's list; re-enabling flips the reported Enabled flag.
+	t.Run("ReEnableFlipsEnabledFlagForMembers", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4829,7 +5014,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		contextLimit := int64(4096)
 		enabled := false
-		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-reenable",
 			DisplayName:  "GPT-4o Re-enable",
@@ -4846,9 +5031,10 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		for _, config := range memberConfigs {
 			if config.ID == modelConfig.ID {
 				foundForMember = true
+				require.False(t, config.Enabled)
 			}
 		}
-		require.False(t, foundForMember)
+		require.True(t, foundForMember, "disabled config is visible through the union list")
 
 		enabled = true
 		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
@@ -5041,14 +5227,14 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModelConfig(t, client)
 
 		aiProvider := createAIProviderForTest(t, client, "anthropic", "candidate-api-key")
 
 		contextLimit := int64(4096)
 		isDefault := false
-		candidateConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		candidateConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "claude-3-5-sonnet",
 			ContextLimit: &contextLimit,
@@ -5105,7 +5291,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodPatch,
-			"/api/experimental/chats/model-configs/not-a-uuid",
+			"/api/experimental/chat-model-configs/not-a-uuid",
 			codersdk.UpdateChatModelConfigRequest{DisplayName: "ignored"},
 		)
 		require.NoError(t, err)
@@ -5129,7 +5315,11 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		_, err := memberClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "member update",
 		})
-		requireSDKError(t, err, http.StatusForbidden)
+		// A plain org member holds no chat model config update grant in
+		// the org, so the write is rejected by the object pre-check before
+		// the transaction.
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Forbidden.", sdkErr.Message)
 	})
 }
 
@@ -5215,7 +5405,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodDelete,
-			"/api/experimental/chats/model-configs/not-a-uuid",
+			"/api/experimental/chat-model-configs/not-a-uuid",
 			nil,
 		)
 		require.NoError(t, err)
@@ -5237,7 +5427,11 @@ func TestDeleteChatModelConfig(t *testing.T) {
 
 		modelConfig := createChatModelConfig(t, adminClient)
 		err := memberClient.DeleteChatModelConfig(ctx, modelConfig.ID)
-		requireSDKError(t, err, http.StatusForbidden)
+		// A plain org member holds no chat model config delete grant in
+		// the org, so the write is rejected by the object pre-check before
+		// the transaction.
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Forbidden.", sdkErr.Message)
 	})
 }
 
@@ -12572,8 +12766,14 @@ func seedChatWithDeletedModelConfig(
 		Title:             "chat without model config",
 	})
 	seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+	// The fixture's soft-delete runs under an owner subject authorized to
+	// delete the config, not a shared internal actor.
 	require.NoError(t, db.DeleteChatModelConfigByID(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.As(ctx, rbac.Subject{
+			ID:    user.UserID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Scope: rbac.ScopeAll,
+		}),
 		modelConfig.ID,
 	))
 	return chat
@@ -12644,10 +12844,12 @@ func createAdditionalChatModelConfigWithModelConfig(
 	aiProvider := createAIProviderForTest(t, client, provider, "test-api-key")
 	contextLimit := int64(4096)
 	isDefault := false
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	defaultOrg, err := client.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	require.NoError(t, err)
+	modelConfig, err := client.CreateChatModelConfig(ctx, defaultOrg.ID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID: &aiProvider.ID,
-		Model:        model,
 		ContextLimit: &contextLimit,
+		Model:        model,
 		IsDefault:    &isDefault,
 		ModelConfig:  modelCallConfig,
 	})
@@ -13652,7 +13854,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		Model:        "claude-personal-" + uuid.NewString(),
 		ContextLimit: &contextLimit,
 	}
-	modelConfig, err := adminClient.CreateChatModelConfig(ctx, modelConfigRequest)
+	modelConfig, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, modelConfigRequest)
 	require.NoError(t, err)
 	modelConfigRequest.Model = "claude-personal-reasoning-" + uuid.NewString()
 	modelConfigRequest.ModelConfig = &codersdk.ChatModelCallConfig{
@@ -13661,7 +13863,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 			Max:     ptr.Ref("high"),
 		},
 	}
-	reasoningModelConfig, err := adminClient.CreateChatModelConfig(ctx, modelConfigRequest)
+	reasoningModelConfig, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, modelConfigRequest)
 	require.NoError(t, err)
 	err = adminClient.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{
 		ModelConfigID: modelConfig.ID.String(),
@@ -13679,8 +13881,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		"gpt-4o-personal-disabled-"+uuid.NewString(),
 	)
 	disabledProvider := createAIProviderForTest(t, adminClient, "google", "test-api-key")
-	contextLimit = int64(4096)
-	disabledProviderModelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	disabledProviderModelConfig, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID: &disabledProvider.ID,
 		Model:        "gemini-personal-disabled-provider-" + uuid.NewString(),
 		ContextLimit: &contextLimit,
@@ -14102,7 +14303,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	})
 	require.NoError(t, err)
 	contextLimit := int64(4096)
-	overrideModel, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	overrideModel, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID: &overrideProvider.ID,
 		Model:        "claude-root-personal-" + uuid.NewString(),
 		ContextLimit: &contextLimit,
@@ -14209,7 +14410,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	})
 
 	t.Run("RootModelOverrideUsesSavedReasoningEffort", func(t *testing.T) {
-		reasoningModel, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		reasoningModel, err := adminClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &overrideProvider.ID,
 			Model:        "claude-root-personal-reasoning-" + uuid.NewString(),
 			ContextLimit: &contextLimit,
