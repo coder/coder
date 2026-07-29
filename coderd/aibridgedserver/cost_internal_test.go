@@ -13,10 +13,7 @@ func TestComputeCost(t *testing.T) {
 	t.Parallel()
 
 	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
-
-	// Boundary cases derive from the production bound so they pin its
-	// inclusivity rather than its current value. At this price the cost equals
-	// the token count, which keeps those cases readable.
+	
 	const oneMicroPerToken = 1_000_000
 	bound := maxCostMicros.IntPart()
 
