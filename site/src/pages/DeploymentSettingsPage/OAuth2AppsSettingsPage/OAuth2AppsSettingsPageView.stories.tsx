@@ -33,6 +33,20 @@ export const Apps: Story = {
 	},
 };
 
+// Generates enough apps to trigger pagination (>25).
+const ManyApps = Array.from({ length: 53 }, (_, i) => ({
+	...MockOAuth2ProviderApps[0],
+	id: `app-${i + 1}`,
+	name: `Application ${i + 1}`,
+}));
+
+export const Paginated: Story = {
+	args: {
+		isLoading: false,
+		apps: ManyApps,
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		isLoading: false,
