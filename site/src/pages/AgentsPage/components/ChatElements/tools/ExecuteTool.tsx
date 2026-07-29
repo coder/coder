@@ -36,6 +36,7 @@ type ExecuteToolProps = {
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
+	errorText?: string;
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -49,6 +50,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	transcriptBlocks,
 	status,
 	isError,
+	errorText,
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
@@ -71,6 +73,8 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		modelIntent,
 		parsedCommands,
 		durationLabel,
+		isRunning,
+		isError,
 	});
 	const defaultView = resolveAgentDisplayState(
 		shellToolDisplayMode,
@@ -83,7 +87,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}
-			errorMessage="Command failed"
+			errorMessage={errorText || "Command failed"}
 			hasContent
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>
@@ -152,6 +156,8 @@ type ShellCommandLineInput = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
+	isRunning: boolean;
+	isError: boolean;
 };
 
 const getShellCommandLine = ({
@@ -159,6 +165,8 @@ const getShellCommandLine = ({
 	modelIntent,
 	parsedCommands,
 	durationLabel,
+	isRunning,
+	isError,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
@@ -166,9 +174,12 @@ const getShellCommandLine = ({
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
-	const commandLabel = intentLabel
+	let commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
+	if (!isRunning && isError) {
+		commandLabel = `Failed to run ${commandDisplay}`;
+	}
 
 	return {
 		commandLabel,

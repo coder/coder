@@ -627,6 +627,27 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+export const MockImportedUserSecret: TypesGen.UserSecret = {
+	id: "imported-database-url",
+	name: "DATABASE_URL",
+	description: "",
+	env_name: "DATABASE_URL",
+	file_path: "",
+	enabled: true,
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+};
+
+export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	MockImportedUserSecret,
+	{
+		...MockImportedUserSecret,
+		id: "imported-api-token",
+		name: "API_TOKEN",
+		env_name: "API_TOKEN",
+	},
+];
+
 export const MockTasksTabVisible: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
 
@@ -3300,6 +3321,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 export const MockPermissions: Permissions = {
 	createTemplates: true,
 	createUser: true,
+	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
 	viewAllUsers: true,
@@ -3336,6 +3358,7 @@ export const MockPermissions: Permissions = {
 export const MockNoPermissions: Permissions = {
 	createTemplates: false,
 	createUser: false,
+	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
 	viewAllUsers: false,

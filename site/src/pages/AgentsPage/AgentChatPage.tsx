@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 
+import type { QueryClient } from "react-query";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -31,6 +32,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -115,6 +117,8 @@ import {
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "./utils/usageLimitMessage";
 
@@ -230,6 +234,108 @@ export const runPromoteQueuedMessage = async (params: {
 		handleUsageLimitError(error);
 		throw error;
 	}
+};
+
+const buildPromotedQueueReconciliation = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+	hasObservedQueuedMessageID: (id: number) => boolean,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	if (promotedHeadID === undefined) {
+		return undefined;
+	}
+	if (!insertedMessages.some((message) => message.role === "user")) {
+		return undefined;
+	}
+	const remaining = queuedMessages.filter(
+		(message) => message.id !== promotedHeadID,
+	);
+	const tailPending =
+		queuedTail !== undefined &&
+		!remaining.some((message) => message.id === queuedTail.id) &&
+		!hasObservedQueuedMessageID(queuedTail.id);
+	return tailPending ? [...remaining, queuedTail] : remaining;
+};
+
+// Prefer an inactive chat's cached queue so messages queued during the send
+// are not dropped; fall back when no cache exists.
+export const buildInactiveChatQueueReconciliation = (
+	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined =>
+	buildPromotedQueueReconciliation(
+		cachedQueuedMessages ?? queuedMessagesBeforeSend,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		() => false,
+	);
+
+// Queue updates may rotate the head before the response arrives.
+export const reconcilePromotedQueueHead = (
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "getSnapshot"
+		| "setQueuedMessages"
+		| "markQueuedMessagePromoted"
+		| "hasObservedQueuedMessageID"
+	>,
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	const next = buildPromotedQueueReconciliation(
+		store.getSnapshot().queuedMessages,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		store.hasObservedQueuedMessageID,
+	);
+	if (!next || promotedHeadID === undefined) {
+		return next;
+	}
+	store.batch(() => {
+		// The promoted user row proves the server deleted its queue row.
+		store.markQueuedMessagePromoted(promotedHeadID);
+		store.setQueuedMessages(next);
+	});
+	return next;
+};
+
+const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
+	queryClient.fetchQuery(chatQueueConvergence(chatID));
+
+// A promoted head is suppressed locally, but another tab can queue or
+// promote concurrently, so only the server knows the resulting queue.
+export const settlePromotedQueueHead = async (
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
+	>,
+	chatID: string,
+	promotedHeadID: number,
+	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
+): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
+	const baselineFence = store.getQueueConvergenceFence();
+	let response: TypesGen.ChatMessagesResponse;
+	try {
+		response = await fetchMessages(chatID);
+	} catch {
+		// Convergence is best effort; a later authoritative update can correct it.
+		return undefined;
+	}
+	return store.applyPromoteRefetchQueuedMessages(
+		chatID,
+		promotedHeadID,
+		response.queued_messages ?? [],
+		baselineFence,
+	);
 };
 
 export async function submitEditAndScroll({
@@ -1102,10 +1208,18 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
+	const {
+		store,
+		acceptServerChatStatus,
+		clearStreamError,
+		setCacheQueuedMessages,
+		getCacheQueuedMessages,
+		upsertCacheMessages,
+	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
+		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -1253,8 +1367,13 @@ const AgentChatPage: FC = () => {
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
 			const detail = error.response?.data?.detail?.trim() || undefined;
+			const kind = isChatHookDeniedResponse(error.response?.data)
+				? "hook_denied"
+				: isChatHookDispatchFailedResponse(error.response?.data)
+					? "hook_dispatch_failed"
+					: "generic";
 			const reason: ChatDetailError = {
-				kind: "generic",
+				kind,
 				message: getErrorMessage(error, "An unexpected error occurred."),
 				...(detail ? { detail } : {}),
 			};
@@ -1596,6 +1715,12 @@ const AgentChatPage: FC = () => {
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
+					// Hook dispatch failures can park an idle chat in error before returning the request error.
+					acceptServerChatStatus();
+					void queryClient.invalidateQueries({
+						queryKey: chatKey(agentId),
+						exact: true,
+					});
 				},
 			});
 			if (editSelectedModelConfigID) {
@@ -1627,6 +1752,11 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
+		// An errored-chat send may promote the queue head that existed when the request began.
+		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
+		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
+		const statusVersionBeforeSend = store.getServerChatStatusVersion();
+
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
@@ -1636,13 +1766,17 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
+			// Hook dispatch failures can park an idle chat in error before returning the request error.
+			acceptServerChatStatus();
+			void queryClient.invalidateQueries({
+				queryKey: chatKey(agentId),
+				exact: true,
+			});
 			throw error;
 		}
-		// When the server accepts the message immediately (not
-		// queued), clear the stream and insert the user's message
-		// so it appears in the timeline without waiting for the
-		// WebSocket stream.
-		if (!response.queued) {
+		const isActiveChat = store.getActiveChatID() === agentId;
+		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
+		if (!response.queued && isActiveChat) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
 			// Thinking indicator appears immediately.
@@ -1653,9 +1787,55 @@ const AgentChatPage: FC = () => {
 			// to error/pending instead, the WebSocket event
 			// overrides this optimistic value.
 			store.setChatStatus("running");
-			if (response.message) {
-				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
+		}
+		// Upsert the full batch because a queued send can insert a promoted head below
+		// the highest cached ID, which a reconnect would skip.
+		const insertedMessages =
+			response.messages ?? (response.message ? [response.message] : []);
+		if (insertedMessages.length > 0) {
+			upsertCacheMessages(insertedMessages);
+			if (isActiveChat) {
+				store.upsertDurableMessages(insertedMessages);
+			}
+			if (response.queued) {
+				const reconciledQueue = isActiveChat
+					? reconcilePromotedQueueHead(
+							store,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+						)
+					: buildInactiveChatQueueReconciliation(
+							getCacheQueuedMessages(),
+							queuedMessagesBeforeSend,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+						);
+				if (reconciledQueue) {
+					setCacheQueuedMessages(reconciledQueue);
+					// A promoted head starts a turn, but any server status received during the
+					// request is newer and must win.
+					if (
+						isActiveChat &&
+						store.getServerChatStatusVersion() === statusVersionBeforeSend
+					) {
+						store.clearStreamState();
+						store.setChatStatus("running");
+					}
+					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
+						void settlePromotedQueueHead(
+							store,
+							agentId,
+							queueHeadIDBeforeSend,
+							fetchChatMessages(queryClient),
+						).then((settled) => {
+							if (settled) {
+								setCacheQueuedMessages(settled);
+							}
+						});
+					}
+				}
 			}
 		}
 		if (selectedModelConfigID) {

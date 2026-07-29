@@ -199,6 +199,12 @@ const (
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
+	// FeatureAgentRuntimeHours is a usage period feature. It is never a
+	// license claim itself. It is populated from the
+	// agent_runtime_hours_allocation, agent_runtime_hours_limit_soft and
+	// agent_runtime_hours_limit_hard claims. Refer to
+	// enterprise/coderd/license/license.go for the license format.
+	FeatureAgentRuntimeHours FeatureName = "agent_runtime_hours"
 )
 
 var (
@@ -231,6 +237,7 @@ var (
 		FeatureBoundary,
 		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
+		FeatureAgentRuntimeHours,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -300,6 +307,7 @@ func (n FeatureName) UsesLimit() bool {
 		FeatureUserLimit:             true,
 		FeatureManagedAgentLimit:     true,
 		FeatureAIGovernanceUserLimit: true,
+		FeatureAgentRuntimeHours:     true,
 	}[n]
 }
 
@@ -307,6 +315,7 @@ func (n FeatureName) UsesLimit() bool {
 func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
+		FeatureAgentRuntimeHours: true,
 	}[n]
 }
 
@@ -372,7 +381,18 @@ type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
-	Actual      *int64      `json:"actual,omitempty"`
+	// SoftLimit is the advisory warning threshold that accompanies Limit for
+	// features whose license carries it. For these features, Limit carries
+	// the purchased allocation.
+	//
+	// Only certain features set this field:
+	// - FeatureAgentRuntimeHours
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// HardLimit is the enforcement threshold that accompanies Limit for
+	// features whose license carries it. See SoftLimit for the set of
+	// features that use these thresholds.
+	HardLimit *int64 `json:"hard_limit,omitempty"`
+	Actual    *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.
 
@@ -385,6 +405,7 @@ type Feature struct {
 	//
 	// Only certain features set these fields:
 	// - FeatureManagedAgentLimit
+	// - FeatureAgentRuntimeHours
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -407,6 +428,8 @@ type UsagePeriod struct {
 // 5. The limit is greater
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
+//
+// SoftLimit and HardLimit are not comparison inputs.
 func (f Feature) Compare(b Feature) int {
 	// For features with usage period constraints only, check the issued at and
 	// end dates.
@@ -4314,6 +4337,51 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Hook URL",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-url",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_URL",
+			Value:       &c.AI.Chat.HookURL,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookURL",
+		},
+		{
+			Name:        "Chat: Hook Secret",
+			Description: "Shared secret used to sign chat agent lifecycle hook JWTs.",
+			Flag:        "chat-hook-secret",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_SECRET",
+			Value:       &c.AI.Chat.HookSecret,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Chat: Hook Timeout",
+			Description: "Maximum time to wait for a chat agent lifecycle hook response.",
+			Flag:        "chat-hook-timeout",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_TIMEOUT",
+			Value:       &c.AI.Chat.HookTimeout,
+			Default:     (1500 * time.Millisecond).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "hookTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Chat: Hook Enabled",
+			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-enabled",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ENABLED",
+			Value:       &c.AI.Chat.HookEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookEnabled",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4995,8 +5063,12 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5046,6 +5118,38 @@ func (c *DeploymentValues) Validate() error {
 			refresh, access,
 		)
 	}
+
+	// Disabled hooks must not validate inert settings.
+	if c.AI.Chat.HookEnabled.Value() {
+		if c.AI.Chat.HookURL.String() != "" {
+			hookURL := c.AI.Chat.HookURL.Value()
+			if hookURL.Scheme != "https" {
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+			}
+			if hookURL.Host == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete HTTPS URL")
+			}
+			// The configured string is signed verbatim as the JWT audience,
+			// and neither component is ever transmitted, so a consumer
+			// configured with the URL it actually serves would never match.
+			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a plain HTTPS URL")
+			}
+			if c.AI.Chat.HookSecret.Value() == "" {
+				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
+			}
+			// The hook SDK rejects HS256 secrets shorter than 32 bytes.
+			if len(c.AI.Chat.HookSecret.Value()) < 32 {
+				return xerrors.New("chat hook secret must be at least 32 bytes of cryptographically random data; set --chat-hook-secret to a longer value")
+			}
+
+			hookTimeout := c.AI.Chat.HookTimeout.Value()
+			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
+				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -5265,9 +5369,9 @@ const (
 	ExperimentMinimumImplicitMember     Experiment = "minimum-implicit-member"     // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
-	ExperimentAIGatewayCostControl      Experiment = "ai-gateway-cost-control"     // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5294,12 +5398,12 @@ func (e Experiment) DisplayName() string {
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
-	case ExperimentAIGatewayCostControl:
-		return "AI Gateway Cost Control"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentAgentLifecycleHooks:
+		return "Agent Lifecycle Hooks"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5321,9 +5425,9 @@ var ExperimentsKnown = Experiments{
 	ExperimentMinimumImplicitMember,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
-	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentAgentLifecycleHooks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
