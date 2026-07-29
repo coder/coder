@@ -123,9 +123,9 @@ budgeted groups. A per-user override takes priority over group budgets.
 
 Budgets are the only spend cap for Coder Agents chats; chats no longer
 enforce a separate limit of their own, and existing native limit values are
-not migrated to budgets. Configuring a group budget requires a license that
-includes AI Gateway. The `ai-gateway-cost-control` experiment additionally
-gates the budget controls in the Coder UI and the AI spend status endpoints.
+not migrated to budgets. Budget controls in the Coder UI, the group budget
+endpoints, and the AI spend status endpoints all require a license that
+includes AI Gateway.
 
 See [Spend Management](./usage-insights.md) for details.
 

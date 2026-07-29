@@ -20,15 +20,13 @@ support only `highest` and `month`. `highest` selects the group with the
 largest spend limit, and `month` resets spend at the start of each UTC
 calendar month. A user who belongs to no budgeted group falls back to the
 Everyone group, which has no budget unless one is set for it. There is no
-deployment-wide budget amount.
+deployment-wide budget amount, and a configured spend limit cannot exceed
+$1,000,000 per member per period.
 
 > [!IMPORTANT]
-> The `ai-gateway-cost-control` experiment gates the budget controls in the
-> Coder UI and the AI spend status and reporting endpoints. Those gated paths
-> also require the AI Gateway entitlement. The group budget CRUD endpoints
-> (`/api/v2/groups/{group}/ai/budget`) require the AI Gateway entitlement but
-> do not require the experiment. Gateway enforcement still applies to
-> configured budgets when the experiment is disabled.
+> Budget controls in the Coder UI, the group budget endpoints
+> (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting
+> endpoints all require the AI Gateway entitlement. No experiment is needed.
 >
 > Native chat usage limits are removed from the application. Existing native
 > limit values are not migrated to AI Gateway budgets and are no longer
@@ -48,12 +46,11 @@ deployment-wide budget amount.
 The usage indicator on the Agents page and the summary in the user menu both
 show the signed-in user's current AI spend, their budget, and the period
 reset date. Both appear only when the deployment has the AI Gateway
-entitlement and the `ai-gateway-cost-control` experiment is enabled.
+entitlement.
 
 ## Spend visibility
 
-There is no dedicated deployment-wide spend dashboard. Spend is shown where
-it is actionable:
+Spend is shown where it is actionable:
 
 - **Agents page and user menu**: the signed-in user's spend against their
   budget, as described above.
@@ -62,6 +59,8 @@ it is actionable:
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that
   started it.
+- **Agents** > **Settings** > **Manage Agents** > **Spend**: deployment-wide
+  chat cost per user, with per-user drill-down.
 
 > [!NOTE]
 > Per-chat cost comes from AI Gateway records, which are pruned according to

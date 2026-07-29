@@ -1429,9 +1429,6 @@ func (p *Server) SendMessage(
 		if chat.Archived {
 			return SendMessageResult{}, ErrChatArchived
 		}
-		if err := p.checkUsageLimit(ctx, p.db, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); err != nil {
-			return SendMessageResult{}, err
-		}
 		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
 			return SendMessageResult{}, err
 		}
@@ -1731,9 +1728,6 @@ func (p *Server) EditMessage(
 		// Repeat these admission checks under the transaction lock.
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
-		}
-		if err := p.checkUsageLimit(ctx, p.db, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); err != nil {
-			return EditMessageResult{}, err
 		}
 		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
