@@ -14,6 +14,9 @@ func TestComputeCost(t *testing.T) {
 
 	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
 
+	const oneMicroPerToken = 1_000_000
+	bound := maxCostMicros.IntPart()
+
 	tests := []struct {
 		name                                                         string
 		price                                                        database.AIModelPrice
@@ -113,32 +116,33 @@ func TestComputeCost(t *testing.T) {
 			want:        9_150_000_000_000,
 		},
 		{
-			name: "cost exactly at the column ceiling is in range",
-			price: database.AIModelPrice{
-				// 1 micro-unit per token, so cost equals the token count.
-				InputPrice: nullInt64(1_000_000),
-			},
-			inputTokens: math.MaxInt64,
-			want:        math.MaxInt64,
+			name:        "cost exactly at the bound is in range",
+			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens: bound,
+			want:        bound,
 		},
 		{
-			name: "cost above the column ceiling is out of range",
-			price: database.AIModelPrice{
-				InputPrice: nullInt64(2_000_000), // 2 micro-units per token
-			},
-			inputTokens:    math.MaxInt64, // 2 * int64 max
+			name:           "cost one micro-unit above the bound is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens:    bound + 1,
 			wantOutOfRange: true,
 		},
 		{
-			// Each category fits on its own; only their sum exceeds the column,
+			name:           "cost of int64 max is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens:    math.MaxInt64,
+			wantOutOfRange: true,
+		},
+		{
+			// Each category fits on its own; only their sum exceeds the bound,
 			// so the range check has to run on the total.
-			name: "sum of in-range categories above the ceiling is out of range",
+			name: "sum of in-range categories above the bound is out of range",
 			price: database.AIModelPrice{
-				InputPrice:  nullInt64(1_000_000),
-				OutputPrice: nullInt64(1_000_000),
+				InputPrice:  nullInt64(oneMicroPerToken),
+				OutputPrice: nullInt64(oneMicroPerToken),
 			},
-			inputTokens:    math.MaxInt64/2 + 1,
-			outputTokens:   math.MaxInt64/2 + 1,
+			inputTokens:    bound/2 + 1,
+			outputTokens:   bound/2 + 1,
 			wantOutOfRange: true,
 		},
 		{

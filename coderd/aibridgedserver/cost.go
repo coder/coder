@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -21,12 +20,12 @@ var (
 	// tokensPerMillion is the divisor for prices, which are quoted per million
 	// tokens.
 	tokensPerMillion = decimal.NewFromInt(1_000_000)
-	// maxCostMicros is the largest cost the database column can hold.
-	maxCostMicros = decimal.NewFromInt(math.MaxInt64)
+	// maxCostMicros bounds one interception's cost at $10M.
+	maxCostMicros = decimal.NewFromInt(10_000_000_000_000)
 )
 
-// errCostOutOfRange reports a cost that cannot be stored in the database column.
-// Real usage cannot reach it, so it means a wrong price row or implausible
+// errCostOutOfRange reports a cost outside [0, maxCostMicros]. Real
+// usage cannot reach it, so it means a wrong price row or implausible
 // provider-reported token counts.
 var errCostOutOfRange = xerrors.New("computed cost is out of range")
 
