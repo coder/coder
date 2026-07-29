@@ -29,6 +29,7 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
 type OAuth2AppsSettingsProps = {
@@ -65,6 +66,17 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	dynamicClientRegistrationEnabled,
 	onDynamicClientRegistrationChange,
 }) => {
+	const tabState = useSearchParamsKey({
+		key: "tab",
+		defaultValue: "applications",
+	});
+	// Unknown values, and the settings tab for users who cannot view it, fall
+	// back to the applications tab rather than selecting nothing.
+	const activeTab =
+		tabState.value === "settings" && canViewSettings
+			? "settings"
+			: "applications";
+
 	return (
 		<div>
 			<SettingsHeader
@@ -82,7 +94,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				</div>
 			)}
 
-			<Tabs defaultValue="applications">
+			<Tabs value={activeTab} onValueChange={tabState.setValue}>
 				<TabsList>
 					<TabsTrigger value="applications">Applications</TabsTrigger>
 					{canViewSettings && (

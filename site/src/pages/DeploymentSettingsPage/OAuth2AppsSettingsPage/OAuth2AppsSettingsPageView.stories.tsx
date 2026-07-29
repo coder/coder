@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockOAuth2ProviderApps } from "#/testHelpers/entities";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
@@ -84,6 +85,43 @@ export const SettingsTabHiddenWithoutPermission: Story = {
 		await expect(
 			canvas.queryByRole("tab", { name: "Settings" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsTabFromUrl: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { searchParams: { tab: "settings" } },
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByRole("tab", { name: "Settings" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible();
+	},
+};
+
+// An unpermitted deep link selects the applications tab rather than leaving no
+// tab selected at all.
+export const UnpermittedTabFromUrlFallsBack: Story = {
+	args: {
+		canViewSettings: false,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { searchParams: { tab: "settings" } },
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByRole("tab", { name: "Applications" }),
+		).toHaveAttribute("aria-selected", "true");
 	},
 };
 
