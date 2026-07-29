@@ -222,6 +222,7 @@ OPENAI_BASE_URL=https://ai-gateway.example.com/openai/v1
 ```
 
 The standalone listener also accepts the equivalent `/api/v2/ai-gateway/<provider-name>/` paths for compatibility.
+For full per-client configuration examples, refer to [Client Configuration](./clients/index.md).
 
 ### Expose the standalone AI Gateway
 

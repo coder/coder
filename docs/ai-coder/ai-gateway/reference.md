@@ -68,8 +68,11 @@ API support is divided into two categories:
 - **Passthrough**: Requests are proxied directly to the upstream provider without auditing or augmentation.
 
 Where relevant, both streaming and non-streaming requests are supported.
+Paths are relative to the provider's base URL, such as `https://ai-gateway.example.com/openai/v1` or `https://ai-gateway.example.com/anthropic`.
 
 ### OpenAI
+
+The OpenAI provider also serves the Azure OpenAI, Google, OpenRouter, Vercel, and OpenAI-compatible provider types.
 
 #### Intercepted
 
@@ -78,9 +81,15 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 #### Passthrough
 
+- [`/v1/conversations(/*)`](https://platform.openai.com/docs/api-reference/conversations)
 - [`/v1/models(/*)`](https://platform.openai.com/docs/api-reference/models/list)
+- [`/v1/responses/*`](https://platform.openai.com/docs/api-reference/responses/get)
+
+The legacy [`/v1/completions`](https://platform.openai.com/docs/api-reference/completions) API is deprecated and is not passed through.
 
 ### Anthropic
+
+The Anthropic provider also serves the AWS Bedrock provider type.
 
 #### Intercepted
 
@@ -88,7 +97,26 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 #### Passthrough
 
+- [`/v1/messages/count_tokens`](https://docs.claude.com/en/api/messages-count-tokens)
 - [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
+- `/api/event_logging/*`
+
+### GitHub Copilot
+
+#### Intercepted
+
+- `/chat/completions`
+- `/responses`
+- `/v1/messages`
+
+#### Passthrough
+
+- `/models(/*)`
+- `/agents/*`
+- `/mcp/*`
+- `/.well-known/*`
+
+Any route that is not listed above returns `404`.
 
 ## Troubleshooting
 

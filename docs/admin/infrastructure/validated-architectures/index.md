@@ -128,10 +128,10 @@ offline use.
 [AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic
 and records each AI session. It runs inside `coderd` by default, and can also
 run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md)
-that scales independently of the control plane. The standalone Helm chart
-requests 1 vCPU and 1 GiB of memory per replica and sets no limits. It ships
-without a HorizontalPodAutoscaler or a PodDisruptionBudget. Size replicas from
-your own AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
+that scales independently of the control plane. Size replicas from your own AI
+request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`. For the chart's resource
+requests and autoscaling defaults, refer to the
+[AI Gateway Helm chart README](https://github.com/coder/coder/blob/main/helm/ai-gateway/README.md).
 
 ## Kubernetes Infrastructure
 

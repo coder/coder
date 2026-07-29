@@ -291,12 +291,13 @@ Example trace of an interception using a Jaeger backend:
 > [!NOTE]
 > Enabling log capture may generate a large volume of trace events.
 
-Set `CODER_TRACE_LOGS=true` with tracing enabled to include log messages as trace events:
+Set `CODER_TRACE_LOGS=true` to include log messages as trace events:
 
 ```sh
 export CODER_TRACE_ENABLE=true
 export CODER_TRACE_LOGS=true
 ```
 
-You can also pass `--trace` and `--trace-logs` instead of the environment variables, both to `coder server` and to `coder ai-gateway start`.
-For standalone replicas, configure tracing on every process that should capture logs.
+Log capture only applies to recording spans, so it requires tracing to be enabled through `CODER_TRACE_ENABLE` or a backend-specific exporter such as `CODER_TRACE_HONEYCOMB_API_KEY`.
+Leave `CODER_TRACE_LOGS` unset to trace without capturing logs.
+For standalone replicas, set both options on every process that should capture logs.
