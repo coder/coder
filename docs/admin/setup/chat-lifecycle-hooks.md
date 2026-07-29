@@ -167,6 +167,13 @@ Coder checks admission before dispatching, but concurrent requests can still fai
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
 Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
 
+Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot; a dispatch that waits out that limit fails as over capacity.
+The limit is per replica rather than deployment-wide, so size the consumer for 256 concurrent requests per replica.
+Slow consumer responses hold slots for longer, so a slow consumer turns a burst of chat activity into over-capacity failures.
+Prompt admission (creating, sending, or editing a message) can hold at most 192 of a replica's slots, so at least 64 stay reachable only by dispatches for work a chat already admitted.
+That bound stops a burst of new submissions from consuming every slot, but it doesn't make the remaining slots sufficient: a saturated dispatcher can still fail a dispatch for a running chat and leave that chat in the error state.
+Watch `coderd_chatd_hook_dispatches_total{result="over_capacity"}` to see whether the consumer's latency is turning normal traffic into rejections.
+
 Delivery is best-effort and can duplicate.
 Coder never queues a failed dispatch for redelivery, so plan for duplicates without assuming every event arrives.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.

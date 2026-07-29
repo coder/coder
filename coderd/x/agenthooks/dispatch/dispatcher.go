@@ -28,11 +28,38 @@ import (
 
 const (
 	maxConcurrentDispatches = 256
-	maxResponseBodyBytes    = 1_048_576
-	maxModelContextBytes    = 16_384
-	capacityWaitLimit       = 250 * time.Millisecond
-	retryBackoff            = 250 * time.Millisecond
-	clockSkewLeeway         = 30 * time.Second
+	// maxAdmissionDispatches caps how much of maxConcurrentDispatches prompt
+	// admission can hold, leaving the remainder reachable only by dispatches
+	// for work a chat already admitted. Dispatches fail closed, so without
+	// that reserve a large enough burst of new submissions ends turns that
+	// had already executed tools. The split is a judgement call rather than a
+	// measured ceiling: nothing bounds how many turns generate at once, so a
+	// large enough generation load still exhausts what this leaves behind.
+	maxAdmissionDispatches = 192
+	maxResponseBodyBytes   = 1_048_576
+	maxModelContextBytes   = 16_384
+	capacityWaitLimit      = 250 * time.Millisecond
+	retryBackoff           = 250 * time.Millisecond
+	clockSkewLeeway        = 30 * time.Second
+)
+
+// CapacityClass selects which share of dispatch capacity an event draws
+// from. The caller decides, because the event type does not imply it: a
+// subagent spawn dispatches user_prompt_submit from inside a running turn,
+// and the edit path dispatches session_start at admission time.
+type CapacityClass int
+
+const (
+	// CapacityClassUnset is invalid, so a new call site cannot silently
+	// inherit either share.
+	CapacityClassUnset CapacityClass = iota
+	// CapacityClassAdmission is for dispatches that decide whether to accept
+	// new work into a chat.
+	CapacityClassAdmission
+	// CapacityClassGeneration is for dispatches that belong to work a chat
+	// already admitted, so refusing one stalls or ends a turn in progress
+	// instead of declining new work.
+	CapacityClassGeneration
 )
 
 // Result classifies the terminal outcome of a dispatch attempt.
@@ -53,7 +80,8 @@ const (
 type Event struct {
 	Type agenthooks.EventType
 	agenthooks.ChatRef
-	Data any
+	Data     any
+	Capacity CapacityClass
 }
 
 // Error preserves the attempt ID and failure class.
@@ -90,6 +118,7 @@ type Dispatcher struct {
 	deploymentID string
 	userAgent    string
 	semaphore    chan struct{}
+	admission    chan struct{}
 	metrics      *metrics
 }
 
@@ -167,6 +196,7 @@ func New(
 		deploymentID: deploymentID,
 		userAgent:    "coderd-agenthooks/" + coderVersion,
 		semaphore:    make(chan struct{}, maxConcurrentDispatches),
+		admission:    make(chan struct{}, maxAdmissionDispatches),
 		metrics:      newMetrics(reg),
 	}
 }
@@ -187,25 +217,21 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("chat hook URL rejected: %w", d.hookURLErr)
 	}
 
+	switch event.Capacity {
+	case CapacityClassAdmission, CapacityClassGeneration:
+	default:
+		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("dispatch event %q has no capacity class", event.Type)
+	}
+
 	startedAt := time.Now()
 	dispatchID := uuid.New()
-	wait := max(min(d.timeout, capacityWaitLimit), 0)
-	capacityTimer := time.NewTimer(wait)
-	defer capacityTimer.Stop()
+	capacityDeadline := startedAt.Add(max(min(d.timeout, capacityWaitLimit), 0))
 
-	// The capacity wait runs against its own timer rather than a dispatch
-	// deadline, so a timeout shorter than capacityWaitLimit cannot make the
-	// over-capacity and caller-cancellation cases race.
-	select {
-	case d.semaphore <- struct{}{}:
-		defer func() { <-d.semaphore }()
-	case <-ctx.Done():
-		outcome := dispatchOutcome{result: ResultTimeout, err: ctx.Err()}
-		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
-	case <-capacityTimer.C:
-		outcome := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
-		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
+	release, refused, ok := d.acquireCapacity(ctx, event.Capacity, capacityDeadline)
+	if !ok {
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, refused)
 	}
+	defer release()
 
 	// Both post attempts share whatever remains of the configured timeout so
 	// that waiting for capacity cannot extend the dispatch past it.
@@ -217,6 +243,61 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		return agenthooks.Response{}, dispatchID, err
 	}
 	return outcome.response, dispatchID, nil
+}
+
+// acquireCapacity takes the pools a dispatch needs, and is the only path that
+// takes them, so the order below cannot be bypassed. Admission must hold its
+// own gate before the shared pool: taking a shared slot first would let
+// admission dispatches queued on the gate occupy the very capacity the
+// reserve protects, which is the starvation this split exists to prevent.
+func (d *Dispatcher) acquireCapacity(
+	ctx context.Context,
+	capacity CapacityClass,
+	deadline time.Time,
+) (release func(), outcome dispatchOutcome, ok bool) {
+	if capacity == CapacityClassAdmission {
+		releaseAdmission, refused, admitted := acquire(ctx, d.admission, deadline)
+		if !admitted {
+			return nil, refused, false
+		}
+		releaseShared, refused, acquired := acquire(ctx, d.semaphore, deadline)
+		if !acquired {
+			releaseAdmission()
+			return nil, refused, false
+		}
+		return func() {
+			releaseShared()
+			releaseAdmission()
+		}, dispatchOutcome{}, true
+	}
+	return acquire(ctx, d.semaphore, deadline)
+}
+
+// acquire takes one slot from a capacity pool before deadline. Both pools of
+// an admission dispatch share one deadline, so waiting cannot spend the limit
+// twice. The deadline is checked before selecting because select picks a ready
+// case at random: a timer that already fired would otherwise lose the race
+// against a free slot, and the dispatch would start past its capacity wait.
+func acquire(
+	ctx context.Context,
+	pool chan struct{},
+	deadline time.Time,
+) (release func(), outcome dispatchOutcome, ok bool) {
+	overCapacity := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return nil, overCapacity, false
+	}
+	timer := time.NewTimer(remaining)
+	defer timer.Stop()
+	select {
+	case pool <- struct{}{}:
+		return func() { <-pool }, dispatchOutcome{}, true
+	case <-ctx.Done():
+		return nil, dispatchOutcome{result: ResultTimeout, err: ctx.Err()}, false
+	case <-timer.C:
+		return nil, overCapacity, false
+	}
 }
 
 func (d *Dispatcher) finish(
