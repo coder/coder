@@ -197,8 +197,8 @@ const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
 	// Summary is the default tab and reads the chat, so mock it for the sidebar.
-	// Cost needs no mock: these stories do not enable the cost-control
-	// experiment, so the summary panel never requests it.
+	// Cost needs no mock: these stories leave the aibridge feature off, so the
+	// summary panel never requests it.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
 	},

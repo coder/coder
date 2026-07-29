@@ -2,7 +2,6 @@ import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { ChatSummary } from "./ChatSummary";
 
@@ -16,10 +15,7 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
-	const { experiments } = useDashboard();
-	const showCost =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;

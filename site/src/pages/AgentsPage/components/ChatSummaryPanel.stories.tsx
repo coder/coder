@@ -16,12 +16,8 @@ const mockCost: TypesGen.ChatCost = {
 	unpriced_request_count: 0,
 };
 
-const aiCostControl: {
-	features: TypesGen.FeatureName[];
-	experiments: TypesGen.Experiment[];
-} = {
+const aiCostControl: { features: TypesGen.FeatureName[] } = {
 	features: ["aibridge"],
-	experiments: ["ai-gateway-cost-control"],
 };
 
 type MockRequestOptions = {
@@ -153,7 +149,7 @@ export const NotVisible: Story = {
 };
 
 export const GatewayUnavailable: Story = {
-	parameters: { features: [], experiments: [] },
+	parameters: { features: [] },
 	beforeEach: () => mockRequests({ summary: "Gateway is off here." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
