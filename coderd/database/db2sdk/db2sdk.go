@@ -1475,6 +1475,9 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	if row.SpendLimitMicros.Valid {
 		group.SpendLimitMicros = &row.SpendLimitMicros.Int64
 	}
+	if row.TotalSpendLimitMicros.Valid {
+		group.TotalSpendLimitMicros = &row.TotalSpendLimitMicros.Int64
+	}
 	return group
 }
 

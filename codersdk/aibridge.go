@@ -84,11 +84,15 @@ type OrganizationGroupsAISpend struct {
 // within the active budget period.
 type OrganizationGroupAISpend struct {
 	GroupID uuid.UUID `json:"group_id" format:"uuid"`
-	// SpendLimitMicros is the group's configured AI spend limit. Null when
-	// the group has no configured budget.
+	// SpendLimitMicros is the group's configured AI spend budget per member.
+	// Null when the group has no configured budget.
 	SpendLimitMicros *int64 `json:"spend_limit_micros"`
-	// CurrentSpendMicros is the group's spend over the current budget
-	// period.
+	// TotalSpendLimitMicros is the currently configured combined budget of the
+	// members attributed to this group, with each member's override replacing
+	// their share. Null when the group has no budget, and zero when no members
+	// are attributed to it.
+	TotalSpendLimitMicros *int64 `json:"total_spend_limit_micros"`
+	// CurrentSpendMicros is the group's spend over the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
