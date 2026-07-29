@@ -111,7 +111,7 @@ func CreateChat(
 		}
 		result = CreateChatResult{
 			Chat:            refreshed,
-			InitialMessages: inserted,
+			InitialMessages: fromInsertedRows(inserted),
 		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(refreshed.ID),
@@ -182,7 +182,7 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
 	}
-	return inserted, nil
+	return fromInsertedRows(inserted), nil
 }
 
 // clearQueue deletes all queued messages on the chat and returns the

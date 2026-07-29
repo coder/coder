@@ -5333,7 +5333,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		if deleted {
 			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
 		}
-		return msgs[0]
+		return database.ChatMessage(msgs[0])
 	}
 
 	t.Run("NewestFirstFiltering", func(t *testing.T) {

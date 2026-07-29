@@ -12212,6 +12212,135 @@ func TestInsertChatMessages(t *testing.T) {
 	})
 }
 
+// The returned ids are in insert order, which the inverted created_at values
+// deliberately contradict.
+func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB *sql.DB, roles []database.ChatMessageRole) (database.Chat, []int64) {
+	t.Helper()
+
+	ctx := context.Background()
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	count := len(roles)
+	inserted, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
+		ModelConfigID:       slices.Repeat([]uuid.UUID{modelCfg.ID}, count),
+		Role:                roles,
+		ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
+		Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
+		Content:             slices.Repeat([]string{`"message"`}, count),
+		InputTokens:         make([]int64, count),
+		OutputTokens:        make([]int64, count),
+		TotalTokens:         make([]int64, count),
+		ReasoningTokens:     make([]int64, count),
+		CacheCreationTokens: make([]int64, count),
+		CacheReadTokens:     make([]int64, count),
+		ContextLimit:        make([]int64, count),
+		Compressed:          make([]bool, count),
+		TotalCostMicros:     make([]int64, count),
+		RuntimeMs:           make([]int64, count),
+	})
+	require.NoError(t, err)
+	require.Len(t, inserted, count)
+
+	insertedIDs := make([]int64, count)
+	for i, message := range inserted {
+		insertedIDs[i] = message.ID
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1 WHERE id = $2",
+			message.CreatedAt.Add(time.Duration(count-i)*time.Minute), message.ID)
+		require.NoError(t, err)
+	}
+
+	return chat, insertedIDs
+}
+
+func chatMessageIDs(messages []database.ChatMessage) []int64 {
+	ids := make([]int64, len(messages))
+	for i, message := range messages {
+		ids[i] = message.ID
+	}
+	return ids
+}
+
+func TestGetChatMessagesByChatIDOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, 3))
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs, chatMessageIDs(messages))
+}
+
+func TestGetChatMessagesByRevisionForStreamOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, 3))
+
+	messages, err := db.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
+		ChatID:        chat.ID,
+		AfterRevision: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs, chatMessageIDs(messages))
+}
+
+func TestGetLastChatMessageByRoleOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleAssistant}, 3))
+
+	last, err := db.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs[len(insertedIDs)-1], last.ID)
+}
+
+// Sequence cache blocks are handed out per session, so above cache 1 a backend
+// holding stale cached values can take the chat row lock second and still commit
+// lower ids. Bumping a sequence cache is an ordinary throughput tweak.
+func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
+	t.Parallel()
+
+	_, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	var cacheSize int64
+	err := sqlDB.QueryRowContext(ctx,
+		"SELECT cache_size FROM pg_sequences WHERE sequencename = 'chat_messages_id_seq'").
+		Scan(&cacheSize)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), cacheSize, "chat_messages_id_seq must use cache 1")
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
@@ -12294,7 +12423,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
-		return results[0]
+		return database.ChatMessage(results[0])
 	}
 
 	msgIDs := func(msgs []database.ChatMessage) []int64 {
@@ -17173,7 +17302,7 @@ func TestGetChatsSearch(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
-		return msgs[0]
+		return database.ChatMessage(msgs[0])
 	}
 
 	linkPR := func(chatID uuid.UUID, url, state, prTitle string, prNumber int32, gitRemoteOrigin string) {

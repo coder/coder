@@ -8182,7 +8182,7 @@ func insertChatMessageParts(
 	messages, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	return messages[0]
+	return database.ChatMessage(messages[0])
 }
 
 func createPlanSubagentChatWithHistory(
