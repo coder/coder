@@ -4,113 +4,102 @@
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
 > included with a Premium license.
 
-AI Governance Cost Control serves two purposes that go hand in hand:
+AI Governance Cost Control governs AI spend in two complementary ways:
 
-- **Enforcement** caps how much each user can spend on AI models through AI
-  Gateway.
-- **Reporting** shows how much each user and group has spent in the current
+- **Enforcement** stops a user's AI Gateway requests once their spend reaches
+  their budget.
+- **Reporting** shows what each user and group has spent during the budget
   period.
 
-A group budget sets the cap. AI Gateway records estimated spend against that
-budget and blocks a user's requests once their spend reaches it.
-
-AI Governance Cost Control runs on estimated spend. It exists to stop runaway
-usage and to show which teams and users drive spend.
+Administrators set budgets on groups. AI Gateway records estimated spend against
+the budget that applies to each user, then blocks further requests when that
+spend reaches the limit.
 
 AI Governance Cost Control requires:
 
 - Coder v2.36 or later.
 - AI Gateway [enabled and configured](./setup.md) with at least one provider.
-- The `ai-gateway-cost-control`
-  [experiment](../../install/releases/feature-stages.md#early-access-features),
-  which enables spend views and user budget overrides:
-
-  ```sh
-  coder server --experiments=ai-gateway-cost-control
-  # or
-  CODER_EXPERIMENTS=ai-gateway-cost-control
-  ```
 
 > [!NOTE]
 > AI Governance Cost Control reports estimated spend rather than billed cost.
-> Estimates are derived from token usage and published model prices, and can
-> differ from the amounts reported by your providers.
+> For details, see [How spend is estimated](#how-spend-is-estimated).
 
 ## How AI Governance Cost Control works
 
-| Term                 | What it means                                                                   | Where you set it                     |
-|----------------------|---------------------------------------------------------------------------------|--------------------------------------|
-| **Budget period**    | The window that spend accumulates in. Spend resets at the start of each period. | Deployment settings                  |
-| **Group budget**     | A spend limit that applies to each member of a group, individually.             | **Groups** > group > **Settings**    |
-| **User override**    | A spend limit for one user that replaces their group budget.                    | **Groups** > group > **Members** tab |
-| **Effective budget** | The single limit that AI Gateway enforces for a user.                           | Resolved automatically               |
-| **Budget group**     | The group that a user's spend is recorded against.                              | Resolved automatically               |
-| **Estimated spend**  | The approximate cost of a user's token usage in the current period.             | Calculated by Coder                  |
+These terms appear throughout this page and in the dashboard:
+
+| Term                 | What it means                                                       | Where it is set                      |
+|----------------------|---------------------------------------------------------------------|--------------------------------------|
+| **Budget period**    | The window spend accumulates in before it resets.                   | Deployment settings                  |
+| **Group budget**     | A spend limit granted to each member of a group.                    | **Groups** > group > **Settings**    |
+| **User override**    | A spend limit for one user that supersedes their group budget.      | **Groups** > group > **Members** tab |
+| **Effective budget** | The limit AI Gateway enforces for a given user.                     | Resolved automatically               |
+| **Budget group**     | The group a user's spend is recorded against.                       | Resolved automatically               |
+| **Estimated spend**  | The approximate cost of a user's token usage in the current period. | Calculated by Coder                  |
 
 ### How the effective budget is resolved
 
-For each request, AI Gateway resolves one budget for the user:
+Every user has exactly one effective budget. AI Gateway resolves it in this
+order:
 
-1. If the user has an override, Coder uses the override.
-1. Otherwise, Coder uses the highest budget among the user's groups.
-1. If none of the user's groups has a budget, the user is unlimited.
+1. The user's override, if one exists.
+1. The highest budget among the groups the user belongs to.
+1. No limit, if none of those groups has a budget.
 
 > [!NOTE]
-> When two groups have the same budget, Coder picks the group the user joined
-> the organization through first, and breaks any remaining tie by group ID.
-> Users with no budget have their spend recorded against the **Everyone** group
-> so that you can still track it.
+> Groups with identical budgets are ranked by the organization membership the
+> user joined first, then by group ID. Spend by users without a budget is
+> recorded against the **Everyone** group, so it stays visible in reports.
 
-Reassigning a user to a different budget does not move spend that Coder already
-recorded, so a user's spend history can span more than one group.
+Changing which budget applies to a user affects future requests only. Spend that
+Coder has already recorded stays with the group it was attributed to, so a user's
+history can span several groups.
 
 ## Configure deployment settings
 
-Two deployment-wide settings control how budgets are resolved and when spend
-resets. Both have a single supported value today.
+Two deployment-wide settings govern budget resolution and the reset window. Each
+accepts a single value today.
 
 | Setting       | Flag                 | Environment variable     | YAML key        | Values    | Default   |
 |---------------|----------------------|--------------------------|-----------------|-----------|-----------|
 | Budget policy | `--ai-budget-policy` | `CODER_AI_BUDGET_POLICY` | `budget_policy` | `highest` | `highest` |
 | Budget period | `--ai-budget-period` | `CODER_AI_BUDGET_PERIOD` | `budget_period` | `month`   | `month`   |
 
-- **Budget policy** decides which budget applies when a user belongs to several
-  groups that have budgets. `highest` selects the largest budget.
+- **Budget policy** determines which budget wins when a user belongs to more
+  than one budgeted group. `highest` selects the largest.
 - **Budget period** sets the reset window. `month` is the UTC calendar month, so
   spend resets at 00:00 UTC on the first day of each month.
 
-You cannot set either value per organization or per group.
+Neither setting can be scoped to an organization or a group.
 
 ## Set a group budget
 
-You must have the Owner, User Admin, Organization Admin, or Organization User
-Admin [role](../../admin/users/groups-roles.md) to set a group budget.
+Setting a group budget requires the Owner, User Admin, Organization Admin, or
+Organization User Admin [role](../../admin/users/groups-roles.md).
 
-A group budget is a limit for each member of the group. It is not a shared pool.
-A budget of $200 in a group of ten members allows up to $200 of spend per
-member.
+A group budget applies to each member individually rather than to the group as a
+whole. A budget of $200 gives every member $200 to spend.
 
 1. Go to **Groups** and select a group.
 1. Select **Settings**.
 1. Under **AI budget**, set **Monthly limit per member**.
 1. Select **Save**.
 
-Keep the following in mind:
+Budget values behave as follows:
 
-- Leave the field empty for an unlimited budget. The field shows `unlimited`
-  when no budget is set.
-- A budget of `$0` blocks all AI Gateway requests from members whose effective
-  budget resolves to this group.
-- The maximum budget is `$1,000,000` per member per period.
+- An empty field means no limit. The field displays `unlimited`.
+- `$0` blocks every AI Gateway request from members whose effective budget
+  resolves to this group.
+- The maximum is `$1,000,000` per member per budget period.
 
 ## Override a budget for a user
 
-You must have the Owner or User Admin
-[role](../../admin/users/groups-roles.md) to add or remove a user override.
-Organization admins can view overrides but not change them.
+Adding or removing an override requires the Owner or User Admin
+[role](../../admin/users/groups-roles.md). Organization administrators can view
+overrides but cannot change them.
 
-Use an override when one person needs a different limit from the rest of their
-group, such as a heavy user during a migration.
+Override a group budget when one person needs a different limit from the rest of
+their group.
 
 1. Go to **Groups**, select a group, then open the **Members** tab.
 1. Open the member's action menu and select **Manage AI budget**.
@@ -119,65 +108,63 @@ group, such as a heavy user during a migration.
    **Budget assigned to**.
 1. Select **Update**.
 
-Keep the following in mind:
+Overrides behave as follows:
 
-- An override always wins over every group budget the user has.
-- The user must belong to the group you select in **Budget assigned to**.
-- The same limits apply: `$0` blocks all AI Gateway requests, and the maximum is
-  `$1,000,000` per member per period.
-- To remove an override, disable **Override group budget** and select
-  **Update**. The user returns to their highest group budget.
+- An override supersedes every group budget the user belongs to.
+- The user must belong to the group selected in **Budget assigned to**.
+- `$0` and the `$1,000,000` maximum apply to overrides as well.
+- Disabling **Override group budget** removes the override and returns the user
+  to the highest budget among their groups.
 
 ## How spend is estimated
 
-Coder estimates spend by multiplying each request's token usage by the model's
-published price. Prices ship with each Coder release and come from a curated
-[models.dev](https://models.dev) snapshot, so you do not configure them.
+Coder multiplies the token usage of each request by the published price of the
+model that served it. Prices come from a curated [models.dev](https://models.dev)
+snapshot that ships with every Coder release, so no configuration is required.
 
-For the models priced in a given release, see the
+To see which models a release prices, consult the
 [price book](https://github.com/coder/coder/blob/main/coderd/aibridge/prices/data/prices.json)
 in the Coder repository.
 
-Estimates exclude negotiated discounts, committed-use pricing, and any billing
-adjustments applied by the provider.
+Estimates exclude negotiated discounts, committed-use pricing, and provider
+billing adjustments, so they can differ from the amounts your providers report.
 
 > [!IMPORTANT]
 > Requests to models that are missing from the price table record token usage
 > but add nothing to a user's spend. A user who only calls unpriced models is
 > effectively unlimited.
 
-To find unpriced usage, monitor
-`coder_ai_gateway_cost_control_unpriced_token_usage_records_total`, which is
-labeled by `provider` and `model`. A non-zero value means spend is
-under-counted. Because prices ship with each release, a newly released model can
-stay unpriced until you upgrade Coder.
+Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
+labeled by `provider` and `model`, to detect unpriced usage. Any non-zero value
+means spend is under-counted. Because the price book ships with the release, a
+newly launched model can remain unpriced until you upgrade Coder.
 
-Spend also starts accumulating only when you deploy v2.36. If you upgrade in the
-middle of a month, the first period covers a partial month.
+Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
+therefore produces a partial first period.
 
 ## How enforcement works
 
-Before AI Gateway forwards a request, it compares the user's recorded spend for
-the current period with their effective budget:
+AI Gateway checks each request before forwarding it, comparing the user's
+recorded spend for the current budget period against their effective budget:
 
-- If spend is below the budget, the request proceeds.
-- If spend has reached or exceeded the budget, AI Gateway rejects the request
-  with `403 Forbidden` and asks the user to contact an administrator.
-- If Coder cannot check the budget, the request fails with a `500` error rather
-  than bypassing the limit.
+- Spend below the budget: the request proceeds.
+- Spend at or above the budget: AI Gateway returns `403 Forbidden` and directs
+  the user to an administrator.
+- Budget check fails: the request returns a `500` error rather than bypassing
+  the limit.
 
-A blocked user regains access when the period resets or when you raise their
-budget or add an override.
+Access resumes when the budget period resets, when an administrator raises the
+budget, or when an override is added.
 
 > [!NOTE]
-> Enforcement is approximate. Coder only knows a request's cost after the
-> provider responds, so requests that run at the same time can push a user
-> slightly over their budget.
+> Enforcement is approximate. A request's cost is known only after the provider
+> responds, so requests in flight at the same time can carry a user slightly
+> past their budget.
 
 ### Notifications
 
-Coder sends notifications the first time a user's spend crosses a threshold in a
-period:
+The first time a user's spend crosses a threshold within a period, Coder
+notifies the user and the administrators responsible for them:
 
 | Threshold | The user receives              | Owners and user admins receive           |
 |-----------|--------------------------------|------------------------------------------|
@@ -185,58 +172,58 @@ period:
 | 100%      | You've reached your budget     | `<username>` has reached their budget    |
 
 - A single expensive request can cross both thresholds at once.
-- Budgets of `$0` and unpriced usage do not trigger notifications.
+- Budgets of `$0` and unpriced usage cross no thresholds.
 - Notifications are informational. Enforcement does not depend on them.
 
-To configure delivery, see
+For delivery methods, see
 [Notifications](../../admin/monitoring/notifications/index.md).
 
 ## Monitor spend
 
-Reporting is available in the dashboard, as a CSV export, and through
+Spend reporting is available in the dashboard, as a CSV export, and through
 Prometheus.
 
 ### In the dashboard
 
-What each person sees depends on their role:
+Visibility follows the viewer's role:
 
-| Who                                                  | Can see                                                |
+| Who                                                  | Sees                                                   |
 |------------------------------------------------------|--------------------------------------------------------|
 | Every user                                           | Their own spend and budget in their avatar menu        |
 | Members of a group                                   | The group's spend and budget, and their own member row |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member     |
 
-- **Groups** lists each group's spend against its budget. The AI budget column
-  totals the limits of the members that the group is responsible for.
-- A group's **Members** tab shows each member's spend, their effective budget,
-  and which budget applies, labeled `Custom limit` for an override or
+- The **Groups** page compares each group's spend with the combined limits of
+  the members it covers.
+- The **Members** tab of a group reports each member's spend, their effective
+  budget, and its source, labeled `Custom limit` for an override or
   `Group limit` for a group budget.
-- Each user sees their own spend for the period under their avatar menu, shown
+- The avatar menu reports the signed-in user's own spend for the budget period
   as `$<spend> / $<budget> USD`.
 
-Hover the info icons next to these values for details, such as when the period
-resets or when another group manages a user's budget.
+The info icons beside these figures explain the detail behind them, such as when
+the period resets or which group manages a user's budget.
 
 ### As a CSV export
 
-Organization admins can export spend for reporting or chargeback. The export is
-available through the API only:
+Organization administrators can export spend for reporting and chargeback. The
+export is available through the API only.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "https://coder.example.com/api/v2/organizations/<organization>/ai/spend/export"
 ```
 
-- The export defaults to the current period. To choose a range, pass both
-  `period_start` and `period_end` as RFC 3339 timestamps.
-- A custom range can span at most 31 days.
-- Rows break spend down by user, group, model, and provider, and include token
-  counts.
+- Without parameters, the export covers the current budget period.
+- To select a range, pass `period_start` and `period_end` together as RFC 3339
+  timestamps. A range can span at most 31 days.
+- Each row breaks spend down by user, group, model, and provider, with the
+  underlying token counts.
 
 ### With Prometheus
 
-The following metrics report AI Governance Cost Control activity. See
-[Prometheus metrics](../../admin/integrations/prometheus.md) for the full list.
+These metrics report AI Governance Cost Control activity. For the full list, see
+[Prometheus metrics](../../admin/integrations/prometheus.md).
 
 | Metric                                                             | Purpose                                         |
 |--------------------------------------------------------------------|-------------------------------------------------|
@@ -250,28 +237,28 @@ under-counted.
 
 ## Migrate from Coder Agents Cost Control
 
-In v2.36, AI Governance Cost Control fully replaces Coder Agents Cost Control.
+AI Governance Cost Control replaces Coder Agents Cost Control in v2.36.
 
 > [!WARNING]
 > Spend limits configured under **Admin settings** > **AI** > **Spend** are no
-> longer enforced. Until you set an AI budget, affected users have no limit.
+> longer enforced. Affected users have no limit until an AI budget is set.
 
-Coder does not convert existing limits, so recreate them yourself:
+Existing limits are not converted. Recreate them:
 
-1. Note the limits currently set under **Admin settings** > **AI** > **Spend**,
-   including the default limit and any group or user overrides.
+1. Record the limits currently set under **Admin settings** > **AI** >
+   **Spend**, including the default limit and any group or user overrides.
 1. Recreate group limits as [group budgets](#set-a-group-budget).
 1. Recreate per-user limits as [user overrides](#override-a-budget-for-a-user).
 
-Plan for these differences:
+Expect the following differences:
 
-- There is no deployment-wide default budget. Set a budget on each group that
-  needs one.
-- The only period is the UTC calendar month. Daily and weekly periods are gone.
-- When a user belongs to several budgeted groups, the **highest** budget applies.
-  Coder Agents Cost Control applied the lowest limit.
-- Budgets cover all AI Gateway traffic, not only Coder Agents. Chat, IDE
-  extensions, and CLI agents count against the same budget.
+- No deployment-wide default exists. Each group that needs a limit requires its
+  own budget.
+- The UTC calendar month is the only period. Daily and weekly periods are gone.
+- Users in several budgeted groups receive the highest budget. Coder Agents Cost
+  Control applied the lowest.
+- Budgets cover all AI Gateway traffic. Chat, IDE extensions, and CLI agents
+  draw on the same budget.
 - Recorded spend does not carry over. Every user starts the first period at $0.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
 
