@@ -320,6 +320,24 @@ export interface AIGroupBudget {
 	readonly limit_source: AIBudgetLimitSource;
 }
 
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPrice is a single model pricing row for the AI Gateway.
+ * Prices are in micro-units (1 unit = 1,000,000) per million tokens.
+ * A nil price means "unknown"; an explicit zero means "free".
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface AIModelPrice {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned

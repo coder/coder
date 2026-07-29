@@ -1505,6 +1505,11 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.watchAllWorkspaceBuilds)
 		})
+		r.Route("/ai/model-prices", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listAIModelPrices)
+			r.Put("/", api.putAIModelPrices)
+		})
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {

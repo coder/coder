@@ -1622,6 +1622,10 @@
 							"path": "./reference/api/enterprise.md"
 						},
 						{
+							"title": "Experimental",
+							"path": "./reference/api/experimental.md"
+						},
+						{
 							"title": "Files",
 							"path": "./reference/api/files.md"
 						},

@@ -5,38 +5,69 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/x/modelprices"
 )
 
-func TestToMicros(t *testing.T) {
+func TestFilterProviders(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		in   *float64
-		want *int64
-	}{
-		{"missing", nil, nil},
-		{"zero", floatPtr(0), int64Ptr(0)},
-		{"whole", floatPtr(3), int64Ptr(3_000_000)},
-		{"fractional", floatPtr(0.075), int64Ptr(75_000)},
-		{"negative", floatPtr(-1), nil},
+	rows := []modelprices.PriceRow{
+		{Provider: "alibaba", Model: "qwen"},
+		{Provider: "anthropic", Model: "claude"},
+		{Provider: "openai", Model: "gpt"},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := toMicros(tc.in)
-			if tc.want == nil {
-				require.Nil(t, got)
-				return
-			}
-			require.NotNil(t, got)
-			require.Equal(t, *tc.want, *got)
-		})
-	}
+	got := filterProviders(rows, supportedProviders)
+	require.Len(t, got, 2)
+	require.Equal(t, "anthropic", got[0].Provider)
+	require.Equal(t, "openai", got[1].Provider)
 }
 
-func TestConvert(t *testing.T) {
+func TestMissingProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Absent", func(t *testing.T) {
+		t.Parallel()
+		upstream := map[string]modelprices.UpstreamProvider{
+			"openai": {Models: map[string]modelprices.UpstreamModel{
+				"gpt-4o": {Cost: &modelprices.UpstreamCost{Input: floatPtr(2.5)}},
+			}},
+		}
+		missing := missingProviders(upstream, []string{"anthropic", "openai"})
+		require.Equal(t, []string{"anthropic"}, missing)
+	})
+
+	t.Run("EmptyModels", func(t *testing.T) {
+		t.Parallel()
+		upstream := map[string]modelprices.UpstreamProvider{
+			"anthropic": {Models: map[string]modelprices.UpstreamModel{}},
+			"openai": {Models: map[string]modelprices.UpstreamModel{
+				"gpt-4o": {Cost: &modelprices.UpstreamCost{Input: floatPtr(2.5)}},
+			}},
+		}
+		missing := missingProviders(upstream, []string{"anthropic", "openai"})
+		require.Equal(t, []string{"anthropic"}, missing)
+	})
+
+	t.Run("None", func(t *testing.T) {
+		t.Parallel()
+		upstream := map[string]modelprices.UpstreamProvider{
+			"anthropic": {Models: map[string]modelprices.UpstreamModel{
+				"claude": {Cost: &modelprices.UpstreamCost{Input: floatPtr(3)}},
+			}},
+			"openai": {Models: map[string]modelprices.UpstreamModel{
+				"gpt-4o": {Cost: &modelprices.UpstreamCost{Input: floatPtr(2.5)}},
+			}},
+		}
+		missing := missingProviders(upstream, []string{"anthropic", "openai"})
+		require.Empty(t, missing)
+	})
+}
+
+// TestRunPrices covers the end-to-end prices pipeline: Transform all
+// providers, filter to supportedProviders, reject missing providers, and
+// produce sorted rows. Mirrors the original TestConvert assertions.
+func TestRunPrices(t *testing.T) {
 	t.Parallel()
 
 	const upstreamJSON = `{
@@ -63,10 +94,10 @@ func TestConvert(t *testing.T) {
 		}
 	}`
 
-	var upstream map[string]upstreamProvider
+	var upstream map[string]modelprices.UpstreamProvider
 	require.NoError(t, json.Unmarshal([]byte(upstreamJSON), &upstream))
 
-	rows, err := convert(upstream, []string{"anthropic", "openai"})
+	rows, err := runPricesRows([]byte(upstreamJSON), upstream)
 	require.NoError(t, err)
 
 	// alibaba is dropped (not a supported provider) and gpt-no-prices is
@@ -96,38 +127,44 @@ func TestConvert(t *testing.T) {
 	require.Nil(t, gpt.CacheWritePrice)
 }
 
-// TestConvertMissingProvider covers both shapes of "configured provider has
+// TestRunPricesMissingProvider covers both shapes of "configured provider has
 // no usable data": the provider's key is absent from upstream, or the key
 // exists but its Models map is empty. Both should fail loud so we never
 // ship a partial seed.
-func TestConvertMissingProvider(t *testing.T) {
+func TestRunPricesMissingProvider(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Absent", func(t *testing.T) {
 		t.Parallel()
-		upstream := map[string]upstreamProvider{
-			"openai": {Models: map[string]upstreamModel{
-				"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
-			}},
-		}
-		rows, err := convert(upstream, []string{"anthropic", "openai"})
+		upstreamJSON := `{
+			"openai": {
+				"models": {
+					"gpt-4o": {"cost": {"input": 2.5}}
+				}
+			}
+		}`
+		var upstream map[string]modelprices.UpstreamProvider
+		require.NoError(t, json.Unmarshal([]byte(upstreamJSON), &upstream))
+		_, err := runPricesRows([]byte(upstreamJSON), upstream)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "anthropic")
-		require.Nil(t, rows)
 	})
 
 	t.Run("EmptyModels", func(t *testing.T) {
 		t.Parallel()
-		upstream := map[string]upstreamProvider{
-			"anthropic": {Models: map[string]upstreamModel{}},
-			"openai": {Models: map[string]upstreamModel{
-				"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
-			}},
-		}
-		rows, err := convert(upstream, []string{"anthropic", "openai"})
+		upstreamJSON := `{
+			"anthropic": {"models": {}},
+			"openai": {
+				"models": {
+					"gpt-4o": {"cost": {"input": 2.5}}
+				}
+			}
+		}`
+		var upstream map[string]modelprices.UpstreamProvider
+		require.NoError(t, json.Unmarshal([]byte(upstreamJSON), &upstream))
+		_, err := runPricesRows([]byte(upstreamJSON), upstream)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "anthropic")
-		require.Nil(t, rows)
 	})
 }
 
@@ -136,7 +173,7 @@ func TestValidate(t *testing.T) {
 
 	t.Run("PassesWhenAnyRowHasPricing", func(t *testing.T) {
 		t.Parallel()
-		rows := []priceRow{
+		rows := []modelprices.PriceRow{
 			{Provider: "openai", Model: "no-prices"},
 			{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(3_000_000)},
 		}
@@ -148,7 +185,7 @@ func TestValidate(t *testing.T) {
 		// Mirrors what would happen if upstream renamed the `cost` key:
 		// Go's decoder silently drops it, every row gets all-null prices,
 		// and convert returns syntactically valid rows with no pricing.
-		rows := []priceRow{
+		rows := []modelprices.PriceRow{
 			{Provider: "anthropic", Model: "claude-x"},
 			{Provider: "openai", Model: "gpt-x"},
 		}

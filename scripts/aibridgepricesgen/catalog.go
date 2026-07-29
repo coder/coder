@@ -7,6 +7,8 @@ import (
 	"io"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/modelprices"
 )
 
 // curationJSON is the checked-in editorial curation input for the frontend
@@ -59,7 +61,7 @@ var validReasoningEfforts = map[string]bool{"low": true, "medium": true, "high":
 
 // buildCatalog joins the curation file with the upstream models.dev payload
 // and returns provider-keyed ordered entry lists.
-func buildCatalog(upstream map[string]upstreamProvider, curation map[string][]curatedModel) (map[string][]catalogEntry, error) {
+func buildCatalog(upstream map[string]modelprices.UpstreamProvider, curation map[string][]curatedModel) (map[string][]catalogEntry, error) {
 	out := make(map[string][]catalogEntry, len(curation))
 	for providerID, curated := range curation {
 		provider, ok := upstream[providerID]
@@ -99,7 +101,7 @@ func buildCatalog(upstream map[string]upstreamProvider, curation map[string][]cu
 			if !ok {
 				return nil, xerrors.Errorf("%s/%s: model missing from upstream (patch it in via overrides.jq if intentional)", providerID, c.ModelIdentifier)
 			}
-			if !m.Cost.hasPricing() {
+			if !m.Cost.HasPricing() {
 				return nil, xerrors.Errorf("%s/%s: upstream model has no pricing data", providerID, c.ModelIdentifier)
 			}
 			if m.Limit.Context == nil || m.Limit.Output == nil {
