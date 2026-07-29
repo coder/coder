@@ -49,81 +49,19 @@ export const NoCreatePermissions: Story = {
 	},
 };
 
-export const DynamicClientRegistrationDisabled: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
-
-		await expect(canvas.getByRole("button", { name: "Enable" })).toBeEnabled();
-		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
-	},
-};
-
-export const DynamicClientRegistrationEnabled: Story = {
-	args: {
-		dynamicClientRegistrationEnabled: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
-
-		await expect(canvas.getByText("Enabled")).toBeVisible();
-		await expect(canvas.getByRole("button", { name: "Disable" })).toBeVisible();
-	},
-};
-
-export const DynamicClientRegistrationReadOnly: Story = {
-	args: {
-		canEditSettings: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
-
-		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
-	},
-};
-
-export const EnableDynamicClientRegistrationDialog: Story = {
-	play: async ({ args, canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
-		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
-
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByText("Enable Dynamic Client Registration?");
-		await expect(args.onDynamicClientRegistrationChange).not.toHaveBeenCalled();
-
-		await userEvent.click(body.getByRole("button", { name: "Confirm" }));
-		await expect(args.onDynamicClientRegistrationChange).toHaveBeenCalledWith(
-			true,
-		);
-	},
-};
-
-export const CancelEnableDynamicClientRegistration: Story = {
-	play: async ({ args, canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
-		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
-
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
-
-		await expect(args.onDynamicClientRegistrationChange).not.toHaveBeenCalled();
-	},
-};
-
-// Disabling skips the confirmation dialog, unlike enabling.
-export const DisableDynamicClientRegistration: Story = {
+// The setting's own behavior is covered by
+// DynamicClientRegistrationSetting.stories.tsx. This story covers the wiring
+// between the two: rendering "Disable" proves the enabled state is threaded
+// through, and clicking it proves the change handler is connected.
+export const SettingsTabRendersDynamicClientRegistration: Story = {
 	args: {
 		dynamicClientRegistrationEnabled: true,
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
 		await userEvent.click(canvas.getByRole("button", { name: "Disable" }));
-
 		await expect(args.onDynamicClientRegistrationChange).toHaveBeenCalledWith(
 			false,
 		);
