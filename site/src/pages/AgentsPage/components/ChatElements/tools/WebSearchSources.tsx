@@ -28,7 +28,11 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	const detail = unique.length === 1 ? "1 result" : `${unique.length} results`;
 
 	return (
-		<ToolCall.Root status="completed" hasContent={unique.length > 0}>
+		<ToolCall.Root
+			data-transcript-row=""
+			status="completed"
+			hasContent={unique.length > 0}
+		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
 					<GlobeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />

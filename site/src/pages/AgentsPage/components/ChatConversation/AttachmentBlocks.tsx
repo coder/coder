@@ -26,6 +26,7 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
+import { ownValue } from "../ChatElements/runtimeTypeUtils";
 import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 
@@ -70,7 +71,7 @@ const sanitizeAttachmentExtension = (value: string): string => {
 const getAttachmentExtension = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
-	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[block.media_type];
+	const mapped = ownValue(ATTACHMENT_FALLBACK_EXTENSIONS, block.media_type);
 	if (mapped) {
 		return mapped;
 	}

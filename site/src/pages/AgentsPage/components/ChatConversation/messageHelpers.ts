@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
+import { toTimelineBlocks } from "./blockUtils";
 import type {
 	ParsedMessageContent,
 	ParsedMessageEntry,
@@ -47,17 +47,9 @@ const isMetadataOnlyMessage = (
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
 const getRenderableContentState = (parsed: ParsedMessageContent) => {
-	const visibleTools = parsed.tools.filter((tool) =>
-		shouldRenderTool({
-			name: tool.name,
-			status: tool.status,
-			args: tool.args,
-			result: tool.result,
-		}),
-	);
-	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	const visibleBlocks = parsed.blocks.filter(
-		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+	const visibleBlocks = toTimelineBlocks(parsed.blocks, parsed.tools).filter(
+		(block) =>
+			block.type !== "suppressed-tool" && block.type !== "unresolved-tool",
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 || parsed.sources.length > 0;

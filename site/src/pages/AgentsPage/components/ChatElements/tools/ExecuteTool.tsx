@@ -159,8 +159,12 @@ const getShellCommandLine = ({
 			: "";
 	const commandDisplay = summary || command;
 	const commandLabel = intentLabel
-		? `${intentLabel} using ${commandDisplay}`
-		: `Ran ${commandDisplay}`;
+		? commandDisplay
+			? `${intentLabel} using ${commandDisplay}`
+			: intentLabel
+		: commandDisplay
+			? `Ran ${commandDisplay}`
+			: "Ran no command";
 
 	return {
 		commandLabel,

@@ -2562,30 +2562,35 @@ const ReadFileRunCollapseHarness: FC<{ isStreaming?: boolean }> = ({
 			<button type="button" onClick={() => setSecondReadResolved(true)}>
 				Resolve second read
 			</button>
-			<BlockList
-				blocks={SOURCE_INDEX_BLOCKS}
-				tools={
-					secondReadResolved
-						? [readFileTool("read-1", "a.ts"), readFileTool("read-2", "b.ts")]
-						: [readFileTool("read-1", "a.ts")]
-				}
-				keyPrefix="read-run"
-				isStreaming={isStreaming}
-			/>
+			<div data-testid="timeline-rows">
+				<BlockList
+					blocks={SOURCE_INDEX_BLOCKS}
+					tools={
+						secondReadResolved
+							? [readFileTool("read-1", "a.ts"), readFileTool("read-2", "b.ts")]
+							: [readFileTool("read-1", "a.ts")]
+					}
+					keyPrefix="read-run"
+					isStreaming={isStreaming}
+				/>
+			</div>
 		</div>
 	);
 };
 
+// The rows below the collapsing read-file run: thinking, response, file
+// reference, attachment, and sources.
+const SURVIVING_ROW_COUNT = 5;
+
 const expectRowsSurviveCollapse: Story["play"] = async ({ canvasElement }) => {
 	const canvas = within(canvasElement);
 	await userEvent.click(canvas.getByText("Thinking"));
-	const thinking = await canvas.findByText(
-		/Let me think about this step by step/,
+	// Rows are captured by position, so a response still revealing its streamed
+	// text cannot decide the outcome.
+	const rowsBelowRun = [...canvas.getByTestId("timeline-rows").children].slice(
+		-SURVIVING_ROW_COUNT,
 	);
-	const response = await canvas.findByText(/must not remount this response/);
-	const fileReference = canvas.getByText(/notes\.ts:12/);
-	const attachment = canvas.getByRole("img", { name: "Attached image" });
-	const sources = canvas.getByRole("button", { name: /Searched 1 result/ });
+	expect(rowsBelowRun).toHaveLength(SURVIVING_ROW_COUNT);
 
 	await userEvent.click(
 		canvas.getByRole("button", { name: "Resolve second read" }),
@@ -2596,11 +2601,9 @@ const expectRowsSurviveCollapse: Story["play"] = async ({ canvasElement }) => {
 
 	// A key that moved with the timeline would unmount its row, which detaches
 	// the node and loses the expanded thinking body with it.
-	expect(thinking).toBeInTheDocument();
-	expect(response).toBeInTheDocument();
-	expect(fileReference).toBeInTheDocument();
-	expect(attachment).toBeInTheDocument();
-	expect(sources).toBeInTheDocument();
+	for (const row of rowsBelowRun) {
+		expect(row).toBeInTheDocument();
+	}
 };
 
 /**
@@ -2832,16 +2835,12 @@ export const ThinkingBlockWithToolCall: Story = {
 		const toolButton = canvas.getByRole("button", {
 			name: /read package\.json/i,
 		});
-		const thinkingContainer =
-			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton;
-		const toolContainer =
-			toolButton.closest("[data-transcript-row]") ?? toolButton;
-		expect(
-			toolContainer.firstElementChild ?? toolContainer,
-		).not.toHaveAttribute("data-state");
-		expect(
-			thinkingContainer.firstElementChild ?? thinkingContainer,
-		).not.toHaveAttribute("data-state");
+		const thinkingRow = thinkingButton.closest("[data-transcript-row]");
+		const toolRow = toolButton.closest("[data-transcript-row]");
+		expect(thinkingRow).not.toBeNull();
+		expect(toolRow).not.toBeNull();
+		expect(toolRow?.firstElementChild).not.toHaveAttribute("data-state");
+		expect(thinkingRow?.firstElementChild).not.toHaveAttribute("data-state");
 		expect(
 			canvas.queryByTestId("assistant-bottom-spacer"),
 		).not.toBeInTheDocument();

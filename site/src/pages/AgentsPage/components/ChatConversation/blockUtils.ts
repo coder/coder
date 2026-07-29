@@ -1,5 +1,8 @@
 import { asString } from "../ChatElements/runtimeTypeUtils";
-import { isToolPendingArgs } from "../ChatElements/tools/toolVisibility";
+import {
+	isExecutePendingCommand,
+	shouldRenderTool,
+} from "../ChatElements/tools/toolVisibility";
 import type { MergedTool, RenderBlock } from "./types";
 
 export const asNonEmptyString = (value: unknown): string | undefined => {
@@ -36,16 +39,17 @@ type TimelineBlock =
 	| (Exclude<RenderBlock, { type: "tool" }> & { sourceIndex: number })
 	| { type: "tool"; tool: MergedTool }
 	| { type: "unresolved-tool"; id: string }
+	| { type: "suppressed-tool"; id: string }
 	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
 /**
- * Resolves each tool block's id against `tools` and collapses adjacent
- * read_file tools into one `read-files` block, including a run of one, so the
- * renderer switches on shape instead of looking tools up. A block becomes
- * `unresolved-tool` while its tool is still arriving: either no tool carries
- * the id yet, or the tool's arguments have not streamed far enough to render a
- * row. A tool that is deliberately hidden keeps its `tool` block, so `<Tool>`
- * stays the one place that decides to render nothing.
+ * Pairs each tool block with its tool in order and collapses adjacent read_file
+ * tools into one `read-files` block, including a run of one, so the renderer
+ * switches on shape instead of looking tools up. A block with no tool, or whose
+ * arguments have not streamed far enough to render, becomes `unresolved-tool`,
+ * which is also where it stays if the tool never arrives. A tool that is
+ * deliberately hidden becomes `suppressed-tool`. Those two are the only
+ * variants that can render nothing.
  *
  * Non-tool blocks carry their index in `blocks`, which never moves, so
  * collapsing a read-file run cannot renumber the keys of later blocks.
@@ -54,19 +58,11 @@ export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ): TimelineBlock[] => {
-	// Merged read-file messages can carry two tools with the same id, so each
-	// block takes the next one instead of all of them collapsing onto the last.
-	const toolsByID = new Map<string, MergedTool[]>();
-	for (const tool of tools) {
-		const queued = toolsByID.get(tool.id);
-		if (queued) {
-			queued.push(tool);
-		} else {
-			toolsByID.set(tool.id, [tool]);
-		}
-	}
 	const timeline: TimelineBlock[] = [];
 	let readFileRun: [MergedTool, ...MergedTool[]] | undefined;
+	// Merged read-file messages can carry two tools with the same id, so tools
+	// are consumed in order rather than looked up by id.
+	let cursor = 0;
 
 	const flushReadFileRun = () => {
 		if (!readFileRun) {
@@ -83,10 +79,20 @@ export const toTimelineBlocks = (
 			continue;
 		}
 
-		const tool = toolsByID.get(block.id)?.shift();
-		if (!tool || isToolPendingArgs(tool)) {
+		const candidate = tools[cursor];
+		const tool = candidate?.id === block.id ? candidate : undefined;
+		if (tool) {
+			cursor++;
+		}
+
+		if (!tool || isExecutePendingCommand(tool)) {
 			flushReadFileRun();
 			timeline.push({ type: "unresolved-tool", id: block.id });
+			continue;
+		}
+		if (!shouldRenderTool(tool)) {
+			flushReadFileRun();
+			timeline.push({ type: "suppressed-tool", id: block.id });
 			continue;
 		}
 		if (tool.name === "read_file") {

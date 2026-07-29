@@ -1,3 +1,4 @@
+import { toTimelineBlocks } from "./blockUtils";
 import type { LiveStatusModel } from "./liveStatusModel";
 import type { MergedTool, StreamState } from "./types";
 
@@ -6,20 +7,25 @@ const hasTextOrThinkingBlock = (streamState: StreamState | null): boolean =>
 		(block) => block.type === "response" || block.type === "thinking",
 	) ?? false;
 
-// A tool block shows its own progress, so the generic shimmer would double up.
-// A block whose tool has not arrived renders the waiting placeholder, which is
-// a running row like any other.
+// A rendered tool row shows its own progress, so the generic shimmer would
+// double up. An unresolved block renders the waiting placeholder, which is a
+// running row like any other, while a suppressed block renders nothing at all.
 const hasRunningToolBlock = (
 	streamState: StreamState | null,
 	streamTools: readonly MergedTool[],
 ): boolean =>
-	streamState?.blocks.some((block) => {
-		if (block.type !== "tool") {
-			return false;
+	toTimelineBlocks(streamState?.blocks ?? [], streamTools).some((block) => {
+		switch (block.type) {
+			case "unresolved-tool":
+				return true;
+			case "tool":
+				return block.tool.status === "running";
+			case "read-files":
+				return block.tools.some((tool) => tool.status === "running");
+			default:
+				return false;
 		}
-		const tool = streamTools.find((candidate) => candidate.id === block.id);
-		return !tool || tool.status === "running";
-	}) ?? false;
+	});
 
 export const shouldShowGenericThinking = ({
 	liveStatus,

@@ -4,7 +4,6 @@ import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ToolCall } from "./ToolCall";
 
 type ReadFileItem = {
-	id: string;
 	path: string;
 	content: string;
 	status: MergedTool["status"];
@@ -13,7 +12,6 @@ type ReadFileItem = {
 };
 
 const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
-	id: tool.id,
 	status: tool.status,
 	...getReadFileToolData(tool),
 });
@@ -23,9 +21,9 @@ export const ReadFilesTool: FC<{
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 }> = ({ tools, expanded, onExpandedChange }) => {
-	const [expandedFileIDs, setExpandedFileIDs] = useState<ReadonlySet<string>>(
-		new Set(),
-	);
+	const [expandedFileIndexes, setExpandedFileIndexes] = useState<
+		ReadonlySet<number>
+	>(new Set());
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
 	const isError = tools.some((tool) => tool.isError);
@@ -47,22 +45,22 @@ export const ReadFilesTool: FC<{
 				<ToolCall.Header iconName="read_file" label={label} />
 				<ToolCall.Content>
 					<div className="space-y-1 py-0.5 pl-3">
-						{items.map((item) => (
-							<div key={item.id}>
+						{items.map((item, index) => (
+							<div key={index}>
 								<ReadFileTool
 									path={item.path}
 									content={item.content}
 									status={item.status}
 									isError={item.isError}
 									errorMessage={item.errorMessage}
-									expanded={expandedFileIDs.has(item.id)}
+									expanded={expandedFileIndexes.has(index)}
 									onExpandedChange={(nextExpanded) => {
-										setExpandedFileIDs((previous) => {
+										setExpandedFileIndexes((previous) => {
 											const next = new Set(previous);
 											if (nextExpanded) {
-												next.add(item.id);
+												next.add(index);
 											} else {
-												next.delete(item.id);
+												next.delete(index);
 											}
 											return next;
 										});

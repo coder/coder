@@ -20,8 +20,8 @@ type ExecuteRenderData = {
 };
 
 /**
- * Execute payloads can arrive partially populated, so visibility and rendering
- * share one defensive, normalized interpretation of args and results here.
+ * Execute payloads can arrive partially populated, so args and results are
+ * normalized here into the fields the row renders.
  */
 export const getExecuteRenderData = (
 	args: unknown,
@@ -87,22 +87,22 @@ const shouldRenderSubagentLifecycleTool = ({
 };
 
 /**
- * True while an `execute` row has neither a command nor a result: nothing can
- * render from it, and `toTimelineBlocks` holds its place with an
- * `unresolved-tool` row while the stream is live. A row with a result is never
- * pending, so an error about the missing command still reaches the transcript.
+ * True while an `execute` row has no command and no error explaining its
+ * absence: nothing can render from it, and `toTimelineBlocks` holds its place
+ * with an `unresolved-tool` row while the stream is live. An errored row is
+ * never pending, so that error still reaches the transcript.
  */
-export const isToolPendingArgs = ({
+export const isExecutePendingCommand = ({
 	name,
+	status,
 	args,
-	result,
 }: {
 	name: string;
+	status: ToolStatus;
 	args?: unknown;
-	result?: unknown;
 }): boolean =>
 	name === "execute" &&
-	result === undefined &&
+	status !== "error" &&
 	asString(parseArgs(args)?.command).trim().length === 0;
 
 /**
@@ -120,7 +120,7 @@ export const shouldRenderTool = ({
 	args?: unknown;
 	result?: unknown;
 }): boolean => {
-	if (isToolPendingArgs({ name, args, result })) {
+	if (isExecutePendingCommand({ name, status, args })) {
 		return false;
 	}
 

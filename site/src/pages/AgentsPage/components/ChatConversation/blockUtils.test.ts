@@ -134,14 +134,6 @@ describe("toTimelineBlocks", () => {
 		isError: true,
 		status: "error",
 	};
-	const tools = [
-		tool("read-1"),
-		tool("read-2"),
-		executeTool("execute-1"),
-		streamingExecuteTool,
-		suppressedWaitTool,
-		commandlessExecuteWithError,
-	];
 
 	it("collapses consecutive read_file tool blocks", () => {
 		const result = toTimelineBlocks(
@@ -149,7 +141,7 @@ describe("toTimelineBlocks", () => {
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "read-2" },
 			],
-			tools,
+			[tool("read-1"), tool("read-2")],
 		);
 
 		expect(result).toEqual([
@@ -158,7 +150,10 @@ describe("toTimelineBlocks", () => {
 	});
 
 	it("emits a single read_file tool block as a one-file group", () => {
-		const result = toTimelineBlocks([{ type: "tool", id: "read-1" }], tools);
+		const result = toTimelineBlocks(
+			[{ type: "tool", id: "read-1" }],
+			[tool("read-1")],
+		);
 
 		expect(result).toEqual([{ type: "read-files", tools: [tool("read-1")] }]);
 	});
@@ -171,6 +166,7 @@ describe("toTimelineBlocks", () => {
 				{ type: "response", text: "middle" },
 				{ type: "tool", id: "read-2" },
 			],
+			[tool("read-1"), tool("read-2")],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "response", text: "middle", sourceIndex: 1 },
@@ -184,6 +180,7 @@ describe("toTimelineBlocks", () => {
 				{ type: "tool", id: "execute-1" },
 				{ type: "tool", id: "read-2" },
 			],
+			[tool("read-1"), executeTool("execute-1"), tool("read-2")],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "tool", tool: executeTool("execute-1") },
@@ -197,6 +194,7 @@ describe("toTimelineBlocks", () => {
 				{ type: "tool", id: "missing" },
 				{ type: "tool", id: "read-2" },
 			],
+			[tool("read-1"), tool("read-2")],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "unresolved-tool", id: "missing" },
@@ -204,21 +202,36 @@ describe("toTimelineBlocks", () => {
 			],
 		],
 		[
-			"a tool with neither a command nor a result yet",
+			"a tool with no command yet",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "execute-pending" },
 				{ type: "tool", id: "read-2" },
 			],
+			[tool("read-1"), streamingExecuteTool, tool("read-2")],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "unresolved-tool", id: "execute-pending" },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
+		[
+			"a suppressed tool",
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "wait-1" },
+				{ type: "tool", id: "read-2" },
+			],
+			[tool("read-1"), suppressedWaitTool, tool("read-2")],
+			[
+				{ type: "read-files", tools: [tool("read-1")] },
+				{ type: "suppressed-tool", id: "wait-1" },
+				{ type: "read-files", tools: [tool("read-2")] },
+			],
+		],
 	] satisfies Array<
-		[string, RenderBlock[], ReturnType<typeof toTimelineBlocks>]
-	>)("does not collapse read_file blocks across %s", (_, blocks, expected) => {
+		[string, RenderBlock[], MergedTool[], ReturnType<typeof toTimelineBlocks>]
+	>)("does not collapse read_file blocks across %s", (_, blocks, tools, expected) => {
 		expect(toTimelineBlocks(blocks, tools)).toEqual(expected);
 	});
 
@@ -229,7 +242,7 @@ describe("toTimelineBlocks", () => {
 				{ type: "tool", id: "read-2" },
 				{ type: "thinking", text: "hmm" },
 			],
-			tools,
+			[tool("read-1"), tool("read-2")],
 		);
 
 		expect(result).toEqual([
@@ -239,24 +252,27 @@ describe("toTimelineBlocks", () => {
 	});
 
 	it("emits a block whose tool has not arrived yet as unresolved", () => {
-		expect(toTimelineBlocks([{ type: "tool", id: "missing" }], tools)).toEqual([
+		expect(toTimelineBlocks([{ type: "tool", id: "missing" }], [])).toEqual([
 			{ type: "unresolved-tool", id: "missing" },
 		]);
 	});
 
-	// A wait_agent row without its target chat_id is deliberately hidden by
-	// <Tool>, not still arriving, so it must not become a placeholder.
-	it("keeps a suppressed subagent lifecycle tool as a tool block", () => {
-		expect(toTimelineBlocks([{ type: "tool", id: "wait-1" }], tools)).toEqual([
-			{ type: "tool", tool: suppressedWaitTool },
-		]);
+	// A wait_agent row without its target chat_id is deliberately hidden, not
+	// still arriving, so it must not become a placeholder.
+	it("emits a suppressed subagent lifecycle tool as a suppressed block", () => {
+		expect(
+			toTimelineBlocks([{ type: "tool", id: "wait-1" }], [suppressedWaitTool]),
+		).toEqual([{ type: "suppressed-tool", id: "wait-1" }]);
 	});
 
 	// A settled execute with no command carries the error explaining why, so it
 	// must reach <Tool> rather than sit behind a placeholder forever.
 	it("keeps an execute whose result explains its missing command", () => {
 		expect(
-			toTimelineBlocks([{ type: "tool", id: "execute-failed" }], tools),
+			toTimelineBlocks(
+				[{ type: "tool", id: "execute-failed" }],
+				[commandlessExecuteWithError],
+			),
 		).toEqual([{ type: "tool", tool: commandlessExecuteWithError }]);
 	});
 

@@ -72,6 +72,17 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
+		it("renders a command-less execute row that failed with a result", () => {
+			expect(
+				shouldRenderTool({
+					name: "execute",
+					status: "error",
+					args: {},
+					result: { error: "command is required" },
+				}),
+			).toBe(true);
+		});
+
 		it("renders execute rows that have a command", () => {
 			expect(
 				shouldRenderTool({

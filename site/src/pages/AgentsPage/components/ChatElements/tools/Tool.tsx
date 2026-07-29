@@ -32,7 +32,7 @@ import {
 } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
-import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
+import { getExecuteRenderData } from "./toolVisibility";
 import {
 	asNumber,
 	asRecord,
@@ -1032,10 +1032,6 @@ export const Tool = memo(
 			? SubagentRenderer
 			: (ownValue(toolRenderers, name) ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
-		// Only place a deliberately suppressed subagent lifecycle row is dropped.
-		if (!shouldRenderTool({ name, status, args, result })) {
-			return null;
-		}
 
 		return (
 			<div

@@ -353,13 +353,20 @@ export const BlockList: FC<{
 						);
 					case "unresolved-tool":
 						return isStreaming ? (
-							<ToolCall.Root key={block.id} status="running" hasContent={false}>
+							<ToolCall.Root
+								key={block.id}
+								data-transcript-row=""
+								status="running"
+								hasContent={false}
+							>
 								<ToolCall.Header
 									iconName="unknown"
 									label="Waiting for tool details…"
 								/>
 							</ToolCall.Root>
 						) : null;
+					case "suppressed-tool":
+						return null;
 					case "tool": {
 						const tool = block.tool;
 						return (

@@ -375,6 +375,29 @@ describe("buildDisplayMessages", () => {
 		expect(result).toEqual([]);
 	});
 
+	it("keeps an assistant message whose only tool is a failed command-less execute", () => {
+		const tool: MergedTool = {
+			id: "execute-1",
+			name: "execute",
+			args: {},
+			result: { error: "command is required" },
+			isError: true,
+			status: "error",
+		};
+
+		const result = buildDisplayMessages([
+			entry({
+				messageID: 1,
+				parsedOverrides: {
+					tools: [tool],
+					blocks: [{ type: "tool", id: tool.id }],
+				},
+			}),
+		]);
+
+		expect(result).toHaveLength(1);
+	});
+
 	it("keeps durable tool calls visible after parser-level result merging", () => {
 		const result = buildDisplayMessages(
 			parseMessagesWithMergedTools([

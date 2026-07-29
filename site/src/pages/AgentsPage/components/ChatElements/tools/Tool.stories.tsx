@@ -1040,24 +1040,6 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 	},
 };
 
-export const InterruptAgentRunningWithoutChatId: Story = {
-	args: {
-		name: "interrupt_agent",
-		status: "running",
-		args: {},
-		result: { status: "running" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvasElement.textContent?.trim()).toBe("");
-		});
-		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
-		expect(canvas.queryByRole("button")).toBeNull();
-		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
-	},
-};
-
 // interrupt_agent is the post-rename name for close_agent. The response
 // carries `interrupted: true`.
 export const InterruptAgentExploreCompleted: Story = {
