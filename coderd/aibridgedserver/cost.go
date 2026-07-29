@@ -16,6 +16,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// maxAllowedTokenUsage bounds the token count an interception may report per
+// category. A 1M-token context is the current frontier, so this leaves six
+// orders of magnitude of headroom.
+const maxAllowedTokenUsage = 1_000_000_000_000
+
 var (
 	// tokensPerMillion is the divisor for prices, which are quoted per million
 	// tokens.
@@ -24,10 +29,33 @@ var (
 	maxCostMicros = decimal.NewFromInt(10_000_000_000_000)
 )
 
+// errTokenUsageOutOfRange reports a token count outside [0, maxAllowedTokenUsage].
+var errTokenUsageOutOfRange = xerrors.New("reported token usage is out of range")
+
 // errCostOutOfRange reports a cost outside [0, maxCostMicros]. Real
 // usage cannot reach it, so it means a wrong price row or implausible
 // provider-reported token counts.
 var errCostOutOfRange = xerrors.New("computed cost is out of range")
+
+// validateTokenUsage rejects an interception whose reported token counts fall
+// outside [0, maxAllowedTokenUsage].
+func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
+	for _, category := range []struct {
+		name  string
+		count int64
+	}{
+		{"input_tokens", in.GetInputTokens()},
+		{"output_tokens", in.GetOutputTokens()},
+		{"cache_read_input_tokens", in.GetCacheReadInputTokens()},
+		{"cache_write_input_tokens", in.GetCacheWriteInputTokens()},
+	} {
+		if category.count < 0 || category.count > maxAllowedTokenUsage {
+			return xerrors.Errorf("%s is %d, outside [0, %d]: %w",
+				category.name, category.count, maxAllowedTokenUsage, errTokenUsageOutOfRange)
+		}
+	}
+	return nil
+}
 
 // tokenUsageCost holds the cost-attribution columns snapshotted onto a token
 // usage record. A field left unset (Valid == false) is recorded as SQL NULL; a

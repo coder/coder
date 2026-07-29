@@ -1903,15 +1903,39 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			{
-				// Token counts large enough that the cost cannot be stored. The
-				// record is written anyway, with prices snapshotted and cost
-				// NULL.
+				// Implausible counts are rejected before any DB work, so no row
+				// is written. Persisting them would poison the organization
+				// spend export, whose SUM cast raises rather than wraps.
+				name: "token usage above the allowed range is rejected",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    math.MaxInt64,
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "reported token usage is out of range",
+			},
+			{
+				name: "negative token usage is rejected",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    -1_000_000,
+					OutputTokens:   2_000_000,
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "reported token usage is out of range",
+			},
+			{
+				// Plausible token counts against a price row six orders of
+				// magnitude too high. The record is written anyway, with prices
+				// snapshotted and cost NULL.
 				name:           "valid token usage with cost out of range",
 				expectErrorLog: true,
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: uuid.NewString(),
 					MsgId:          "msg_123",
-					InputTokens:    math.MaxInt64,
+					InputTokens:    1_000_000,
 					CreatedAt:      timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
@@ -1921,9 +1945,9 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc := newTestInterception(interceptionID)
 					groupID := uuid.New()
 					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
-					// 2 micro-units per token against int64 max tokens exceeds
-					// the column, so the cost cannot be represented.
-					price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: 2_000_000, Valid: true}}
+					// $20M per million tokens puts a 1M-token request well past
+					// the per-interception cost bound.
+					price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: 20_000_000_000_000, Valid: true}}
 					expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
 
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -1935,7 +1959,7 @@ func TestRecordTokenUsage(t *testing.T) {
 						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
 							!assert.True(t, p.InputPriceMicros.Valid, "input price populated") ||
 							!assert.False(t, p.CostMicros.Valid, "cost null") ||
-							!assert.Equal(t, int64(math.MaxInt64), p.InputTokens, "input tokens recorded") {
+							!assert.Equal(t, int64(1_000_000), p.InputTokens, "input tokens recorded") {
 							return false
 						}
 						return true
