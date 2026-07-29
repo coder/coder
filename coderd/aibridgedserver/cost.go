@@ -135,6 +135,10 @@ func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheRe
 }
 
 // tokenCost returns tokens * price / 1,000,000, treating a NULL price as zero.
+//
+// Truncate(0) belongs here rather than on the summed total: truncating each
+// category is what makes a per-category breakdown recomputed from the
+// snapshotted price columns add up to the stored cost.
 func tokenCost(tokens int64, pricePerMillion sql.NullInt64) decimal.Decimal {
 	if !pricePerMillion.Valid {
 		return decimal.Zero

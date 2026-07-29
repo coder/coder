@@ -116,6 +116,18 @@ func TestComputeCost(t *testing.T) {
 			want:        9_150_000_000_000,
 		},
 		{
+			// Each category costs 37.5 micro-units, so truncating per category
+			// gives 37 + 37 = 74.
+			name: "each category truncates before the sum",
+			price: database.AIModelPrice{
+				InputPrice:  nullInt64(37_500_000),
+				OutputPrice: nullInt64(37_500_000),
+			},
+			inputTokens:  1,
+			outputTokens: 1,
+			want:         74,
+		},
+		{
 			name:        "cost exactly at the bound is in range",
 			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens: bound,
