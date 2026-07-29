@@ -1,10 +1,18 @@
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-	User,
-	WorkspaceUser,
+import {
+	type Group,
+	MaxAISpendLimitMicros,
+	type OrganizationMemberWithUserData,
+	type ReducedUser,
+	type User,
+	type WorkspaceUser,
 } from "#/api/typesGenerated";
+import { MICROS_PER_DOLLAR, usdBudgetFormatter } from "#/utils/currency";
+
+/** Highest AI budget that can be configured for a group or member, in dollars. */
+export const maxAIBudgetDollars = MaxAISpendLimitMicros / MICROS_PER_DOLLAR;
+
+/** Shown when an entered AI budget falls outside the configurable range. */
+export const aiBudgetRangeError = `Enter an amount between 0 and ${usdBudgetFormatter.format(maxAIBudgetDollars)}.`;
 
 /**
  * Union of all user-like types that can be distinguished from Group.

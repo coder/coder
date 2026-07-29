@@ -611,6 +611,22 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(groupBudget))
 }
 
+// validAISpendLimit reports whether the limit is within the configurable
+// maximum, writing a 400 when it is not.
+func validAISpendLimit(ctx context.Context, rw http.ResponseWriter, spendLimitMicros int64) bool {
+	if spendLimitMicros <= codersdk.MaxAISpendLimitMicros {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid AI spend limit.",
+		Validations: []codersdk.ValidationError{{
+			Field:  "spend_limit_micros",
+			Detail: fmt.Sprintf("Must not exceed %d.", codersdk.MaxAISpendLimitMicros),
+		}},
+	})
+	return false
+}
+
 // @Summary Upsert group AI budget
 // @ID upsert-group-ai-budget
 // @Security CoderSessionToken
@@ -638,6 +654,9 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpsertGroupAIBudgetRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !validAISpendLimit(ctx, rw, req.SpendLimitMicros) {
 		return
 	}
 
@@ -748,6 +767,9 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 
 	var req codersdk.UpsertUserAIBudgetOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !validAISpendLimit(ctx, rw, req.SpendLimitMicros) {
 		return
 	}
 
