@@ -13,7 +13,7 @@ import {
 import { HealthIcon } from "#/pages/HealthPage/Content";
 import { createDayString } from "#/utils/createDayString";
 
-export const healthSections = {
+const healthSections = {
 	derp: "DERP",
 	access_url: "Access URL",
 	websocket: "Websocket",
@@ -22,7 +22,7 @@ export const healthSections = {
 	provisioner_daemons: "Provisioner Daemons",
 } as const;
 
-export type HealthSectionKey = keyof typeof healthSections;
+type HealthSectionKey = keyof typeof healthSections;
 
 interface HealthSidebarViewProps {
 	healthStatus: HealthcheckReport;
