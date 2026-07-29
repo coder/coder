@@ -682,8 +682,8 @@ WITH per_request AS (
 	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
 	JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
 	WHERE (
-			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so the planner
-			-- can use idx_chats_root_chat_id and the chats primary key.
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
 			c.root_chat_id = @root_chat_id::uuid
 			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
 		)
