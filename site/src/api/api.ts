@@ -1177,19 +1177,18 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	archiveTemplateVersion = async (templateVersionId: string): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/archive`,
 		);
-
-		return response.data;
 	};
 
-	unarchiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	unarchiveTemplateVersion = async (
+		templateVersionId: string,
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
-		return response.data;
 	};
 
 	/**

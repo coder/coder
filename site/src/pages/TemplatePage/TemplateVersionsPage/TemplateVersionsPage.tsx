@@ -8,6 +8,7 @@ import {
 	templateVersions,
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
@@ -27,45 +28,18 @@ const TemplateVersionsPage = () => {
 	const [latestActiveVersion, setLatestActiveVersion] = useState(
 		template.active_version_id,
 	);
+	const [versionToPromote, setVersionToPromote] = useState<
+		TemplateVersion | undefined
+	>();
+	const [versionToArchive, setVersionToArchive] = useState<
+		TemplateVersion | undefined
+	>();
+
 	const { mutate: promoteVersion, isPending: isPromoting } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.updateActiveTemplateVersion(template.id, {
 				id: templateVersionId,
 			});
-		},
-		onSuccess: async () => {
-			const versionName = data?.find(
-				(v) => v.id === selectedVersionIdToPromote,
-			)?.name;
-			setLatestActiveVersion(selectedVersionIdToPromote as string);
-			setSelectedVersionIdToPromote(undefined);
-			toast.success(
-				versionName
-					? `Version "${versionName}" promoted successfully.`
-					: "Version promoted successfully.",
-				{
-					action: {
-						label: "View template",
-						onClick: () => navigate(templateLink),
-					},
-				},
-			);
-		},
-		onError: (error) => {
-			const versionName = data?.find(
-				(v) => v.id === selectedVersionIdToPromote,
-			)?.name;
-			toast.error(
-				getErrorMessage(
-					error,
-					versionName
-						? `Failed to promote version "${versionName}".`
-						: "Failed to promote version.",
-				),
-				{
-					description: getErrorDetail(error),
-				},
-			);
 		},
 	});
 
@@ -73,37 +47,12 @@ const TemplateVersionsPage = () => {
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},
-		onSuccess: async (data) => {
+		onSuccess: async () => {
 			await queryClient.invalidateQueries({
 				queryKey: templateVersionsQueryKey(template.id),
 			});
-			setSelectedVersionIdToArchive(undefined);
-			toast.success(`Version "${data.name}" archived successfully.`);
-		},
-		onError: (error) => {
-			const versionName = data?.find(
-				(v) => v.id === selectedVersionIdToArchive,
-			)?.name;
-			toast.error(
-				getErrorMessage(
-					error,
-					versionName
-						? `Failed to archive version "${versionName}".`
-						: "Failed to archive version.",
-				),
-				{
-					description: getErrorDetail(error),
-				},
-			);
 		},
 	});
-
-	const [selectedVersionIdToPromote, setSelectedVersionIdToPromote] = useState<
-		string | undefined
-	>();
-	const [selectedVersionIdToArchive, setSelectedVersionIdToArchive] = useState<
-		string | undefined
-	>();
 
 	return (
 		<>
@@ -112,44 +61,90 @@ const TemplateVersionsPage = () => {
 			<VersionsTable
 				versions={data}
 				onPromoteClick={
-					permissions.canUpdateTemplate
-						? setSelectedVersionIdToPromote
-						: undefined
+					permissions.canUpdateTemplate ? setVersionToPromote : undefined
 				}
 				onArchiveClick={
-					permissions.canUpdateTemplate
-						? setSelectedVersionIdToArchive
-						: undefined
+					permissions.canUpdateTemplate ? setVersionToArchive : undefined
 				}
 				activeVersionId={latestActiveVersion}
 			/>
-			{/* Promote confirm */}
 			<ConfirmDialog
 				type="info"
 				hideCancel={false}
-				open={selectedVersionIdToPromote !== undefined}
+				open={Boolean(versionToPromote)}
 				onConfirm={() => {
-					promoteVersion(selectedVersionIdToPromote as string);
+					if (!versionToPromote) {
+						return;
+					}
+					const { id, name } = versionToPromote;
+					promoteVersion(id, {
+						onSuccess: () => {
+							setLatestActiveVersion(id);
+							setVersionToPromote(undefined);
+							toast.success(`Version "${name}" promoted successfully.`, {
+								action: {
+									label: "View template",
+									onClick: () => navigate(templateLink),
+								},
+							});
+						},
+						onError: (error) => {
+							toast.error(
+								getErrorMessage(error, `Failed to promote version "${name}".`),
+								{
+									description: getErrorDetail(error),
+								},
+							);
+						},
+					});
 				}}
-				onClose={() => setSelectedVersionIdToPromote(undefined)}
+				onClose={() => setVersionToPromote(undefined)}
 				title="Promote version"
 				confirmLoading={isPromoting}
 				confirmText="Promote"
-				description="Are you sure you want to promote this version? Workspaces will be prompted to “Update” to this version once promoted."
+				description={
+					<>
+						Are you sure you want to promote version{" "}
+						<strong>{versionToPromote?.name}</strong>? Workspaces will be
+						prompted to “Update” to this version once promoted.
+					</>
+				}
 			/>
-			{/* Archive Confirm */}
 			<ConfirmDialog
 				type="info"
 				hideCancel={false}
-				open={selectedVersionIdToArchive !== undefined}
+				open={Boolean(versionToArchive)}
 				onConfirm={() => {
-					archiveVersion(selectedVersionIdToArchive as string);
+					if (!versionToArchive) {
+						return;
+					}
+					const { id, name } = versionToArchive;
+					archiveVersion(id, {
+						onSuccess: () => {
+							setVersionToArchive(undefined);
+							toast.success(`Version "${name}" archived successfully.`);
+						},
+						onError: (error) => {
+							toast.error(
+								getErrorMessage(error, `Failed to archive version "${name}".`),
+								{
+									description: getErrorDetail(error),
+								},
+							);
+						},
+					});
 				}}
-				onClose={() => setSelectedVersionIdToArchive(undefined)}
+				onClose={() => setVersionToArchive(undefined)}
 				title="Archive version"
 				confirmLoading={isArchiving}
 				confirmText="Archive"
-				description="Are you sure you want to archive this version (this is reversible)? Archived versions cannot be used by workspaces."
+				description={
+					<>
+						Are you sure you want to archive version{" "}
+						<strong>{versionToArchive?.name}</strong>? This is reversible.
+						Archived versions cannot be used by workspaces.
+					</>
+				}
 			/>
 		</>
 	);
