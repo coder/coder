@@ -12393,8 +12393,8 @@ func createChatModelConfigWithTitleFailure(t testing.TB, client *codersdk.Experi
 }
 
 // createChatModelConfigWithTitleQuotaExhausted provisions a model whose
-// non-streaming responses fail with exhausted AI spend, the class of error the
-// AI Gateway also returns once a budget is used up.
+// non-streaming responses return a provider insufficient_quota error, which
+// classifies as a usage limit like an exhausted AI Gateway budget.
 func createChatModelConfigWithTitleQuotaExhausted(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
 	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {

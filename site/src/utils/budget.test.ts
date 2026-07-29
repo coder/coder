@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
 	clampPercentage,
+	formatSpendPeriodLabel,
 	getSeverity,
 	usageProgressPercentage,
 } from "./budget";
+
+describe("formatSpendPeriodLabel", () => {
+	// Local-time inputs keep the formatted days stable in any timezone.
+	it("renders the window with the year on the exclusive end", () => {
+		expect(
+			formatSpendPeriodLabel("2026-06-01T00:00:00", "2026-07-01T00:00:00"),
+		).toBe("June 1 - July 1, 2026");
+	});
+
+	it("uses the end year when the window crosses into the next year", () => {
+		expect(
+			formatSpendPeriodLabel("2026-12-01T00:00:00", "2027-01-01T00:00:00"),
+		).toBe("December 1 - January 1, 2027");
+	});
+});
 
 describe("getSeverity", () => {
 	it("returns normal below the warning threshold", () => {
