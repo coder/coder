@@ -239,8 +239,9 @@ const ownValue = <T>(record: Record<string, T>, key: string): T | undefined =>
 	Object.hasOwn(record, key) ? record[key] : undefined;
 
 /**
- * Merges the streamed calls and results for every tool block, in block order,
- * so a tool cannot exist without a row to render it in.
+ * Iterates blocks rather than the call map, so a tool cannot exist without a
+ * row to render it in. A block whose call and result have both yet to arrive is
+ * skipped, which leaves `toTimelineBlocks` to hold its place.
  */
 export const buildStreamTools = (
 	state: StreamState | null | undefined,
