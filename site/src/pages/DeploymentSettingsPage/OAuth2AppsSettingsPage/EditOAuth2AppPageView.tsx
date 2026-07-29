@@ -176,7 +176,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					</Alert>
 				)}
 
-				<dl className="m-0 flex flex-col gap-3">
+				<dl className="m-0 flex flex-col gap-1.5">
 					<EndpointField label="Client ID" value={app.id} />
 					<EndpointField
 						label="Authorization URL"
@@ -370,10 +370,10 @@ type EndpointFieldProps = {
 const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 	return (
 		<div className="flex items-center gap-2">
-			<dt className="text-sm text-content-secondary">{label}</dt>
+			<dt className="text-xs text-content-secondary">{label}</dt>
 			<dd className="m-0">
-				<div className="flex items-center gap-1">
-					<code className="w-fit rounded-md bg-surface-secondary px-2 py-1 font-mono text-xs text-content-primary">
+				<div className="flex items-center gap-0.5">
+					<code className="w-fit rounded-md bg-surface-secondary px-2 py-0.5 font-mono text-xs text-content-primary">
 						{value}
 					</code>
 					<CopyButton
@@ -381,6 +381,7 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 						label={`Copy ${label}`}
 						size="icon"
 						variant="subtle"
+						className="size-6 [&>svg]:size-icon-xs"
 					/>
 				</div>
 			</dd>
