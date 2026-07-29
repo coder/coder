@@ -2,6 +2,7 @@ import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
 } from "./formToRequest";
+import { shouldConfirmAutostopRestart } from "./restart";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
 import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
@@ -233,6 +234,64 @@ describe("WorkspaceSchedulePage", () => {
 			[28_800_000, { autostopEnabled: true, ttl: 8 }],
 		] as const)("ttlMsToAutostop(%p) returns %p", (ttlMs, autostop) => {
 			expect(ttlMsToAutostop(ttlMs)).toEqual(autostop);
+		});
+	});
+
+	describe("shouldConfirmAutostopRestart", () => {
+		it.each([
+			// Enabling autostop on a running workspace should prompt, since the
+			// deadline is only applied on the next start without a restart.
+			[
+				"enable while running",
+				{
+					autostopChanged: true,
+					autostopEnabled: true,
+					workspaceStatus: "running",
+				},
+				true,
+			],
+			// Changing the value while autostop stays enabled should prompt too.
+			[
+				"modify while running",
+				{
+					autostopChanged: true,
+					autostopEnabled: true,
+					workspaceStatus: "running",
+				},
+				true,
+			],
+			// Disabling autostop clears the deadline server-side, so no prompt.
+			[
+				"disable while running",
+				{
+					autostopChanged: true,
+					autostopEnabled: false,
+					workspaceStatus: "running",
+				},
+				false,
+			],
+			// A stopped workspace has no running build to apply a deadline to.
+			[
+				"enable while stopped",
+				{
+					autostopChanged: true,
+					autostopEnabled: true,
+					workspaceStatus: "stopped",
+				},
+				false,
+			],
+			// No autostop change means nothing to apply.
+			[
+				"unchanged while running",
+				{
+					autostopChanged: false,
+					autostopEnabled: true,
+					workspaceStatus: "running",
+				},
+				false,
+			],
+		] as const)("shouldConfirmAutostopRestart(%s) returns %p", (_name, options, expected) => {
+			expect(shouldConfirmAutostopRestart(options)).toBe(expected);
 		});
 	});
 });

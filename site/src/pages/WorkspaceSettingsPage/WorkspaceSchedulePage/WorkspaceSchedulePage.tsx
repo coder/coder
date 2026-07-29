@@ -18,6 +18,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { shouldConfirmAutostopRestart } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/restart";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -141,9 +142,11 @@ const WorkspaceSchedulePage: FC = () => {
 							await submitScheduleMutation.mutateAsync(data);
 
 							if (
-								data.autostopChanged &&
-								getAutostop(workspace).autostopEnabled &&
-								workspace.latest_build.status === "running"
+								shouldConfirmAutostopRestart({
+									autostopChanged: data.autostopChanged,
+									autostopEnabled: values.autostopEnabled,
+									workspaceStatus: workspace.latest_build.status,
+								})
 							) {
 								setIsConfirmingApply(true);
 							}
