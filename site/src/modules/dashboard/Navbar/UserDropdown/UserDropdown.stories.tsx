@@ -1,11 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
-import type {
-	Experiment,
-	FeatureName,
-	UserAISpendStatus,
-} from "#/api/typesGenerated";
+import type { FeatureName, UserAISpendStatus } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
@@ -20,9 +16,8 @@ const mockAISpend: UserAISpendStatus = {
 	period_end: "2026-07-01T00:00:00Z",
 };
 
-const aiCostControl: { features: FeatureName[]; experiments: Experiment[] } = {
+const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],
-	experiments: ["ai-gateway-cost-control"],
 };
 
 const meta: Meta<typeof UserDropdown> = {
@@ -58,7 +53,7 @@ const Example: Story = {
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("hides AI spend without cost control", async () => {
+		await step("hides AI spend without the aibridge feature", async () => {
 			await openDropdown(canvasElement);
 			expect(screen.queryByText(/AI spend/i)).not.toBeInTheDocument();
 		});

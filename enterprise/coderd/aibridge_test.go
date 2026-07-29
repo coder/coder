@@ -2929,7 +2929,6 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -3027,7 +3026,6 @@ func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -3117,33 +3115,10 @@ func TestUserAISpendStatus(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
-		_, err := client.UserAISpendStatus(ctx, uuid.New())
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
-	t.Run("RequiresExperiment", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
 			},
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -3344,7 +3319,6 @@ func TestUserAISpendStatusRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -3398,7 +3372,6 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -3415,30 +3388,6 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
-	})
-
-	t.Run("RequiresExperiment", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-					codersdk.FeatureAIBridge:     1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
-		_, err := client.OrganizationGroupsAISpend(ctx, owner.OrganizationID, []uuid.UUID{uuid.New()})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
 	})
 
 	t.Run("MissingGroupIDs", func(t *testing.T) {
@@ -3677,7 +3626,6 @@ func TestOrganizationGroupsAISpendRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -3780,21 +3728,13 @@ func TestExportOrganizationAISpend(t *testing.T) {
 
 		cases := []struct {
 			name            string
-			experiments     []string
 			features        license.Features
 			wantMsgContains string
 		}{
 			{
 				name:            "RequiresLicenseFeature",
-				experiments:     []string{string(codersdk.ExperimentAIGatewayCostControl)},
 				features:        license.Features{},
 				wantMsgContains: "AI Gateway is a Premium feature",
-			},
-			{
-				name:            "RequiresExperiment",
-				experiments:     nil,
-				features:        license.Features{codersdk.FeatureAIBridge: 1},
-				wantMsgContains: "ai-gateway-cost-control",
 			},
 		}
 		for _, tc := range cases {
@@ -3803,9 +3743,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 
 				dv := coderdtest.DeploymentValues(t)
 				dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-				if len(tc.experiments) > 0 {
-					dv.Experiments = tc.experiments
-				}
 				client, owner := coderdenttest.New(t, &coderdenttest.Options{
 					Options:        &coderdtest.Options{DeploymentValues: dv},
 					LicenseOptions: &coderdenttest.LicenseOptions{Features: tc.features},
@@ -4448,7 +4385,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4613,7 +4549,6 @@ func TestGroupAISpend(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4634,34 +4569,6 @@ func TestGroupAISpend(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
-	})
-
-	t.Run("RequiresExperiment", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-					codersdk.FeatureAIBridge:     1,
-				},
-			},
-		})
-		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "req-experiment-spend-group",
-		})
-		require.NoError(t, err)
-
-		_, err = adminClient.GroupAISpend(ctx, group.ID)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
 	})
 
 	t.Run("MalformedGroupID", func(t *testing.T) {
@@ -4827,7 +4734,6 @@ func TestGroupAISpendRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4898,7 +4804,6 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4990,7 +4895,6 @@ func TestGroupMembersAISpend(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -5011,34 +4915,6 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
-	})
-
-	t.Run("RequiresExperiment", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-					codersdk.FeatureAIBridge:     1,
-				},
-			},
-		})
-		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "req-experiment-members-group",
-		})
-		require.NoError(t, err)
-
-		_, err = adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{uuid.New()})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
 	})
 
 	t.Run("MissingUserIDs", func(t *testing.T) {
@@ -5270,7 +5146,6 @@ func TestGroupMembersAISpend(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		db, ps := dbtestutil.NewDB(t)
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps},
@@ -5329,7 +5204,6 @@ func TestGroupMembersAISpend(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 		db, ps := dbtestutil.NewDB(t)
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps},
@@ -5419,7 +5293,6 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -5509,16 +5382,14 @@ type aiCostControlTestOptions struct {
 	Retention *time.Duration
 }
 
-// setupAICostControlTest builds a deployment with FeatureAIBridge licensed
-// and the AI Gateway cost control experiment enabled, creates an admin
-// client and target user, adds the target user to a group, and returns
-// the admin client, target user, and group.
+// setupAICostControlTest builds a deployment with FeatureAIBridge licensed,
+// creates an admin client and target user, adds the target user to a group,
+// and returns the admin client, target user, and group.
 func setupAICostControlTest(t *testing.T, opts aiCostControlTestOptions) (*codersdk.Client, codersdk.User, codersdk.Group) {
 	t.Helper()
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	if opts.Retention != nil {
 		dv.AI.BridgeConfig.Retention = serpent.Duration(*opts.Retention)
 	}
@@ -5570,7 +5441,6 @@ func setupUserAIBudgetOverrideAuditTest(t *testing.T) (database.Store, *codersdk
 	)
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		AuditLogging: true,
 		Options: &coderdtest.Options{
