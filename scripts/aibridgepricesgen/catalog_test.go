@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/x/modelprices"
 )
 
 // fixtureUpstream returns a small upstream payload covering the join cases:
 // fully priced models with limits and a costless model.
-func fixtureUpstream(t *testing.T) map[string]upstreamProvider {
+func fixtureUpstream(t *testing.T) map[string]modelprices.UpstreamProvider {
 	t.Helper()
 	const upstreamJSON = `{
 		"anthropic": {
@@ -57,7 +59,7 @@ func fixtureUpstream(t *testing.T) map[string]upstreamProvider {
 			}
 		}
 	}`
-	var upstream map[string]upstreamProvider
+	var upstream map[string]modelprices.UpstreamProvider
 	require.NoError(t, json.Unmarshal([]byte(upstreamJSON), &upstream))
 	return upstream
 }
