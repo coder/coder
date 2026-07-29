@@ -462,6 +462,38 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 	return filter, parser.Errors
 }
 
+// OAuth2ProviderApps converts a search query into GetOAuth2ProviderAppsParams.
+// Pagination fields (AfterID, LimitOpt, OffsetOpt) are left zero and should be
+// filled by the caller.
+//
+// Supported query parameters:
+//
+//   - search: string (matches application name or callback URL)
+//
+// Bare terms default to search. Additional keys can be added later without
+// changing the request shape.
+func OAuth2ProviderApps(query string) (database.GetOAuth2ProviderAppsParams, []codersdk.ValidationError) {
+	//nolint:exhaustruct // Pagination is set by the caller.
+	filter := database.GetOAuth2ProviderAppsParams{}
+	if query == "" {
+		return filter, nil
+	}
+
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Search = parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 // Tasks parses a search query for tasks.
 //
 // Supported query parameters:

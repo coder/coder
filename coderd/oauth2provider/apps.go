@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,7 +26,6 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		ctx := r.Context()
 		queryParams := r.URL.Query()
 		parser := httpapi.NewQueryParamParser()
-		search := parser.String(queryParams, "", "q")
 		pagination := codersdk.Pagination{
 			AfterID: parser.UUID(queryParams, uuid.Nil, "after_id"),
 			// A limit of 0 should be interpreted by the SQL query as "null" or
@@ -43,14 +43,21 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 
 		rawUserID := r.URL.Query().Get("user_id")
 		if rawUserID == "" {
-			dbApps, err := db.GetOAuth2ProviderApps(ctx, database.GetOAuth2ProviderAppsParams{
-				AfterID: pagination.AfterID,
-				Search:  search,
-				// #nosec G115 - Pagination offsets are small and fit in int32
-				OffsetOpt: int32(pagination.Offset),
-				// #nosec G115 - Pagination limits are small and fit in int32
-				LimitOpt: int32(pagination.Limit),
-			})
+			filter, errs := searchquery.OAuth2ProviderApps(r.URL.Query().Get("q"))
+			if len(errs) > 0 {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message:     "Invalid OAuth2 application search query.",
+					Validations: errs,
+				})
+				return
+			}
+			filter.AfterID = pagination.AfterID
+			// #nosec G115 - Pagination offsets are small and fit in int32
+			filter.OffsetOpt = int32(pagination.Offset)
+			// #nosec G115 - Pagination limits are small and fit in int32
+			filter.LimitOpt = int32(pagination.Limit)
+
+			dbApps, err := db.GetOAuth2ProviderApps(ctx, filter)
 			if err != nil {
 				httpapi.InternalServerError(rw, err)
 				return
