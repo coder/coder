@@ -1992,8 +1992,9 @@ type ChatCostChatBreakdown struct {
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
 // Both root and leaves in a tree report the same total.
-// UnpricedRequestCount counts requests whose model had no recorded price.
-// RequestCount includes them; TotalCostMicros does not.
+// UnpricedRequestCount counts requests with at least one usage record whose
+// model had no recorded price; RequestCount includes them and
+// TotalCostMicros omits only their unpriced usage.
 type ChatCost struct {
 	ChatID               uuid.UUID `json:"chat_id" format:"uuid"`
 	TotalCostMicros      int64     `json:"total_cost_micros"`

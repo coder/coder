@@ -13,7 +13,7 @@ interface ChatSummaryProps {
 	costMicros?: number | null;
 	isCostLoading?: boolean;
 	costError?: boolean;
-	/** Requests whose model had no recorded price; when > 0 the cost is partial and a note is shown. */
+	/** Requests with usage the gateway could not price, so the reported cost is partial. */
 	unpricedRequestCount?: number;
 	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
@@ -80,8 +80,8 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 
 			{hasUnpricedRequests && (
 				<p className="m-0 text-xs italic text-content-secondary">
-					Excludes {unpricedRequestCount} request
-					{unpricedRequestCount === 1 ? "" : "s"} without model pricing.
+					Excludes unpriced usage from {unpricedRequestCount} request
+					{unpricedRequestCount === 1 ? "" : "s"}.
 				</p>
 			)}
 		</div>

@@ -1969,8 +1969,6 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 export const chatCostKey = (rootChatId: string) =>
 	[...chatsKey, rootChatId, "cost"] as const;
 
-// Chat cost changes only when a gateway request completes, so a short stale
-// window refreshes the sidebar without refetching on every render.
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 
 export const chatCost = (rootChatId: string) => ({

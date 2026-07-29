@@ -671,20 +671,30 @@ OFFSET @offset_
 -- to its parent rather than the root, and only whole trees can be summed. The
 -- owner check guards against session-id collisions. Usage without an
 -- effective group never reaches ai_user_daily_spend.
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so the planner
+			-- can use idx_chats_root_chat_id and the chats primary key.
+			c.root_chat_id = @root_chat_id::uuid
+			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
+		)
+		-- aibridge.ClientCoderAgents. Restricting the client keeps another
+		-- client's session reference from matching a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
 SELECT
-	COALESCE(SUM(tu.cost_micros), 0)::bigint AS total_cost_micros,
-	COUNT(DISTINCT i.id)::bigint AS request_count,
-	COUNT(DISTINCT i.id) FILTER (WHERE tu.cost_micros IS NULL)::bigint AS unpriced_request_count
-FROM aibridge_interceptions i
-JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
-JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
-WHERE (
-		-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so the planner
-		-- can use idx_chats_root_chat_id and the chats primary key.
-		c.root_chat_id = @root_chat_id::uuid
-		OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
-	)
-	-- aibridge.ClientCoderAgents. Restricting the client keeps another
-	-- client's session reference from matching a chat ID.
-	AND i.client = 'Coder Agents'
-	AND i.ended_at IS NOT NULL;
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request;

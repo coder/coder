@@ -126,9 +126,8 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// Titles, turn status labels, and whole-chat summaries are generated after the
-// turn already reported a non-active status, so their gateway spend lands after
-// a status-driven refetch would have run.
+// Summary and title generation can bill after the turn reports a non-active
+// status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"chat_summary_change",
 	"summary_change",

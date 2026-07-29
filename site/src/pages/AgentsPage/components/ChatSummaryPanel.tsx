@@ -17,7 +17,6 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	isVisible,
 }) => {
 	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
 	const showCost =
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");

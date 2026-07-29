@@ -98,7 +98,7 @@ export const PartialCost: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText("Excludes 3 requests without model pricing."),
+			canvas.getByText("Excludes unpriced usage from 3 requests."),
 		).toBeInTheDocument();
 	},
 };
