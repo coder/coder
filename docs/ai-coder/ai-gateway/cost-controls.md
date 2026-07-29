@@ -1,18 +1,23 @@
-# Cost Controls
+# AI Governance Cost Control
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
 > included with a Premium license.
 
-Cost controls cap how much each user can spend on AI models through AI Gateway.
-You set a budget for a group, and AI Gateway blocks a user's requests once their
-estimated spend reaches that budget.
+AI Governance Cost Control serves two purposes that go hand in hand:
 
-Cost controls are an estimate-and-block mechanism, not a billing system. Use
-them to stop runaway usage and to see which teams and users drive spend. Do not
-use them to reconcile your provider invoices.
+- **Enforcement** caps how much each user can spend on AI models through AI
+  Gateway.
+- **Reporting** shows how much each user and group has spent in the current
+  period.
 
-Cost controls require:
+A group budget sets the cap. AI Gateway records estimated spend against that
+budget and blocks a user's requests once their spend reaches it.
+
+AI Governance Cost Control runs on estimated spend. It exists to stop runaway
+usage and to show which teams and users drive spend.
+
+AI Governance Cost Control requires:
 
 - Coder v2.36 or later.
 - AI Gateway [enabled and configured](./setup.md) with at least one provider.
@@ -26,7 +31,12 @@ Cost controls require:
   CODER_EXPERIMENTS=ai-gateway-cost-control
   ```
 
-## How cost controls work
+> [!NOTE]
+> AI Governance Cost Control reports estimated spend rather than billed cost.
+> Estimates are derived from token usage and published model prices, and can
+> differ from the amounts reported by your providers.
+
+## How AI Governance Cost Control works
 
 | Term                 | What it means                                                                   | Where you set it                     |
 |----------------------|---------------------------------------------------------------------------------|--------------------------------------|
@@ -124,15 +134,17 @@ Coder estimates spend by multiplying each request's token usage by the model's
 published price. Prices ship with each Coder release and come from a curated
 [models.dev](https://models.dev) snapshot, so you do not configure them.
 
-> [!WARNING]
-> Estimated spend is not a bill.
->
-> - It does not match your provider invoice. It ignores discounts,
->   committed-use pricing, and provider-side billing rules. Reconcile actual
->   costs with your provider.
-> - Requests to models that are missing from the price table record token usage
->   but add nothing to a user's spend. A user who only calls unpriced models is
->   effectively unlimited.
+For the models priced in a given release, see the
+[price book](https://github.com/coder/coder/blob/main/coderd/aibridge/prices/data/prices.json)
+in the Coder repository.
+
+Estimates exclude negotiated discounts, committed-use pricing, and any billing
+adjustments applied by the provider.
+
+> [!IMPORTANT]
+> Requests to models that are missing from the price table record token usage
+> but add nothing to a user's spend. A user who only calls unpriced models is
+> effectively unlimited.
 
 To find unpriced usage, monitor
 `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`, which is
@@ -181,6 +193,9 @@ To configure delivery, see
 
 ## Monitor spend
 
+Reporting is available in the dashboard, as a CSV export, and through
+Prometheus.
+
 ### In the dashboard
 
 What each person sees depends on their role:
@@ -220,7 +235,7 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 
 ### With Prometheus
 
-The following metrics report cost control activity. See
+The following metrics report AI Governance Cost Control activity. See
 [Prometheus metrics](../../admin/integrations/prometheus.md) for the full list.
 
 | Metric                                                             | Purpose                                         |
@@ -233,9 +248,9 @@ The following metrics report cost control activity. See
 Alert on the unpriced metric. It is the only signal that spend is being
 under-counted.
 
-## Migrate from Coder Agents cost control
+## Migrate from Coder Agents Cost Control
 
-In v2.36, AI Governance cost controls fully replace Coder Agents cost control.
+In v2.36, AI Governance Cost Control fully replaces Coder Agents Cost Control.
 
 > [!WARNING]
 > Spend limits configured under **Admin settings** > **AI** > **Spend** are no
@@ -254,7 +269,7 @@ Plan for these differences:
   needs one.
 - The only period is the UTC calendar month. Daily and weekly periods are gone.
 - When a user belongs to several budgeted groups, the **highest** budget applies.
-  Coder Agents cost control applied the lowest limit.
+  Coder Agents Cost Control applied the lowest limit.
 - Budgets cover all AI Gateway traffic, not only Coder Agents. Chat, IDE
   extensions, and CLI agents count against the same budget.
 - Recorded spend does not carry over. Every user starts the first period at $0.

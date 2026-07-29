@@ -1327,7 +1327,7 @@
 									"title": "Cost Controls",
 									"description": "Manage AI Gateway spend with budgets, spend limits, and budget notifications.",
 									"path": "./ai-coder/ai-gateway/cost-controls.md",
-									"state": ["ai governance add-on"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Reference",
