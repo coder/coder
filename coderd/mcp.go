@@ -160,7 +160,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	var configs []database.MCPServerConfig
 	var err error
 	if isAdmin {
-		configs, err = api.Database.GetMCPServerConfigs(ctx)
+		configs, err = api.Database.GetMCPServerConfigManagementList(ctx)
 	} else {
 		//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
 		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))

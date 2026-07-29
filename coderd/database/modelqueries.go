@@ -53,6 +53,7 @@ type customQuerier interface {
 	connectionLogQuerier
 	aibridgeQuerier
 	chatQuerier
+	mcpServerConfigQuerier
 }
 
 type templateQuerier interface {
@@ -1198,4 +1199,86 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
 	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)
 	return err
+}
+
+type mcpServerConfigQuerier interface {
+	GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
+	GetMCPServerConfigManagementList(ctx context.Context) ([]MCPServerConfig, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.MCPServerConfigNoACLConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getMCPServerConfigs, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedMCPServerConfigs :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// GetMCPServerConfigManagementList returns every MCP server config
+// unfiltered. It backs the interim HTTP management list, whose gate is
+// deployment_config read; the query behind that gate must carry the gate's
+// contract until the B3 cutover swaps both to the authorized list.
+//
+// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+func (q *sqlQuerier) GetMCPServerConfigManagementList(ctx context.Context) ([]MCPServerConfig, error) {
+	return q.GetMCPServerConfigs(ctx)
 }

@@ -794,6 +794,7 @@ var (
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
+					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
 					// TODO(mafredri): remove after CODAGT-711 B3
 					// (org-scoping cutover). The chat-org-then-default-org
@@ -2288,6 +2289,10 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 }
 
 func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+	// The old delete handler gates on deployment_config update while the
+	// B1 fallback window lets default-org configs serve every org; the
+	// object-scoped delete check swaps in at the cutover.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
@@ -3769,7 +3774,7 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.Ge
 }
 
 func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig); err != nil {
 		return nil, err
 	}
 	return q.db.GetEnabledMCPServerConfigs(ctx)
@@ -3848,14 +3853,14 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 }
 
 func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig); err != nil {
 		return nil, err
 	}
 	return q.db.GetForcedMCPServerConfigs(ctx)
 }
 
 func (q *querier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig); err != nil {
 		return nil, err
 	}
 	return q.db.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
@@ -4060,6 +4065,12 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+	// The update/delete handlers fetch the config under the caller's
+	// subject behind a deployment_config update gate; an object-scoped
+	// read here would contract that write set during the B1 fallback
+	// window (a concealed 404). The object-scoped read swaps in at the
+	// cutover.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -4067,35 +4078,36 @@ func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (dat
 }
 
 func (q *querier) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerConfig{}, err
-	}
-	return q.db.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetMCPServerConfigByOrganizationAndSlug)(ctx, arg)
 }
 
 func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetMCPServerConfigs(ctx)
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, prep)
 }
 
 func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetMCPServerConfigsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg database.GetMCPServerConfigsByIDsAndOrganizationsParams) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.GetMCPServerConfigsByIDsAndOrganizations(ctx, arg)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetMCPServerConfigsByIDsAndOrganizations)(ctx, arg)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	// Authorize against the token's config: a user token is usable only
+	// where its MCP server config is usable. The config is fetched via
+	// q.db (never another dbauthz method, which would recurse), so in
+	// Enterprise builds this read goes through dbcrypt and a config
+	// decryption failure now surfaces in token reads.
+	cfg, err := q.db.GetMCPServerConfigByID(ctx, arg.MCPServerConfigID)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, cfg.RBACObject()); err != nil {
 		return database.MCPServerUserToken{}, err
 	}
 	return q.db.GetMCPServerUserToken(ctx, arg)
@@ -6213,6 +6225,10 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+	// The old create handler gates on deployment_config update while the
+	// B1 fallback window lets default-org configs serve every org; the
+	// object-scoped create check swaps in at the cutover.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -7680,6 +7696,10 @@ func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args da
 }
 
 func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+	// The old update handler gates on deployment_config update while the
+	// B1 fallback window lets default-org configs serve every org; the
+	// object-scoped update check swaps in at the cutover.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -9413,4 +9433,21 @@ func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsP
 
 func (q *querier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
 	return q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
+}
+
+func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	// GetMCPServerConfigs prepares the filter; a caller that already holds
+	// the prepared value must not discard it (row filtering depends on it).
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, prepared)
+}
+
+func (q *querier) GetMCPServerConfigManagementList(ctx context.Context) ([]database.MCPServerConfig, error) {
+	// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
+	// The interim management list gates on deployment_config read; the
+	// query behind that gate must carry the gate's contract until the
+	// cutover swaps both to the authorized list.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetMCPServerConfigManagementList(ctx)
 }
