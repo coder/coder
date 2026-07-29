@@ -140,7 +140,7 @@ for compliance and cost tracking.
 
 AI Gateway supports 2 deployment topologies:
 
-- **Embedded:** `coderd` runs the AI Gateway data plane in its own process.
+- **Embedded:** `coderd` runs the AI Gateway data plane in the same process.
 - **Standalone:** AI Gateway runs outside `coderd`, as replicas that serve AI traffic and send requests directly to upstream providers.
 
 Standalone replicas hold no state. `coderd` is the source of truth and the only component that writes durable AI Gateway state to the database.
