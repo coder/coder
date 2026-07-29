@@ -9888,7 +9888,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/users/{user}/ai/budget": {
+        "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
                     "application/json"
@@ -15722,6 +15722,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBudgetLimit": {
+            "type": "object",
+            "properties": {
+                "limit_source": {
+                    "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIBudgetLimitSource": {
             "type": "string",
             "enum": [
@@ -15767,17 +15778,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.AIGroupBudget": {
-            "type": "object",
-            "properties": {
-                "limit_source": {
-                    "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
-                },
-                "spend_limit_micros": {
-                    "type": "integer"
                 }
             }
         },
@@ -20724,7 +20724,7 @@ const docTemplate = `{
                     "description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. Null when the user's budget resolves to another\ngroup or no budget applies to the user.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.AIGroupBudget"
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
                         }
                     ]
                 },
@@ -26403,18 +26403,18 @@ const docTemplate = `{
                     "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
                     "type": "integer"
                 },
+                "effective_budget": {
+                    "description": "EffectiveBudget is the spend limit that applies to the user, whether it\ncame from a group budget or a user override. Null when no budget\napplies, leaving the user's spend unlimited.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
                 "effective_group_id": {
                     "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
                     "type": "string",
                     "format": "uuid"
-                },
-                "limit_source": {
-                    "description": "LimitSource identifies which tier produced the limit. Null when no\nbudget applies.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
-                        }
-                    ]
                 },
                 "period_end": {
                     "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
@@ -26425,10 +26425,6 @@ const docTemplate = `{
                     "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
                     "type": "string",
                     "format": "date-time"
-                },
-                "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the effective spend limit in micro-units.\nNull when no budget applies to the user (unlimited).",
-                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",

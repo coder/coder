@@ -3161,33 +3161,38 @@ func TestUserAISpendStatus(t *testing.T) {
 		overrideLimit          *int64 // nil = no user override configured
 		spent                  int64  // 0 = no spend seeded
 		wantHasEffectiveGroup  bool
-		wantSpendLimitMicros   *int64
-		wantLimitSource        *codersdk.AIBudgetLimitSource
+		wantEffectiveBudget    *codersdk.AIBudgetLimit
 		wantCurrentSpendMicros int64
 	}{
 		{
 			name:                  "GroupBudget/ZeroSpend",
 			groupBudget:           ptr.Ref(int64(1_000_000_000)),
 			wantHasEffectiveGroup: true,
-			wantSpendLimitMicros:  ptr.Ref(int64(1_000_000_000)),
-			wantLimitSource:       ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 		},
 		{
-			name:                   "GroupBudget/PartialSpend",
-			groupBudget:            ptr.Ref(int64(1_000_000_000)),
-			spent:                  250_000_000,
-			wantHasEffectiveGroup:  true,
-			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
-			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			name:                  "GroupBudget/PartialSpend",
+			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			spent:                 250_000_000,
+			wantHasEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantCurrentSpendMicros: 250_000_000,
 		},
 		{
-			name:                   "GroupBudget/SpendExceedsLimit",
-			groupBudget:            ptr.Ref(int64(1_000_000_000)),
-			spent:                  1_500_000_000,
-			wantHasEffectiveGroup:  true,
-			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
-			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			name:                  "GroupBudget/SpendExceedsLimit",
+			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			spent:                 1_500_000_000,
+			wantHasEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantCurrentSpendMicros: 1_500_000_000,
 		},
 		{
@@ -3195,27 +3200,33 @@ func TestUserAISpendStatus(t *testing.T) {
 			groupBudget:           ptr.Ref(int64(5_000_000_000)),
 			overrideLimit:         ptr.Ref(int64(200_000_000)),
 			wantHasEffectiveGroup: true,
-			wantSpendLimitMicros:  ptr.Ref(int64(200_000_000)),
-			wantLimitSource:       ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 200_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
 		},
 		{
-			name:                   "UserOverride/PartialSpend",
-			groupBudget:            ptr.Ref(int64(5_000_000_000)),
-			overrideLimit:          ptr.Ref(int64(200_000_000)),
-			spent:                  50_000_000,
-			wantHasEffectiveGroup:  true,
-			wantSpendLimitMicros:   ptr.Ref(int64(200_000_000)),
-			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			name:                  "UserOverride/PartialSpend",
+			groupBudget:           ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			spent:                 50_000_000,
+			wantHasEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 200_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
 			wantCurrentSpendMicros: 50_000_000,
 		},
 		{
-			name:                   "UserOverride/SpendExceedsLimit",
-			groupBudget:            ptr.Ref(int64(5_000_000_000)),
-			overrideLimit:          ptr.Ref(int64(200_000_000)),
-			spent:                  350_000_000,
-			wantHasEffectiveGroup:  true,
-			wantSpendLimitMicros:   ptr.Ref(int64(200_000_000)),
-			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			name:                  "UserOverride/SpendExceedsLimit",
+			groupBudget:           ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			spent:                 350_000_000,
+			wantHasEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 200_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
 			wantCurrentSpendMicros: 350_000_000,
 		},
 	}
@@ -3274,8 +3285,7 @@ func TestUserAISpendStatus(t *testing.T) {
 				wantEffectiveGroupID = &group.ID
 			}
 			require.Equal(t, wantEffectiveGroupID, got.EffectiveGroupID)
-			require.Equal(t, tt.wantSpendLimitMicros, got.SpendLimitMicros)
-			require.Equal(t, tt.wantLimitSource, got.LimitSource)
+			require.Equal(t, tt.wantEffectiveBudget, got.EffectiveBudget)
 		})
 	}
 
@@ -3308,8 +3318,7 @@ func TestUserAISpendStatus(t *testing.T) {
 		got, err := adminClient.UserAISpendStatus(ctx, targetUser.ID)
 		require.NoError(t, err)
 		require.Equal(t, &everyoneGroupID, got.EffectiveGroupID)
-		require.Nil(t, got.SpendLimitMicros)
-		require.Nil(t, got.LimitSource)
+		require.Nil(t, got.EffectiveBudget)
 		require.Equal(t, int64(100_000_000), got.CurrentSpendMicros)
 	})
 
@@ -3333,8 +3342,7 @@ func TestUserAISpendStatus(t *testing.T) {
 		got, err := adminClient.UserAISpendStatus(ctx, orglessUser.ID)
 		require.NoError(t, err)
 		require.Nil(t, got.EffectiveGroupID)
-		require.Nil(t, got.SpendLimitMicros)
-		require.Nil(t, got.LimitSource)
+		require.Nil(t, got.EffectiveBudget)
 		require.Equal(t, int64(0), got.CurrentSpendMicros)
 	})
 }
@@ -5152,14 +5160,14 @@ func TestGroupMembersAISpend(t *testing.T) {
 		spent                 int64
 		wantEffectiveGroup    bool
 		wantEffectiveEveryone bool
-		wantGroupBudget       *codersdk.AIGroupBudget
+		wantGroupBudget       *codersdk.AIBudgetLimit
 		wantSpendMicros       int64
 	}{
 		{
 			name:               "BudgetZeroSpend",
 			groupLimit:         1_000_000_000,
 			wantEffectiveGroup: true,
-			wantGroupBudget: &codersdk.AIGroupBudget{
+			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
 			},
@@ -5169,7 +5177,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 			groupLimit:         1_000_000_000,
 			spent:              250_000_000,
 			wantEffectiveGroup: true,
-			wantGroupBudget: &codersdk.AIGroupBudget{
+			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
 			},
@@ -5179,7 +5187,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 			name:               "OverrideBudget",
 			overrideLimit:      500_000_000,
 			wantEffectiveGroup: true,
-			wantGroupBudget: &codersdk.AIGroupBudget{
+			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 500_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
 			},
