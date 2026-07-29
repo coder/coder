@@ -11,6 +11,15 @@ export const asString = (value: unknown): string =>
 	typeof value === "string" ? value : "";
 
 /**
+ * Record lookup that ignores `Object.prototype` members, for keys chosen
+ * outside our control such as provider tool names and tool call ids.
+ */
+export const ownValue = <T>(
+	record: Record<string, T>,
+	key: string,
+): T | undefined => (Object.hasOwn(record, key) ? record[key] : undefined);
+
+/**
  * Type-narrowing wrapper around a Yup schema. Returns `true`
  * (and narrows `value` to `T`) when `value` satisfies the
  * schema. Strict mode is always enabled to prevent silent

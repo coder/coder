@@ -3034,6 +3034,18 @@ export const CreateWorkspaceBuildFailed: Story = {
 };
 
 /**
+ * A provider may name a tool after an `Object.prototype` member. The renderer
+ * registry lookup has to miss so the row falls back to the generic renderer.
+ */
+export const ToolNamedAfterObjectPrototypeMember: Story = {
+	args: { name: "valueOf", args: undefined, result: { ok: true } },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("valueOf")).toBeVisible();
+	},
+};
+
+/**
  * Non-exhaustive gallery of the icons and labels the common `<Tool>` names
  * render. Per-path coverage lives in the dedicated stories above.
  */

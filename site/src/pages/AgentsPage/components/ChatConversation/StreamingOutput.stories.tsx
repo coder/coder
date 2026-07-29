@@ -304,7 +304,7 @@ export const EmptyToolResultBeforeItsCall: Story = {
 };
 
 /** While reconnecting, the unresolved row is dropped but earlier text stays. */
-export const EmptyToolResultBeforeItsCallSettled: Story = {
+export const EmptyToolResultBeforeItsCallReconnecting: Story = {
 	args: {
 		...unpairedResultState,
 		liveStatus: buildLiveStatus({
@@ -315,7 +315,7 @@ export const EmptyToolResultBeforeItsCallSettled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByLabelText("Tool call running"),
+			canvas.queryByText("Waiting for tool details…"),
 		).not.toBeInTheDocument();
 		expect(canvas.getByText("Wrapped up.")).toBeVisible();
 	},

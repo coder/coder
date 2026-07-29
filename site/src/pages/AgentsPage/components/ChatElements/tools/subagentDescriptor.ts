@@ -1,4 +1,4 @@
-import { asString } from "../runtimeTypeUtils";
+import { asString, ownValue } from "../runtimeTypeUtils";
 import { parseArgs } from "./utils";
 
 export type SubagentAction = "spawn" | "wait" | "message" | "interrupt";
@@ -77,10 +77,10 @@ const normalizeSubagentVariant = (
 };
 
 const getSubagentAction = (name: string): SubagentAction | undefined =>
-	actionByToolName[name];
+	ownValue(actionByToolName, name);
 
 const getVariantFromName = (name: string): SubagentVariant | undefined =>
-	variantBySpawnToolName[name as keyof typeof variantBySpawnToolName];
+	ownValue(variantBySpawnToolName, name);
 
 export const isSubagentToolName = (name: string): boolean =>
 	getSubagentAction(name) !== undefined;

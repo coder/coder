@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ownValue } from "../ChatElements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
 import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -55,7 +56,7 @@ export const applyMessagePartToStreamState = (
 				part.tool_call_id ||
 				(existingByName && !existingByName.args ? existingByName.id : null) ||
 				`tool-call-${Object.keys(nextState.toolCalls).length + 1}-${++nextFallbackID}`;
-			const existing = nextState.toolCalls[toolCallID];
+			const existing = ownValue(nextState.toolCalls, toolCallID);
 			const nextArgs = mergeStreamPayload(
 				existing?.args,
 				existing?.argsRaw,
@@ -102,11 +103,12 @@ export const applyMessagePartToStreamState = (
 			const toolCallID =
 				part.tool_call_id ||
 				(existingByName && !existingByName.result ? existingByName.id : null) ||
-				(existingCallByName && !nextState.toolResults[existingCallByName.id]
+				(existingCallByName &&
+				!ownValue(nextState.toolResults, existingCallByName.id)
 					? existingCallByName.id
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
-			const existing = nextState.toolResults[toolCallID];
+			const existing = ownValue(nextState.toolResults, toolCallID);
 			if (part.result_reset) {
 				const toolResults = { ...nextState.toolResults };
 				delete toolResults[toolCallID];
@@ -230,13 +232,6 @@ const getStreamToolStatus = (
 	}
 	return result.isError ? "error" : "completed";
 };
-
-/**
- * Reads a block id off a stream map. Ids come from the provider, so they can
- * name something on `Object.prototype` that was never streamed.
- */
-const ownValue = <T>(record: Record<string, T>, key: string): T | undefined =>
-	Object.hasOwn(record, key) ? record[key] : undefined;
 
 /**
  * Iterates blocks rather than the call map, so a tool cannot exist without a

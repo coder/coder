@@ -273,7 +273,11 @@ describe("parseMessageContent", () => {
 			["cd", "/repo"],
 			["git", "pull"],
 		]);
-		const merged = mergeTools(result.toolCalls, result.toolResults);
+		const merged = mergeTools(
+			result.blocks,
+			result.toolCalls,
+			result.toolResults,
+		);
 		expect(merged[0].parsedCommands).toEqual([
 			["cd", "/repo"],
 			["git", "pull"],
@@ -482,6 +486,7 @@ describe("parseMessageContent", () => {
 describe("mergeTools", () => {
 	it("merges tool calls with matching results", () => {
 		const merged = mergeTools(
+			[{ type: "tool", id: "1" }],
 			[{ id: "1", name: "bash", args: { cmd: "ls" } }],
 			[{ id: "1", name: "bash", result: "ok", isError: false }],
 		);
@@ -496,8 +501,9 @@ describe("mergeTools", () => {
 		});
 	});
 
-	it("includes orphaned results that have no matching call", () => {
+	it("includes a result whose call never arrived", () => {
 		const merged = mergeTools(
+			[{ type: "tool", id: "1" }],
 			[],
 			[{ id: "1", name: "bash", result: "output", isError: false }],
 		);
@@ -506,8 +512,13 @@ describe("mergeTools", () => {
 		expect(merged[0].status).toBe("completed");
 	});
 
+	it("skips a tool block with neither a call nor a result", () => {
+		expect(mergeTools([{ type: "tool", id: "1" }], [], [])).toEqual([]);
+	});
+
 	it("marks error results with error status", () => {
 		const merged = mergeTools(
+			[{ type: "tool", id: "1" }],
 			[{ id: "1", name: "bash" }],
 			[{ id: "1", name: "bash", result: "fail", isError: true }],
 		);
@@ -516,15 +527,22 @@ describe("mergeTools", () => {
 	});
 
 	it("returns completed for calls without results", () => {
-		const merged = mergeTools([{ id: "1", name: "bash" }], []);
+		const merged = mergeTools(
+			[{ type: "tool", id: "1" }],
+			[{ id: "1", name: "bash" }],
+			[],
+		);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("completed");
 	});
 
 	it("marks unresolved pending calls as running", () => {
-		const merged = mergeTools([{ id: "1", name: "bash" }], [], {
-			pendingToolCallIDs: new Set(["1"]),
-		});
+		const merged = mergeTools(
+			[{ type: "tool", id: "1" }],
+			[{ id: "1", name: "bash" }],
+			[],
+			{ pendingToolCallIDs: new Set(["1"]) },
+		);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("running");
 	});
@@ -628,22 +646,6 @@ describe("pending durable tool parsing", () => {
 
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
-	});
-
-	it("pairs every merged tool with a tool block, in block order", () => {
-		const messages = [
-			msg(1, "assistant", [toolCall("call-1"), { type: "text", text: "ok" }]),
-			msg(2, "tool", [toolResult("call-1")]),
-			msg(3, "tool", [toolResult("call-orphan")]),
-		];
-
-		for (const { parsed } of parseMessagesWithMergedTools(messages)) {
-			expect(parsed.tools.map((tool) => tool.id)).toEqual(
-				parsed.blocks.flatMap((block) =>
-					block.type === "tool" ? [block.id] : [],
-				),
-			);
-		}
 	});
 });
 

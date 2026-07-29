@@ -112,11 +112,18 @@ describe("toTimelineBlocks", () => {
 		...tool(id, "execute"),
 		args: { command: "ls" },
 	});
+	const suppressedWaitTool: MergedTool = {
+		id: "wait-1",
+		name: "wait_agent",
+		isError: false,
+		status: "running",
+	};
 	const tools = [
 		tool("read-1"),
 		tool("read-2"),
 		executeTool("execute-1"),
 		tool("execute-pending", "execute"),
+		suppressedWaitTool,
 	];
 
 	it("collapses consecutive read_file tool blocks", () => {
@@ -198,9 +205,33 @@ describe("toTimelineBlocks", () => {
 		expect(toTimelineBlocks(blocks, tools)).toEqual(expected);
 	});
 
+	it("keeps a non-tool block's source index after a run collapses", () => {
+		const result = toTimelineBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "read-2" },
+				{ type: "thinking", text: "hmm" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{ type: "read-files", tools: [tool("read-1"), tool("read-2")] },
+			{ type: "thinking", text: "hmm", sourceIndex: 2 },
+		]);
+	});
+
 	it("emits a block whose tool has not arrived yet as unresolved", () => {
 		expect(toTimelineBlocks([{ type: "tool", id: "missing" }], tools)).toEqual([
 			{ type: "unresolved-tool", id: "missing" },
+		]);
+	});
+
+	// A wait_agent row without its target chat_id is deliberately hidden by
+	// <Tool>, not still arriving, so it must not become a placeholder.
+	it("keeps a suppressed subagent lifecycle tool as a tool block", () => {
+		expect(toTimelineBlocks([{ type: "tool", id: "wait-1" }], tools)).toEqual([
+			{ type: "tool", tool: suppressedWaitTool },
 		]);
 	});
 });

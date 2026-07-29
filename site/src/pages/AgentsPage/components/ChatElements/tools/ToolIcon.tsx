@@ -105,7 +105,6 @@ export const ToolIcon: React.FC<{
 		case "computer":
 			return <MonitorIcon className={base} />;
 
-		case "unknown":
 		default:
 			return <WrenchIcon className={base} />;
 	}

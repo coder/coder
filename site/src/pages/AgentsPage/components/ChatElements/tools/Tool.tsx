@@ -47,6 +47,7 @@ import {
 	humanizeMCPToolName,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
+	ownValue,
 	parseArgs,
 	parseEditFilesArgs,
 	parseServerEditDiffText,
@@ -1029,8 +1030,9 @@ export const Tool = memo(
 	}: ToolProps) => {
 		const Renderer = isSubagentToolName(name)
 			? SubagentRenderer
-			: (toolRenderers[name] ?? GenericToolRenderer);
+			: (ownValue(toolRenderers, name) ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
+		// Only place a deliberately suppressed subagent lifecycle row is dropped.
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
 		}

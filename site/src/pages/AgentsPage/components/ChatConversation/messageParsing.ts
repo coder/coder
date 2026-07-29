@@ -134,20 +134,32 @@ type MergeToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
 };
 
+/**
+ * Iterates blocks rather than the call list, so every tool is paired with the
+ * block that renders it and one id cannot produce two rows.
+ */
 export const mergeTools = (
-	calls: ParsedToolCall[],
-	results: ParsedToolResult[],
+	blocks: readonly RenderBlock[],
+	calls: readonly ParsedToolCall[],
+	results: readonly ParsedToolResult[],
 	options: MergeToolsOptions = {},
 ): MergedTool[] => {
-	const resultById = new Map(results.map((r) => [r.id, r]));
-	const seen = new Set<string>();
+	const callByID = new Map(calls.map((call) => [call.id, call]));
+	const resultByID = new Map(results.map((result) => [result.id, result]));
 	const merged: MergedTool[] = [];
 
-	for (const call of calls) {
-		seen.add(call.id);
-		const result = resultById.get(call.id);
+	for (const block of blocks) {
+		if (block.type !== "tool") {
+			continue;
+		}
+		const call = callByID.get(block.id);
+		const result = resultByID.get(block.id);
+		const source = call ?? result;
+		if (!source) {
+			continue;
+		}
 		// Extract model_intent from the tool call args if present.
-		const callArgs = call.args as Record<string, unknown> | undefined;
+		const callArgs = call?.args as Record<string, unknown> | undefined;
 		const modelIntent =
 			typeof callArgs?.model_intent === "string"
 				? callArgs.model_intent
@@ -156,33 +168,20 @@ export const mergeTools = (
 			? result.isError
 				? "error"
 				: "completed"
-			: options.pendingToolCallIDs?.has(call.id)
+			: options.pendingToolCallIDs?.has(block.id)
 				? "running"
 				: "completed";
 		merged.push({
-			id: call.id,
-			name: call.name,
-			args: call.args,
+			id: block.id,
+			name: source.name,
+			args: call?.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status,
-			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			mcpServerConfigId: call?.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
-			parsedCommands: call.parsedCommands,
+			parsedCommands: call?.parsedCommands,
 		});
-	}
-
-	for (const result of results) {
-		if (!seen.has(result.id)) {
-			merged.push({
-				id: result.id,
-				name: result.name,
-				result: result.result,
-				isError: result.isError,
-				status: result.isError ? "error" : "completed",
-				mcpServerConfigId: result.mcpServerConfigId,
-			});
-		}
 	}
 
 	return merged;
@@ -365,6 +364,7 @@ export const parseMessagesWithMergedTools = (
 			}
 		}
 		parsed.tools = mergeTools(
+			parsed.blocks,
 			parsed.toolCalls,
 			Array.from(resultById.values()),
 			{ pendingToolCallIDs: options.pendingToolCallIDs },

@@ -87,8 +87,25 @@ const shouldRenderSubagentLifecycleTool = ({
 };
 
 /**
+ * True while a row's arguments have not streamed far enough to render it, which
+ * earns a placeholder rather than the silence a hidden row gets.
+ */
+export const isToolPendingArgs = ({
+	name,
+	args,
+	result,
+}: {
+	name: string;
+	args?: unknown;
+	result?: unknown;
+}): boolean =>
+	name === "execute" &&
+	getExecuteRenderData(args, result).command.trim().length === 0;
+
+/**
  * Centralize tool-row visibility so transcript message hiding stays in sync
- * with <Tool> row rendering and hidden rows never leave empty gaps behind.
+ * with <Tool> row rendering and hidden rows never leave empty gaps behind. A
+ * row waiting only on its arguments is not hidden: see `isToolPendingArgs`.
  */
 export const shouldRenderTool = ({
 	name,
@@ -102,7 +119,7 @@ export const shouldRenderTool = ({
 	result?: unknown;
 }): boolean => {
 	if (name === "execute") {
-		return getExecuteRenderData(args, result).command.trim().length > 0;
+		return !isToolPendingArgs({ name, args, result });
 	}
 
 	return shouldRenderSubagentLifecycleTool({ name, status, args, result });

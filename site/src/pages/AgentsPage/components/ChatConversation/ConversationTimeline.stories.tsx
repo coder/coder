@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, useState } from "react";
 import {
 	expect,
 	fireEvent,
@@ -12,9 +13,9 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
-import { ConversationTimeline } from "./ConversationTimeline";
+import { BlockList, ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import type { ParsedMessageEntry } from "./types";
+import type { MergedTool, ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -2518,6 +2519,69 @@ export const SequentialReadFilesCollapsed: Story = {
 		await waitFor(() => {
 			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
 		});
+	},
+};
+
+const readFileTool = (id: string, path: string): MergedTool => ({
+	id,
+	name: "read_file",
+	args: { path },
+	result: { content: `// ${path}` },
+	isError: false,
+	status: "completed",
+});
+
+const ReadFileRunCollapseHarness: FC = () => {
+	const [secondReadResolved, setSecondReadResolved] = useState(false);
+	return (
+		<div className="flex flex-col gap-2">
+			<button type="button" onClick={() => setSecondReadResolved(true)}>
+				Resolve second read
+			</button>
+			<BlockList
+				blocks={[
+					{ type: "tool", id: "read-1" },
+					{ type: "tool", id: "read-2" },
+					{ type: "thinking", text: "Let me think about this step by step." },
+				]}
+				tools={
+					secondReadResolved
+						? [readFileTool("read-1", "a.ts"), readFileTool("read-2", "b.ts")]
+						: [readFileTool("read-1", "a.ts")]
+				}
+				keyPrefix="read-run"
+			/>
+		</div>
+	);
+};
+
+/**
+ * Resolving the second read collapses two rows into one, shortening the
+ * timeline. The thinking disclosure below keeps its expanded state because its
+ * key comes from its position in `blocks`, which did not move.
+ */
+export const ReadFileRunCollapseKeepsThinkingExpanded: Story = {
+	render: () => <ReadFileRunCollapseHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Resolve second read" }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: /read 2 files/i }),
+			).toBeVisible();
+		});
+		expect(
+			canvas.getByText(/Let me think about this step by step/),
+		).toBeVisible();
 	},
 };
 

@@ -1,5 +1,5 @@
 import { asString } from "../ChatElements/runtimeTypeUtils";
-import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
+import { isToolPendingArgs } from "../ChatElements/tools/toolVisibility";
 import type { MergedTool, RenderBlock } from "./types";
 
 export const asNonEmptyString = (value: unknown): string | undefined => {
@@ -42,8 +42,10 @@ type TimelineBlock =
  * Resolves each tool block's id against `tools` and collapses adjacent
  * read_file tools into one `read-files` block, including a run of one, so the
  * renderer switches on shape instead of looking tools up. A block becomes
- * `unresolved-tool` when its tool has not arrived, or when the tool has not yet
- * streamed enough to render a row, which otherwise leaves a gap.
+ * `unresolved-tool` while its tool is still arriving: either no tool carries
+ * the id yet, or the tool's arguments have not streamed far enough to render a
+ * row. A tool that is deliberately hidden keeps its `tool` block, so `<Tool>`
+ * stays the one place that decides to render nothing.
  *
  * Non-tool blocks carry their index in `blocks`, which never moves, so
  * collapsing a read-file run cannot renumber the keys of later blocks.
@@ -72,13 +74,17 @@ export const toTimelineBlocks = (
 		}
 
 		const tool = toolByID.get(block.id);
-		if (!tool || !shouldRenderTool(tool)) {
+		if (!tool || isToolPendingArgs(tool)) {
 			flushReadFileRun();
 			timeline.push({ type: "unresolved-tool", id: block.id });
 			continue;
 		}
 		if (tool.name === "read_file") {
-			readFileRun = readFileRun ? [...readFileRun, tool] : [tool];
+			if (readFileRun) {
+				readFileRun.push(tool);
+			} else {
+				readFileRun = [tool];
+			}
 			continue;
 		}
 
