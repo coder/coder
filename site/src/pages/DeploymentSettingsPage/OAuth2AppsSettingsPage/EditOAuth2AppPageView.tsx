@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import Divider from "@mui/material/Divider";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
@@ -12,6 +10,7 @@ import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
+import { Separator } from "#/components/Separator/Separator";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -74,7 +73,6 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 	ackFullNewSecret,
 	error,
 }) => {
-	const theme = useTheme();
 	const [searchParams] = useSearchParams();
 	const [showDelete, setShowDelete] = useState<boolean>(false);
 
@@ -165,7 +163,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</dd>
 						</dl>
 
-						<Divider css={{ borderColor: theme.palette.divider }} />
+						<Separator className="my-2" />
 
 						<OAuth2AppForm
 							app={app}
@@ -186,7 +184,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 
 						{canViewAppSecrets && (
 							<>
-								<Divider css={{ borderColor: theme.palette.divider }} />
+								<Separator className="my-2" />
 
 								<OAuth2AppSecretsTable
 									secrets={secrets}

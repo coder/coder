@@ -1,25 +1,18 @@
-import TextField from "@mui/material/TextField";
+import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
-import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers } from "#/utils/formUtils";
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: {
-		name: string;
-		callback_url: string;
-		icon: string;
-	}) => void;
+	onSubmit: (data: TypesGen.PostOAuth2ProviderAppRequest) => void;
 	error?: unknown;
 	isUpdating: boolean;
 	actions?: ReactNode;
-	defaultValues?: {
-		name: string;
-		callback_url: string;
-		icon: string;
-	};
+	defaultValues?: TypesGen.PostOAuth2ProviderAppRequest;
 	disabled: boolean;
 };
 
@@ -32,58 +25,45 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	defaultValues,
 	disabled,
 }) => {
-	const apiValidationErrors = isApiValidationError(error)
-		? mapApiErrorToFieldErrors(error.response.data)
-		: undefined;
+	const form = useFormik<TypesGen.PostOAuth2ProviderAppRequest>({
+		initialValues: {
+			name: app?.name ?? defaultValues?.name ?? "",
+			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
+			icon: app?.icon ?? defaultValues?.icon ?? "",
+		},
+		// Mark fields touched from the start so server-side validation errors
+		// surface as soon as they arrive instead of waiting for the user to
+		// interact with each field.
+		initialTouched: { name: true, callback_url: true, icon: true },
+		onSubmit,
+	});
+	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<form
-			className="mt-2.5"
-			onSubmit={(event) => {
-				event.preventDefault();
-				const formData = new FormData(event.target as HTMLFormElement);
-				onSubmit({
-					name: formData.get("name") as string,
-					callback_url: formData.get("callback_url") as string,
-					icon: formData.get("icon") as string,
-				});
-			}}
-		>
+		<form className="mt-2.5" onSubmit={form.handleSubmit}>
 			<div className="flex flex-col gap-5">
-				<TextField
-					name="name"
+				<FormField
+					field={getFieldHelpers("name", {
+						helperText: "The name of your Coder app.",
+					})}
 					label="Application name"
-					defaultValue={app?.name ?? defaultValues?.name}
-					error={Boolean(apiValidationErrors?.name)}
-					helperText={
-						apiValidationErrors?.name || "The name of your Coder app."
-					}
 					disabled={disabled}
 					autoFocus
-					fullWidth
 				/>
-				<TextField
-					name="callback_url"
+				<FormField
+					field={getFieldHelpers("callback_url", {
+						helperText:
+							"The full URL to redirect to after a user authorizes an installation.",
+					})}
 					label="Callback URL"
-					defaultValue={app?.callback_url ?? defaultValues?.callback_url}
-					error={Boolean(apiValidationErrors?.callback_url)}
-					helperText={
-						apiValidationErrors?.callback_url ||
-						"The full URL to redirect to after a user authorizes an installation."
-					}
 					disabled={disabled}
-					fullWidth
 				/>
-				<TextField
-					name="icon"
+				<FormField
+					field={getFieldHelpers("icon", {
+						helperText: "A full or relative URL to an icon.",
+					})}
 					label="Application icon"
-					defaultValue={app?.icon ?? defaultValues?.icon}
-					error={Boolean(apiValidationErrors?.icon)}
-					helperText={
-						apiValidationErrors?.icon || "A full or relative URL to an icon."
-					}
 					disabled={disabled}
-					fullWidth
 				/>
 
 				<div className="flex flex-row gap-4">
