@@ -80,7 +80,8 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 
-// deleteExternalAuthByID only deletes the link on the Coder side, does not revoke the token on the provider side.
+// deleteExternalAuthByID deletes the Coder link and makes a best-effort
+// provider-side token revocation when the provider configures one.
 //
 // @Summary Delete external auth user link by ID
 // @ID delete-external-auth-user-link-by-id

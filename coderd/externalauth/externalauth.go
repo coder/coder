@@ -1302,7 +1302,6 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 	codersdk.EnhancedExternalAuthProviderSlack: {
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
 		TokenURL:    "https://slack.com/api/oauth.v2.access",
-		RevokeURL:   "https://slack.com/api/auth.revoke",
 		DisplayName: "Slack",
 		DisplayIcon: "/icon/slack.svg",
 		// See: https://api.slack.com/authentication/oauth-v2#exchanging

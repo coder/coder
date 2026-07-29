@@ -130,6 +130,19 @@ func TestGitlabDefaults(t *testing.T) {
 	}
 }
 
+func TestSlackDefaultsDoNotRevokeBotToken(t *testing.T) {
+	t.Parallel()
+
+	config := codersdk.ExternalAuthConfig{
+		Type: string(codersdk.EnhancedExternalAuthProviderSlack),
+	}
+	applyDefaultsToConfig(&config)
+
+	// Slack's OAuth access token is shared by the workspace installation.
+	// Revoking it when one user unlinks disables the Slack app for everyone.
+	require.Empty(t, config.RevokeURL)
+}
+
 func TestIsFailedRefresh(t *testing.T) {
 	t.Parallel()
 
