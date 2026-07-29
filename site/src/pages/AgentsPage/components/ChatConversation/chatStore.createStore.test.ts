@@ -542,15 +542,12 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
 		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
 
-		// A later snapshot dropping A does not unlearn that A existed.
 		store.applyAuthoritativeQueuedMessages([b]);
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
 
-		// Optimistic writes are not server reports.
 		store.setQueuedMessages([b, c]);
 		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
 
-		// Observations are per-chat.
 		store.clearSuppressedQueuedMessageIDs();
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
 	});
@@ -560,7 +557,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 
 		expect(store.getServerChatStatusVersion()).toBe(0);
 
-		// Optimistic writes are not server reports.
 		store.setChatStatus("running");
 		expect(store.getServerChatStatusVersion()).toBe(0);
 
@@ -568,7 +564,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.getServerChatStatusVersion()).toBe(1);
 		expect(store.getSnapshot().chatStatus).toBe("error");
 
-		// A repeat of the current value is still the server speaking.
 		store.applyServerChatStatus("error");
 		expect(store.getServerChatStatusVersion()).toBe(2);
 		expect(store.getSnapshot().chatStatus).toBe("error");
@@ -584,7 +579,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		// Another tab re-queued A, so the server still lists it.
 		expect(
 			store
 				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
@@ -608,8 +602,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		// An accepted queue_update lands while the refetch is in flight, so it
-		// is newer than the response the refetch is about to deliver.
 		store.applyAuthoritativeQueuedMessages([b, c]);
 
 		expect(
@@ -623,7 +615,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([b.id, c.id]);
-		// Accepting the snapshot already settled the promotion.
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
 	});
 
@@ -638,8 +629,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		// This snapshot predates the promotion, so it is discarded and must not
-		// supersede the refetch, which is the only way C becomes visible.
 		store.applyAuthoritativeQueuedMessages([a, b, c]);
 
 		expect(
@@ -689,8 +678,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		// No authoritative snapshot lands during the round trip, so only the
-		// activations themselves can strand the request.
 		store.setActiveChatID("chat-other");
 		store.setActiveChatID(testChatID);
 
@@ -716,8 +703,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 
-		// A caller that captured the fence too late would otherwise pass the
-		// ordering check while carrying another chat's queue.
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				"chat-other",
@@ -740,8 +725,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		// An overlapping explicit promotion suppresses C without deleting it
-		// server-side, so the refetched snapshot still lists it.
 		store.suppressQueuedMessageID(c.id);
 		const baseline = store.getQueueConvergenceFence();
 

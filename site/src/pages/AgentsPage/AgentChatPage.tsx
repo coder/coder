@@ -259,9 +259,8 @@ const buildPromotedQueueReconciliation = (
 	return tailPending ? [...remaining, queuedTail] : remaining;
 };
 
-// A chat the user navigated away from has no live store to read, so the
-// cached queue is the freshest view of it. Falling back to the pre-send
-// snapshot would drop messages queued while the send was in flight.
+// Prefer an inactive chat's cached queue so messages queued during the send
+// are not dropped; fall back when no cache exists.
 export const buildInactiveChatQueueReconciliation = (
 	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
@@ -277,8 +276,7 @@ export const buildInactiveChatQueueReconciliation = (
 		() => false,
 	);
 
-// Use the pre-send queue head because queue updates may rotate it before
-// the response arrives.
+// Queue updates may rotate the head before the response arrives.
 export const reconcilePromotedQueueHead = (
 	store: Pick<
 		ChatStore,
@@ -1717,9 +1715,7 @@ const AgentChatPage: FC = () => {
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
-					// A failed edit can park the chat in error server-side
-					// (hook dispatch failures); refresh so the status is not
-					// stale if the websocket event is missed.
+					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
 					void queryClient.invalidateQueries({
 						queryKey: chatKey(agentId),
@@ -1756,7 +1752,7 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
-		// Capture the queue head before sending because an errored chat may promote it.
+		// An errored-chat send may promote the queue head that existed when the request began.
 		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
 		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
 		const statusVersionBeforeSend = store.getServerChatStatusVersion();
@@ -1770,7 +1766,7 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
-			// Refresh chat details in case the failed request changed server state.
+			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
 			void queryClient.invalidateQueries({
 				queryKey: chatKey(agentId),
@@ -1779,9 +1775,7 @@ const AgentChatPage: FC = () => {
 			throw error;
 		}
 		const isActiveChat = store.getActiveChatID() === agentId;
-		// When the server accepts the message immediately (not
-		// queued), clear the stream so the timeline updates without
-		// waiting for the WebSocket stream.
+		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
 		if (!response.queued && isActiveChat) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
@@ -1794,10 +1788,8 @@ const AgentChatPage: FC = () => {
 			// overrides this optimistic value.
 			store.setChatStatus("running");
 		}
-		// Prefer the full inserted batch: queued sends can insert
-		// messages beyond the user row, such as a promoted queue head
-		// on an errored chat, and a stream reconnect keyed on the
-		// highest cached ID would skip them, so upsert while this chat is active.
+		// Upsert the full batch because a queued send can insert a promoted head below
+		// the highest cached ID, which a reconnect would skip.
 		const insertedMessages =
 			response.messages ?? (response.message ? [response.message] : []);
 		if (insertedMessages.length > 0) {
@@ -1822,10 +1814,8 @@ const AgentChatPage: FC = () => {
 						);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
-					// A promoted head means a turn just started, so clear the
-					// stale error status before the status websocket event
-					// arrives. A status event during the request is already
-					// newer than this optimistic value.
+					// A promoted head starts a turn, but any server status received during the
+					// request is newer and must win.
 					if (
 						isActiveChat &&
 						store.getServerChatStatusVersion() === statusVersionBeforeSend

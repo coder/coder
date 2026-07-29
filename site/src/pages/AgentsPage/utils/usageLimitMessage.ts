@@ -81,9 +81,6 @@ export function isChatUsageLimitExceededResponse(
 	);
 }
 
-/**
- * Runtime guard for the structured 502 hook-dispatch-failure response.
- */
 export function isChatHookDispatchFailedResponse(
 	value: unknown,
 ): value is TypesGen.ChatHookDispatchFailedResponse {
@@ -95,9 +92,6 @@ export function isChatHookDispatchFailedResponse(
 	);
 }
 
-/**
- * Runtime guard for the structured 403 hook-denial response.
- */
 export function isChatHookDeniedResponse(
 	value: unknown,
 ): value is TypesGen.ChatHookDeniedResponse {

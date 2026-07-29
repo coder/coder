@@ -321,7 +321,6 @@ describe("reconcilePromotedQueueHead", () => {
 
 	it("does not suppress the rotated head when a queue_update already applied", () => {
 		const store = createChatStore();
-		// The authoritative [b, c] snapshot arrives before the send response.
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const c = buildQueuedMessage(3, "C");
@@ -335,7 +334,6 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
 		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
 
-		// A late pre-promotion snapshot must not resurrect the promoted row.
 		store.applyAuthoritativeQueuedMessages([a, b, c]);
 		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
 			b.id,
@@ -364,7 +362,6 @@ describe("reconcilePromotedQueueHead", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const c = buildQueuedMessage(3, "C");
-		// The server acknowledged the tail, then a later snapshot deleted it.
 		store.applyAuthoritativeQueuedMessages([a, c]);
 		store.applyAuthoritativeQueuedMessages([a]);
 
@@ -376,8 +373,6 @@ describe("reconcilePromotedQueueHead", () => {
 	it("omits the response tail when a newer queue update was observed", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
-		// The caller withholds the tail once it has seen a newer queue,
-		// because that snapshot may already have deleted it.
 		store.setQueuedMessages([a]);
 
 		const next = reconcilePromotedQueueHead(

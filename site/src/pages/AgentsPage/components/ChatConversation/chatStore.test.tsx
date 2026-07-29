@@ -2329,7 +2329,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
-		// The socket becomes authoritative, so a refetched status is ignored.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",

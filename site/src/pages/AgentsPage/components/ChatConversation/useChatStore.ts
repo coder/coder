@@ -31,9 +31,7 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-// Writes an authoritative queued-message snapshot into the messages
-// query cache so REST re-hydration cannot replay a stale queue over
-// the store.
+// Prevents REST re-hydration from replaying a stale queue over the store.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
 	chatID: string | undefined,
@@ -328,8 +326,7 @@ export const useChatStore = (
 			if (armedAt === null || chatRecordUpdatedAt <= armedAt) {
 				return;
 			}
-			// A websocket status delivered while the refetch was in flight is
-			// newer than its response, so the resync must not undo it.
+			// Preserve a websocket status delivered during the refetch instead of applying its response.
 			const wsAdvanced =
 				store.getServerChatStatusVersion() !==
 				pendingStatusResyncVersionRef.current;
@@ -384,11 +381,8 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		// Skip snapshots identical to the visible queue. The promoted-queue
-		// reconciliation writes its own optimistic snapshot into the cache,
-		// and treating that write as authoritative would lift the promote
-		// suppression while a stale pre-promotion queue_update can still
-		// arrive and re-show the promoted message.
+		// An optimistic promotion cache write must not clear suppression before
+		// a stale pre-promotion queue_update arrives.
 		if (
 			chatQueuedMessagesEqualByID(
 				store.getSnapshot().queuedMessages,

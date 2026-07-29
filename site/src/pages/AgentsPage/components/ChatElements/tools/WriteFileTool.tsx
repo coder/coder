@@ -45,8 +45,8 @@ export const WriteFileTool: React.FC<{
 	} else if (isError) {
 		label = `Failed to write ${filename}`;
 	}
-	// The diff is synthesized from the tool args, so on error it would
-	// show content that was never written.
+	// The diff is synthesized from tool args, so showing it on error could
+	// misrepresent the content as written.
 	const showDiff = hasDiff && !isError;
 	const errorDetail = isError ? errorMessage?.trim() : undefined;
 

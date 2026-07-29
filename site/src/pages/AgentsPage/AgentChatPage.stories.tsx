@@ -2887,9 +2887,6 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 	has_more: false,
 };
 
-/** A queued send on an errored chat can promote the previous queue head:
- *  the inserted batch lands in the transcript, the new send becomes the
- *  queued tail, and the stale error flips to a running Thinking state. */
 export const QueuedSendPromotesPreviousHead: Story = {
 	parameters: {
 		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
@@ -2915,8 +2912,6 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			chat_id: CHAT_ID,
 			content: [{ type: "text", text: "Follow-up prompt" }],
 		};
-		// Another tab queued this while the send was in flight, so only the
-		// post-promotion convergence fetch can reveal it.
 		const otherTabPrompt: TypesGen.ChatQueuedMessage = {
 			...MockChatQueuedMessage,
 			id: 44,
@@ -3064,9 +3059,6 @@ export const SendResponseAfterChatSwitch: Story = {
 	},
 };
 
-/** A send rejected with the structured 502 hook-dispatch-failure body must
- *  render the lifecycle-hook title and the server's detail text, not the
- *  generic request-failure fallback. */
 export const SendRejectedByHookDispatchFailure: Story = {
 	parameters: {
 		queries: buildQueries(

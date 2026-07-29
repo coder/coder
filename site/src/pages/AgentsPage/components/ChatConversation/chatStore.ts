@@ -170,15 +170,11 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
-	// Advances whenever an in-flight convergence request goes stale: an accepted
-	// authoritative snapshot, or a change of active chat. Snapshots discarded as
-	// stale do not advance it, since discarding one leaves the caller's data
-	// fresher.
+	// Advances when an accepted snapshot or active-chat change invalidates an
+	// in-flight convergence request. Discarded snapshots do not advance it.
 	getQueueConvergenceFence: () => number;
-	// Applies a snapshot fetched specifically to settle promotedID, whose
-	// promotion markers this clears. Returns the queue actually applied, which
-	// the caller should mirror into its cache, or undefined when chatID is no
-	// longer active or the fence moved past baselineFence.
+	// Applies a promotion refetch only while the chat and fence still match.
+	// Clears that ID's markers and returns the filtered queue for cache mirroring.
 	applyPromoteRefetchQueuedMessages: (
 		chatID: string,
 		promotedID: number,
@@ -186,11 +182,8 @@ export type ChatStore = {
 		baselineFence: number,
 	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
-	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
-	// Reports whether any authoritative snapshot has listed id. A tail the
-	// server never mentioned is still in flight; one it mentioned and then
-	// dropped was deleted.
+	// Distinguishes a tail still in flight from one the server listed and later removed.
 	hasObservedQueuedMessageID: (id: number) => boolean;
 	setActiveChatID: (chatID: string | null) => void;
 	getActiveChatID: () => string | null;
@@ -198,7 +191,6 @@ export type ChatStore = {
 	// current value, so a caller can tell that the server spoke during a
 	// request even when the status did not change.
 	getServerChatStatusVersion: () => number;
-	// Records a server-reported status; always counts as an observation.
 	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
