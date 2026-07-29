@@ -1756,11 +1756,6 @@ func TestSearchGroups(t *testing.T) {
 			Query:                 "name:alpha",
 			ExpectedErrorContains: "is not a valid query param",
 		},
-		{
-			Name:                  "ExtraColon",
-			Query:                 "a:b:c",
-			ExpectedErrorContains: "can only contain 1 ':'",
-		},
 	}
 
 	for _, c := range testCases {

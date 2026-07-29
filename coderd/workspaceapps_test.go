@@ -116,6 +116,15 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			expectRedirect:   "https://proxy.test.coder.com/path",
 		},
 		{
+			name:             "RejectProxyAccessURLPrefix",
+			accessURL:        "https://test.coder.com",
+			appHostname:      "*.test.coder.com",
+			proxyURL:         "https://proxy.test.coder.com",
+			proxyAppHostname: "*.proxy.test.coder.com",
+			redirectURI:      "https://proxy.test.coder/path",
+			expectRedirect:   "",
+		},
+		{
 			name:             "ProxySubdomainOK",
 			accessURL:        "https://test.coder.com",
 			appHostname:      "*.test.coder.com",
