@@ -381,7 +381,7 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 						label={`Copy ${label}`}
 						size="icon"
 						variant="subtle"
-						className="size-6 [&>svg]:size-icon-xs"
+						className="size-7 [&>svg]:size-icon-sm"
 					/>
 				</div>
 			</dd>
