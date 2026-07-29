@@ -557,6 +557,11 @@ var (
 					// Minimal read permissions that might be needed for OAuth2 operations
 					rbac.ResourceUser.Type:         {policy.ActionRead},
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
+
+					// Read-only access to check the DCR enabled/disabled
+					// deployment setting from the public discovery and
+					// registration endpoints.
+					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -2704,6 +2709,10 @@ func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) err
 	return q.db.ExpirePrebuildsAPIKeys(ctx, now)
 }
 
+func (q *querier) ExportOrganizationAISpend(ctx context.Context, arg database.ExportOrganizationAISpendParams) ([]database.ExportOrganizationAISpendRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ExportOrganizationAISpend)(ctx, arg)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
@@ -2953,6 +2962,13 @@ func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (i
 		return 0, err
 	}
 	return q.db.GetActiveUserCount(ctx, includeSystem)
+}
+
+func (q *querier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]database.GetActiveUsersAuthorizationRolesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetActiveUsersAuthorizationRoles(ctx)
 }
 
 func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -4160,6 +4176,13 @@ func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) 
 	return q.db.GetNotificationsSettings(ctx)
 }
 
+func (q *querier) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return false, err
+	}
+	return q.db.GetOAuth2DCREnabled(ctx)
+}
+
 func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return false, err
@@ -4312,6 +4335,14 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 		return nil, err
 	}
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
+}
+
+func (q *querier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
+	// Aggregates over-budget user counts per group for cost-control metrics.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetOverBudgetUsersPerGroup(ctx, periodStart)
 }
 
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -9063,6 +9094,13 @@ func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string)
 		return err
 	}
 	return q.db.UpsertNotificationsSettings(ctx, value)
+}
+
+func (q *querier) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertOAuth2DCREnabled(ctx, enabled)
 }
 
 func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {

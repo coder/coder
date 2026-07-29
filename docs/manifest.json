@@ -1318,6 +1318,12 @@
 									"state": ["ai governance add-on"]
 								},
 								{
+									"title": "Cost Controls",
+									"description": "Manage AI Gateway spend with budgets, spend limits, and budget notifications.",
+									"path": "./ai-coder/ai-gateway/cost-controls.md",
+									"state": ["ai governance add-on"]
+								},
+								{
 									"title": "Reference",
 									"description": "Technical reference for AI Gateway, including the aibridged component that runs inside coderd.",
 									"path": "./ai-coder/ai-gateway/reference.md",
@@ -1873,6 +1879,26 @@
 							"path": "reference/cli/notifications_test.md"
 						},
 						{
+							"title": "oauth2-provider",
+							"description": "Manage Coder OAuth2 provider settings",
+							"path": "reference/cli/oauth2-provider.md"
+						},
+						{
+							"title": "oauth2-provider dcr",
+							"description": "Manage OAuth2 dynamic client registration (RFC 7591)",
+							"path": "reference/cli/oauth2-provider_dcr.md"
+						},
+						{
+							"title": "oauth2-provider dcr enable",
+							"description": "Enable OAuth2 dynamic client registration",
+							"path": "reference/cli/oauth2-provider_dcr_enable.md"
+						},
+						{
+							"title": "oauth2-provider dcr disable",
+							"description": "Disable OAuth2 dynamic client registration",
+							"path": "reference/cli/oauth2-provider_dcr_disable.md"
+						},
+						{
 							"title": "open",
 							"description": "Open a workspace",
 							"path": "reference/cli/open.md"
@@ -2146,6 +2172,11 @@
 							"title": "secret update",
 							"description": "Update a secret",
 							"path": "reference/cli/secret_update.md"
+						},
+						{
+							"title": "secret import",
+							"description": "Import secrets from a file",
+							"path": "reference/cli/secret_import.md"
 						},
 						{
 							"title": "secret list",

@@ -227,13 +227,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const compressionThresholdValid =
 		!form.values.compressionThreshold.trim() ||
 		parseThresholdInteger(form.values.compressionThreshold) !== null;
+	const hasProviderChange =
+		isEditing &&
+		!!editingModel &&
+		!!selectedProviderState?.providerConfig &&
+		selectedProviderState.providerConfig.id !== editingModel.ai_provider_id;
 	const canSubmit =
 		!isSaving &&
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
 		contextLimitValid &&
 		compressionThresholdValid &&
-		(!isEditing || form.dirty);
+		(!isEditing || form.dirty || hasProviderChange);
 
 	const handleConfirmReplaceDefault = () => {
 		replaceDefaultConfirmedRef.current = true;

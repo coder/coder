@@ -2525,6 +2525,108 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 	return i, err
 }
 
+const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
+	ai.model AS model,
+	ai.provider AS provider,
+	ai.provider_name AS provider_name,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	organizations.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+`
+
+type ExportOrganizationAISpendParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type ExportOrganizationAISpendRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
+	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
+	GroupName        string        `db:"group_name" json:"group_name"`
+	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OrganizationName string        `db:"organization_name" json:"organization_name"`
+	Model            string        `db:"model" json:"model"`
+	Provider         string        `db:"provider" json:"provider"`
+	ProviderName     string        `db:"provider_name" json:"provider_name"`
+	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+}
+
+// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+// @organization_id over the [period_start, period_end) window. Spend is
+// attributed through the token usage's effective group, and rows are bucketed
+// by the token usage created_at, matching how ai_user_daily_spend is derived.
+func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportOrganizationAISpendRow
+	for rows.Next() {
+		var i ExportOrganizationAISpendRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.GroupID,
+			&i.GroupName,
+			&i.OrganizationID,
+			&i.OrganizationName,
+			&i.Model,
+			&i.Provider,
+			&i.ProviderName,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
@@ -2806,6 +2908,97 @@ func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOr
 			&i.SpendLimitMicros,
 			&i.CurrentSpendMicros,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOverBudgetUsersPerGroup = `-- name: GetOverBudgetUsersPerGroup :many
+WITH budgeted_users AS (
+	-- Users with an override or membership in a budgeted group.
+	SELECT user_id FROM user_ai_budget_overrides
+	UNION
+	SELECT DISTINCT member.user_id
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+),
+user_highest_group AS (
+	-- Per user, their highest-limit group ("highest" budget policy).
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM budgeted_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- An override wins over the highest-limit group, and users with neither drop.
+	SELECT
+		budgeted_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros
+	FROM budgeted_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = budgeted_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = budgeted_users.user_id
+	WHERE COALESCE(override.group_id, user_highest_group.group_id) IS NOT NULL
+),
+user_spend AS (
+	-- Each user's spend against their effective group since period_start.
+	SELECT
+		effective.user_id,
+		effective.effective_group_id,
+		effective.spend_limit_micros,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM effective
+	LEFT JOIN ai_user_daily_spend spend
+		ON spend.user_id = effective.user_id
+		AND spend.effective_group_id = effective.effective_group_id
+		AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY effective.user_id, effective.effective_group_id, effective.spend_limit_micros
+)
+SELECT
+	effective_group_id AS group_id,
+	COUNT(*)::BIGINT AS over_budget_users
+FROM user_spend
+WHERE current_spend_micros >= spend_limit_micros
+GROUP BY effective_group_id
+ORDER BY effective_group_id
+`
+
+type GetOverBudgetUsersPerGroupRow struct {
+	GroupID         uuid.UUID `db:"group_id" json:"group_id"`
+	OverBudgetUsers int64     `db:"over_budget_users" json:"over_budget_users"`
+}
+
+// Returns, per effective group, the number of users at or over their spend
+// limit since period_start. Only users with an enforceable limit (override or
+// budgeted group) count, and the unlimited Everyone fallback does not.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
+func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOverBudgetUsersPerGroup, periodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOverBudgetUsersPerGroupRow
+	for rows.Next() {
+		var i GetOverBudgetUsersPerGroupRow
+		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -13549,8 +13742,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN $13 :: text != '' THEN
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude web events, since we don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding')
+				-- Exclude point-in-time events reported by coderd, since we
+				-- don't know their close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13743,8 +13937,9 @@ WHERE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			-- Exclude point-in-time events reported by coderd, since we
+			-- don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -14843,11 +15038,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			user_email ILIKE concat('%', $3, '%')
 			OR user_username ILIKE concat('%', $3, '%')
+			OR user_name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -20242,11 +20438,12 @@ WHERE
 			organization_id = $2
 		ELSE true
 	END
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			users.email ILIKE concat('%', $3, '%')
 			OR users.username ILIKE concat('%', $3, '%')
+			OR users.name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -24017,7 +24214,7 @@ WHERE
 	(
 		(
 			$2 :: bool = true AND
-			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]%)*'
 		) OR
 		(
 			$3 :: bool = true AND
@@ -25227,6 +25424,20 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 	return notifications_settings, err
 }
 
+const getOAuth2DCREnabled = `-- name: GetOAuth2DCREnabled :one
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool
+`
+
+func (q *sqlQuerier) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2DCREnabled)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOAuth2GithubDefaultEligible = `-- name: GetOAuth2GithubDefaultEligible :one
 SELECT
 	CASE
@@ -25617,6 +25828,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notificatio
 
 func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
+	return err
+}
+
+const upsertOAuth2DCREnabled = `-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled'
+`
+
+func (q *sqlQuerier) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuth2DCREnabled, enabled)
 	return err
 }
 
@@ -29561,7 +29794,8 @@ INSERT INTO user_secrets (
     value,
     value_key_id,
     env_name,
-    file_path
+    file_path,
+    enabled
 ) VALUES (
     $1,
     $2,
@@ -29570,8 +29804,9 @@ INSERT INTO user_secrets (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+    $8,
+    $9
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type CreateUserSecretParams struct {
@@ -29583,6 +29818,7 @@ type CreateUserSecretParams struct {
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	EnvName     string         `db:"env_name" json:"env_name"`
 	FilePath    string         `db:"file_path" json:"file_path"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
@@ -29595,6 +29831,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		arg.ValueKeyID,
 		arg.EnvName,
 		arg.FilePath,
+		arg.Enabled,
 	)
 	var i UserSecret
 	err := row.Scan(
@@ -29608,6 +29845,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -29615,7 +29853,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type DeleteUserSecretByUserIDAndNameParams struct {
@@ -29637,12 +29875,13 @@ func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg De
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByID = `-- name: GetUserSecretByID :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE id = $1
 `
@@ -29661,12 +29900,13 @@ func (q *sqlQuerier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserS
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
@@ -29690,6 +29930,7 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -29790,7 +30031,7 @@ func (q *sqlQuerier) GetUserSecretsTelemetrySummary(ctx context.Context) (GetUse
 const listUserSecrets = `-- name: ListUserSecrets :many
 SELECT
     id, user_id, name, description,
-    env_name, file_path,
+    env_name, file_path, enabled,
     created_at, updated_at
 FROM user_secrets
 WHERE user_id = $1
@@ -29804,6 +30045,7 @@ type ListUserSecretsRow struct {
 	Description string    `db:"description" json:"description"`
 	EnvName     string    `db:"env_name" json:"env_name"`
 	FilePath    string    `db:"file_path" json:"file_path"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -29826,6 +30068,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 			&i.Description,
 			&i.EnvName,
 			&i.FilePath,
+			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29843,7 +30086,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 }
 
 const listUserSecretsWithValues = `-- name: ListUserSecretsWithValues :many
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1
 ORDER BY name ASC
@@ -29872,6 +30115,7 @@ func (q *sqlQuerier) ListUserSecretsWithValues(ctx context.Context, userID uuid.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ValueKeyID,
+			&i.Enabled,
 		); err != nil {
 			return nil, err
 		}
@@ -29894,9 +30138,10 @@ SET
     description = CASE WHEN $4::bool THEN $5 ELSE description END,
     env_name    = CASE WHEN $6::bool THEN $7 ELSE env_name END,
     file_path   = CASE WHEN $8::bool THEN $9 ELSE file_path END,
+    enabled     = CASE WHEN $10::bool THEN $11 ELSE enabled END,
     updated_at  = CURRENT_TIMESTAMP
-WHERE user_id = $10 AND name = $11
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+WHERE user_id = $12 AND name = $13
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type UpdateUserSecretByUserIDAndNameParams struct {
@@ -29909,6 +30154,8 @@ type UpdateUserSecretByUserIDAndNameParams struct {
 	EnvName           string         `db:"env_name" json:"env_name"`
 	UpdateFilePath    bool           `db:"update_file_path" json:"update_file_path"`
 	FilePath          string         `db:"file_path" json:"file_path"`
+	UpdateEnabled     bool           `db:"update_enabled" json:"update_enabled"`
+	Enabled           bool           `db:"enabled" json:"enabled"`
 	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
 	Name              string         `db:"name" json:"name"`
 }
@@ -29924,6 +30171,8 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		arg.EnvName,
 		arg.UpdateFilePath,
 		arg.FilePath,
+		arg.UpdateEnabled,
+		arg.Enabled,
 		arg.UserID,
 		arg.Name,
 	)
@@ -29939,6 +30188,7 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -30175,6 +30425,97 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 	return count, err
 }
 
+const getActiveUsersAuthorizationRoles = `-- name: GetActiveUsersAuthorizationRoles :many
+WITH org_roles AS (
+	SELECT
+		organization_members.user_id,
+		-- The roles are returned as a flat array, org scoped and site side.
+		-- Concatenating the organization id scopes the organization roles.
+		array_agg(org_role || ':' || organization_members.organization_id::text) AS roles
+	FROM
+		organization_members
+		JOIN organizations ON organizations.id = organization_members.organization_id,
+		-- All org members get an implied organization-member role for
+		-- their orgs. Memberships of service accounts are aggregated here
+		-- too, but their rows never survive the join against the outer
+		-- WHERE, so the organization-service-account case does not apply.
+		--
+		-- organizations.default_org_member_roles applies to every member
+		-- but is not materialized on membership rows, so it is unioned in
+		-- here.
+		unnest(
+			array_cat(
+				array_append(organization_members.roles, 'organization-member'),
+				organizations.default_org_member_roles
+			)
+		) AS org_role
+	GROUP BY
+		organization_members.user_id
+),
+user_groups AS (
+	SELECT
+		group_members.user_id,
+		array_agg(group_members.group_id :: text) AS groups
+	FROM
+		group_members
+	GROUP BY
+		group_members.user_id
+)
+SELECT
+	users.id,
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		-- Users with no org memberships have no org_roles row.
+		coalesce(org_roles.roles, ARRAY[]::text[])
+	) :: text[] AS roles,
+	coalesce(user_groups.groups, ARRAY[]::text[]) :: text[] AS groups
+FROM
+	users
+	LEFT JOIN org_roles ON org_roles.user_id = users.id
+	LEFT JOIN user_groups ON user_groups.user_id = users.id
+WHERE
+	users.status = 'active'::user_status
+	AND users.deleted = false
+	AND users.is_system = false
+	AND users.is_service_account = false
+`
+
+type GetActiveUsersAuthorizationRolesRow struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	Roles  []string  `db:"roles" json:"roles"`
+	Groups []string  `db:"groups" json:"groups"`
+}
+
+// Returns the authorization roles (site and org-scoped, including implied
+// member roles and organization default roles) and the group memberships
+// for every active, non-deleted user who is neither a system user nor a
+// service account, matching the GetActiveUserCount population.
+// Must stay semantically in sync with GetAuthorizationUserRoles;
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
+func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveUsersAuthorizationRoles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveUsersAuthorizationRolesRow
+	for rows.Next() {
+		var i GetActiveUsersAuthorizationRolesRow
+		if err := rows.Scan(&i.ID, pq.Array(&i.Roles), pq.Array(&i.Groups)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username and email are returned just to help for logging purposes
@@ -30247,6 +30588,9 @@ type GetAuthorizationUserRolesRow struct {
 
 // This function returns roles for authorization purposes. Implied member roles
 // are included.
+// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+// (implied member roles, org default roles, groups);
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
 func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
 	var i GetAuthorizationUserRolesRow
@@ -30618,11 +30962,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
 			OR username ILIKE concat('%', $2, '%')
+			OR name ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END

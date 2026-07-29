@@ -1217,6 +1217,210 @@ export interface AgentFirewallSessionLogsResponse {
 	readonly results: readonly AgentFirewallLog[];
 }
 
+// From agenthooks/types.go
+/**
+ * ChatRef identifies the chat a lifecycle hook event refers to.
+ */
+export interface AgentHookChatRef {
+	readonly chat_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly turn_id?: string;
+	readonly parent_chat_id?: string;
+	/**
+	 * RootChatID identifies the user-facing root of the chat tree.
+	 */
+	readonly root_chat_id?: string;
+}
+
+// From agenthooks/types.go
+/**
+ * Claims describes the JWT minted by coderd for a lifecycle hook dispatch.
+ */
+export interface AgentHookClaims {
+	readonly iss: string;
+	readonly sub: string;
+	readonly aud: string;
+	readonly iat: number;
+	readonly nbf: number;
+	readonly exp: number;
+	readonly jti: string;
+	readonly type: AgentHookEventType;
+	readonly body_sha256: string;
+}
+
+// From agenthooks/types.go
+export type AgentHookEventType =
+	| "post_compact"
+	| "post_tool_use"
+	| "pre_compact"
+	| "pre_tool_use"
+	| "session_start"
+	| "stop"
+	| "user_prompt_submit";
+
+export const AgentHookEventTypes: AgentHookEventType[] = [
+	"post_compact",
+	"post_tool_use",
+	"pre_compact",
+	"pre_tool_use",
+	"session_start",
+	"stop",
+	"user_prompt_submit",
+];
+
+// From agenthooks/http.go
+/**
+ * Hooks lets a consumer implement only the lifecycle events it uses.
+ */
+export interface AgentHookHooks {
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly SessionStart: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly UserPromptSubmit: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PreToolUse: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PostToolUse: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PreCompact: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PostCompact: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly Stop: unknown;
+}
+
+// From agenthooks/http.go
+/**
+ * MaxRequestBodyBytes limits memory used to verify hook requests.
+ */
+export const AgentHookMaxRequestBodyBytes = 10485760; // 10 MiB
+
+// From agenthooks/types.go
+/**
+ * Meta identifies a hook dispatch and its chat.
+ */
+export interface AgentHookMeta extends AgentHookChatRef {
+	readonly dispatch_id: string;
+	readonly schema_version: number;
+}
+
+// From agenthooks/jwt.go
+/**
+ * MinSecretLen is the minimum HS256 secret length in bytes. go-jose
+ * accepts shorter keys, so signing and verification enforce it to fail
+ * closed on missing or weak secrets.
+ */
+export const AgentHookMinSecretLen = 32;
+
+// From agenthooks/types.go
+/**
+ * Permission controls whether mutable hook input may proceed.
+ */
+export interface AgentHookPermission {
+	readonly decision: AgentHookPermissionDecision;
+	readonly reason?: string;
+	readonly input_override?: unknown;
+}
+
+// From agenthooks/types.go
+export type AgentHookPermissionDecision = "allow" | "deny";
+
+export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
+	"allow",
+	"deny",
+];
+
+// From agenthooks/types.go
+/**
+ * PostCompactData is empty; Meta identifies the compacted chat.
+ */
+export interface AgentHookPostCompactData {}
+
+// From agenthooks/types.go
+/**
+ * PostToolUseData describes a completed tool call, carrying either
+ * ToolResponse or ToolError.
+ */
+export interface AgentHookPostToolUseData {
+	readonly tool_use_id: string;
+	readonly tool_name: string;
+	readonly tool_response?: unknown;
+	readonly tool_error?: string;
+}
+
+// From agenthooks/types.go
+/**
+ * PreCompactData is empty; Meta identifies the chat being compacted.
+ */
+export interface AgentHookPreCompactData {}
+
+// From agenthooks/types.go
+/**
+ * PreToolUseData describes a tool call before execution.
+ */
+export interface AgentHookPreToolUseData {
+	readonly tool_use_id: string;
+	readonly tool_name: string;
+	readonly tool_input: unknown;
+}
+
+// From agenthooks/types.go
+/**
+ * Request is the body coderd posts to the configured lifecycle hook URL.
+ */
+export interface AgentHookRequest {
+	readonly type: AgentHookEventType;
+	readonly meta: AgentHookMeta;
+	readonly data: unknown;
+}
+
+// From agenthooks/types.go
+/**
+ * Response carries a consumer's decision and optional injected content.
+ * Permission is honored for user_prompt_submit and pre_tool_use only.
+ * user_prompt_submit folds injected content into the submitted message.
+ * A denied pre_tool_use yields a synthetic tool result carrying only the
+ * policy text and any Reason; ModelContext persists separately as
+ * model-only transcript content that never reaches clients.
+ */
+export interface AgentHookResponse {
+	readonly permission?: AgentHookPermission;
+	readonly model_context?: string;
+	readonly user_message?: string;
+}
+
+// From agenthooks/types.go
+/**
+ * SchemaVersion is the current lifecycle hook request schema version.
+ */
+export const AgentHookSchemaVersion = 1;
+
+// From agenthooks/types.go
+/**
+ * SessionStartData reports why a chat session started. Source is
+ * "startup", "resume", or "clear".
+ */
+export interface AgentHookSessionStartData {
+	readonly source: string;
+}
+
+// From agenthooks/types.go
+/**
+ * StopData is empty; Meta identifies the chat that stopped.
+ */
+export interface AgentHookStopData {}
+
+// From agenthooks/types.go
+/**
+ * UserPromptSubmitData includes concatenated text and persisted parts.
+ * Inspect Parts when structure matters.
+ */
+export interface AgentHookUserPromptSubmitData {
+	readonly prompt: string;
+	readonly parts?: unknown;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -3536,6 +3740,7 @@ export interface ConnectionLog {
 	 * WebInfo is only set when `type` is one of:
 	 * - `ConnectionTypePortForwarding`
 	 * - `ConnectionTypeWorkspaceApp`
+	 * - `ConnectionTypeTunnel`
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
@@ -3613,6 +3818,7 @@ export type ConnectionType =
 	| "port_forwarding"
 	| "reconnecting_pty"
 	| "ssh"
+	| "tunnel"
 	| "vscode"
 	| "workspace_app";
 
@@ -3621,6 +3827,7 @@ export const ConnectionTypes: ConnectionType[] = [
 	"port_forwarding",
 	"reconnecting_pty",
 	"ssh",
+	"tunnel",
 	"vscode",
 	"workspace_app",
 ];
@@ -4106,8 +4313,11 @@ export interface CreateUserRequestWithOrgs {
 // From codersdk/usersecrets.go
 /**
  * CreateUserSecretRequest is the payload for creating a new user
- * secret. Name and Value are required. All other fields are optional
- * and default to empty string.
+ * secret. Name and Value are required. An enabled secret must have at
+ * least one of EnvName or FilePath non-empty so it has an injection
+ * target; to keep a secret without injecting it, set Enabled to false.
+ * All other fields are optional and default to empty string. Enabled
+ * defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
 	readonly name: string;
@@ -4115,6 +4325,7 @@ export interface CreateUserSecretRequest {
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/userskills.go
@@ -4832,6 +5043,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "ai-gateway-cost-control"
+	| "ai-gateway-seat-exclusion"
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-virtual-desktop"
@@ -4842,10 +5054,12 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
+	| "workspace-capable-licensing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
+	"ai-gateway-seat-exclusion",
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-virtual-desktop",
@@ -4856,6 +5070,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",
+	"workspace-capable-licensing",
 	"workspace-usage",
 ];
 
@@ -5207,6 +5422,15 @@ export interface GroupAIBudget {
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/aibridge.go
+/**
+ * GroupAISpend is the current AI spend snapshot for a single group within
+ * the active budget period.
+ */
+export interface GroupAISpend
+	extends AISpendPeriodWindow,
+		OrganizationGroupAISpend {}
 
 // From codersdk/groups.go
 export interface GroupArguments {
@@ -6434,6 +6658,22 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"token",
 ];
 
+// From codersdk/oauth2.go
+/**
+ * OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+ *
+ * DynamicClientRegistrationEnabled is a pointer so a PUT can omit it to leave
+ * the current value unchanged, rather than a decoded zero value silently
+ * resetting it to false. This matters once a second field lands in this
+ * struct (e.g. a future initial-access-token requirement): a client built
+ * against an older, single-field version of this struct would otherwise
+ * always encode the newer field's zero value, silently clearing it on every
+ * unrelated update. GET always returns a non-nil value.
+ */
+export interface OAuth2ProviderSettings {
+	readonly dynamic_client_registration_enabled?: boolean;
+}
+
 // From codersdk/client.go
 /**
  * OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
@@ -7644,6 +7884,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -7681,6 +7922,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
@@ -9741,13 +9983,16 @@ export interface UpdateUserQuietHoursScheduleRequest {
  * UpdateUserSecretRequest is the payload for partially updating a
  * user secret. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty string" (pointer
- * to empty string).
+ * to empty string). If the post-update row is enabled it must still
+ * have at least one of EnvName or FilePath non-empty; clearing both
+ * targets is only allowed when the secret is (or becomes) disabled.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/userskills.go
@@ -10251,6 +10496,13 @@ export interface UserSecret {
 	readonly description: string;
 	readonly env_name: string;
 	readonly file_path: string;
+	/**
+	 * Enabled controls whether the secret is injected into workspaces.
+	 * Disabled secrets remain visible and editable, but are not added
+	 * to the agent manifest, so they are not exposed as environment
+	 * variables or written to secret files.
+	 */
+	readonly enabled: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -10270,6 +10522,16 @@ export const UserSecretEnvNameField = "env_name";
  * name used in coderd route segments.
  */
 export const UserSecretFilePathField = "file_path";
+
+// From codersdk/usersecretvalidation.go
+/**
+ * UserSecretInjectionTargetRequiredDetail explains the injection-target
+ * invariant. It is shared by the create validator above and the PATCH
+ * handler's post-state check in coderd. The value is a user-facing
+ * validation message, not a credential.
+ */
+export const UserSecretInjectionTargetRequiredDetail =
+	"An enabled secret must have at least one of env_name or file_path set. To keep a secret without injecting it, set enabled to false instead of clearing both targets."; //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // From codersdk/usersecretvalidation.go
 /**

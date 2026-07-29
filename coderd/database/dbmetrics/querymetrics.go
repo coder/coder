@@ -1009,6 +1009,14 @@ func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.
 	return r0
 }
 
+func (m queryMetricsStore) ExportOrganizationAISpend(ctx context.Context, arg database.ExportOrganizationAISpendParams) ([]database.ExportOrganizationAISpendRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ExportOrganizationAISpend(ctx, arg)
+	m.queryLatencies.WithLabelValues("ExportOrganizationAISpend").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ExportOrganizationAISpend").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, id)
@@ -1278,6 +1286,14 @@ func (m queryMetricsStore) GetActiveUserCount(ctx context.Context, includeSystem
 	r0, r1 := m.s.GetActiveUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetActiveUserCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveUserCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]database.GetActiveUsersAuthorizationRolesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveUsersAuthorizationRoles(ctx)
+	m.queryLatencies.WithLabelValues("GetActiveUsersAuthorizationRoles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveUsersAuthorizationRoles").Inc()
 	return r0, r1
 }
 
@@ -2441,6 +2457,14 @@ func (m queryMetricsStore) GetNotificationsSettings(ctx context.Context) (string
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2DCREnabled(ctx)
+	m.queryLatencies.WithLabelValues("GetOAuth2DCREnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2DCREnabled").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2GithubDefaultEligible(ctx)
@@ -2598,6 +2622,14 @@ func (m queryMetricsStore) GetOrganizationsWithPrebuildStatus(ctx context.Contex
 	r0, r1 := m.s.GetOrganizationsWithPrebuildStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetOrganizationsWithPrebuildStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationsWithPrebuildStatus").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOverBudgetUsersPerGroup(ctx, periodStart)
+	m.queryLatencies.WithLabelValues("GetOverBudgetUsersPerGroup").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOverBudgetUsersPerGroup").Inc()
 	return r0, r1
 }
 
@@ -6470,6 +6502,14 @@ func (m queryMetricsStore) UpsertNotificationsSettings(ctx context.Context, valu
 	r0 := m.s.UpsertNotificationsSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertNotificationsSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertNotificationsSettings").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertOAuth2DCREnabled(ctx, enabled)
+	m.queryLatencies.WithLabelValues("UpsertOAuth2DCREnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuth2DCREnabled").Inc()
 	return r0
 }
 
