@@ -283,7 +283,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			currentValues.autostop_requirement_weeks !== 1
 		) {
 			// This is async but we don't really need to await the value.
-			void setValues({
+			setValues({
 				...currentValues,
 				autostop_requirement_weeks: 1,
 			});
@@ -390,7 +390,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<Select
 								value={form.values.autostop_requirement_days_of_week}
 								onValueChange={(value) => {
-									void form.setFieldValue(
+									form.setFieldValue(
 										"autostop_requirement_days_of_week",
 										value,
 									);

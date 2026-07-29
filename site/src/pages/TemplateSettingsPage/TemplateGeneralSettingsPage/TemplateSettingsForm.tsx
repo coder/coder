@@ -208,7 +208,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							disabled={isSubmitting}
 							checked={form.values.allow_user_cancel_workspace_jobs}
 							onCheckedChange={(checked) => {
-								void form.setFieldValue(
+								form.setFieldValue(
 									"allow_user_cancel_workspace_jobs",
 									checked === true,
 								);
@@ -235,10 +235,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							name="require_active_version"
 							checked={form.values.require_active_version}
 							onCheckedChange={(checked) => {
-								void form.setFieldValue(
-									"require_active_version",
-									checked === true,
-								);
+								form.setFieldValue("require_active_version", checked === true);
 							}}
 							disabled={
 								!template.require_active_version && !advancedSchedulingEnabled
@@ -273,10 +270,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							name="disable_module_cache"
 							checked={form.values.disable_module_cache}
 							onCheckedChange={(checked) => {
-								void form.setFieldValue(
-									"disable_module_cache",
-									checked === true,
-								);
+								form.setFieldValue("disable_module_cache", checked === true);
 							}}
 							disabled={isSubmitting}
 						/>
@@ -345,7 +339,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									: "public"
 							}
 							onValueChange={(value) => {
-								void form.setFieldValue("max_port_share_level", value);
+								form.setFieldValue("max_port_share_level", value);
 							}}
 							disabled={isSubmitting || !portSharingControlsEnabled}
 						>
@@ -406,7 +400,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						<Select
 							value={form.values.cors_behavior}
 							onValueChange={(value) => {
-								void form.setFieldValue("cors_behavior", value);
+								form.setFieldValue("cors_behavior", value);
 							}}
 							disabled={isSubmitting}
 						>
