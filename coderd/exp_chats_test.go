@@ -218,18 +218,28 @@ func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Co
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
 // wrappers so tests can force a specific in-transaction model-config update to
-// return sql.ErrNoRows.
+// return sql.ErrNoRows, or fail the next audit-only read.
 type failNextUpdateChatModelConfigStore struct {
 	database.Store
 
 	failNextUpdateChatModelConfig   *atomic.Bool
 	failNextUpdateChatModelConfigID uuid.UUID
+	failNextDefaultRead             *atomic.Bool
+	failNextConfigRead              *atomic.Bool
+	skipDefaultReads                *atomic.Int64
+	skipConfigReads                 *atomic.Int64
+	armReadFailures                 *atomic.Bool
 }
 
 func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
 	return &failNextUpdateChatModelConfigStore{
 		Store:                         store,
 		failNextUpdateChatModelConfig: &atomic.Bool{},
+		failNextDefaultRead:           &atomic.Bool{},
+		failNextConfigRead:            &atomic.Bool{},
+		skipDefaultReads:              &atomic.Int64{},
+		skipConfigReads:               &atomic.Int64{},
+		armReadFailures:               &atomic.Bool{},
 	}
 }
 
@@ -239,6 +249,11 @@ func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) 
 			Store:                           tx,
 			failNextUpdateChatModelConfig:   s.failNextUpdateChatModelConfig,
 			failNextUpdateChatModelConfigID: s.failNextUpdateChatModelConfigID,
+			failNextDefaultRead:             s.failNextDefaultRead,
+			failNextConfigRead:              s.failNextConfigRead,
+			skipDefaultReads:                s.skipDefaultReads,
+			skipConfigReads:                 s.skipConfigReads,
+			armReadFailures:                 s.armReadFailures,
 		})
 	}, txOpts)
 }
@@ -252,6 +267,36 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
+}
+
+func (s *failNextUpdateChatModelConfigStore) GetDefaultChatModelConfig(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.armReadFailures.Load() {
+		if s.skipDefaultReads.Add(-1) >= 0 {
+			return s.Store.GetDefaultChatModelConfig(ctx, organizationID)
+		}
+		if s.failNextDefaultRead.CompareAndSwap(true, false) {
+			return database.ChatModelConfig{}, stderrors.New("forced default read failure")
+		}
+	}
+	return s.Store.GetDefaultChatModelConfig(ctx, organizationID)
+}
+
+func (s *failNextUpdateChatModelConfigStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.armReadFailures.Load() {
+		if s.skipConfigReads.Add(-1) >= 0 {
+			return s.Store.GetChatModelConfigByID(ctx, id)
+		}
+		if s.failNextConfigRead.CompareAndSwap(true, false) {
+			return database.ChatModelConfig{}, stderrors.New("forced config read failure")
+		}
+	}
+	return s.Store.GetChatModelConfigByID(ctx, id)
 }
 
 func enableDailyChatUsageLimit(
@@ -5884,6 +5929,213 @@ func TestChatModelConfigAudit(t *testing.T) {
 		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
 		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
 		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+	})
+}
+
+// TestChatModelConfigAuditReadFailures proves audit enrichment reads never
+// change the write outcome: each audit-only read is failed once inside the
+// write transaction, and the response plus committed database state must match
+// the base handler's behavior.
+func TestChatModelConfigAuditReadFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateDemoteProbeFailureStillCreates", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		incumbent := createChatModelConfig(t, client)
+		require.True(t, incumbent.IsDefault)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		// Fail the audit demote-capture read: armed, the next
+		// GetDefaultChatModelConfig inside the write transaction is the
+		// capture probe.
+		store.armReadFailures.Store(true)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		contextLimit := int64(4096)
+		created, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o",
+			ContextLimit: &contextLimit,
+			IsDefault:    ptr.Ref(true),
+		})
+		require.NoError(t, err, "demote-capture failure must not change the create outcome")
+		require.True(t, created.IsDefault)
+
+		// Base behavior: the incumbent was demoted and the new row holds the
+		// default. The sibling entry is skipped, only the create entry remains.
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, c := range configs {
+			require.Equal(t, c.ID == created.ID, c.IsDefault, "config %s default", c.ID)
+		}
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionCreate, logs[0].Action)
+		require.Equal(t, created.ID, logs[0].ResourceID)
+	})
+
+	t.Run("UpdateDemoteProbeFailureStillPromotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		store.armReadFailures.Store(true)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, otherConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err, "demote-capture failure must not change the promote outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, c := range configs {
+			require.Equal(t, c.ID == otherConfig.ID, c.IsDefault, "config %s default", c.ID)
+		}
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the primary update entry")
+		require.Equal(t, otherConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("UpdatePromoteProbeFailureStillDemotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		// Fail the post-ensure audit promotion probe. The only base
+		// GetDefault read on the demote path is ensureDefaultChatModelConfig's
+		// internal probe (the prefetch runs before the store is armed); skip
+		// it so the forced failure lands on the audit probe.
+		store.armReadFailures.Store(true)
+		store.skipDefaultReads.Store(1)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		require.NoError(t, err, "promotion-probe failure must not change the demote outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		defaults := 0
+		for _, c := range configs {
+			if c.IsDefault {
+				defaults++
+				require.Equal(t, otherConfig.ID, c.ID, "the sibling must be auto-promoted")
+			}
+		}
+		require.Equal(t, 1, defaults)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the primary update entry")
+		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("DeleteOldReReadFailureStillDeletes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Fail the in-tx re-read of the row being deleted. The handler's own
+		// prefetch runs GetChatModelConfigByID first; skip it so the forced
+		// failure lands on the in-tx re-read.
+		store.armReadFailures.Store(true)
+		store.skipConfigReads.Store(1)
+		store.failNextConfigRead.Store(true)
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
+		require.NoError(t, err, "Old re-read failure must not change the delete outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, c := range configs {
+			require.NotEqual(t, modelConfig.ID, c.ID)
+		}
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "delete entry with the prefetched row as Old")
+		require.Equal(t, database.AuditActionDelete, logs[0].Action)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("DeletePromoteProbeFailureStillPromotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		// Fail the post-ensure audit promotion probe; skip
+		// ensureDefaultChatModelConfig's internal probe.
+		store.armReadFailures.Store(true)
+		store.skipDefaultReads.Store(1)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, defaultConfig.ID)
+		require.NoError(t, err, "promotion-probe failure must not change the delete outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, otherConfig.ID, configs[0].ID)
+		require.True(t, configs[0].IsDefault, "the sibling must be auto-promoted")
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the delete entry")
+		require.Equal(t, database.AuditActionDelete, logs[0].Action)
+		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
 	})
 }
 

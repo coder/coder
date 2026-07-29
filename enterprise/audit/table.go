@@ -506,7 +506,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":            ActionIgnore, // Bumped on every mutation.
 		"context_limit":         ActionTrack,
 		"compression_threshold": ActionTrack,
-		"options":               ActionTrack, // Model call options and pricing, not secrets (keys live on ai_providers).
+		"options":               ActionSecret, // Free-form provider payload maps (extra_body, metadata) may carry plaintext; show change, never contents.
 		"ai_provider_id":        ActionTrack,
 		"organization_id":       ActionIgnore, // Never changes; carried by the audit log's organization ID.
 		"group_acl":             ActionTrack,

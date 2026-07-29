@@ -536,7 +536,7 @@ func Test_diff(t *testing.T) {
 				"is_default":            audit.OldNew{Old: false, New: true},
 				"context_limit":         audit.OldNew{Old: int64(0), New: int64(4096)},
 				"compression_threshold": audit.OldNew{Old: int32(0), New: int32(80)},
-				"options":               audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(`{"cost":{"input":"0.15"}}`)},
+				"options":               audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
 				"ai_provider_id":        audit.OldNew{Old: "null", New: uuid.UUID{3}.String()},
 				"group_acl":             audit.OldNew{Old: database.ChatACL(nil), New: database.ChatACL{uuid.UUID{5}.String(): {Permissions: []policy.Action{policy.ActionRead}}}},
 				"user_acl":              audit.OldNew{Old: database.ChatACL(nil), New: database.ChatACL{}},
@@ -574,6 +574,26 @@ func Test_diff(t *testing.T) {
 					Old: database.ChatACL{},
 					New: database.ChatACL{uuid.UUID{6}.String(): {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}}},
 				},
+			},
+		},
+		{
+			// options carries free-form provider payload maps (OpenRouter and
+			// Vercel extra_body, OpenAI metadata) that can hold arbitrary
+			// plaintext, so the whole value must stay secret: a change
+			// renders redacted and the injected plaintext never appears.
+			name: "OptionsPlaintextRedacted",
+			left: database.ChatModelConfig{
+				ID:             uuid.UUID{1},
+				Options:        json.RawMessage(`{}`),
+				OrganizationID: uuid.UUID{4},
+			},
+			right: database.ChatModelConfig{
+				ID:             uuid.UUID{1},
+				Options:        json.RawMessage(`{"provider_options":{"openrouter":{"extra_body":{"api_key":"sk-c1-plaintext"}}}}`),
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"options": audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
 			},
 		},
 	})
