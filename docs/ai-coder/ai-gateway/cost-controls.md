@@ -58,7 +58,8 @@ override.
 > [!NOTE]
 > No budgets exist when AI Governance Cost Control is first deployed. Until an
 > administrator sets them, users have **unlimited spend** and their spend is
-> recorded against the **Everyone** group.
+> recorded against the `Everyone`
+> [group](../../admin/users/groups-roles.md#groups).
 
 ### Group budget
 
@@ -66,7 +67,7 @@ Setting a group budget requires the Owner, User Admin, Organization Admin, or
 Organization User Admin [role](../../admin/users/groups-roles.md).
 
 A group budget applies to each member individually rather than to the group as a
-whole. A budget of $200 gives every member $200 to spend.
+whole. A budget of $200 USD gives every member $200 USD to spend.
 
 1. Go to **Groups** and select a group.
 1. Select **Settings**.
@@ -75,10 +76,13 @@ whole. A budget of $200 gives every member $200 to spend.
 
 Budget values behave as follows:
 
-- An empty field means no limit. The field displays `unlimited`.
-- `$0` blocks every AI Gateway request from members whose effective group is
+- An empty field means no limit. The field displays `unlimited`. Members who
+  belong to other groups that have budgets are still governed by whichever of
+  those groups the budget policy selects. See
+  [Effective group resolution](#effective-group-resolution).
+- `$0 USD` blocks every AI Gateway request from members whose effective group is
   this group.
-- The maximum is `$1,000,000` per member per budget period.
+- The maximum is `$1,000,000 USD` per member per budget period.
 
 ### User override
 
@@ -90,7 +94,8 @@ Override a group budget when one person needs a different limit from the rest of
 their group.
 
 1. Go to **Groups**, select a group, then open the **Members** tab.
-1. Open the member's action menu and select **Manage AI budget**.
+1. Find the member to apply the override to, open their action menu, and select
+   **Manage AI budget**.
 1. Enable **Override group budget**.
 1. Set **Custom monthly budget**, then choose the group in
    **Budget assigned to**.
@@ -98,9 +103,12 @@ their group.
 
 Overrides behave as follows:
 
+- A user can have only one override at a time.
 - An override supersedes every group budget the user belongs to.
-- The user must belong to the group selected in **Budget assigned to**.
-- `$0` and the `$1,000,000` maximum apply to overrides as well.
+- Spend is always attributed to a group, so an override must name the group it
+  is assigned to. The user must belong to the group selected in
+  **Budget assigned to**, and their spend is recorded against it.
+- `$0 USD` and the `$1,000,000 USD` maximum apply to overrides as well.
 - Disabling **Override group budget** removes the override and returns the user
   to the budget of their [effective group](#effective-group-resolution).
 
@@ -116,7 +124,7 @@ order:
    groups the user belongs to. The default policy, `highest`, selects the group
    with the largest budget.
 1. If none of those groups has a budget, the user has unlimited spend and their
-   spend is recorded against the **Everyone** group.
+   spend is recorded against the `Everyone` group.
 
 > [!NOTE]
 > Groups with identical budgets are ranked by the organization membership the
@@ -182,7 +190,7 @@ notifies the user and the administrators responsible for them:
 | 100%      | You've reached your budget     | `<username>` has reached their budget    |
 
 - A single expensive request can cross both thresholds at once.
-- Budgets of `$0` and unpriced usage cross no thresholds.
+- Budgets of `$0 USD` and unpriced usage cross no thresholds.
 - Notifications are informational. Enforcement does not depend on them.
 
 For delivery methods, see
@@ -269,7 +277,8 @@ Expect the following differences:
   Control applied the lowest.
 - Budgets cover all AI Gateway traffic. Chat, IDE extensions, and CLI agents
   draw on the same budget.
-- Recorded spend does not carry over. Every user starts the first period at $0.
+- Recorded spend does not carry over. Every user starts the first period at
+  $0 USD.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
 
 ## Next steps
