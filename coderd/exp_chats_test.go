@@ -5813,6 +5813,39 @@ func TestChatModelConfigAudit(t *testing.T) {
 		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
 	})
 
+	t.Run("DeniedUpdateEmitsFailedAttempt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		mAudit.ResetLogs()
+		// A plain org member holds no chat model config update grant; the
+		// pre-authorize check rejects the write with 403 before the
+		// transaction. The denied attempt is still recorded against the
+		// target row with an empty diff (standard failed-request
+		// semantics).
+		_, err := memberClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "denied",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+	})
+
 	t.Run("FailedTxEmitsNoSiblingLog", func(t *testing.T) {
 		t.Parallel()
 
