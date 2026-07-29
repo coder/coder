@@ -217,6 +217,33 @@ The following metrics report cost control activity. See
 Alert on the unpriced metric. It is the only signal that spend is being
 under-counted.
 
+## Migrate from Coder Agents cost control
+
+In v2.36, AI Governance cost controls fully replace Coder Agents cost control.
+
+> [!WARNING]
+> Spend limits configured under **Admin settings** > **AI** > **Spend** are no
+> longer enforced. Until you set an AI budget, affected users have no limit.
+
+Coder does not convert existing limits, so recreate them yourself:
+
+1. Note the limits currently set under **Admin settings** > **AI** > **Spend**,
+   including the default limit and any group or user overrides.
+1. Recreate group limits as [group budgets](#set-a-group-budget).
+1. Recreate per-user limits as [user overrides](#override-a-budget-for-a-user).
+
+Plan for these differences:
+
+- There is no deployment-wide default budget. Set a budget on each group that
+  needs one.
+- The only period is the UTC calendar month. Daily and weekly periods are gone.
+- When a user belongs to several budgeted groups, the **highest** budget applies.
+  Coder Agents cost control applied the lowest limit.
+- Budgets cover all AI Gateway traffic, not only Coder Agents. Chat, IDE
+  extensions, and CLI agents count against the same budget.
+- Recorded spend does not carry over. Every user starts the first period at $0.
+- Coder Agents users who exceed their budget see a usage limit error in chat.
+
 ## Next steps
 
 - [Monitoring](./monitoring.md)
