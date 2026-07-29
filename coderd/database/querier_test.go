@@ -12346,7 +12346,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// This test exercises a complex CTE query for prompt
 	// reconstruction after compaction. It requires Postgres.
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
 
 	// Helper: create a chat model config (required FK for chats).
@@ -12426,13 +12426,48 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		return database.ChatMessage(results[0])
 	}
 
-	msgIDs := func(msgs []database.ChatMessage) []int64 {
-		ids := make([]int64, len(msgs))
-		for i, m := range msgs {
-			ids[i] = m.ID
-		}
-		return ids
+	invertCreatedAt := func(t *testing.T, chatID uuid.UUID) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = now() - (id || ' seconds')::interval WHERE chat_id = $1",
+			chatID)
+		require.NoError(t, err)
 	}
+
+	t.Run("OrdersByIDWhenTimestampsDisagree", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "question")
+		ast := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "tool call")
+		tool := insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false, "tool result")
+		invertCreatedAt(t, chat.ID)
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID, tool.ID}, chatMessageIDs(got),
+			"the prompt must keep append order so a tool result follows its assistant call")
+	})
+
+	t.Run("CompactionBoundaryUsesID", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "before first summary")
+		staleSummary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "first summary")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "between summaries")
+		latestSummary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "second summary")
+		afterLatest := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "after second summary")
+		invertCreatedAt(t, chat.ID)
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, latestSummary.ID, afterLatest.ID}, chatMessageIDs(got),
+			"the boundary is compared with id, so it must also be selected by id")
+		require.NotContains(t, chatMessageIDs(got), staleSummary.ID)
+	})
 
 	t.Run("NoCompaction", func(t *testing.T) {
 		t.Parallel()
@@ -12444,7 +12479,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, msgIDs(got))
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, chatMessageIDs(got))
 	})
 
 	t.Run("UserOnlyVisibilityExcluded", func(t *testing.T) {
@@ -12463,7 +12498,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			require.NotEqual(t, database.ChatMessageVisibilityUser, m.Visibility,
 				"visibility=user messages should not appear in the prompt")
 		}
-		require.Contains(t, msgIDs(got), usr.ID)
+		require.Contains(t, chatMessageIDs(got), usr.ID)
 	})
 
 	t.Run("AfterCompaction", func(t *testing.T) {
@@ -12490,7 +12525,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 
-		gotIDs := msgIDs(got)
+		gotIDs := chatMessageIDs(got)
 
 		// Must include: system prompt, summary, post-compaction.
 		require.Contains(t, gotIDs, sys.ID, "system prompt must be included")
@@ -12529,8 +12564,8 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		}
 		require.True(t, hasNonSystem,
 			"prompt must contain at least one non-system message after compaction")
-		require.Contains(t, msgIDs(got), summary.ID)
-		require.Contains(t, msgIDs(got), newUsr.ID)
+		require.Contains(t, chatMessageIDs(got), summary.ID)
+		require.Contains(t, chatMessageIDs(got), newUsr.ID)
 	})
 
 	t.Run("CompressedToolResultNotPickedAsSummary", func(t *testing.T) {
@@ -12549,7 +12584,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 
-		gotIDs := msgIDs(got)
+		gotIDs := chatMessageIDs(got)
 		require.Contains(t, gotIDs, summary.ID, "real summary must be included")
 		require.NotContains(t, gotIDs, compressedTool.ID,
 			"compressed tool result must not be included")

@@ -8496,7 +8496,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -8539,10 +8538,11 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC
 `
 
+// The compaction boundary and final ordering must use the same key so tool
+// results remain after their assistant calls.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {
