@@ -162,6 +162,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.errorExample(),
 		r.chatCommand(),
 		r.mcpCommand(),
+		r.modelPricesCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
