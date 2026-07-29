@@ -1746,6 +1746,34 @@ func TestSearchOAuth2ProviderApps(t *testing.T) {
 			},
 		},
 		{
+			Name:  "BareHTTPSURL",
+			Query: "https://example.com/callback",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "BareHTTPURLWithPort",
+			Query: "http://127.0.0.1:3001",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "http://127.0.0.1:3001",
+			},
+		},
+		{
+			Name:  "QuotedBareHTTPSURL",
+			Query: `"https://example.com/oauth/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/oauth/callback",
+			},
+		},
+		{
+			Name:  "ExplicitSearchQuotedURL",
+			Query: `search:"https://example.com/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
 			Name:                  "UnknownKey",
 			Query:                 "name:foo",
 			ExpectedErrorContains: `"name" is not a valid query param`,
