@@ -4,46 +4,53 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
-	chatModelConfigs,
+	chatAIProviderCatalog,
+	chatModelConfigsByOrganization,
 	chatModels,
-	chatProviderConfigs,
 	createChatModelConfig,
 } from "#/api/queries/chats";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	canManageProviderModels,
 	deriveProviderStates,
+	providerConfigFromCatalogEntry,
 } from "#/modules/aiModels/providerStates";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { useOrganizationModels } from "../organizationModels";
+import { useOrganizationModelsPath } from "../useOrganizationModelsPath";
 import AddModelPageView from "./AddModelPageView";
 
 const AddModelPage: FC = () => {
-	const { permissions } = useAuthenticated();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [searchParams] = useSearchParams();
 	const providerKey = searchParams.get("provider") ?? "";
 	const duplicateId = searchParams.get("duplicate");
+	const { organization } = useOrganizationModels();
+	const modelsPath = useOrganizationModelsPath();
 
-	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const providerCatalogQuery = useQuery(chatAIProviderCatalog());
+	const modelConfigsQuery = useQuery(
+		chatModelConfigsByOrganization(organization.id),
+	);
 	const modelCatalogQuery = useQuery(chatModels());
 
 	const createMutation = useMutation(createChatModelConfig(queryClient));
 
+	const providerConfigs = providerCatalogQuery.data?.map(
+		providerConfigFromCatalogEntry,
+	);
 	const providerStates = useMemo(
 		() =>
 			deriveProviderStates(
 				modelConfigsQuery.data ?? [],
-				providerConfigsQuery.data,
+				providerConfigs,
 				modelCatalogQuery.data,
 			),
-		[modelConfigsQuery.data, providerConfigsQuery.data, modelCatalogQuery.data],
+		[modelConfigsQuery.data, providerConfigs, modelCatalogQuery.data],
 	);
 
 	const isLoading =
-		providerConfigsQuery.isLoading ||
+		providerCatalogQuery.isLoading ||
 		modelConfigsQuery.isLoading ||
 		modelCatalogQuery.isLoading;
 
@@ -56,7 +63,7 @@ const AddModelPage: FC = () => {
 	const currentDefaultModel = modelConfigsQuery.data?.find((m) => m.is_default);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<>
 			<title>{pageTitle("Add model", "AI Settings")}</title>
 
 			<AddModelPageView
@@ -69,23 +76,26 @@ const AddModelPage: FC = () => {
 				onProviderChange={(key) => {
 					const next = new URLSearchParams(searchParams);
 					next.set("provider", key);
-					void navigate(`/ai/settings/models/add?${next.toString()}`, {
+					void navigate(`${modelsPath}/add?${next.toString()}`, {
 						replace: true,
 					});
 				}}
 				onCreateModel={async (req) => {
 					try {
-						const created = await createMutation.mutateAsync(req);
+						const created = await createMutation.mutateAsync({
+							organizationId: organization.id,
+							req,
+						});
 						toast.success(
 							`Model "${created.display_name || created.model}" added.`,
 						);
-						await navigate(`/ai/settings/models/${created.id}`);
+						await navigate(`${modelsPath}/${created.id}`);
 					} catch (error) {
 						toast.error(getErrorMessage(error, "Failed to add model."));
 					}
 				}}
 			/>
-		</RequirePermission>
+		</>
 	);
 };
 

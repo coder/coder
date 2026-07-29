@@ -23,6 +23,14 @@ import (
 //go:embed *.sql
 var migrations embed.FS
 
+// MigrationFS exposes the embedded migration files, for tests that need to
+// execute a single migration's SQL outside the migrate driver (the driver's
+// transaction commits only when a stepper exhausts, which mid-test
+// down-then-up cycles cannot wait for).
+func MigrationFS() fs.FS {
+	return migrations
+}
+
 var (
 	migrationsHash     string
 	migrationsHashOnce sync.Once

@@ -8698,19 +8698,20 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	Provider     string    `db:"provider" json:"provider"`
-	Model        string    `db:"model" json:"model"`
-	ContextLimit int64     `db:"context_limit" json:"context_limit"`
-	Enabled      bool      `db:"enabled" json:"enabled"`
-	IsDefault    bool      `db:"is_default" json:"is_default"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	Provider       string    `db:"provider" json:"provider"`
+	Model          string    `db:"model" json:"model"`
+	ContextLimit   int64     `db:"context_limit" json:"context_limit"`
+	Enabled        bool      `db:"enabled" json:"enabled"`
+	IsDefault      bool      `db:"is_default" json:"is_default"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 // Returns all model configurations for telemetry snapshot collection.
@@ -8731,6 +8732,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 			&i.ContextLimit,
 			&i.Enabled,
 			&i.IsDefault,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}

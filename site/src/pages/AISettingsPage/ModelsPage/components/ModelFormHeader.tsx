@@ -27,10 +27,12 @@ import {
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { cn } from "#/utils/cn";
+import { useOrganizationModelsPath } from "../useOrganizationModelsPath";
 
 export const ModelFormBackLink: FC = () => {
+	const modelsPath = useOrganizationModelsPath();
 	return (
-		<Link to="/ai/settings/models" className="-ml-3">
+		<Link to={modelsPath} className="-ml-3">
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to models</span>

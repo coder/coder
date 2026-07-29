@@ -57,7 +57,7 @@ const updateChatModelOverrideMutation = (
 
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
+	const { experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const showAdvisorSettings = experiments.includes("chat-advisor");
@@ -126,6 +126,12 @@ const CoderAgentsPage: FC = () => {
 	const providerInfoByID = providerInfoByIDFromConfigs(
 		providerConfigsQuery.data,
 	);
+	// Override pickers write deployment-wide override keys, so only the
+	// default-org model rows are valid targets.
+	const defaultOrganizationId = organizations.find((org) => org.is_default)?.id;
+	const defaultOrgModelConfigs = (modelConfigsQuery.data ?? []).filter(
+		(config) => config.organization_id === defaultOrganizationId,
+	);
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
@@ -152,7 +158,7 @@ const CoderAgentsPage: FC = () => {
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
-				modelConfigsData={modelConfigsQuery.data}
+				modelConfigsData={defaultOrgModelConfigs}
 				providerInfoByID={providerInfoByID}
 				modelConfigsError={
 					modelConfigsQuery.error ?? providerConfigsQuery.error

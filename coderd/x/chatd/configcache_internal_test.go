@@ -337,91 +337,44 @@ func TestConfigCache_DefaultModelConfig_PerOrgKeying(t *testing.T) {
 	require.Equal(t, int32(2), store.defaultModelConfigCallCount(orgB))
 }
 
-func TestConfigCache_DefaultModelConfig_DefaultOrgFallback(t *testing.T) {
+func TestConfigCache_DefaultModelConfig_CrossOrgIsolation(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
-	defaultOrgID := uuid.New()
 	otherOrgID := uuid.New()
 	defaultOrgConfig := testChatModelConfig(uuid.New(), "default-org-model")
 	store := &stubChatConfigStore{}
 	store.getDefaultChatModelConfig = func(_ context.Context, orgID uuid.UUID) (database.ChatModelConfig, error) {
-		if orgID == defaultOrgID {
-			return defaultOrgConfig, nil
-		}
+		// The chat's org resolves no default; the default org has one.
 		return database.ChatModelConfig{}, sql.ErrNoRows
-	}
-	store.getDefaultOrganization = func(context.Context) (database.Organization, error) {
-		return database.Organization{ID: defaultOrgID}, nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	// An org without its own default resolves the default org's config,
-	// cached under its own org key.
-	resolved, err := cache.DefaultModelConfig(ctx, otherOrgID)
-	require.NoError(t, err)
-	require.Equal(t, defaultOrgConfig, resolved)
-	resolvedAgain, err := cache.DefaultModelConfig(ctx, otherOrgID)
-	require.NoError(t, err)
-	require.Equal(t, defaultOrgConfig, resolvedAgain)
-	require.Equal(t, int32(1), store.defaultModelConfigCallCount(otherOrgID))
-	require.Equal(t, int32(1), store.defaultModelConfigCallCount(defaultOrgID))
-	require.Equal(t, int32(1), store.defaultOrganizationCall.Load())
-
-	// The default org itself gets no fallback.
-	_, err = cache.DefaultModelConfig(ctx, defaultOrgID)
-	require.NoError(t, err)
-	require.Equal(t, int32(2), store.defaultModelConfigCallCount(defaultOrgID))
-	require.Equal(t, int32(1), store.defaultOrganizationCall.Load())
-}
-
-func TestConfigCache_DefaultModelConfig_DefaultOrgMiss(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	defaultOrgID := uuid.New()
-	store := &stubChatConfigStore{}
-	store.getDefaultChatModelConfig = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-		return database.ChatModelConfig{}, sql.ErrNoRows
-	}
-	store.getDefaultOrganization = func(context.Context) (database.Organization, error) {
-		return database.Organization{ID: defaultOrgID}, nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	// A miss inside the default org must not recurse into the fallback:
-	// the default-org resolution happens once, the self-check short
-	// circuits, and the original miss propagates.
-	_, err := cache.DefaultModelConfig(ctx, defaultOrgID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	require.Equal(t, int32(1), store.defaultOrganizationCall.Load())
-	require.Equal(t, int32(1), store.defaultModelConfigCallCount(defaultOrgID))
-}
-
-func TestConfigCache_DefaultModelConfig_FallbackMiss(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	defaultOrgID := uuid.New()
-	otherOrgID := uuid.New()
-	store := &stubChatConfigStore{}
-	store.getDefaultChatModelConfig = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-		return database.ChatModelConfig{}, sql.ErrNoRows
-	}
-	store.getDefaultOrganization = func(context.Context) (database.Organization, error) {
-		return database.Organization{ID: defaultOrgID}, nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	// Neither the org nor the default org has a default: the miss
-	// propagates unchanged.
+	// Orgs resolve strictly within their own configs: an org without its
+	// own default reports absence and never reads another org's default.
 	_, err := cache.DefaultModelConfig(ctx, otherOrgID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	require.Equal(t, int32(1), store.defaultModelConfigCallCount(otherOrgID))
-	require.Equal(t, int32(1), store.defaultModelConfigCallCount(defaultOrgID))
+	require.Equal(t, int32(0), store.defaultModelConfigCallCount(defaultOrgConfig.OrganizationID))
+}
+
+func TestConfigCache_DefaultModelConfig_Miss(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	orgID := uuid.New()
+	store := &stubChatConfigStore{}
+	store.getDefaultChatModelConfig = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	// A miss inside the org propagates unchanged.
+	_, err := cache.DefaultModelConfig(ctx, orgID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	require.Equal(t, int32(1), store.defaultModelConfigCallCount(orgID))
 }
 
 func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
