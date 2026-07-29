@@ -36,7 +36,7 @@ import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
-	 *  and hides the settings/analytics nav buttons. */
+	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
