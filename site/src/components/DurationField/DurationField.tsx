@@ -1,4 +1,10 @@
-import { type FC, type ReactNode, useId, useState } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	type ReactNode,
+	useId,
+	useState,
+} from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -16,14 +22,15 @@ import {
 	type TimeUnit,
 } from "#/utils/time";
 
-type DurationFieldProps = {
+type DurationFieldProps = Omit<
+	ComponentProps<typeof Input>,
+	"value" | "onChange" | "type"
+> & {
 	valueMs: number;
 	onChange: (value: number) => void;
 	label?: string;
-	disabled?: boolean;
 	error?: boolean;
 	helperText?: ReactNode;
-	className?: string;
 };
 
 function toMs(value: string, unit: TimeUnit): number {
@@ -44,12 +51,15 @@ export const DurationField: FC<DurationFieldProps> = ({
 	valueMs,
 	onChange,
 	label,
-	disabled,
 	error,
 	helperText,
+	id: idProp,
 	className,
+	disabled,
+	...inputProps
 }) => {
-	const id = useId();
+	const generatedId = useId();
+	const id = idProp ?? generatedId;
 	const helperId = `${id}-helper`;
 	const [unit, setUnit] = useState<TimeUnit>(() => suggestedTimeUnit(valueMs));
 	const [text, setText] = useState(() => toDisplayValue(valueMs, unit));
@@ -96,6 +106,7 @@ export const DurationField: FC<DurationFieldProps> = ({
 			{label && <Label htmlFor={id}>{label}</Label>}
 			<div className="flex gap-2">
 				<Input
+					{...inputProps}
 					id={id}
 					value={text}
 					onChange={(e) => handleTextChange(e.currentTarget.value)}
