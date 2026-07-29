@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MaxAISpendLimitMicros } from "#/api/typesGenerated";
+import { maxAIBudgetDollars } from "#/modules/groups";
 import { MockGroup } from "#/testHelpers/entities";
-import { MICROS_PER_DOLLAR } from "#/utils/currency";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const meta: Meta<typeof GroupSettingsPageView> = {
@@ -42,10 +41,8 @@ export const WithAIBudget: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			1000,
 		);
-		const helper = canvas.getByText(/month maximum/i);
-		await expect(helper).toHaveTextContent(
-			"$7,000/month maximum, based on 7 members.",
-		);
+		const helper = canvas.getByText(/month, based on/i);
+		await expect(helper).toHaveTextContent("$7,000/month, based on 7 members.");
 	},
 };
 
@@ -93,10 +90,8 @@ export const AIBudgetDecimal: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Cents are kept when the amount is not a whole dollar.
-		const helper = canvas.getByText(/month maximum/i);
-		await expect(helper).toHaveTextContent(
-			"$99.99/month maximum, based on 1 member.",
-		);
+		const helper = canvas.getByText(/month, based on/i);
+		await expect(helper).toHaveTextContent("$99.99/month, based on 1 member.");
 	},
 };
 
@@ -109,9 +104,8 @@ export const AIBudgetAboveMaximum: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const input = canvas.getByLabelText("Monthly limit per member");
-		const maxDollars = MaxAISpendLimitMicros / MICROS_PER_DOLLAR;
 
-		await userEvent.type(input, String(maxDollars + 1));
+		await userEvent.type(input, String(maxAIBudgetDollars + 1));
 		// Blur to surface the error, matching the touched-then-validate flow.
 		await userEvent.tab();
 		await expect(

@@ -15,13 +15,12 @@ import {
 	saveUserAIBudgetOverride,
 	userAIBudgetOverride,
 } from "#/api/queries/users";
-import {
-	type Group,
-	type GroupAIBudget,
-	MaxAISpendLimitMicros,
-	type ReducedUser,
-	type UpsertUserAIBudgetOverrideRequest,
-	type UserAIBudgetOverride,
+import type {
+	Group,
+	GroupAIBudget,
+	ReducedUser,
+	UpsertUserAIBudgetOverrideRequest,
+	UserAIBudgetOverride,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -53,11 +52,11 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { aiBudgetRangeError, maxAIBudgetDollars } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import {
 	dollarsToMicros,
 	formatBudgetUSD,
-	MICROS_PER_DOLLAR,
 	microsToDollars,
 } from "#/utils/currency";
 
@@ -221,7 +220,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const budgetValid =
 		budgetDollars.trim() !== "" &&
 		budgetAmount >= 0 &&
-		budgetAmount <= MaxAISpendLimitMicros / MICROS_PER_DOLLAR;
+		budgetAmount <= maxAIBudgetDollars;
 	// Hold the error until the field is touched, so it doesn't flag immediately.
 	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
@@ -325,7 +324,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								onBlur={() => setBudgetTouched(true)}
 								type="number"
 								min="0"
-								max={MaxAISpendLimitMicros / MICROS_PER_DOLLAR}
+								max={maxAIBudgetDollars}
 								step="1"
 								aria-invalid={budgetInvalid}
 								aria-describedby={
@@ -339,8 +338,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								id={`${budgetId}-error`}
 								className="m-0 text-sm text-content-destructive"
 							>
-								Enter a monthly budget between 0 and{" "}
-								{formatBudgetUSD(MaxAISpendLimitMicros)}.
+								{aiBudgetRangeError}
 							</p>
 						)}
 					</div>
