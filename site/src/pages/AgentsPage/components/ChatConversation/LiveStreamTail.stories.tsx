@@ -62,11 +62,6 @@ export const UsageLimitExceeded: Story = {
 	},
 };
 
-/**
- * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View usage" CTA (which links to Coder's analytics, not the provider's
- * billing page).
- */
 export const ProviderQuotaExceeded: Story = {
 	args: {
 		...defaultArgs,
@@ -88,7 +83,6 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();
-		// Should render ChatStatusCallout instead.
 		expect(
 			canvas.getByRole("heading", { name: /usage limit reached/i }),
 		).toBeVisible();

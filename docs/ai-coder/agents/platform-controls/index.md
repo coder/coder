@@ -117,15 +117,15 @@ none, if the template does not define any).
 ### Spend management
 
 AI Gateway budgets cap each user's AI spend, including Coder Agents chats,
-over a monthly period. Budgets are set per group, and a deployment policy
-resolves which one applies when a user belongs to several budgeted groups. A
-per-user override takes priority over group budgets. The cost tracking
-dashboard provides visibility into per-user spending, token consumption, and
-per-model breakdowns.
+over a monthly period. Budgets are set per group, and the deployment policy
+selects the group with the largest spend limit when a user belongs to several
+budgeted groups. A per-user override takes priority over group budgets.
 
-Budgets require the `ai-gateway-cost-control` experiment and a license that
-includes AI Gateway. They are the only spend cap for Coder Agents chats;
-chats no longer enforce a separate limit of their own.
+Budgets are the only spend cap for Coder Agents chats; chats no longer
+enforce a separate limit of their own, and existing native limit values are
+not migrated to budgets. Configuring a group budget requires a license that
+includes AI Gateway. The `ai-gateway-cost-control` experiment additionally
+gates the budget controls in the Coder UI and the AI spend status endpoints.
 
 See [Spend Management](./usage-insights.md) for details.
 

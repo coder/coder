@@ -1,7 +1,7 @@
 # Spend Management
 
-Coder provides admin-only controls for monitoring and controlling agent
-spend: AI Gateway budgets and cost tracking.
+Coder controls agent spend with AI Gateway budgets, and surfaces the
+resulting spend to both admins and users.
 
 ## Budgets
 
@@ -15,15 +15,24 @@ period.
 - **Per-user overrides**: set a custom budget for an individual user,
   attributed to one of their groups. Takes priority over group budgets.
 
-Budgets always reset monthly. A user who belongs to no budgeted group falls
-back to the Everyone group, which has no budget unless one is set for it.
-There is no deployment-wide budget amount.
+The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently
+support only `highest` and `month`. `highest` selects the group with the
+largest spend limit, and `month` resets spend at the start of each UTC
+calendar month. A user who belongs to no budgeted group falls back to the
+Everyone group, which has no budget unless one is set for it. There is no
+deployment-wide budget amount.
 
 > [!IMPORTANT]
-> Budgets require the `ai-gateway-cost-control` experiment and a license
-> that includes AI Gateway. Without the experiment the group budget controls
-> are hidden and the budget endpoints respond that the experiment must be
-> enabled, so no budget can be configured, and no spend is capped.
+> The `ai-gateway-cost-control` experiment gates the budget controls in the
+> Coder UI and the AI spend status and reporting endpoints. Those gated paths
+> also require the AI Gateway entitlement. The group budget CRUD endpoints
+> (`/api/v2/groups/{group}/ai/budget`) require the AI Gateway entitlement but
+> do not require the experiment. Gateway enforcement still applies to
+> configured budgets when the experiment is disabled.
+>
+> Native chat usage limits are removed from the application. Existing native
+> limit values are not migrated to AI Gateway budgets and are no longer
+> enforced. Configure AI Gateway budgets separately.
 
 ### Enforcement
 
@@ -36,40 +45,25 @@ There is no deployment-wide budget amount.
 
 ### User-facing status
 
-When a budget applies, users see their current AI spend, the budget, and
-the period reset date in the usage indicator on the Agents page.
+The usage indicator on the Agents page and the summary in the user menu both
+show the signed-in user's current AI spend, their budget, and the period
+reset date. Both appear only when the deployment has the AI Gateway
+entitlement and the `ai-gateway-cost-control` experiment is enabled.
 
-## Cost tracking
+## Spend visibility
 
-Navigate to **Agents** > **Settings** > **Manage Agents** > **Spend**.
+There is no dedicated deployment-wide spend dashboard. Spend is shown where
+it is actionable:
 
-This view shows deployment-wide LLM chat costs with per-user drill-down.
-
-### Top-level view
-
-A per-user rollup table with the following columns:
-
-| Column             | Description                         |
-|--------------------|-------------------------------------|
-| Total cost         | Aggregate dollar spend for the user |
-| Messages           | Number of chat messages sent        |
-| Chats              | Number of distinct chat sessions    |
-| Input tokens       | Total input tokens consumed         |
-| Output tokens      | Total output tokens consumed        |
-| Cache read tokens  | Tokens served from cache            |
-| Cache write tokens | Tokens written to cache             |
-
-The table supports date range filtering (default: last 30 days), search by
-name or username, and pagination.
-
-### Per-user detail view
-
-Select a user to see:
-
-- **Summary cards**: total cost, token breakdowns, and message counts.
-- **Per-model breakdown**: table of costs and token usage by model.
-- **Per-chat breakdown**: table of costs and token usage by chat session.
+- **Agents page and user menu**: the signed-in user's spend against their
+  budget, as described above.
+- **Group settings**: each member's spend against the group's budget, for
+  admins who can manage the group.
+- **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
+  A subagent reports the total for its whole tree, including the chat that
+  started it.
 
 > [!NOTE]
-> Automatic title generation uses lightweight models, such as Claude Haiku or
-> GPT-4o Mini. Its token usage is not shown in usage summaries.
+> Per-chat cost comes from AI Gateway records, which are pruned according to
+> `--ai-gateway-retention` (60 days by default). A chat whose gateway records
+> have been pruned reports no cost.
