@@ -370,7 +370,7 @@ type EndpointFieldProps = {
 const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 	return (
 		<div className="flex items-center gap-2">
-			<dt className="text-xs text-content-secondary">{label}</dt>
+			<dt className="text-sm">{label}</dt>
 			<dd className="m-0">
 				<div className="flex items-center gap-0.5">
 					<code className="w-fit rounded-md bg-surface-secondary px-2 py-0.5 font-mono text-xs text-content-secondary">
@@ -381,7 +381,6 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 						label={`Copy ${label}`}
 						size="icon"
 						variant="subtle"
-						className="size-7 [&>svg]:size-icon-sm"
 					/>
 				</div>
 			</dd>
