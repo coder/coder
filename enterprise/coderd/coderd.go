@@ -698,7 +698,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Route("/budget", func(r chi.Router) {
+			r.Route("/budget/override", func(r chi.Router) {
 				r.Get("/", api.userAIBudgetOverride)
 				r.Put("/", api.upsertUserAIBudgetOverride)
 				r.Delete("/", api.deleteUserAIBudgetOverride)
