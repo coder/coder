@@ -92,10 +92,11 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 					>
 						<FormFields>
 							<TemplateVariableField
-								{...fieldHelpers}
 								templateVersionVariable={templateVariable}
 								initialValue={initialUserVariableValues[index].value}
 								disabled={isSubmitting}
+								error={fieldHelpers.error}
+								helperText={fieldHelpers.helperText}
 								onChange={async (value) => {
 									await form.setFieldValue(`user_variable_values.${index}`, {
 										name: templateVariable.name,
