@@ -1906,7 +1906,8 @@ func TestRecordTokenUsage(t *testing.T) {
 				// Implausible counts are rejected before any DB work, so no row
 				// is written. Persisting them would poison the organization
 				// spend export, whose SUM cast raises rather than wraps.
-				name: "token usage above the allowed range is rejected",
+				name:           "token usage above the allowed range is rejected",
+				expectErrorLog: true,
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: uuid.NewString(),
 					MsgId:          "msg_123",
@@ -1916,7 +1917,8 @@ func TestRecordTokenUsage(t *testing.T) {
 				expectedErr: "reported token usage is out of range",
 			},
 			{
-				name: "negative token usage is rejected",
+				name:           "negative token usage is rejected",
+				expectErrorLog: true,
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: uuid.NewString(),
 					MsgId:          "msg_123",

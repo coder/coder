@@ -330,10 +330,6 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
-	if err := validateTokenUsage(in); err != nil {
-		return nil, xerrors.Errorf("validate token usage for interception %q: %w", intcID, err)
-	}
-
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
@@ -348,6 +344,17 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
 			slog.F("metadata", metadata),
 		)
+	}
+
+	if err := validateTokenUsage(in); err != nil {
+		s.logger.Error(ctx, "implausible token usage, discarding record",
+			slog.F("interception_id", intcID),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
+			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.Error(err))
+		return nil, xerrors.Errorf("validate token usage for interception %q: %w", intcID, err)
 	}
 
 	out, err := json.Marshal(metadata)

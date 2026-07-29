@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -185,6 +186,72 @@ func TestComputeCost(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("computeCost = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	bound := int64(maxAllowedTokenUsage)
+
+	tests := []struct {
+		name           string
+		request        *proto.RecordTokenUsageRequest
+		wantOutOfRange bool
+	}{
+		{
+			// A frontier-sized request, with one category at zero.
+			name: "plausible counts",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: 1_000_000, OutputTokens: 128_000,
+				CacheReadInputTokens: 500_000,
+			},
+		},
+		{
+			// The bound is inclusive.
+			name: "every category exactly at the bound",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: bound, OutputTokens: bound,
+				CacheReadInputTokens: bound, CacheWriteInputTokens: bound,
+			},
+		},
+		{
+			name:           "above the bound",
+			request:        &proto.RecordTokenUsageRequest{InputTokens: bound + 1},
+			wantOutOfRange: true,
+		},
+		{
+			// The last category is checked too, not just the first.
+			name:           "negative cache write",
+			request:        &proto.RecordTokenUsageRequest{CacheWriteInputTokens: -1},
+			wantOutOfRange: true,
+		},
+		{
+			// A negative offset by a larger positive still totals in range, so
+			// the check has to run per category rather than on the sum.
+			name: "negative input offset by positive output",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: -1_000_000, OutputTokens: 2_000_000,
+			},
+			wantOutOfRange: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateTokenUsage(tt.request)
+			if tt.wantOutOfRange {
+				if !errors.Is(err, errTokenUsageOutOfRange) {
+					t.Fatalf("validateTokenUsage error = %v, want errTokenUsageOutOfRange", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTokenUsage error = %v, want nil", err)
 			}
 		})
 	}
