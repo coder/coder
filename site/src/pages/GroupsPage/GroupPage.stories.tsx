@@ -537,7 +537,6 @@ export const SaveMemberAIBudgetRefreshesRow: Story = {
 	},
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
@@ -591,7 +590,6 @@ export const DeleteMemberAIBudgetRefreshesRow: Story = {
 	},
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
