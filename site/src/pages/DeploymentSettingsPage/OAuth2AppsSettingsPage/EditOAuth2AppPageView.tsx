@@ -373,7 +373,7 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 			<dt className="text-xs text-content-secondary">{label}</dt>
 			<dd className="m-0">
 				<div className="flex items-center gap-0.5">
-					<code className="w-fit rounded-md bg-surface-secondary px-2 py-0.5 font-mono text-xs text-content-primary">
+					<code className="w-fit rounded-md bg-surface-secondary px-2 py-0.5 font-mono text-xs text-content-secondary">
 						{value}
 					</code>
 					<CopyButton
