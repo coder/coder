@@ -19,7 +19,7 @@ import (
 // maxAllowedTokenUsage bounds the token count an interception may report per
 // category. A 1M-token context is the current frontier, so this leaves six
 // orders of magnitude of headroom.
-const maxAllowedTokenUsage = 1_000_000_000_000
+const maxAllowedTokenUsage int64 = 1_000_000_000_000
 
 var (
 	// tokensPerMillion is the divisor for prices, which are quoted per million

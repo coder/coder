@@ -194,7 +194,7 @@ func TestComputeCost(t *testing.T) {
 func TestValidateTokenUsage(t *testing.T) {
 	t.Parallel()
 
-	bound := int64(maxAllowedTokenUsage)
+	bound := maxAllowedTokenUsage
 
 	tests := []struct {
 		name           string
