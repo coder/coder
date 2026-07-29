@@ -1431,10 +1431,142 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 		"  image exceeds 5 MB maximum  ",
 		400,
 		nil,
-		testProviderResponseDump("not-json"),
 	))
 
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
+	t.Parallel()
+
+	// aibridge returns its budget error as a plain-text 403. The Anthropic
+	// adapter's Message is the SDK transport string without the body, so
+	// the budget text appears only in the dumped ResponseBody. Classify
+	// must still report a usage limit, not auth.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://api.example.com/v1/messages": 403 Forbidden`,
+		403,
+		nil,
+		[]byte("HTTP/1.1 403 Forbidden\r\n"+
+			"Content-Type: text/plain; charset=utf-8\r\n"+
+			"X-Content-Type-Options: nosniff\r\n"+
+			"\r\n"+
+			"AI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t,
+		"AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
+		classified.Detail)
+}
+
+func TestClassify_ProviderResponseDumps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		message       string
+		status        int
+		dump          []byte
+		wantDetail    string
+		wantKind      codersdk.ChatErrorKind
+		wantRetryable bool
+	}{
+		{
+			// Proxies and load balancers return HTML error pages with a
+			// text/html Content-Type. The text/plain gate keeps them out
+			// of the user-facing detail, so detail falls back to the
+			// provider message.
+			name:          "SkipsHTMLBody",
+			message:       "upstream failed",
+			status:        502,
+			dump:          testPlainDump("text/html", "<html><body>502 Bad Gateway</body></html>"),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindTimeout,
+			wantRetryable: true,
+		},
+		{
+			name:          "SkipsWhitespaceOnlyBody",
+			message:       "upstream failed",
+			status:        400,
+			dump:          testPlainDump("text/plain", "  \n\t\n"),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			name:          "PlainTextBodyFirstLineOnly",
+			status:        400,
+			dump:          testPlainDump("text/plain", "first line of the error\nsecond line\nthird line\n"),
+			wantDetail:    "first line of the error",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			// Valid JSON without an extractable message must not leak raw
+			// JSON into the user-facing detail, even when served as
+			// text/plain.
+			name:          "JSONBodyWithoutMessage",
+			message:       "upstream failed",
+			status:        400,
+			dump:          testPlainDump("text/plain", `{"type":"error"}`),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			// A plain-text body feeds the same pattern matching as a JSON
+			// message, so "quota" beats the 503 timeout signal.
+			name:          "PlainTextQuotaBodyOn503",
+			status:        503,
+			dump:          testPlainDump("text/plain", "quota exceeded for this key\n"),
+			wantDetail:    "quota exceeded for this key",
+			wantKind:      codersdk.ChatErrorKindUsageLimit,
+			wantRetryable: false,
+		},
+		{
+			// A dump of a chunked response keeps the chunk framing.
+			// Parsing the dump as an HTTP response removes it, so the
+			// detail is the joined body, not a hex chunk-size line.
+			name:   "DechunksPlainTextBody",
+			status: 403,
+			dump: []byte("HTTP/1.1 403 Forbidden\r\n" +
+				"Content-Type: text/plain; charset=utf-8\r\n" +
+				"Transfer-Encoding: chunked\r\n" +
+				"\r\n" +
+				"16\r\nAI budget of US$10.00 \r\n" +
+				"9\r\nexceeded.\r\n" +
+				"0\r\n\r\n"),
+			wantDetail:    "AI budget of US$10.00 exceeded.",
+			wantKind:      codersdk.ChatErrorKindUsageLimit,
+			wantRetryable: false,
+		},
+		{
+			// Fantasy's Google adapter stores a raw message (not an HTTP
+			// dump) in ResponseBody. A blank line inside it is not a
+			// header/body separator: detail must fall back to the full
+			// trimmed Message, not the second paragraph.
+			name:          "GoogleRawMessageWithBlankLine",
+			message:       "google: model overloaded",
+			status:        500,
+			dump:          []byte("model overloaded\n\nplease try again later"),
+			wantDetail:    "google: model overloaded",
+			wantKind:      codersdk.ChatErrorKindOverloaded,
+			wantRetryable: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(testProviderError(tt.message, tt.status, nil, tt.dump))
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			require.Equal(t, tt.wantKind, classified.Kind)
+			require.Equal(t, tt.wantRetryable, classified.Retryable)
+		})
+	}
 }
 
 func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
@@ -1505,6 +1637,12 @@ func testProviderError(
 		ResponseHeaders: headers,
 		ResponseBody:    body,
 	}
+}
+
+func testPlainDump(contentType, body string) []byte {
+	return []byte("HTTP/1.1 400 Bad Request\r\n" +
+		"Content-Type: " + contentType + "\r\n" +
+		"\r\n" + body)
 }
 
 func testProviderResponseDump(body string) []byte {

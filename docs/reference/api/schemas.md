@@ -938,6 +938,22 @@
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
+## codersdk.AIBudgetLimit
+
+```json
+{
+  "limit_source": "user_override",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
+| `spend_limit_micros` | integer                                                      | false    |              |             |
+
 ## codersdk.AIBudgetLimitSource
 
 ```json
@@ -1020,7 +1036,23 @@
   },
   "chat": {
     "acquire_batch_size": 0,
-    "debug_logging_enabled": true
+    "debug_logging_enabled": true,
+    "hook_enabled": true,
+    "hook_secret": "string",
+    "hook_timeout": 0,
+    "hook_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
   }
 }
 ```
@@ -1054,22 +1086,6 @@
 | `key_prefix`        | string | false    |              |             |
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
-
-## codersdk.AIGroupBudget
-
-```json
-{
-  "limit_source": "user_override",
-  "spend_limit_micros": 0
-}
-```
-
-### Properties
-
-| Name                 | Type                                                         | Required | Restrictions | Description |
-|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
-| `spend_limit_micros` | integer                                                      | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -2393,16 +2409,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "acquire_batch_size": 0,
-  "debug_logging_enabled": true
+  "debug_logging_enabled": true,
+  "hook_enabled": true,
+  "hook_secret": "string",
+  "hook_timeout": 0,
+  "hook_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  }
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer | false    |              |             |
-| `debug_logging_enabled` | boolean | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+|-------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer                    | false    |              |             |
+| `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_enabled`          | boolean                    | false    |              |             |
+| `hook_secret`           | string                     | false    |              |             |
+| `hook_timeout`          | integer                    | false    |              |             |
+| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -2645,9 +2681,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -2987,9 +3023,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                     |
-|--------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -4559,6 +4595,88 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "queued": true,
   "queued_message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4637,12 +4755,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description |
-|------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued`         | boolean                                                  | false    |              |             |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
-| `warnings`       | array of string                                          | false    |              |             |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
+|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
 ## codersdk.CreateChatRequest
 
@@ -5743,7 +5862,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "acquire_batch_size": 0,
-        "debug_logging_enabled": true
+        "debug_logging_enabled": true,
+        "hook_enabled": true,
+        "hook_secret": "string",
+        "hook_timeout": 0,
+        "hook_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -6353,7 +6488,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "acquire_batch_size": 0,
-      "debug_logging_enabled": true
+      "debug_logging_enabled": true,
+      "hook_enabled": true,
+      "hook_secret": "string",
+      "hook_timeout": 0,
+      "hook_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
     }
   },
   "allow_workspace_renames": true,
@@ -7060,6 +7211,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "deleted_message_ids": [
+    0
+  ],
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -7140,6 +7294,88 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -7148,10 +7384,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-|------------|----------------------------------------------|----------|--------------|-------------|
-| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
-| `warnings` | array of string                              | false    |              |             |
+| Name                  | Type                                                  | Required | Restrictions | Description                                                                                                                                                                       |
+|-----------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `deleted_message_ids` | array of integer                                      | false    |              | Deleted message ids holds the IDs of previously visible messages the edit removed, including stale hook notices from the edited turn. Clients should drop them from local caches. |
+| `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
+| `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
+| `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
 
 ## codersdk.Entitlement
 
@@ -7235,9 +7473,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                               |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7756,19 +7994,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `period_end`           | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                      |
-| `period_start`         | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                    |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.GroupMemberAISpend
 
@@ -7789,7 +8029,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
 |----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
-| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
+| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
 | `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
 | `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -9314,17 +9554,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 {
   "current_spend_micros": 0,
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.OrganizationGroupsAISpend
 
@@ -9334,7 +9576,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
@@ -14059,9 +14302,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `spend_limit_micros` | integer | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                               |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------|
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros. |
 
 ## codersdk.UpsertUserAIBudgetOverrideRequest
 
@@ -14077,7 +14320,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description                                                                                       |
 |----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
 | `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
-| `spend_limit_micros` | integer | false    |              |                                                                                                   |
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros.                                         |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 
@@ -14235,26 +14478,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
-  "limit_source": "user_override",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                                    |
-|------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                              |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership. |
-| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                                                                            |
-| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                          |
-| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                        |
-| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited).                                                           |
-| `user_id`              | string                                                       | false    |              |                                                                                                                                                                                |
+| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                                            |
+|------------------------|--------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
+| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
 

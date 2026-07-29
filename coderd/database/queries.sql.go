@@ -2860,41 +2860,119 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 }
 
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
+WITH queried_groups AS (
+	-- The requested groups that belong to the queried organization.
+	SELECT groups.id, groups.organization_id
+	FROM groups
+	WHERE groups.organization_id = $1
+		AND groups.id = ANY($2::uuid[])
+),
+candidate_users AS (
+	-- Members of the queried groups. Uses group_members_expanded so the implicit
+	-- Everyone group counts.
+	SELECT DISTINCT member.user_id
+	FROM group_members_expanded member
+	WHERE member.group_id IN (SELECT id FROM queried_groups)
+),
+user_highest_group AS (
+	-- Per user, the highest-limit group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM candidate_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- Effective budget group per user: an override wins over the highest-limit
+	-- group they belong to. Users with neither are left out, since the group they
+	-- fall back to has no budget and reports null.
+	SELECT
+		candidate_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		override.spend_limit_micros AS override_limit_micros
+	FROM candidate_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = candidate_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = candidate_users.user_id
+),
+group_limits AS (
+	-- Per attributed group, how many members take the group's own limit and the
+	-- combined limit of those carrying an override.
+	SELECT
+		effective.effective_group_id AS group_id,
+		count(*) FILTER (WHERE effective.override_limit_micros IS NULL) AS plain_member_count,
+		COALESCE(SUM(effective.override_limit_micros), 0)::BIGINT AS override_limit_sum
+	FROM effective
+	WHERE effective.effective_group_id IS NOT NULL
+	GROUP BY effective.effective_group_id
+),
+group_totals AS (
+	-- Combined limit per budgeted group, counting members with no override at the
+	-- group's own limit and adding the overrides on top. Unbudgeted groups are
+	-- absent here, so the join below leaves their total null.
+	SELECT
+		queried_groups.id AS group_id,
+		(budget.spend_limit_micros * COALESCE(group_limits.plain_member_count, 0)
+			+ COALESCE(group_limits.override_limit_sum, 0))::BIGINT AS total_spend_limit_micros
+	FROM queried_groups
+	JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+	LEFT JOIN group_limits ON group_limits.group_id = queried_groups.id
+),
+group_spend AS (
+	-- Spend per queried group over the period.
+	SELECT
+		spend.effective_group_id AS group_id,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM ai_user_daily_spend spend
+	WHERE spend.effective_group_id IN (SELECT id FROM queried_groups)
+		AND spend.day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.effective_group_id
+)
 SELECT
-	groups.id AS group_id,
-	groups.organization_id AS organization_id,
+	queried_groups.id AS group_id,
+	queried_groups.organization_id AS organization_id,
 	budget.spend_limit_micros AS spend_limit_micros,
-	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
-FROM groups
-LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
-LEFT JOIN ai_user_daily_spend spend
-	ON spend.effective_group_id = groups.id
-	AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
-WHERE groups.organization_id = $2
-	AND groups.id = ANY($3::uuid[])
-GROUP BY groups.id, budget.spend_limit_micros
-ORDER BY groups.id
+	group_totals.total_spend_limit_micros AS total_spend_limit_micros,
+	COALESCE(group_spend.current_spend_micros, 0)::BIGINT AS current_spend_micros
+FROM queried_groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+LEFT JOIN group_totals ON group_totals.group_id = queried_groups.id
+LEFT JOIN group_spend ON group_spend.group_id = queried_groups.id
+ORDER BY queried_groups.id
 `
 
 type GetOrganizationGroupsAISpendParams struct {
-	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 }
 
 type GetOrganizationGroupsAISpendRow struct {
-	GroupID            uuid.UUID     `db:"group_id" json:"group_id"`
-	OrganizationID     uuid.UUID     `db:"organization_id" json:"organization_id"`
-	SpendLimitMicros   sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
-	CurrentSpendMicros int64         `db:"current_spend_micros" json:"current_spend_micros"`
+	GroupID               uuid.UUID     `db:"group_id" json:"group_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	SpendLimitMicros      sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+	TotalSpendLimitMicros sql.NullInt64 `db:"total_spend_limit_micros" json:"total_spend_limit_micros"`
+	CurrentSpendMicros    int64         `db:"current_spend_micros" json:"current_spend_micros"`
 }
 
 // Returns AI spend limits and aggregate spend for groups in @group_ids that
-// belong to @organization_id, on or after period_start until NOW. The spend
-// limit is null when the group has no configured budget.
+// belong to @organization_id, on or after period_start until NOW.
+// spend_limit_micros is the per-member limit, null when the group has no budget.
+// total_spend_limit_micros is the combined budget of the members attributed to
+// the group, with each member's override replacing their share. It is null when
+// the group has no budget.
 // The period_start parameter is normalized to its UTC calendar day.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.PeriodStart, arg.OrganizationID, pq.Array(arg.GroupIds))
+	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.OrganizationID, pq.Array(arg.GroupIds), arg.PeriodStart)
 	if err != nil {
 		return nil, err
 	}
@@ -2906,6 +2984,7 @@ func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOr
 			&i.GroupID,
 			&i.OrganizationID,
 			&i.SpendLimitMicros,
+			&i.TotalSpendLimitMicros,
 			&i.CurrentSpendMicros,
 		); err != nil {
 			return nil, err
@@ -8417,7 +8496,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -8460,10 +8538,11 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC
 `
 
+// The compaction boundary and final ordering must use the same key so tool
+// results remain after their assistant calls.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {
@@ -10191,6 +10270,7 @@ func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, ar
 const insertChat = `-- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -10208,7 +10288,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
-    $1::uuid,
+    COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::uuid,
@@ -10216,14 +10296,15 @@ INSERT INTO chats (
     $6::uuid,
     $7::uuid,
     $8::uuid,
-    $9::text,
-    $10::chat_mode,
-    $11::chat_plan_mode,
-    $12::chat_status,
-    COALESCE($13::uuid[], '{}'::uuid[]),
-    COALESCE($14::jsonb, '{}'::jsonb),
-    $15::jsonb,
-    $16::chat_client_type
+    $9::uuid,
+    $10::text,
+    $11::chat_mode,
+    $12::chat_plan_mode,
+    $13::chat_status,
+    COALESCE($14::uuid[], '{}'::uuid[]),
+    COALESCE($15::jsonb, '{}'::jsonb),
+    $16::jsonb,
+    $17::chat_client_type
 )
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
@@ -10286,6 +10367,7 @@ FROM chats_expanded
 `
 
 type InsertChatParams struct {
+	ID                uuid.NullUUID         `db:"id" json:"id"`
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
@@ -10306,6 +10388,7 @@ type InsertChatParams struct {
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.WorkspaceID,
