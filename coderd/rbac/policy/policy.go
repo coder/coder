@@ -85,6 +85,13 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var mcpServerConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new MCP server config",
+	ActionRead:   "read MCP server config",
+	ActionUpdate: "update MCP server config",
+	ActionDelete: "delete MCP server config",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -452,5 +459,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "upsert boundary usage statistics",
 			ActionDelete: "delete boundary usage statistics",
 		},
+	},
+	"mcp_server_config": {
+		Name:    "MCPServerConfig",
+		Actions: mcpServerConfigActions,
 	},
 }

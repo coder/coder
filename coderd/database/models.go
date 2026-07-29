@@ -465,6 +465,11 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +744,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete:
 		return true
 	}
 	return false
@@ -983,6 +993,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
 	}
 }
 
