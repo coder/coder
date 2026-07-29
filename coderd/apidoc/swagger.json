@@ -49,6 +49,55 @@
 				}
 			}
 		},
+		"/api/experimental/ai/model-prices": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Experimental"],
+				"summary": "List AI model prices",
+				"operationId": "list-ai-model-prices",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIModelPrice"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"put": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Experimental"],
+				"summary": "Upsert AI model prices",
+				"operationId": "put-ai-model-prices",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIModelPrice"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/chats": {
 			"get": {
 				"description": "Experimental: this endpoint is subject to change.",
@@ -14079,6 +14128,37 @@
 				},
 				"spend_limit_micros": {
 					"type": "integer"
+				}
+			}
+		},
+		"codersdk.AIModelPrice": {
+			"type": "object",
+			"properties": {
+				"cache_read_price": {
+					"type": "integer"
+				},
+				"cache_write_price": {
+					"type": "integer"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"input_price": {
+					"type": "integer"
+				},
+				"model": {
+					"type": "string"
+				},
+				"output_price": {
+					"type": "integer"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},

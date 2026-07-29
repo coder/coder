@@ -1071,6 +1071,34 @@
 | `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
 | `spend_limit_micros` | integer                                                      | false    |              |             |
 
+## codersdk.AIModelPrice
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `created_at`        | string  | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
