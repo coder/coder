@@ -158,7 +158,7 @@ describe("toTimelineBlocks", () => {
 			],
 		],
 		[
-			"an unresolved tool, which becomes its own pending block",
+			"an unresolved tool, which becomes its own block",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "missing" },
@@ -166,7 +166,7 @@ describe("toTimelineBlocks", () => {
 			],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
-				{ type: "pending-tool", id: "missing" },
+				{ type: "unresolved-tool", id: "missing" },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
@@ -176,9 +176,9 @@ describe("toTimelineBlocks", () => {
 		expect(toTimelineBlocks(blocks, tools)).toEqual(expected);
 	});
 
-	it("emits a block whose tool has not arrived yet as pending", () => {
+	it("emits a block whose tool has not arrived yet as unresolved", () => {
 		expect(toTimelineBlocks([{ type: "tool", id: "missing" }], tools)).toEqual([
-			{ type: "pending-tool", id: "missing" },
+			{ type: "unresolved-tool", id: "missing" },
 		]);
 	});
 });

@@ -351,10 +351,11 @@ export const BlockList: FC<{
 								tools={block.tools}
 							/>
 						);
-					case "pending-tool":
-						// Kept in place once settled so later blocks keep their index.
+					case "unresolved-tool":
 						return isStreaming ? (
-							<Tool key={block.id} name="Tool" status="running" />
+							<ToolCall.Root key={block.id} status="running" hasContent={false}>
+								<ToolCall.Header label="Starting tool call…" />
+							</ToolCall.Root>
 						) : null;
 					case "tool": {
 						const tool = block.tool;
@@ -1104,7 +1105,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		let hasUserResponseAfterAskQuestion = false;
 		const askUserQuestionResponseTextByToolId = new Map<string, string>();
 		let pendingAskUserQuestionToolId: string | undefined;
-		for (const { message, parsed } of parsedMessages) {
+		for (const { message, parsed } of displayMessages) {
 			let askUserQuestionToolIdInMessage: string | undefined;
 			for (const tool of parsed.tools) {
 				if (tool.name === "ask_user_question") {

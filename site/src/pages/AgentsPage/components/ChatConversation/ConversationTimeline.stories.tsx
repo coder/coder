@@ -2596,8 +2596,8 @@ export const SequentialReadFilesRunningState: Story = {
 	},
 };
 
-/** A read that fails on its own falls back to the generic error copy. */
-export const SingleReadFileErrorState: Story = {
+/** A read that fails alone falls back to different copy than a failed group. */
+export const ReadFileErrorStates: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: [

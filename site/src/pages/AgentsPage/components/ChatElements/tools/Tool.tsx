@@ -976,7 +976,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	// read_file is absent on purpose: the timeline routes it to
-	// ReadFileTimelineBlock, so adding it here would only shadow that.
+	// ReadFileTimelineBlock, so an entry here would never be reached.
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,

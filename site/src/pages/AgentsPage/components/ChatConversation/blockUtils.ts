@@ -34,14 +34,14 @@ export const appendTextBlock = (
 type TimelineBlock =
 	| Exclude<RenderBlock, { type: "tool" }>
 	| { type: "tool"; tool: MergedTool }
-	| { type: "pending-tool"; id: string }
+	| { type: "unresolved-tool"; id: string }
 	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
 /**
- * Resolves each tool block's id against `tools` and collapses runs of
- * consecutive read_file tools into one `read-files` block, so the renderer
- * switches on shape instead of looking tools up. A block whose call has not
- * arrived becomes `pending-tool`.
+ * Resolves each tool block's id against `tools` and collapses adjacent
+ * read_file tools into one `read-files` block, including a run of one, so the
+ * renderer switches on shape instead of looking tools up. A block whose tool
+ * has not arrived becomes `unresolved-tool`.
  */
 export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
@@ -49,15 +49,14 @@ export const toTimelineBlocks = (
 ): TimelineBlock[] => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const timeline: TimelineBlock[] = [];
-	let readFileRun: MergedTool[] = [];
+	let readFileRun: [MergedTool, ...MergedTool[]] | undefined;
 
 	const flushReadFileRun = () => {
-		const [first, ...rest] = readFileRun;
-		if (!first) {
+		if (!readFileRun) {
 			return;
 		}
-		timeline.push({ type: "read-files", tools: [first, ...rest] });
-		readFileRun = [];
+		timeline.push({ type: "read-files", tools: readFileRun });
+		readFileRun = undefined;
 	};
 
 	for (const block of blocks) {
@@ -70,11 +69,11 @@ export const toTimelineBlocks = (
 		const tool = toolByID.get(block.id);
 		if (!tool) {
 			flushReadFileRun();
-			timeline.push({ type: "pending-tool", id: block.id });
+			timeline.push({ type: "unresolved-tool", id: block.id });
 			continue;
 		}
 		if (tool.name === "read_file") {
-			readFileRun.push(tool);
+			readFileRun = readFileRun ? [...readFileRun, tool] : [tool];
 			continue;
 		}
 

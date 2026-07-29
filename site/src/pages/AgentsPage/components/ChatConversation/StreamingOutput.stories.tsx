@@ -284,25 +284,40 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 	},
 };
 
+const unpairedResultState = buildStreamRenderState([
+	{ type: "text", text: "Working on it." },
+	{ type: "tool-result", tool_call_id: "tc-unpaired", result_delta: "" },
+	{ type: "text", text: "Wrapped up." },
+]);
+
 /**
- * A result part can arrive before its call, leaving a block with no tool. The
- * row holds its place as a pending card while the stream is live.
+ * An empty result delta can arrive before its call, leaving a block with no
+ * tool. The row holds its place while the stream is live.
  */
-export const ToolResultBeforeItsCall: Story = {
+export const EmptyToolResultBeforeItsCall: Story = {
+	args: unpairedResultState,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Starting tool call…")).toBeVisible();
+		expect(canvas.getByLabelText("Tool call running")).toBeVisible();
+	},
+};
+
+/** Once the stream stops, the unresolved row is dropped. */
+export const EmptyToolResultBeforeItsCallSettled: Story = {
 	args: {
-		...buildStreamRenderState([
-			{ type: "text", text: "Working on it." },
-			{
-				type: "tool-result",
-				tool_call_id: "tc-unpaired",
-				result_delta: "",
-			},
-		]),
+		...unpairedResultState,
+		liveStatus: buildLiveStatus({
+			streamState: unpairedResultState.streamState,
+			reconnectState: buildReconnectState(),
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Tool")).toBeVisible();
-		expect(canvas.getByLabelText("Tool call running")).toBeVisible();
+		expect(
+			canvas.queryByLabelText("Tool call running"),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("Wrapped up.")).toBeVisible();
 	},
 };
 

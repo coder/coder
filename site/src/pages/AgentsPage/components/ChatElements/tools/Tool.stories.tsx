@@ -1,3 +1,4 @@
+import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -35,6 +36,15 @@ const meta: Meta<typeof Tool> = {
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+	},
+	// The diff viewer renders nothing until its shared highlighter has the
+	// requested themes attached, and a mount that misses them never re-renders,
+	// so the first story to mount one would fail.
+	beforeEach: async () => {
+		await preloadHighlighter({
+			themes: ["github-dark-high-contrast", "github-light"],
+			langs: [],
+		});
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -3020,7 +3030,11 @@ export const CreateWorkspaceBuildFailed: Story = {
 	},
 };
 
-export const AllToolIconsTranscript: Story = {
+/**
+ * Non-exhaustive gallery of the icons and labels the common `<Tool>` names
+ * render. Per-path coverage lives in the dedicated stories above.
+ */
+export const ToolIconGalleryTranscript: Story = {
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
 			<DesktopPanelContext.Provider

@@ -231,46 +231,39 @@ const getStreamToolStatus = (
 	return result.isError ? "error" : "completed";
 };
 
+/**
+ * Merges the streamed calls and results for every tool block, in block order,
+ * so a tool cannot exist without a row to render it in.
+ */
 export const buildStreamTools = (
-	toolCalls: StreamState["toolCalls"] | null | undefined,
-	toolResults: StreamState["toolResults"] | null | undefined,
+	state: StreamState | null | undefined,
 ): MergedTool[] => {
-	if (!toolCalls) {
+	if (!state) {
 		return [];
 	}
-	const calls = Object.values(toolCalls);
-	const seen = new Set<string>();
 	const merged: MergedTool[] = [];
 
-	for (const call of calls) {
-		seen.add(call.id);
-		const result = toolResults?.[call.id];
+	for (const block of state.blocks) {
+		if (block.type !== "tool") {
+			continue;
+		}
+		const call = state.toolCalls[block.id];
+		const result = state.toolResults[block.id];
+		const source = call ?? result;
+		if (!source) {
+			continue;
+		}
 		merged.push({
-			id: call.id,
-			name: call.name,
-			args: call.args,
+			id: source.id,
+			name: source.name,
+			args: call?.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: getStreamToolStatus(result),
-			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
-			modelIntent: call.modelIntent,
-			parsedCommands: call.parsedCommands,
+			mcpServerConfigId: call?.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent: call?.modelIntent,
+			parsedCommands: call?.parsedCommands,
 		});
-	}
-
-	if (toolResults) {
-		for (const result of Object.values(toolResults)) {
-			if (!seen.has(result.id)) {
-				merged.push({
-					id: result.id,
-					name: result.name,
-					result: result.result,
-					isError: result.isError,
-					status: getStreamToolStatus(result),
-					mcpServerConfigId: result.mcpServerConfigId,
-				});
-			}
-		}
 	}
 
 	return merged;

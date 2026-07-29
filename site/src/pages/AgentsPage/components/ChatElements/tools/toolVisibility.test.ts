@@ -73,6 +73,17 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
+		it("renders execute rows that have a command", () => {
+			expect(
+				shouldRenderTool({
+					name: "execute",
+					status: "completed",
+					args: { command: "git status" },
+					result: { output: "clean" },
+				}),
+			).toBe(true);
+		});
+
 		it("hides running wait_agent rows until chat_id is available", () => {
 			expect(
 				shouldRenderTool({

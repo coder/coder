@@ -60,9 +60,7 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
 	);
 	const hasRenderableContent =
-		visibleBlocks.length > 0 ||
-		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		visibleBlocks.length > 0 || parsed.sources.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
@@ -193,8 +191,8 @@ const mergeReadFileMessageGroup = (
 	};
 };
 
-// This is the only place hidden entries are dropped, so anything driving
-// rendered output must iterate the result rather than the input.
+// The only place hidden entries are dropped, so every rendered row comes from
+// the result and nothing downstream may re-derive whether an entry is hidden.
 //
 // Real transcripts place hidden tool-result-only messages between
 // sequential read_file assistant messages. Those hidden entries stay

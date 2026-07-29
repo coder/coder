@@ -243,9 +243,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -271,9 +269,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 		});
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("completed");
+		expect(buildStreamTools(state)[0].status).toBe("completed");
 	});
 
 	it("completes a streamed tool result when an empty delta carries the final result", () => {
@@ -295,9 +291,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: "Use ",
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -322,9 +316,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 		});
 		expect(state!.toolResults["call-advisor-2"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("completed");
+		expect(buildStreamTools(state)[0].status).toBe("completed");
 	});
 
 	it("marks a streamed tool result as error when an empty delta carries is_error", () => {
@@ -346,9 +338,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: "partial advice",
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -363,9 +353,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 		});
 		expect(state!.toolResults["call-advisor-3"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("ignores empty tool result deltas", () => {
@@ -385,9 +373,7 @@ describe("applyMessagePartToStreamState", () => {
 
 		expect(state).not.toBeNull();
 		expect(state!.toolResults["edit-1"]).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 	});
 
 	it("resets streaming tool result deltas", () => {
@@ -413,9 +399,7 @@ describe("applyMessagePartToStreamState", () => {
 
 		expect(state).not.toBeNull();
 		expect(state!.toolResults["call-advisor-1"]).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -458,9 +442,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 		});
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("clears streaming state for bare error tool results", () => {
@@ -485,9 +467,7 @@ describe("applyMessagePartToStreamState", () => {
 		});
 
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("accumulates multiple tool calls in sequence", () => {
@@ -689,7 +669,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: { error: "permission denied" },
 			isError: true,
 		});
-		const tools = buildStreamTools(state!.toolCalls, state!.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0]).toEqual({
 			id: "tc-1",
@@ -703,8 +683,8 @@ describe("applyMessagePartToStreamState", () => {
 });
 
 describe("buildStreamTools", () => {
-	it("returns empty array for null toolCalls", () => {
-		expect(buildStreamTools(null, null)).toEqual([]);
+	it("returns empty array without stream state", () => {
+		expect(buildStreamTools(null)).toEqual([]);
 	});
 
 	it("returns running status for calls without results", () => {
@@ -716,14 +696,14 @@ describe("buildStreamTools", () => {
 			toolResults: {},
 			sources: [],
 		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("running");
 	});
 
 	it("returns completed status when call has a result", () => {
 		const state: StreamState = {
-			blocks: [],
+			blocks: [{ type: "tool", id: "tc-1" }],
 			toolCalls: {
 				"tc-1": { id: "tc-1", name: "bash" },
 			},
@@ -737,27 +717,30 @@ describe("buildStreamTools", () => {
 			},
 			sources: [],
 		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools[0].status).toBe("completed");
 	});
 
-	it("includes orphan results with no matching call", () => {
-		const state: StreamState = {
-			blocks: [],
-			toolCalls: {},
-			toolResults: {
-				"tc-1": {
-					id: "tc-1",
-					name: "bash",
-					result: "output",
-					isError: false,
-				},
-			},
-			sources: [],
-		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
+	it("includes a result that arrives before its call", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { output: "done" },
+		});
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("completed");
+	});
+
+	it("skips a block whose call and result have not arrived", () => {
+		const state: StreamState = {
+			blocks: [{ type: "tool", id: "tc-1" }],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		};
+		expect(buildStreamTools(state)).toEqual([]);
 	});
 });
 

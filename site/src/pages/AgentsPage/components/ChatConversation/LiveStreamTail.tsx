@@ -142,10 +142,7 @@ export const LiveStreamTail = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
-	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
-	);
+	const streamTools = buildStreamTools(streamState);
 	const liveStatus = deriveLiveStatus({
 		streamState,
 		retryState,
