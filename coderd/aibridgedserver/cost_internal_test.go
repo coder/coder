@@ -14,6 +14,12 @@ func TestComputeCost(t *testing.T) {
 
 	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
 
+	// Boundary cases derive from the production bound so they pin its
+	// inclusivity rather than its current value. At this price the cost equals
+	// the token count, which keeps those cases readable.
+	const oneMicroPerToken = 1_000_000
+	bound := maxCostMicros.IntPart()
+
 	tests := []struct {
 		name                                                         string
 		price                                                        database.AIModelPrice
@@ -113,29 +119,24 @@ func TestComputeCost(t *testing.T) {
 			want:        9_150_000_000_000,
 		},
 		{
-			name: "cost exactly at the bound is in range",
-			price: database.AIModelPrice{
-				// 1 micro-unit per token, so cost equals the token count.
-				InputPrice: nullInt64(1_000_000),
-			},
-			inputTokens: 10_000_000_000_000, // $10M, the bound
-			want:        10_000_000_000_000,
+			// The bound is inclusive.
+			name:        "cost exactly at the bound is in range",
+			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens: bound,
+			want:        bound,
 		},
 		{
-			name: "cost one micro-unit above the bound is out of range",
-			price: database.AIModelPrice{
-				InputPrice: nullInt64(1_000_000),
-			},
-			inputTokens:    10_000_000_000_001,
+			name:           "cost one micro-unit above the bound is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens:    bound + 1,
 			wantOutOfRange: true,
 		},
 		{
-			// A cost the column could hold is still rejected, because it would
-			// poison the running total it feeds.
-			name: "cost the column could hold is out of range",
-			price: database.AIModelPrice{
-				InputPrice: nullInt64(1_000_000),
-			},
+			// Pins the bound below the column ceiling. A cost the column could
+			// hold is still rejected, because it would poison the running total
+			// it feeds.
+			name:           "cost the column could hold is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens:    math.MaxInt64,
 			wantOutOfRange: true,
 		},
@@ -144,11 +145,11 @@ func TestComputeCost(t *testing.T) {
 			// so the range check has to run on the total.
 			name: "sum of in-range categories above the bound is out of range",
 			price: database.AIModelPrice{
-				InputPrice:  nullInt64(1_000_000),
-				OutputPrice: nullInt64(1_000_000),
+				InputPrice:  nullInt64(oneMicroPerToken),
+				OutputPrice: nullInt64(oneMicroPerToken),
 			},
-			inputTokens:    6_000_000_000_000,
-			outputTokens:   6_000_000_000_000,
+			inputTokens:    bound/2 + 1,
+			outputTokens:   bound/2 + 1,
 			wantOutOfRange: true,
 		},
 		{

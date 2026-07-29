@@ -20,12 +20,7 @@ var (
 	// tokensPerMillion is the divisor for prices, which are quoted per million
 	// tokens.
 	tokensPerMillion = decimal.NewFromInt(1_000_000)
-	// maxCostMicros bounds one interception's cost at $10M. This is a
-	// plausibility bound, not a storage bound: the column holds far more, but a
-	// cost near its ceiling would poison the running total in
-	// ai_user_daily_spend, whose increment raises rather than wraps and would
-	// then discard the record. Reaching that ceiling from this bound takes
-	// roughly a million records.
+	// maxCostMicros bounds one interception's cost at $10M.
 	maxCostMicros = decimal.NewFromInt(10_000_000_000_000)
 )
 
