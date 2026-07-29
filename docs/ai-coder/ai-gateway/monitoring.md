@@ -159,7 +159,7 @@ A standalone AI Gateway exposes health endpoints on its data-plane listener:
 | `/readyz`  | The control connection to `coderd` is active and provider configuration has been initialized. |
 
 `/readyz` returns HTTP 503 until provider configuration is initialized and whenever the control connection to `coderd` is unavailable.
-`/healthz` only reports if the HTTP listener is up, it returns HTTP 200 even when the control connection is down.
+A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections. It returns `200 OK` even when the control connection is down.
 Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
 
 The standalone Helm chart enables a `/healthz` liveness probe and a `/readyz` readiness probe by default.
