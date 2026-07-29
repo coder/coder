@@ -1066,7 +1066,8 @@ Returns the AI spend limit and aggregate spend for the group.
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
@@ -2003,7 +2004,8 @@ Unknown or unreadable group IDs are silently omitted.
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",

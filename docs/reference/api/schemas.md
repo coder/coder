@@ -7760,19 +7760,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `period_end`           | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                      |
-| `period_start`         | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                    |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.GroupMemberAISpend
 
@@ -9304,17 +9306,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "current_spend_micros": 0,
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.OrganizationGroupsAISpend
 
@@ -9324,7 +9328,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",

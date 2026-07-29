@@ -218,7 +218,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 					{group.spend ? (
 						<AIBudgetUsage
 							currentSpend={group.spend.current_spend_micros}
-							spendLimit={group.spend.spend_limit_micros}
+							spendLimit={group.spend.total_spend_limit_micros}
 						/>
 					) : (
 						EM_DASH
