@@ -11,6 +11,7 @@ import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatsByWorkspace } from "#/api/queries/chats";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
@@ -171,12 +172,21 @@ const WorkspacesPage: FC = () => {
 		(w) => w.latest_build.status === "running",
 	);
 
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.createTemplates,
+	});
+	const templateBuilderEnabled =
+		deploymentConfigQuery.isSuccess &&
+		!deploymentConfigQuery.data?.config?.template_builder?.disabled;
+
 	return (
 		<>
 			<title>{pageTitle("Workspaces")}</title>
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
+				templateBuilderEnabled={templateBuilderEnabled}
 				canCreateWorkspace={permissions.createWorkspace}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
