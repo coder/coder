@@ -174,7 +174,7 @@ coder ai-gateway keys list
 
 The `LAST HEARTBEAT AT` column holds the timestamp.
 The first heartbeat is recorded when the replica connects.
-Active sessions update the timestamp every 60 seconds.
+An active control connection updates the timestamp every 60 seconds.
 Coder stores one timestamp per key, so a recent heartbeat on a shared key does not confirm that every replica is connected.
 Check `/readyz` on each replica to verify individual health.
 
