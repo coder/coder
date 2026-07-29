@@ -139,7 +139,7 @@ describe("SchedulePage", () => {
 			const timeInput = screen.getByLabelText("Start time");
 			expect(timeInput).toBeDisabled();
 			const timezoneDropdown = screen.getByLabelText("Timezone");
-			expect(timezoneDropdown).toHaveClass("Mui-disabled");
+			expect(timezoneDropdown).toBeDisabled();
 			const updateButton = screen.getByText("Update schedule");
 			expect(updateButton).toBeDisabled();
 		});

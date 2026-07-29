@@ -74,6 +74,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: {
 			viewDeploymentConfig: false,
+			createWorkspace: true,
 		},
 		queries: [
 			{
@@ -432,6 +433,9 @@ export const StopsOnlySelectedWorkspaces: Story = {
 		await openBulkActions(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: /stop/i }));
 
+		const dialog = await body.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Stop" }));
+
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(2));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("1");
 		expect(API.stopWorkspace).toHaveBeenCalledWith("2");
@@ -530,6 +534,9 @@ export const StopIgnoresAlreadyStoppedWorkspaces: Story = {
 		const stopItem = await body.findByRole("menuitem", { name: /stop/i });
 		expect(stopItem).not.toHaveAttribute("data-disabled");
 		await user.click(stopItem);
+
+		const dialog = await body.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Stop" }));
 
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(1));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("2");

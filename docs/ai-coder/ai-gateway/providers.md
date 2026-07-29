@@ -1,7 +1,8 @@
 # Provider Configuration
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 Providers are deployment-scoped and managed from the dashboard or the
 [AI Providers API](../../reference/api/aiproviders.md). See

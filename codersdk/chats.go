@@ -290,6 +290,15 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
+	// ChatMessagePartTypeHookContext is model context injected into a user
+	// prompt by a lifecycle hook. It is included in model prompt assembly
+	// and stripped from every client-facing conversion; the server rejects
+	// it in client-submitted content.
+	ChatMessagePartTypeHookContext ChatMessagePartType = "hook-context"
+	// ChatMessagePartTypeHookNotice is a user-facing notice attached to a
+	// user prompt by a lifecycle hook. It is excluded from model prompt
+	// assembly; the server rejects it in client-submitted content.
+	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -304,6 +313,8 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
+		ChatMessagePartTypeHookContext,
+		ChatMessagePartTypeHookNotice,
 	}
 }
 
@@ -332,8 +343,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 //     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
-	Text              string              `json:"text" variants:"text,reasoning"`
-	Signature         string              `json:"signature,omitempty"`
+	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
 	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
@@ -634,18 +644,28 @@ type EditChatMessageRequest struct {
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
-	Message       *ChatMessage       `json:"message,omitempty"`
+	Message *ChatMessage `json:"message,omitempty"`
+	// Messages contains all user-visible messages inserted by the send, in
+	// insertion order. A queued send on an errored chat may promote the
+	// previous queue head, so clients must upsert the full batch.
+	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
-// Edits are always synchronous (no queueing), so the message is returned
-// directly.
 type EditChatMessageResponse struct {
-	Message  ChatMessage `json:"message"`
-	Warnings []string    `json:"warnings,omitempty"`
+	Message ChatMessage `json:"message"`
+	// Messages holds every user-visible message inserted by the edit, in
+	// insertion order. Hook-generated suffix messages may follow Message,
+	// so clients must upsert the full batch.
+	Messages []ChatMessage `json:"messages,omitempty"`
+	// DeletedMessageIDs holds the IDs of previously visible messages the
+	// edit removed, including stale hook notices from the edited turn.
+	// Clients should drop them from local caches.
+	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
+	Warnings          []string `json:"warnings,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.
@@ -1721,6 +1741,8 @@ const (
 	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
 	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
 	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1737,6 +1759,8 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindMissingKey,
 	ChatErrorKindProviderDisabled,
 	ChatErrorKindContentFilter,
+	ChatErrorKindHookDispatchFailed,
+	ChatErrorKindHookDenied,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the
@@ -2010,6 +2034,22 @@ type ChatUsageLimitExceededResponse struct {
 	SpentMicros int64     `json:"spent_micros"`
 	LimitMicros int64     `json:"limit_micros"`
 	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
+// ChatHookDispatchFailedResponse is the error body returned when a
+// lifecycle hook dispatch fails during a synchronous chat operation.
+// Kind lets clients classify the failure without parsing message text.
+type ChatHookDispatchFailedResponse struct {
+	Response
+	Kind ChatErrorKind `json:"kind"`
+}
+
+// ChatHookDeniedResponse is the error body returned when a lifecycle hook
+// denies a synchronous chat operation. Kind lets clients classify the denial
+// without parsing message text.
+type ChatHookDeniedResponse struct {
+	Response
+	Kind ChatErrorKind `json:"kind"`
 }
 
 type chatUsageLimitExceededError struct {

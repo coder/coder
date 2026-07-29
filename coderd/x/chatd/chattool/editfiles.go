@@ -42,24 +42,38 @@ type editFileEdit struct {
 func (e *editFileEdit) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		OldText    string `json:"old_text"`
-		Search     string `json:"search"`
 		NewText    string `json:"new_text"`
-		Replace    string `json:"replace"`
 		ReplaceAll bool   `json:"replace_all"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	e.OldText = raw.OldText
-	if e.OldText == "" {
-		e.OldText = raw.Search
-	}
 	e.NewText = raw.NewText
-	if e.NewText == "" {
-		e.NewText = raw.Replace
-	}
 	e.ReplaceAll = raw.ReplaceAll
-	return nil
+	if e.OldText != "" && e.NewText != "" {
+		return nil
+	}
+	// The aliases are absent from the advertised schema, so tool-input
+	// validation cannot reject case variants of them the way it does for
+	// declared properties. Matching them exactly keeps the keys this
+	// decoder reads identical to the ones a policy sees.
+	var exact map[string]json.RawMessage
+	if err := json.Unmarshal(data, &exact); err != nil {
+		return err
+	}
+	if err := decodeAlias(exact, "search", &e.OldText); err != nil {
+		return err
+	}
+	return decodeAlias(exact, "replace", &e.NewText)
+}
+
+func decodeAlias(raw map[string]json.RawMessage, key string, target *string) error {
+	value, present := raw[key]
+	if *target != "" || !present {
+		return nil
+	}
+	return json.Unmarshal(value, target)
 }
 
 func (a EditFilesArgs) toSDKFiles() []workspacesdk.FileEdits {

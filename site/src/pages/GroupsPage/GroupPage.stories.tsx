@@ -100,9 +100,11 @@ const membersQuery = (data: unknown) => ({
 /** period_end is exclusive. */
 const mockUserAISpend: UserAISpendStatus = {
 	user_id: MockUserOwner.id,
-	spend_limit_micros: 9_000_000_000,
 	effective_group_id: MockGroupWithoutMembers.id,
-	limit_source: "group",
+	effective_budget: {
+		spend_limit_micros: 9_000_000_000,
+		limit_source: "group",
+	},
 	current_spend_micros: 1_345_000_000,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",

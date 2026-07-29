@@ -8,9 +8,11 @@ import { UserDropdown } from "./UserDropdown";
 
 const mockAISpend: UserAISpendStatus = {
 	user_id: MockUserOwner.id,
-	spend_limit_micros: 1_200_000_000,
 	effective_group_id: "grp-789",
-	limit_source: "group",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
 	current_spend_micros: 819_000_000,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",
@@ -154,7 +156,7 @@ export const AISpendUnlimited: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: null } },
+			{ key: meAISpendKey, data: { ...mockAISpend, effective_budget: null } },
 		],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -200,7 +202,10 @@ export const AISpendZeroLimit: Story = {
 				data: {
 					...mockAISpend,
 					current_spend_micros: 0,
-					spend_limit_micros: 0,
+					effective_budget: {
+						spend_limit_micros: 0,
+						limit_source: "group",
+					},
 				},
 			},
 		],
@@ -276,7 +281,13 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: -1 } },
+			{
+				key: meAISpendKey,
+				data: {
+					...mockAISpend,
+					effective_budget: { spend_limit_micros: -1, limit_source: "group" },
+				},
+			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
