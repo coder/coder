@@ -464,6 +464,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			model               string
 			smallFastModel      string
 			expectThinkingType  string
+			expectEffort        string
 			expectBudgetTokens  int64    // 0 means budget_tokens should not be present
 			sendThinkingEnabled bool     // send enabled thinking with budget_tokens instead of the fixture's adaptive thinking
 			expectKeptFields    []string // fields from strippableFields expected to survive
@@ -475,6 +476,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "beddel",
 				model:              "beddel",
 				smallFastModel:     "modrock",
+				expectEffort:       "",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000, // 32000 * 0.5 (medium effort)
 				expectedBetaFlags:  []string{"interleaved-thinking-2025-05-14"},
@@ -484,6 +486,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "opus-4.5",
 				model:              "anthropic.claude-opus-4-5-20250514-v1:0",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:       "medium",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000,
 				expectKeptFields:   []string{"output_config"},
@@ -494,6 +497,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "sonnet-4.5",
 				model:              "anthropic.claude-sonnet-4-5-20241022-v2:0",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:       "",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000,
 				expectKeptFields:   []string{"context_management"},
@@ -504,6 +508,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			{
 				name:               "opus-4.6",
 				model:              "anthropic.claude-opus-4-6-20260619-v1:0",
+				expectEffort:       "",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
 				expectThinkingType: "adaptive",
 				expectedBetaFlags:  []string{"interleaved-thinking-2025-05-14"},
@@ -514,6 +519,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:                "sonnet-5",
 				model:               "us.anthropic.claude-sonnet-5",
 				smallFastModel:      "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:        "medium",
 				expectThinkingType:  "adaptive",
 				sendThinkingEnabled: true,
 				expectKeptFields:    []string{"output_config"},
@@ -581,9 +587,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					} else {
 						assert.False(t, gjson.GetBytes(body, "thinking.budget_tokens").Exists(), "budget_tokens should not be present")
 					}
-					if tc.sendThinkingEnabled {
-						assert.Equal(t, "medium", gjson.GetBytes(body, "output_config.effort").String(), "effort mismatch")
-					}
+					assert.Equal(t, tc.expectEffort, gjson.GetBytes(body, "output_config.effort").String(), "effort mismatch")
 
 					// The Bedrock SDK middleware moves Anthropic-Beta from the header
 					// into the body as "anthropic_beta".
