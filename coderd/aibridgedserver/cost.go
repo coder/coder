@@ -101,9 +101,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		in.GetCacheReadInputTokens(), in.GetCacheWriteInputTokens())
 	if err != nil {
 		// No trustworthy cost exists, so record it as unknown rather than
-		// storing a figure derived from bad inputs. The token counts are logged
-		// because the range error alone does not say which input was wrong.
+		// storing a figure derived from bad inputs.
 		s.logger.Error(ctx, "cost out of range, recording token usage with NULL cost",
+			slog.F("interception_id", intc.ID),
+			slog.F("initiator_id", intc.InitiatorID),
 			slog.F("provider", intc.Provider), slog.F("model", intc.Model),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
