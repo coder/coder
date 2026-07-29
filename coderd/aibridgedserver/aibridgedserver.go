@@ -330,6 +330,10 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
+	if err := validateTokenUsage(in); err != nil {
+		return nil, xerrors.Errorf("validate token usage for interception %q: %w", intcID, err)
+	}
+
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
