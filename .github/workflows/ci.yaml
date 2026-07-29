@@ -986,14 +986,14 @@ jobs:
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
       # outdatedAgent e2e tests so most runs skip the flaky GitHub release
-      # download entirely. The cache key is keyed off the test files that pin
-      # the downloaded versions, so it invalidates when those versions change.
+      # download entirely. The cache key is keyed off the file that pins the
+      # downloaded versions, so it invalidates when those versions change.
       - name: Restore e2e Coder release binary cache
         id: coder-e2e-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/coder-e2e-cache
-          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/tests/outdatedCLI.spec.ts', 'site/e2e/tests/outdatedAgent.spec.ts') }}
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/constants.ts') }}
           restore-keys: |
             coder-e2e-cache-${{ runner.os }}-
 
