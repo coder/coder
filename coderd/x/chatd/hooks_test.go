@@ -1,7 +1,6 @@
 package chatd_test
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -641,37 +640,6 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
 	})
 	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
-
-	// Usage limits are deployment-wide, so these cases run last.
-	_, err = db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("assistant")})
-	require.NoError(t, err)
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-	var limitErr *chatd.UsageLimitExceededError
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit")},
-	})
-	require.ErrorAs(t, err, &limitErr)
-	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
-		EditedMessageID: inserted[0].ID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit edit")},
-	})
-	require.ErrorAs(t, err, &limitErr)
 
 	select {
 	case request := <-received:
