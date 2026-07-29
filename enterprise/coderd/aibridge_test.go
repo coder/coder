@@ -2289,6 +2289,40 @@ func TestGroupAIBudget(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
+	t.Run("SpendLimitMaximum", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name      string
+			limit     int64
+			wantError bool
+		}{
+			{name: "AtMaximum", limit: codersdk.MaxAISpendLimitMicros},
+			{name: "AboveMaximum", limit: codersdk.MaxAISpendLimitMicros + 1, wantError: true},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				adminClient, group := setupGroupAIBudgetTest(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				budget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tc.limit,
+				})
+				if tc.wantError {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, err, &sdkErr)
+					require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tc.limit, budget.SpendLimitMicros)
+			})
+		}
+	})
+
 	t.Run("AcceptsZeroSpendLimitToBlock", func(t *testing.T) {
 		t.Parallel()
 
@@ -2588,6 +2622,41 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("Upsert/SpendLimitMaximum", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name      string
+			limit     int64
+			wantError bool
+		}{
+			{name: "AtMaximum", limit: codersdk.MaxAISpendLimitMicros},
+			{name: "AboveMaximum", limit: codersdk.MaxAISpendLimitMicros + 1, wantError: true},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-max-group"})
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				override, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+					GroupID:          group.ID,
+					SpendLimitMicros: tc.limit,
+				})
+				if tc.wantError {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, err, &sdkErr)
+					require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tc.limit, override.SpendLimitMicros)
+			})
+		}
 	})
 
 	t.Run("Upsert/RejectsUnknownGroup", func(t *testing.T) {

@@ -14302,9 +14302,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `spend_limit_micros` | integer | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                               |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------|
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros. |
 
 ## codersdk.UpsertUserAIBudgetOverrideRequest
 
@@ -14320,7 +14320,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description                                                                                       |
 |----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
 | `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
-| `spend_limit_micros` | integer | false    |              |                                                                                                   |
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros.                                         |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 

@@ -3,8 +3,13 @@ import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
-import type { GroupAIBudget, UserAIBudgetOverride } from "#/api/typesGenerated";
+import {
+	type GroupAIBudget,
+	MaxAISpendLimitMicros,
+	type UserAIBudgetOverride,
+} from "#/api/typesGenerated";
 import { MockGroup, MockGroup2, MockUserMember } from "#/testHelpers/entities";
+import { MICROS_PER_DOLLAR } from "#/utils/currency";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 const mockOverride: UserAIBudgetOverride = {
@@ -122,12 +127,14 @@ export const Uncapped: Story = {
 			async () => {
 				const budgetInput = body.getByLabelText("Custom monthly budget");
 				await expect(
-					body.queryByText("Enter a monthly budget of 0 or more."),
+					body.queryByText("Enter a monthly budget between 0 and $1,000,000."),
 				).not.toBeInTheDocument();
 				await userEvent.click(budgetInput);
 				await userEvent.tab();
 				await expect(
-					await body.findByText("Enter a monthly budget of 0 or more."),
+					await body.findByText(
+						"Enter a monthly budget between 0 and $1,000,000.",
+					),
 				).toBeInTheDocument();
 			},
 		);
@@ -222,7 +229,9 @@ export const SubmitRequiresValueOrUncheck: Story = {
 			// Blur to surface the error, matching the touched-then-validate flow.
 			await userEvent.tab();
 			await expect(
-				await body.findByText("Enter a monthly budget of 0 or more."),
+				await body.findByText(
+					"Enter a monthly budget between 0 and $1,000,000.",
+				),
 			).toBeInTheDocument();
 			await expect(updateButton).toBeDisabled();
 		});
@@ -241,6 +250,43 @@ export const SubmitRequiresValueOrUncheck: Story = {
 				await expect(updateButton).toBeEnabled();
 			},
 		);
+	},
+};
+
+// A budget above the configurable maximum blocks submit.
+export const SubmitBlockedAboveMaximum: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: mockOverride,
+			},
+			...groupQueries,
+		],
+	},
+	play: async ({ step }) => {
+		const body = within(document.body);
+		const budgetInput = await body.findByLabelText("Custom monthly budget");
+		const updateButton = body.getByRole("button", { name: "Update" });
+		const maxDollars = MaxAISpendLimitMicros / MICROS_PER_DOLLAR;
+
+		await step("the maximum itself is submittable", async () => {
+			await userEvent.clear(budgetInput);
+			await userEvent.type(budgetInput, String(maxDollars));
+			await expect(updateButton).toBeEnabled();
+		});
+
+		await step("one dollar above the maximum blocks submit", async () => {
+			await userEvent.clear(budgetInput);
+			await userEvent.type(budgetInput, String(maxDollars + 1));
+			await userEvent.tab();
+			await expect(
+				await body.findByText(
+					"Enter a monthly budget between 0 and $1,000,000.",
+				),
+			).toBeInTheDocument();
+			await expect(updateButton).toBeDisabled();
+		});
 	},
 };
 

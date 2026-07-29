@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { MaxAISpendLimitMicros } from "#/api/typesGenerated";
 import { MockGroup } from "#/testHelpers/entities";
+import { MICROS_PER_DOLLAR } from "#/utils/currency";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const meta: Meta<typeof GroupSettingsPageView> = {
@@ -95,6 +97,29 @@ export const AIBudgetDecimal: Story = {
 		await expect(helper).toHaveTextContent(
 			"$99.99/month maximum, based on 1 member.",
 		);
+	},
+};
+
+// A budget above the configurable maximum blocks saving.
+export const AIBudgetAboveMaximum: Story = {
+	args: {
+		showAISettings: true,
+		initialBudgetDollars: null,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByLabelText("Monthly limit per member");
+		const maxDollars = MaxAISpendLimitMicros / MICROS_PER_DOLLAR;
+
+		await userEvent.type(input, String(maxDollars + 1));
+		// Blur to surface the error, matching the touched-then-validate flow.
+		await userEvent.tab();
+		await expect(
+			await canvas.findByText("Enter an amount between 0 and $1,000,000."),
+		).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 
