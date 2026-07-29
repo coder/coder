@@ -490,7 +490,7 @@ const mobilePortsStoryConfig = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		pixel: { matrix: { viewports: ["mobile"] } },
+		pixel: { matrix: { viewports: ["phone"] } },
 		queries: [
 			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
 			{

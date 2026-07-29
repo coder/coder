@@ -1226,7 +1226,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		pixel: { matrix: { viewports: ["mobile"] } },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1318,7 +1318,7 @@ export const OverflowBadges: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		pixel: { matrix: { viewports: ["mobile"] } },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1397,7 +1397,7 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		pixel: { matrix: { viewports: ["mobile"] } },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
