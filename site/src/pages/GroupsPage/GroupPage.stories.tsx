@@ -160,7 +160,6 @@ export const MembersSpendError: Story = {
 	},
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserMember], count: 1 }),
@@ -315,7 +314,6 @@ const mockGroupBudget: GroupAIBudget = {
 export const WithMemberAIBudget: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -398,7 +396,6 @@ export const WithoutMemberAIBudgetColumn: Story = {
 export const AIBudgetActionDisabledForOtherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -452,7 +449,6 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 export const WithMemberAIBudgetInAnotherOrg: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -643,7 +639,6 @@ export const DeleteMemberAIBudgetRefreshesRow: Story = {
 export const OpenAIBudgetForCurrentGroupMember: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -798,7 +793,6 @@ const showcaseSpends: GroupMemberAISpend[] = [
 export const AIBudgetShowcase: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
