@@ -23,6 +23,9 @@ export const chatMessagesKey = (chatId: string) =>
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
 
+const chatQueueConvergenceKey = (chatId: string) =>
+	["chats", chatId, "queue-convergence"] as const;
+
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
@@ -748,6 +751,15 @@ export const chatACL = (chatId: string) => ({
 
 const MESSAGES_PAGE_SIZE = 50;
 
+// The queued messages ride on the uncursored page of the messages endpoint,
+// so settling the queue after a promote needs its own request. Refetching
+// chatMessagesForInfiniteScroll would reload every page already scrolled.
+export const chatQueueConvergence = (chatId: string) => ({
+	queryKey: chatQueueConvergenceKey(chatId),
+	queryFn: () => API.experimental.getChatMessages(chatId),
+	gcTime: 0,
+});
+
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
@@ -1427,7 +1439,8 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessages: response.messages ?? [response.message],
+				deletedMessageIds: response.deleted_message_ids,
 			}),
 		);
 	},

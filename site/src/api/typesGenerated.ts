@@ -267,6 +267,16 @@ export interface AIBridgeToolCall {
 }
 
 // From codersdk/aibridge.go
+/**
+ * AIBudgetLimit is an AI spend limit and the tier that produced it. Both
+ * fields are always populated together.
+ */
+export interface AIBudgetLimit {
+	readonly spend_limit_micros: number;
+	readonly limit_source: AIBudgetLimitSource;
+}
+
+// From codersdk/aibridge.go
 export type AIBudgetLimitSource = "group" | "user_override";
 
 export const AIBudgetLimitSources: AIBudgetLimitSource[] = [
@@ -309,16 +319,6 @@ export interface AIGatewayKey {
  * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
-
-// From codersdk/aibridge.go
-/**
- * AIGroupBudget is an AI spend limit and the tier that produced it. Both
- * fields are always populated together.
- */
-export interface AIGroupBudget {
-	readonly spend_limit_micros: number;
-	readonly limit_source: AIBudgetLimitSource;
-}
 
 // From codersdk/aiproviders.go
 /**
@@ -2001,6 +2001,10 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly hook_url: string;
+	readonly hook_secret: string;
+	readonly hook_timeout: number;
+	readonly hook_enabled: boolean;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2475,6 +2479,8 @@ export type ChatErrorKind =
 	| "config"
 	| "content_filter"
 	| "generic"
+	| "hook_denied"
+	| "hook_dispatch_failed"
 	| "missing_key"
 	| "overloaded"
 	| "provider_disabled"
@@ -2488,6 +2494,8 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"config",
 	"content_filter",
 	"generic",
+	"hook_denied",
+	"hook_dispatch_failed",
 	"missing_key",
 	"overloaded",
 	"provider_disabled",
@@ -2606,6 +2614,32 @@ export interface ChatGroup extends Group {
 
 // From codersdk/chats.go
 /**
+ * ChatHookDeniedResponse is the error body returned when a lifecycle hook
+ * denies a synchronous chat operation. Kind lets clients classify the denial
+ * without parsing message text.
+ */
+export interface ChatHookDeniedResponse extends Response {
+	readonly kind: ChatErrorKind;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatHookDispatchFailedResponse is the error body returned when a
+ * lifecycle hook dispatch fails during a synchronous chat operation.
+ * Kind lets clients classify the failure without parsing message text.
+ */
+export interface ChatHookDispatchFailedResponse extends Response {
+	readonly kind: ChatErrorKind;
+}
+
+// From codersdk/chats.go
+export interface ChatHookNoticePart {
+	readonly type: "hook-notice";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatInputPart is a single user input part for creating a chat.
  */
 export interface ChatInputPart {
@@ -2692,13 +2726,16 @@ export type ChatMessagePart =
 	| ChatFilePart
 	| ChatFileReferencePart
 	| ChatContextFilePart
-	| ChatSkillPart;
+	| ChatSkillPart
+	| ChatHookNoticePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
 	| "context-file"
 	| "file"
 	| "file-reference"
+	| "hook-context"
+	| "hook-notice"
 	| "reasoning"
 	| "skill"
 	| "source"
@@ -2710,6 +2747,8 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"context-file",
 	"file",
 	"file-reference",
+	"hook-context",
+	"hook-notice",
 	"reasoning",
 	"skill",
 	"source",
@@ -3910,6 +3949,12 @@ export interface CreateChatMessageRequest {
  */
 export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
+	/**
+	 * Messages contains all user-visible messages inserted by the send, in
+	 * insertion order. A queued send on an errored chat may promote the
+	 * previous queue head, so clients must upsert the full batch.
+	 */
+	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
@@ -4988,11 +5033,21 @@ export interface EditChatMessageRequest {
 // From codersdk/chats.go
 /**
  * EditChatMessageResponse is the response from editing a message in a chat.
- * Edits are always synchronous (no queueing), so the message is returned
- * directly.
  */
 export interface EditChatMessageResponse {
 	readonly message: ChatMessage;
+	/**
+	 * Messages holds every user-visible message inserted by the edit, in
+	 * insertion order. Hook-generated suffix messages may follow Message,
+	 * so clients must upsert the full batch.
+	 */
+	readonly messages?: readonly ChatMessage[];
+	/**
+	 * DeletedMessageIDs holds the IDs of previously visible messages the
+	 * edit removed, including stale hook notices from the edited turn.
+	 * Clients should drop them from local caches.
+	 */
+	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
 }
 
@@ -5042,8 +5097,8 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "ai-gateway-cost-control"
 	| "ai-gateway-seat-exclusion"
+	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-virtual-desktop"
@@ -5058,8 +5113,8 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"ai-gateway-cost-control",
 	"ai-gateway-seat-exclusion",
+	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-virtual-desktop",
@@ -5247,6 +5302,21 @@ export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
 	readonly limit?: number;
+	/**
+	 * SoftLimit is the advisory warning threshold that accompanies Limit for
+	 * features whose license carries it. For these features, Limit carries
+	 * the purchased allocation.
+	 *
+	 * Only certain features set this field:
+	 * - FeatureAgentRuntimeHours
+	 */
+	readonly soft_limit?: number;
+	/**
+	 * HardLimit is the enforcement threshold that accompanies Limit for
+	 * features whose license carries it. See SoftLimit for the set of
+	 * features that use these thresholds.
+	 */
+	readonly hard_limit?: number;
 	readonly actual?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
@@ -5258,6 +5328,7 @@ export interface Feature {
 	 *
 	 * Only certain features set these fields:
 	 * - FeatureManagedAgentLimit
+	 * - FeatureAgentRuntimeHours
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5268,6 +5339,7 @@ export type FeatureName =
 	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
+	| "agent_runtime_hours"
 	| "appearance"
 	| "audit_log"
 	| "boundary"
@@ -5297,6 +5369,7 @@ export const FeatureNames: FeatureName[] = [
 	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
+	"agent_runtime_hours",
 	"appearance",
 	"audit_log",
 	"boundary",
@@ -5468,7 +5541,7 @@ export interface GroupMemberAISpend {
 	 * effective budget source. Null when the user's budget resolves to another
 	 * group or no budget applies to the user.
 	 */
-	readonly group_budget: AIGroupBudget | null;
+	readonly group_budget: AIBudgetLimit | null;
 	/**
 	 * GroupSpendMicros is the user's spend attributed to the queried group
 	 * over the current budget period.
@@ -6010,6 +6083,13 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
+ * $1,000,000 per member per budget period.
+ */
+export const MaxAISpendLimitMicros = 1000000000000;
 
 // From codersdk/chats.go
 /**
@@ -6658,6 +6738,22 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"token",
 ];
 
+// From codersdk/oauth2.go
+/**
+ * OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+ *
+ * DynamicClientRegistrationEnabled is a pointer so a PUT can omit it to leave
+ * the current value unchanged, rather than a decoded zero value silently
+ * resetting it to false. This matters once a second field lands in this
+ * struct (e.g. a future initial-access-token requirement): a client built
+ * against an older, single-field version of this struct would otherwise
+ * always encode the newer field's zero value, silently clearing it on every
+ * unrelated update. GET always returns a non-nil value.
+ */
+export interface OAuth2ProviderSettings {
+	readonly dynamic_client_registration_enabled?: boolean;
+}
+
 // From codersdk/client.go
 /**
  * OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
@@ -6887,13 +6983,19 @@ export interface Organization extends MinimalOrganization {
 export interface OrganizationGroupAISpend {
 	readonly group_id: string;
 	/**
-	 * SpendLimitMicros is the group's configured AI spend limit. Null when
-	 * the group has no configured budget.
+	 * SpendLimitMicros is the group's configured AI spend budget per member.
+	 * Null when the group has no configured budget.
 	 */
 	readonly spend_limit_micros: number | null;
 	/**
-	 * CurrentSpendMicros is the group's spend over the current budget
-	 * period.
+	 * TotalSpendLimitMicros is the currently configured combined budget of the
+	 * members attributed to this group, with each member's override replacing
+	 * their share. Null when the group has no budget, and zero when no members
+	 * are attributed to it.
+	 */
+	readonly total_spend_limit_micros: number | null;
+	/**
+	 * CurrentSpendMicros is the group's spend over the current budget period.
 	 */
 	readonly current_spend_micros: number;
 }
@@ -7884,6 +7986,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -7921,6 +8024,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
@@ -10135,6 +10239,9 @@ export interface UpsertChatUsageLimitOverrideRequest {
 
 // From codersdk/aibridge.go
 export interface UpsertGroupAIBudgetRequest {
+	/**
+	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 */
 	readonly spend_limit_micros: number;
 }
 
@@ -10145,6 +10252,9 @@ export interface UpsertUserAIBudgetOverrideRequest {
 	 * be a member of this group.
 	 */
 	readonly group_id: string;
+	/**
+	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 */
 	readonly spend_limit_micros: number;
 }
 
@@ -10205,7 +10315,7 @@ export interface UserAIBudgetOverride {
 /**
  * UserAIBudgetSummary is the effective AI budget for a user. When no budget
  * applies, the effective group falls back to the Everyone group with a null
- * limit and source.
+ * budget.
  */
 export interface UserAIBudgetSummary {
 	readonly user_id: string;
@@ -10216,15 +10326,11 @@ export interface UserAIBudgetSummary {
 	 */
 	readonly effective_group_id: string | null;
 	/**
-	 * SpendLimitMicros is the effective spend limit in micro-units.
-	 * Null when no budget applies to the user (unlimited).
+	 * EffectiveBudget is the spend limit that applies to the user, whether it
+	 * came from a group budget or a user override. Null when no budget
+	 * applies, leaving the user's spend unlimited.
 	 */
-	readonly spend_limit_micros: number | null;
-	/**
-	 * LimitSource identifies which tier produced the limit. Null when no
-	 * budget applies.
-	 */
-	readonly limit_source: AIBudgetLimitSource | null;
+	readonly effective_budget: AIBudgetLimit | null;
 }
 
 // From codersdk/chats.go

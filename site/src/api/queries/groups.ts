@@ -66,6 +66,25 @@ export const getGroupMembersAISpendQueryKey = (
 	userIds: readonly string[],
 ) => ["group", groupId, "members", "aiSpend", [...userIds].sort()];
 
+const isGroupMembersAISpendQueryKey = (
+	queryKey: readonly unknown[],
+	userId: string,
+): boolean =>
+	queryKey[0] === "group" &&
+	queryKey[2] === "members" &&
+	queryKey[3] === "aiSpend" &&
+	Array.isArray(queryKey[4]) &&
+	queryKey[4].includes(userId);
+
+export const invalidateGroupMembersAISpend = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: ["group"],
+		predicate: (query) => isGroupMembersAISpendQueryKey(query.queryKey, userId),
+	});
+
 export const groupMembersAISpend = (
 	groupId: string,
 	userIds: readonly string[],
