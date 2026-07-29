@@ -745,8 +745,12 @@ lint/ts: site/node_modules/.installed
 	pnpm lint
 .PHONY: lint/ts
 
+# Cap cold-cache golangci-lint on high-core hosts to stay below memory limits.
+GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
+GO_LINT_MEMLIMIT ?= 8GiB
+
 lint/go:
-	golangci-lint run
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
