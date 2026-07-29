@@ -164,6 +164,13 @@ const WorkspacesPage: FC = () => {
 	const checkedWorkspaces =
 		data?.workspaces.filter((w) => checkedWorkspaceIds.has(w.id)) ?? [];
 
+	// Bulk stop only affects running workspaces, so the confirmation dialog and
+	// the mutation should both operate on that subset to avoid over-reporting
+	// how many workspaces will actually be stopped.
+	const workspacesToStop = checkedWorkspaces.filter(
+		(w) => w.latest_build.status === "running",
+	);
+
 	return (
 		<>
 			<title>{pageTitle("Workspaces")}</title>
@@ -244,11 +251,11 @@ const WorkspacesPage: FC = () => {
 
 			<BatchStopConfirmation
 				isLoading={batchActions.isProcessing}
-				checkedWorkspaces={checkedWorkspaces}
+				workspacesToStop={workspacesToStop}
 				open={activeBatchAction === "stop"}
 				onClose={() => setActiveBatchAction(undefined)}
 				onConfirm={async () => {
-					await batchActions.stop(checkedWorkspaces);
+					await batchActions.stop(workspacesToStop);
 					setActiveBatchAction(undefined);
 				}}
 			/>
