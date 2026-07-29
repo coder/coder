@@ -11619,10 +11619,8 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 }
 
 // seedChatGatewayRequest records one finished Coder Agents gateway request
-// under sessionChatID, mirroring what aibridged persists for chatd traffic:
-// the interception's session ID is the chat that spawned the request. Every
-// usage lands on that one request, as aibridged records one per provider
-// response.
+// under sessionChatID, mirroring aibridged: the session ID is the spawning
+// chat, and each usage is one provider response within that one request.
 func seedChatGatewayRequest(t *testing.T, db database.Store, initiatorID, sessionChatID uuid.UUID, usages ...database.InsertAIBridgeTokenUsageParams) {
 	t.Helper()
 
