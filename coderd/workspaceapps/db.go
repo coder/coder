@@ -466,6 +466,20 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			connType = database.ConnectionTypeWorkspaceApp
 		}
 
+		// An empty slug_or_port is reserved for tunnel sessions (see
+		// coderd/workspaceagents.go logTunnelConnection); writing one
+		// here would collide with them in the audit session dedupe
+		// index. Request.Check rejects empty slugs, so this is
+		// unreachable today.
+		if slugOrPort == "" {
+			p.Logger.Critical(ctx, "workspace app audit session has empty slug_or_port, skipping connection log",
+				slog.F("workspace_id", aReq.dbReq.Workspace.ID),
+				slog.F("agent_id", aReq.dbReq.Agent.ID),
+				slog.F("app_id", aReq.dbReq.App.ID),
+			)
+			return
+		}
+
 		// If we end up logging, ensure relevant fields are set.
 		logger := p.Logger.With(
 			slog.F("workspace_id", aReq.dbReq.Workspace.ID),

@@ -2111,6 +2111,10 @@ func New(options *Options) *API {
 					})
 				})
 			})
+			r.Route("/settings", func(r chi.Router) {
+				r.Get("/", api.oauth2ProviderSettings)
+				r.Put("/", api.putOAuth2ProviderSettings)
+			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

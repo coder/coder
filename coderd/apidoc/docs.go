@@ -4648,6 +4648,68 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/oauth2-provider/settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 provider settings.",
+                "operationId": "get-oauth2-provider-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update OAuth2 provider settings.",
+                "operationId": "update-oauth2-provider-settings",
+                "parameters": [
+                    {
+                        "description": "OAuth2 provider settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations": {
             "get": {
                 "produces": [
@@ -18461,7 +18523,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ConnectionType"
                 },
                 "web_info": {
-                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `",
+                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeTunnel` + "`" + `",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -18554,7 +18616,8 @@ const docTemplate = `{
                 "jetbrains",
                 "reconnecting_pty",
                 "workspace_app",
-                "port_forwarding"
+                "port_forwarding",
+                "tunnel"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -18562,7 +18625,8 @@ const docTemplate = `{
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding"
+                "ConnectionTypePortForwarding",
+                "ConnectionTypeTunnel"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -21928,6 +21992,14 @@ const docTemplate = `{
                 "OAuth2ProviderResponseTypeToken"
             ]
         },
+        "codersdk.OAuth2ProviderSettings": {
+            "type": "object",
+            "properties": {
+                "dynamic_client_registration_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OAuth2TokenEndpointAuthMethod": {
             "type": "string",
             "enum": [
@@ -23732,6 +23804,7 @@ const docTemplate = `{
                 "health_settings",
                 "notifications_settings",
                 "prebuilds_settings",
+                "oauth2_provider_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -23769,6 +23842,7 @@ const docTemplate = `{
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
                 "ResourceTypePrebuildsSettings",
+                "ResourceTypeOAuth2ProviderSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",

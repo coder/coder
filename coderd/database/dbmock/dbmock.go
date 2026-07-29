@@ -4558,6 +4558,21 @@ func (mr *MockStoreMockRecorder) GetNotificationsSettings(ctx any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsSettings", reflect.TypeOf((*MockStore)(nil).GetNotificationsSettings), ctx)
 }
 
+// GetOAuth2DCREnabled mocks base method.
+func (m *MockStore) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2DCREnabled", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2DCREnabled indicates an expected call of GetOAuth2DCREnabled.
+func (mr *MockStoreMockRecorder) GetOAuth2DCREnabled(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2DCREnabled", reflect.TypeOf((*MockStore)(nil).GetOAuth2DCREnabled), ctx)
+}
+
 // GetOAuth2GithubDefaultEligible mocks base method.
 func (m *MockStore) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -12151,6 +12166,20 @@ func (m *MockStore) UpsertNotificationsSettings(ctx context.Context, value strin
 func (mr *MockStoreMockRecorder) UpsertNotificationsSettings(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationsSettings", reflect.TypeOf((*MockStore)(nil).UpsertNotificationsSettings), ctx, value)
+}
+
+// UpsertOAuth2DCREnabled mocks base method.
+func (m *MockStore) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOAuth2DCREnabled", ctx, enabled)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOAuth2DCREnabled indicates an expected call of UpsertOAuth2DCREnabled.
+func (mr *MockStoreMockRecorder) UpsertOAuth2DCREnabled(ctx, enabled any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2DCREnabled", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2DCREnabled), ctx, enabled)
 }
 
 // UpsertOAuth2GithubDefaultEligible mocks base method.

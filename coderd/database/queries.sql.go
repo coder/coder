@@ -13742,8 +13742,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN $13 :: text != '' THEN
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude web events, since we don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding')
+				-- Exclude point-in-time events reported by coderd, since we
+				-- don't know their close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13936,8 +13937,9 @@ WHERE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			-- Exclude point-in-time events reported by coderd, since we
+			-- don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -24212,7 +24214,7 @@ WHERE
 	(
 		(
 			$2 :: bool = true AND
-			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]%)*'
 		) OR
 		(
 			$3 :: bool = true AND
@@ -25422,6 +25424,20 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 	return notifications_settings, err
 }
 
+const getOAuth2DCREnabled = `-- name: GetOAuth2DCREnabled :one
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool
+`
+
+func (q *sqlQuerier) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2DCREnabled)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOAuth2GithubDefaultEligible = `-- name: GetOAuth2GithubDefaultEligible :one
 SELECT
 	CASE
@@ -25812,6 +25828,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notificatio
 
 func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
+	return err
+}
+
+const upsertOAuth2DCREnabled = `-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled'
+`
+
+func (q *sqlQuerier) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuth2DCREnabled, enabled)
 	return err
 }
 
