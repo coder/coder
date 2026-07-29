@@ -3,7 +3,7 @@ import type { Workspace } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 type BatchStopConfirmationProps = {
-	checkedWorkspaces: readonly Workspace[];
+	workspacesToStop: readonly Workspace[];
 	open: boolean;
 	isLoading: boolean;
 	onClose: () => void;
@@ -11,14 +11,14 @@ type BatchStopConfirmationProps = {
 };
 
 export const BatchStopConfirmation: FC<BatchStopConfirmationProps> = ({
-	checkedWorkspaces,
+	workspacesToStop,
 	open,
 	onClose,
 	onConfirm,
 	isLoading,
 }) => {
-	const workspaceCount = `${checkedWorkspaces.length} ${
-		checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+	const workspaceCount = `${workspacesToStop.length} ${
+		workspacesToStop.length === 1 ? "workspace" : "workspaces"
 	}`;
 
 	return (
