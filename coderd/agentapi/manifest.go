@@ -278,10 +278,11 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 func dbUserSecretsToProto(secrets []database.UserSecret) []*agentproto.WorkspaceSecret {
 	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
 	for _, s := range secrets {
-		// Only include secrets that have an environment variable
-		// name or file path set. Secrets with neither are not
-		// injected at runtime.
-		if s.EnvName == "" && s.FilePath == "" {
+		// Skip disabled secrets so they are not injected as env vars or
+		// written to secret files. The API guarantees every enabled
+		// secret has at least one of env_name or file_path set, so we
+		// don't need to filter both-empty rows separately here.
+		if !s.Enabled {
 			continue
 		}
 		ret = append(ret, &agentproto.WorkspaceSecret{

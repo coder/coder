@@ -3400,6 +3400,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/groups/{group}/ai/spend": {
+            "get": {
+                "description": "Returns the AI spend limit and aggregate spend for the group.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group AI spend",
+                "operationId": "get-group-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupAISpend"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/groups/{group}/members": {
             "get": {
                 "produces": [
@@ -4612,6 +4648,68 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/oauth2-provider/settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 provider settings.",
+                "operationId": "get-oauth2-provider-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update OAuth2 provider settings.",
+                "operationId": "update-oauth2-provider-settings",
+                "parameters": [
+                    {
+                        "description": "OAuth2 provider settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations": {
             "get": {
                 "produces": [
@@ -4779,6 +4877,53 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/ai/spend/export": {
+            "get": {
+                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Export organization AI spend as CSV",
+                "operationId": "export-organization-ai-spend-as-csv",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 },
                 "security": [
@@ -9805,7 +9950,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/users/{user}/ai/budget": {
+        "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
                     "application/json"
@@ -15639,6 +15784,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBudgetLimit": {
+            "type": "object",
+            "properties": {
+                "limit_source": {
+                    "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIBudgetLimitSource": {
             "type": "string",
             "enum": [
@@ -15684,17 +15840,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.AIGroupBudget": {
-            "type": "object",
-            "properties": {
-                "limit_source": {
-                    "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
-                },
-                "spend_limit_micros": {
-                    "type": "integer"
                 }
             }
         },
@@ -17225,6 +17370,18 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                },
+                "hook_enabled": {
+                    "type": "boolean"
+                },
+                "hook_secret": {
+                    "type": "string"
+                },
+                "hook_timeout": {
+                    "type": "integer"
+                },
+                "hook_url": {
+                    "$ref": "#/definitions/serpent.URL"
                 }
             }
         },
@@ -17493,7 +17650,9 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
-                "content_filter"
+                "content_filter",
+                "hook_dispatch_failed",
+                "hook_denied"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -17506,7 +17665,9 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
-                "ChatErrorKindContentFilter"
+                "ChatErrorKindContentFilter",
+                "ChatErrorKindHookDispatchFailed",
+                "ChatErrorKindHookDenied"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -17801,9 +17962,6 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
-                "signature": {
-                    "type": "string"
-                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -17853,7 +18011,9 @@ const docTemplate = `{
                 "file",
                 "file-reference",
                 "context-file",
-                "skill"
+                "skill",
+                "hook-context",
+                "hook-notice"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -17864,7 +18024,9 @@ const docTemplate = `{
                 "ChatMessagePartTypeFile",
                 "ChatMessagePartTypeFileReference",
                 "ChatMessagePartTypeContextFile",
-                "ChatMessagePartTypeSkill"
+                "ChatMessagePartTypeSkill",
+                "ChatMessagePartTypeHookContext",
+                "ChatMessagePartTypeHookNotice"
             ]
         },
         "codersdk.ChatMessageRole": {
@@ -18381,7 +18543,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ConnectionType"
                 },
                 "web_info": {
-                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `",
+                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeTunnel` + "`" + `",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -18474,7 +18636,8 @@ const docTemplate = `{
                 "jetbrains",
                 "reconnecting_pty",
                 "workspace_app",
-                "port_forwarding"
+                "port_forwarding",
+                "tunnel"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -18482,7 +18645,8 @@ const docTemplate = `{
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding"
+                "ConnectionTypePortForwarding",
+                "ConnectionTypeTunnel"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -18619,6 +18783,13 @@ const docTemplate = `{
             "properties": {
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "messages": {
+                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A queued send on an errored chat may promote the\nprevious queue head, so clients must upsert the full batch.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
                 },
                 "queued": {
                     "type": "boolean"
@@ -19188,6 +19359,9 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"
@@ -20053,8 +20227,22 @@ const docTemplate = `{
         "codersdk.EditChatMessageResponse": {
             "type": "object",
             "properties": {
+                "deleted_message_ids": {
+                    "description": "DeletedMessageIDs holds the IDs of previously visible messages the\nedit removed, including stale hook notices from the edited turn.\nClients should drop them from local caches.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "messages": {
+                    "description": "Messages holds every user-visible message inserted by the edit, in\ninsertion order. Hook-generated suffix messages may follow Message,\nso clients must upsert the full batch.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
                 },
                 "warnings": {
                     "type": "array",
@@ -20127,13 +20315,13 @@ const docTemplate = `{
                 "minimum-implicit-member",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
-                "ai-gateway-cost-control",
                 "chat-advisor",
-                "chat-virtual-desktop"
+                "chat-virtual-desktop",
+                "agent-lifecycle-hooks"
             ],
             "x-enum-comments": {
-                "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
@@ -20159,9 +20347,9 @@ const docTemplate = `{
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
-                "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents."
+                "Enables virtual desktop and computer use provider for agents.",
+                "Enables chat lifecycle hook webhooks for agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -20175,9 +20363,9 @@ const docTemplate = `{
                 "ExperimentMinimumImplicitMember",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
-                "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
-                "ExperimentChatVirtualDesktop"
+                "ExperimentChatVirtualDesktop",
+                "ExperimentAgentLifecycleHooks"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -20421,11 +20609,19 @@ const docTemplate = `{
                 "entitlement": {
                     "$ref": "#/definitions/codersdk.Entitlement"
                 },
+                "hard_limit": {
+                    "description": "HardLimit is the enforcement threshold that accompanies Limit for\nfeatures whose license carries it. See SoftLimit for the set of\nfeatures that use these thresholds.",
+                    "type": "integer"
+                },
                 "limit": {
                     "type": "integer"
                 },
+                "soft_limit": {
+                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
+                    "type": "integer"
+                },
                 "usage_period": {
-                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UsagePeriod"
@@ -20595,6 +20791,37 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GroupAISpend": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the group's spend over the current budget period.",
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_limit_micros": {
+                    "description": "SpendLimitMicros is the group's configured AI spend budget per member.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the currently configured combined budget of the\nmembers attributed to this group, with each member's override replacing\ntheir share. Null when the group has no budget, and zero when no members\nare attributed to it.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GroupMemberAISpend": {
             "type": "object",
             "properties": {
@@ -20607,7 +20834,7 @@ const docTemplate = `{
                     "description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. Null when the user's budget resolves to another\ngroup or no budget applies to the user.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.AIGroupBudget"
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
                         }
                     ]
                 },
@@ -21818,6 +22045,14 @@ const docTemplate = `{
                 "OAuth2ProviderResponseTypeToken"
             ]
         },
+        "codersdk.OAuth2ProviderSettings": {
+            "type": "object",
+            "properties": {
+                "dynamic_client_registration_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OAuth2TokenEndpointAuthMethod": {
             "type": "string",
             "enum": [
@@ -22070,7 +22305,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current_spend_micros": {
-                    "description": "CurrentSpendMicros is the group's spend over the current budget\nperiod.",
+                    "description": "CurrentSpendMicros is the group's spend over the current budget period.",
                     "type": "integer"
                 },
                 "group_id": {
@@ -22078,7 +22313,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the group's configured AI spend limit. Null when\nthe group has no configured budget.",
+                    "description": "SpendLimitMicros is the group's configured AI spend budget per member.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the currently configured combined budget of the\nmembers attributed to this group, with each member's override replacing\ntheir share. Null when the group has no budget, and zero when no members\nare attributed to it.",
                     "type": "integer"
                 }
             }
@@ -23622,6 +23861,7 @@ const docTemplate = `{
                 "health_settings",
                 "notifications_settings",
                 "prebuilds_settings",
+                "oauth2_provider_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -23659,6 +23899,7 @@ const docTemplate = `{
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
                 "ResourceTypePrebuildsSettings",
+                "ResourceTypeOAuth2ProviderSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
@@ -25937,6 +26178,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "env_name": {
                     "type": "string"
                 },
@@ -26072,6 +26316,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "spend_limit_micros": {
+                    "description": "SpendLimitMicros must not exceed MaxAISpendLimitMicros.",
                     "type": "integer",
                     "minimum": 0
                 }
@@ -26089,6 +26334,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "spend_limit_micros": {
+                    "description": "SpendLimitMicros must not exceed MaxAISpendLimitMicros.",
                     "type": "integer",
                     "minimum": 0
                 }
@@ -26279,18 +26525,18 @@ const docTemplate = `{
                     "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
                     "type": "integer"
                 },
+                "effective_budget": {
+                    "description": "EffectiveBudget is the spend limit that applies to the user, whether it\ncame from a group budget or a user override. Null when no budget\napplies, leaving the user's spend unlimited.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
                 "effective_group_id": {
                     "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
                     "type": "string",
                     "format": "uuid"
-                },
-                "limit_source": {
-                    "description": "LimitSource identifies which tier produced the limit. Null when no\nbudget applies.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
-                        }
-                    ]
                 },
                 "period_end": {
                     "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
@@ -26301,10 +26547,6 @@ const docTemplate = `{
                     "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
                     "type": "string",
                     "format": "date-time"
-                },
-                "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the effective spend limit in micro-units.\nNull when no budget applies to the user (unlimited).",
-                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",
@@ -26544,6 +26786,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"

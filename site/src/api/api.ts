@@ -1615,7 +1615,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.UserAIBudgetOverride> => {
 		const response = await this.axios.get<TypesGen.UserAIBudgetOverride>(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 		);
 
 		return response.data;
@@ -1626,7 +1626,7 @@ class ApiMethods {
 		data: TypesGen.UpsertUserAIBudgetOverrideRequest,
 	): Promise<TypesGen.UserAIBudgetOverride> => {
 		const response = await this.axios.put<TypesGen.UserAIBudgetOverride>(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 			data,
 		);
 
@@ -1637,7 +1637,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 		);
 	};
 
@@ -1786,6 +1786,18 @@ class ApiMethods {
 		await this.axios.delete(
 			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
 		);
+	};
+
+	importUserSecrets = async (
+		userId: string,
+		request: TypesGen.ImportUserSecretsRequest,
+	): Promise<TypesGen.UserSecret[]> => {
+		const response = await this.axios.post<TypesGen.UserSecret[]>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/batch`,
+			request,
+		);
+
+		return response.data;
 	};
 
 	getWorkspaceBuilds = async (

@@ -484,6 +484,7 @@ describe("api.ts", () => {
 			description: "Example token for tests",
 			env_name: secretName,
 			file_path: "",
+			enabled: true,
 			created_at: "2026-05-04T00:00:00Z",
 			updated_at: "2026-05-04T00:00:00Z",
 		};
