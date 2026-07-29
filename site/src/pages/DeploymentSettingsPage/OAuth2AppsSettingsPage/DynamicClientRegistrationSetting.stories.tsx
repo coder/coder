@@ -70,7 +70,10 @@ export const EnableShowsConfirmationDialog: Story = {
 		await body.findByText("Enable Dynamic Client Registration?");
 		await expect(args.onChange).not.toHaveBeenCalled();
 
-		await userEvent.click(body.getByRole("button", { name: "Confirm" }));
+		// The dialog's confirm button shares its accessible name with the trigger
+		// button behind it, so scope the query to the dialog.
+		const dialog = within(body.getByTestId("dialog"));
+		await userEvent.click(dialog.getByRole("button", { name: "Enable" }));
 		await expect(args.onChange).toHaveBeenCalledWith(true);
 	},
 };

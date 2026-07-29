@@ -1,15 +1,7 @@
 import { type FC, useId, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 type DynamicClientRegistrationSettingProps = {
 	enabled: boolean;
@@ -67,27 +59,19 @@ export const DynamicClientRegistrationSetting: FC<
 				)}
 			</section>
 
-			<Dialog open={isEnableDialogOpen} onOpenChange={setIsEnableDialogOpen}>
-				<DialogContent variant="destructive" className="max-w-xl">
-					<DialogHeader>
-						<DialogTitle>Enable Dynamic Client Registration?</DialogTitle>
-						<DialogDescription>
-							Only enable Dynamic Client Registration if you intend to support
-							self-service OAuth2 client registration.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogActions
-							confirmVariant="destructive"
-							onConfirm={() => {
-								setIsEnableDialogOpen(false);
-								onChange(true);
-							}}
-							onCancel={() => setIsEnableDialogOpen(false)}
-						/>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDialog
+				type="delete"
+				hideCancel={false}
+				open={isEnableDialogOpen}
+				onConfirm={() => {
+					setIsEnableDialogOpen(false);
+					onChange(true);
+				}}
+				onClose={() => setIsEnableDialogOpen(false)}
+				title="Enable Dynamic Client Registration?"
+				confirmText="Enable"
+				description="Only enable Dynamic Client Registration if you intend to support self-service OAuth2 client registration."
+			/>
 		</>
 	);
 };
