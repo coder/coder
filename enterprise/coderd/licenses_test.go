@@ -105,6 +105,51 @@ func TestPostLicense(t *testing.T) {
 		require.Contains(t, errResp.Message, "Invalid license")
 	})
 
+	t.Run("InvalidAgentRuntimeClaims", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		// A soft limit claim without an allocation claim rejects the whole
+		// license.
+		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				license.ClaimAgentRuntimeHoursLimitSoft: 80,
+			},
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: lic,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "Invalid license")
+	})
+
+	t.Run("AgentRuntimeClaims", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				license.ClaimAgentRuntimeHoursAllocation: 100,
+				license.ClaimAgentRuntimeHoursLimitSoft:  80,
+				license.ClaimAgentRuntimeHoursLimitHard:  120,
+			},
+		})
+		// The claims round-trip through GET /api/v2/entitlements.
+		//nolint:gocritic // This test asserts license state, not authz behavior.
+		entitlements, err := client.Entitlements(context.Background())
+		require.NoError(t, err)
+		feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		require.True(t, feature.Enabled)
+		require.NotNil(t, feature.Limit)
+		require.EqualValues(t, 100, *feature.Limit)
+		require.NotNil(t, feature.SoftLimit)
+		require.EqualValues(t, 80, *feature.SoftLimit)
+		require.NotNil(t, feature.HardLimit)
+		require.EqualValues(t, 120, *feature.HardLimit)
+		require.NotNil(t, feature.UsagePeriod)
+	})
+
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})

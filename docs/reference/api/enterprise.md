@@ -571,7 +571,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -582,7 +584,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
