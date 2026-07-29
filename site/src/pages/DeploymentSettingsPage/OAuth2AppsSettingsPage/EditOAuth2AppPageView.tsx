@@ -176,7 +176,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					</Alert>
 				)}
 
-				<dl className="m-0 grid grid-cols-[max-content_max-content] items-center gap-x-6 gap-y-3">
+				<dl className="m-0 flex flex-col gap-3">
 					<EndpointField label="Client ID" value={app.id} />
 					<EndpointField
 						label="Authorization URL"
@@ -369,7 +369,7 @@ type EndpointFieldProps = {
 
 const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 	return (
-		<>
+		<div className="flex items-center gap-2">
 			<dt className="text-sm text-content-secondary">{label}</dt>
 			<dd className="m-0">
 				<div className="flex items-center gap-1">
@@ -384,7 +384,7 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 					/>
 				</div>
 			</dd>
-		</>
+		</div>
 	);
 };
 
