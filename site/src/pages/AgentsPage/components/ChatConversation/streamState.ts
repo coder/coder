@@ -232,6 +232,13 @@ const getStreamToolStatus = (
 };
 
 /**
+ * Reads a block id off a stream map. Ids come from the provider, so they can
+ * name something on `Object.prototype` that was never streamed.
+ */
+const ownValue = <T>(record: Record<string, T>, key: string): T | undefined =>
+	Object.hasOwn(record, key) ? record[key] : undefined;
+
+/**
  * Merges the streamed calls and results for every tool block, in block order,
  * so a tool cannot exist without a row to render it in.
  */
@@ -247,14 +254,14 @@ export const buildStreamTools = (
 		if (block.type !== "tool") {
 			continue;
 		}
-		const call = state.toolCalls[block.id];
-		const result = state.toolResults[block.id];
+		const call = ownValue(state.toolCalls, block.id);
+		const result = ownValue(state.toolResults, block.id);
 		const source = call ?? result;
 		if (!source) {
 			continue;
 		}
 		merged.push({
-			id: source.id,
+			id: block.id,
 			name: source.name,
 			args: call?.args,
 			result: result?.result,

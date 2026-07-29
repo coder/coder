@@ -37,9 +37,8 @@ const meta: Meta<typeof Tool> = {
 		args: { command: executeCommand },
 		status: "completed",
 	},
-	// The diff viewer renders nothing until its shared highlighter has the
-	// requested themes attached, and a mount that misses them never re-renders,
-	// so the first story to mount one would fail.
+	// These stories assert on rendered diff text, which appears only once the
+	// shared highlighter has these themes attached.
 	beforeEach: async () => {
 		await preloadHighlighter({
 			themes: ["github-dark-high-contrast", "github-light"],
@@ -160,6 +159,10 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "chat_summarized",
 		result: { summary: "Earlier transcript content was compacted." },
+	},
+	{
+		name: "list_agents",
+		result: { agents: [] },
 	},
 	{
 		name: "propose_plan",

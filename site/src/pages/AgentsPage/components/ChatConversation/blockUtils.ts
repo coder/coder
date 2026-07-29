@@ -1,4 +1,5 @@
 import { asString } from "../ChatElements/runtimeTypeUtils";
+import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type { MergedTool, RenderBlock } from "./types";
 
 export const asNonEmptyString = (value: unknown): string | undefined => {
@@ -32,7 +33,7 @@ export const appendTextBlock = (
 };
 
 type TimelineBlock =
-	| Exclude<RenderBlock, { type: "tool" }>
+	| (Exclude<RenderBlock, { type: "tool" }> & { sourceIndex: number })
 	| { type: "tool"; tool: MergedTool }
 	| { type: "unresolved-tool"; id: string }
 	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
@@ -40,8 +41,12 @@ type TimelineBlock =
 /**
  * Resolves each tool block's id against `tools` and collapses adjacent
  * read_file tools into one `read-files` block, including a run of one, so the
- * renderer switches on shape instead of looking tools up. A block whose tool
- * has not arrived becomes `unresolved-tool`.
+ * renderer switches on shape instead of looking tools up. A block becomes
+ * `unresolved-tool` when its tool has not arrived, or when the tool has not yet
+ * streamed enough to render a row, which otherwise leaves a gap.
+ *
+ * Non-tool blocks carry their index in `blocks`, which never moves, so
+ * collapsing a read-file run cannot renumber the keys of later blocks.
  */
 export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
@@ -59,15 +64,15 @@ export const toTimelineBlocks = (
 		readFileRun = undefined;
 	};
 
-	for (const block of blocks) {
+	for (const [sourceIndex, block] of blocks.entries()) {
 		if (block.type !== "tool") {
 			flushReadFileRun();
-			timeline.push(block);
+			timeline.push({ ...block, sourceIndex });
 			continue;
 		}
 
 		const tool = toolByID.get(block.id);
-		if (!tool) {
+		if (!tool || !shouldRenderTool(tool)) {
 			flushReadFileRun();
 			timeline.push({ type: "unresolved-tool", id: block.id });
 			continue;

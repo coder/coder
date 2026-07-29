@@ -629,6 +629,22 @@ describe("pending durable tool parsing", () => {
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
 	});
+
+	it("pairs every merged tool with a tool block, in block order", () => {
+		const messages = [
+			msg(1, "assistant", [toolCall("call-1"), { type: "text", text: "ok" }]),
+			msg(2, "tool", [toolResult("call-1")]),
+			msg(3, "tool", [toolResult("call-orphan")]),
+		];
+
+		for (const { parsed } of parseMessagesWithMergedTools(messages)) {
+			expect(parsed.tools.map((tool) => tool.id)).toEqual(
+				parsed.blocks.flatMap((block) =>
+					block.type === "tool" ? [block.id] : [],
+				),
+			);
+		}
+	});
 });
 
 describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {

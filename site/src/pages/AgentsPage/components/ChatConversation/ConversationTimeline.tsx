@@ -300,21 +300,21 @@ export const BlockList: FC<{
 					case "response": {
 						const responseEl = isStreaming ? (
 							<SmoothedResponse
-								key={`${keyPrefix}-response-${index}`}
+								key={`${keyPrefix}-response-${block.sourceIndex}`}
 								text={block.text}
 								streamKey={keyPrefix}
 								urlTransform={urlTransform}
 							/>
 						) : (
 							<Response
-								key={`${keyPrefix}-response-${index}`}
+								key={`${keyPrefix}-response-${block.sourceIndex}`}
 								urlTransform={urlTransform}
 							>
 								{block.text}
 							</Response>
 						);
 						return (
-							<Fragment key={`${keyPrefix}-response-${index}`}>
+							<Fragment key={`${keyPrefix}-response-${block.sourceIndex}`}>
 								{responseEl}
 							</Fragment>
 						);
@@ -322,8 +322,8 @@ export const BlockList: FC<{
 					case "thinking":
 						return (
 							<ReasoningDisclosure
-								key={`${keyPrefix}-thinking-${index}`}
-								id={`${keyPrefix}-thinking-${index}`}
+								key={`${keyPrefix}-thinking-${block.sourceIndex}`}
+								id={`${keyPrefix}-thinking-${block.sourceIndex}`}
 								text={block.text}
 								isStreaming={isStreaming && index === displayBlocks.length - 1}
 								urlTransform={urlTransform}
@@ -333,7 +333,7 @@ export const BlockList: FC<{
 					case "file-reference":
 						return (
 							<div
-								key={`${keyPrefix}-file-reference-${index}`}
+								key={`${keyPrefix}-file-reference-${block.sourceIndex}`}
 								className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
 							>
 								<span className="shrink-0 text-xs font-medium text-content-link">
@@ -354,7 +354,10 @@ export const BlockList: FC<{
 					case "unresolved-tool":
 						return isStreaming ? (
 							<ToolCall.Root key={block.id} status="running" hasContent={false}>
-								<ToolCall.Header label="Starting tool call…" />
+								<ToolCall.Header
+									iconName="unknown"
+									label="Waiting for tool details…"
+								/>
 							</ToolCall.Root>
 						) : null;
 					case "tool": {
@@ -398,7 +401,7 @@ export const BlockList: FC<{
 					case "file":
 						return (
 							<AttachmentBlock
-								key={`${keyPrefix}-file-${block.file_id ?? index}`}
+								key={`${keyPrefix}-file-${block.file_id ?? block.sourceIndex}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
@@ -409,7 +412,7 @@ export const BlockList: FC<{
 					case "sources":
 						return (
 							<WebSearchSources
-								key={`${keyPrefix}-sources-${index}`}
+								key={`${keyPrefix}-sources-${block.sourceIndex}`}
 								sources={block.sources}
 							/>
 						);

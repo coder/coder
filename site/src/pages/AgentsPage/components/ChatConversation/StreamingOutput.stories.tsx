@@ -298,12 +298,12 @@ export const EmptyToolResultBeforeItsCall: Story = {
 	args: unpairedResultState,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Starting tool call…")).toBeVisible();
+		expect(canvas.getByText("Waiting for tool details…")).toBeVisible();
 		expect(canvas.getByLabelText("Tool call running")).toBeVisible();
 	},
 };
 
-/** Once the stream stops, the unresolved row is dropped. */
+/** While reconnecting, the unresolved row is dropped but earlier text stays. */
 export const EmptyToolResultBeforeItsCallSettled: Story = {
 	args: {
 		...unpairedResultState,

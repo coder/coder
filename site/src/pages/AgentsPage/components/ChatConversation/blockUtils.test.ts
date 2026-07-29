@@ -108,7 +108,16 @@ describe("toTimelineBlocks", () => {
 		isError: false,
 		status: "completed",
 	});
-	const tools = [tool("read-1"), tool("read-2"), tool("execute-1", "execute")];
+	const executeTool = (id: string): MergedTool => ({
+		...tool(id, "execute"),
+		args: { command: "ls" },
+	});
+	const tools = [
+		tool("read-1"),
+		tool("read-2"),
+		executeTool("execute-1"),
+		tool("execute-pending", "execute"),
+	];
 
 	it("collapses consecutive read_file tool blocks", () => {
 		const result = toTimelineBlocks(
@@ -140,7 +149,7 @@ describe("toTimelineBlocks", () => {
 			],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
-				{ type: "response", text: "middle" },
+				{ type: "response", text: "middle", sourceIndex: 1 },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
@@ -153,7 +162,7 @@ describe("toTimelineBlocks", () => {
 			],
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
-				{ type: "tool", tool: tool("execute-1", "execute") },
+				{ type: "tool", tool: executeTool("execute-1") },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],
@@ -167,6 +176,19 @@ describe("toTimelineBlocks", () => {
 			[
 				{ type: "read-files", tools: [tool("read-1")] },
 				{ type: "unresolved-tool", id: "missing" },
+				{ type: "read-files", tools: [tool("read-2")] },
+			],
+		],
+		[
+			"a tool whose row cannot render yet",
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "execute-pending" },
+				{ type: "tool", id: "read-2" },
+			],
+			[
+				{ type: "read-files", tools: [tool("read-1")] },
+				{ type: "unresolved-tool", id: "execute-pending" },
 				{ type: "read-files", tools: [tool("read-2")] },
 			],
 		],

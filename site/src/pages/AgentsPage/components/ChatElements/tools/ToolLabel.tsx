@@ -3,8 +3,8 @@ import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
 
 /**
- * Label for tools rendered by `GenericToolRenderer`, which is every tool
- * without an entry in `toolRenderers`, plus `process_signal`, which delegates
+ * Label for tools rendered by `GenericToolRenderer`: any tool that is neither a
+ * subagent tool nor in `toolRenderers`, plus `process_signal`, which delegates
  * to it, and `advisor`, which renders this directly.
  */
 export const ToolLabel: React.FC<{

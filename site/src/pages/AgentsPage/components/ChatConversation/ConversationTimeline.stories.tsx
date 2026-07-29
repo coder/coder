@@ -1680,6 +1680,33 @@ export const NoCopyButtonAfterTrailingToolCall: Story = {
 	},
 };
 
+const askQuestionExchange: TypesGen.ChatMessage[] = [
+	{
+		...baseMessage,
+		id: 2,
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "ask-tool-1",
+				tool_name: "ask_user_question",
+			},
+		],
+	},
+	{
+		...baseMessage,
+		id: 3,
+		role: "tool",
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "ask-tool-1",
+				result: { output: JSON.stringify(askUserQuestionPayload) },
+			},
+		],
+	},
+];
+
 /** Persisted ask-user-question answers survive reloads. */
 export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
@@ -1692,32 +1719,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 				role: "user",
 				content: [{ type: "text", text: "Help me pick a rollout plan." }],
 			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "ask-tool-1",
-						tool_name: "ask_user_question",
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 3,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "ask-tool-1",
-						result: {
-							output: JSON.stringify(askUserQuestionPayload),
-						},
-					},
-				],
-			},
+			...askQuestionExchange,
 			{
 				...baseMessage,
 				id: 4,
@@ -1750,6 +1752,33 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 		expect(
 			within(latestUserMessage).getByText(/Release Plan: Small beta/),
 		).toBeInTheDocument();
+	},
+};
+
+/**
+ * A hidden metadata-only user message does not settle the question, so the
+ * answer form stays interactive.
+ */
+export const AskUserQuestionMetadataOnlyReply: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: true,
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: buildMessages([
+			...askQuestionExchange,
+			{
+				...baseMessage,
+				id: 4,
+				role: "user",
+				content: [
+					{ type: "context-file", context_file_path: "/home/coder/AGENTS.md" },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("button", { name: "Next" })).toBeVisible();
 	},
 };
 
@@ -2596,7 +2625,7 @@ export const SequentialReadFilesRunningState: Story = {
 	},
 };
 
-/** A read that fails alone falls back to different copy than a failed group. */
+/** Solo failures say "Failed to read file", groups "…read one or more files". */
 export const ReadFileErrorStates: Story = {
 	args: {
 		...defaultArgs,
