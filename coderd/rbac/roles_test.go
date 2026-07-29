@@ -825,6 +825,27 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// MCP server config read: owner, both auditors, and (during
+			// the staged window until B4 swaps in the everyone-ACL) org
+			// admins, org members, and service accounts.
+			Name:     "MCPServerConfigRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAuditor, auditor, orgMemberMe},
+				false: {setOtherOrg, memberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "MCPServerConfigWrite",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, auditor, orgMemberMe, memberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
+			},
+		},
+		{
 			Name:     "DebugInfo",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceDebugInfo,
