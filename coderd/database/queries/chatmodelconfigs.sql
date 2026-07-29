@@ -26,6 +26,8 @@ LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.deleted = FALSE
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
