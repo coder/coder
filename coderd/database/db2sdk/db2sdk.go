@@ -1573,13 +1573,13 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 // chatMessageUsage builds a ChatMessageUsage from the database row,
 // returning nil when no token fields are populated.
 func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
-	inputTokens := nullInt64Ptr(m.InputTokens)
-	outputTokens := nullInt64Ptr(m.OutputTokens)
-	totalTokens := nullInt64Ptr(m.TotalTokens)
-	reasoningTokens := nullInt64Ptr(m.ReasoningTokens)
-	cacheCreationTokens := nullInt64Ptr(m.CacheCreationTokens)
-	cacheReadTokens := nullInt64Ptr(m.CacheReadTokens)
-	contextLimit := nullInt64Ptr(m.ContextLimit)
+	inputTokens := NullInt64Ptr(m.InputTokens)
+	outputTokens := NullInt64Ptr(m.OutputTokens)
+	totalTokens := NullInt64Ptr(m.TotalTokens)
+	reasoningTokens := NullInt64Ptr(m.ReasoningTokens)
+	cacheCreationTokens := NullInt64Ptr(m.CacheCreationTokens)
+	cacheReadTokens := NullInt64Ptr(m.CacheReadTokens)
+	contextLimit := NullInt64Ptr(m.ContextLimit)
 
 	if inputTokens == nil && outputTokens == nil && totalTokens == nil &&
 		reasoningTokens == nil && cacheCreationTokens == nil &&
@@ -1653,7 +1653,7 @@ func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	return &value
 }
 
-func nullInt64Ptr(v sql.NullInt64) *int64 {
+func NullInt64Ptr(v sql.NullInt64) *int64 {
 	if !v.Valid {
 		return nil
 	}
@@ -1904,8 +1904,8 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 		StepNumber:          s.StepNumber,
 		Operation:           codersdk.ChatDebugStepOperation(s.Operation),
 		Status:              codersdk.ChatDebugStatus(s.Status),
-		HistoryTipMessageID: nullInt64Ptr(s.HistoryTipMessageID),
-		AssistantMessageID:  nullInt64Ptr(s.AssistantMessageID),
+		HistoryTipMessageID: NullInt64Ptr(s.HistoryTipMessageID),
+		AssistantMessageID:  NullInt64Ptr(s.AssistantMessageID),
 		NormalizedRequest:   rawJSONObject(s.NormalizedRequest),
 		NormalizedResponse:  nullRawJSONObject(s.NormalizedResponse),
 		Usage:               nullRawJSONObject(s.Usage),
@@ -1931,8 +1931,8 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 		RootChatID:          nullUUIDPtr(r.RootChatID),
 		ParentChatID:        nullUUIDPtr(r.ParentChatID),
 		ModelConfigID:       nullUUIDPtr(r.ModelConfigID),
-		TriggerMessageID:    nullInt64Ptr(r.TriggerMessageID),
-		HistoryTipMessageID: nullInt64Ptr(r.HistoryTipMessageID),
+		TriggerMessageID:    NullInt64Ptr(r.TriggerMessageID),
+		HistoryTipMessageID: NullInt64Ptr(r.HistoryTipMessageID),
 		Kind:                codersdk.ChatDebugRunKind(r.Kind),
 		Status:              codersdk.ChatDebugStatus(r.Status),
 		Provider:            nullStringPtr(r.Provider),

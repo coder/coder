@@ -25,6 +25,11 @@ SELECT *
 FROM ai_model_prices
 WHERE provider = @provider AND model = @model;
 
+-- name: GetAIModelPrices :many
+SELECT *
+FROM ai_model_prices
+ORDER BY provider, model;
+
 -- name: GetGroupAIBudget :one
 SELECT *
 FROM group_ai_budgets
