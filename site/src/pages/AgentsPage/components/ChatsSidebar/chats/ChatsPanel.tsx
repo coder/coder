@@ -85,7 +85,6 @@ interface ChatsPanelProps {
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly regeneratingTitleChatIds: readonly string[];
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -119,7 +118,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isCreating,
 	isArchiving,
 	archivingChatId,
-	regeneratingTitleChatIds,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -305,7 +303,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -338,9 +335,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				}))
 	).filter((section) => section.chats.length > 0);
 	const isShowingEmptyState = visibleRootIDs.length === 0;
+	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
+	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
 		? "No agents match these filters"
-		: sidebarFilters.archiveStatus === "archived"
+		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
 	const clearResultFilters = () => {
@@ -432,7 +431,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							Chats
+							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
 							{onOpenSearchDialog && (
@@ -441,7 +440,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									size="icon"
 									aria-label="Search chats"
 									onClick={onOpenSearchDialog}
-									className="h-7 w-7 sm:hidden"
+									className="size-7 sm:hidden"
 								>
 									<SearchIcon />
 								</Button>

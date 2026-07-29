@@ -111,7 +111,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
-	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
 	onSearchDialogOpenChange: vi.fn(),
@@ -584,7 +583,7 @@ describe("ChatsSidebar model display names", () => {
 		const modelConfigs: TypesGen.ChatModelConfig[] = [
 			{
 				id: "config-fast",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o (Fast)",
 				enabled: true,
@@ -596,7 +595,7 @@ describe("ChatsSidebar model display names", () => {
 			},
 			{
 				id: "config-quality",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o (Quality)",
 				enabled: true,
@@ -627,33 +626,6 @@ describe("ChatsSidebar model display names", () => {
 
 		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 		expect(queryByText("GPT-4o (Fast)")).not.toBeInTheDocument();
-	});
-
-	it("falls back to legacy provider/model matching when no config ID match exists", () => {
-		const { getByText } = render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "legacy-chat",
-							title: "Legacy chat",
-							last_model_config_id: "openai:gpt-4o",
-						}),
-					]}
-					modelOptions={[
-						{
-							id: "config-quality",
-							provider: "openai",
-							model: "gpt-4o",
-							displayName: "GPT-4o (Quality)",
-						},
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 	});
 
 	it("shows Default model when last_model_config_id is a nil UUID", () => {

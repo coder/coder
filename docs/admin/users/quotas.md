@@ -29,7 +29,7 @@ quota than an online workspace.
 A common use case is separating costs for a persistent volume and ephemeral
 compute:
 
-```hcl
+```tf
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}-root"
 }

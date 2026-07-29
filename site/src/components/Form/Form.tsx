@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	type ComponentProps,
 	createContext,
@@ -20,22 +19,16 @@ type FormProps = HTMLProps<HTMLFormElement> & {
 	direction?: FormContextValue["direction"];
 };
 
-export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
-	const theme = useTheme();
-
+export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
 	return (
 		<FormContext.Provider value={{ direction }}>
 			<form
 				{...formProps}
-				css={{
-					display: "flex",
-					flexDirection: "column",
-					gap: direction === "horizontal" ? 80 : 40,
-
-					[theme.breakpoints.down("md")]: {
-						gap: 64,
-					},
-				}}
+				className={cn(
+					"flex flex-col gap-16",
+					direction === "horizontal" ? "md:gap-20" : "md:gap-10",
+					className,
+				)}
 			/>
 		</FormContext.Provider>
 	);
@@ -99,7 +92,7 @@ export const FormSection: FC<FormSectionProps> = ({
 		>
 			<div
 				className={cn(
-					"w-full shrink-0 top-6",
+					"w-full shrink-0 top-24",
 					direction === "horizontal" && "lg:sticky lg:max-w-[312px]",
 					classes.sectionInfo,
 				)}

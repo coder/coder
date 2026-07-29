@@ -293,7 +293,15 @@ func (f *workerTestFixture) newArchiveWorkerWithOptions(t *testing.T, opts chatW
 	if opts.NotificationsEnqueuer == nil {
 		opts.NotificationsEnqueuer = notificationstest.NewFakeEnqueuer()
 	}
-	worker, err := newChatWorker(nil, opts)
+	// The archive tick dereferences the worker's server for debug cleanup
+	// and pubsub events, so give it a real (unstarted) Server. Route the
+	// server through the recording pubsub when one is in use so tests can
+	// observe server-published watch events.
+	serverPS := f.pubsub
+	if recording, ok := opts.Pubsub.(*recordingPubsub); ok {
+		serverPS = recording
+	}
+	worker, err := newChatWorker(newUnstartedServer(t, serverPS, f.db), opts)
 	require.NoError(t, err)
 	return worker
 }

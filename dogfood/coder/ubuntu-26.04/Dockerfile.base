@@ -41,7 +41,6 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	build-essential \
 	ca-certificates \
 	containerd.io \
-	crypto-policies \
 	curl \
 	docker-ce \
 	docker-ce-cli \
@@ -115,9 +114,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 		docker-ce-cli \
 		docker-compose-plugin && \
 	# Delete package cache to avoid consuming space in layer
-	apt-get clean && \
-	# Configure FIPS-compliant policies
-	update-crypto-policies --set FIPS
+	apt-get clean
 
 # Install Google Chrome directly from Google. Ubuntu 26.04 ships
 # chromium-browser as a snap-only package, which does not work in

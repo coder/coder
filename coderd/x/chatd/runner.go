@@ -57,6 +57,8 @@ type runner struct {
 	tasksByIndex  map[taskIndexKey]taskInstanceID
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
+	sessionStart  sessionStartTracker
+	stopNudges    stopNudgeTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -90,19 +92,6 @@ func (r *runner) run() {
 }
 
 func (r *runner) bootstrap() bool {
-	// Pubsub can deliver chat:update messages that were already queued by
-	// Postgres before this runner subscribed. Hold those hints until the
-	// runner initializes its local state with the current database snapshot.
-	// Otherwise a stale chat:update that shows the chat has no owner could
-	// cause the runner to exit before it starts work.
-	bootstrapReady := make(chan struct{})
-	bootstrapReadyClosed := false
-	defer func() {
-		if !bootstrapReadyClosed {
-			close(bootstrapReady)
-		}
-	}()
-
 	channel := coderdpubsub.ChatStateUpdateChannel(r.rec.key.ChatID)
 	unsubscribe, err := r.opts.Pubsub.SubscribeWithErr(channel, coderdpubsub.HandleChatStateUpdate(
 		func(ctx context.Context, payload coderdpubsub.ChatStateUpdateMessage, err error) {
@@ -110,7 +99,6 @@ func (r *runner) bootstrap() bool {
 				r.opts.Logger.Warn(ctx, "chatworker state update decode failed", slogError(err))
 				return
 			}
-			<-bootstrapReady
 			r.mgr.RouteStateHint(ctx, stateUpdateFromPubsub(r.rec.key.ChatID, payload))
 		},
 	))
@@ -127,9 +115,17 @@ func (r *runner) bootstrap() bool {
 		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
 	}
-	r.mgr.RouteStateHint(r.ctx, stateUpdateFromChat(chat))
-	close(bootstrapReady)
-	bootstrapReadyClosed = true
+	// Apply the database snapshot directly instead of routing it through
+	// the manager. Routing fans out through stateCh, where a stale hint
+	// (for example the pre-acquisition chat:update relayed by another
+	// runner's subscription) could be processed first while
+	// lastSnapshotVersion is still zero. A stale unowned hint would make
+	// the runner clean itself up without abandoning the chat, leaving the
+	// chat owned by a dead runner until its heartbeat goes stale.
+	// Processing the snapshot here seeds lastSnapshotVersion before the
+	// run loop drains stateCh, so the dedup in processState drops every
+	// hint at or below this version regardless of delivery path.
+	r.processState(stateUpdateFromChat(chat))
 	return true
 }
 
@@ -233,6 +229,8 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		Status:                   state.Status,
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
+		SessionStart:             &r.sessionStart,
+		StopNudges:               &r.stopNudges,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

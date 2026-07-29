@@ -65,7 +65,7 @@ export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 									disabled={saveDisabled}
 									className="h-10 min-w-[88px]"
 								>
-									{isSaving && <Spinner loading className="h-4 w-4" />}
+									{isSaving && <Spinner loading className="size-4" />}
 									Save
 								</Button>
 							))}

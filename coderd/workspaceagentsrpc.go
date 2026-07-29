@@ -143,6 +143,17 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			slog.F("role", role))
 	}
 
+	// api.chatDaemon is a *chatd.Server that stays nil when AI Gateway is
+	// disabled. Assigning a nil *chatd.Server directly to the
+	// interface-typed ContextDirtyMarker field below would produce a
+	// non-nil interface value (a typed nil), defeating agentapi's own
+	// "if DirtyMarker != nil" check and panicking on first use. Only set
+	// the field when there's a real chat daemon to call into.
+	var contextDirtyMarker agentapi.ContextDirtyMarker
+	if api.chatDaemon != nil {
+		contextDirtyMarker = api.chatDaemon
+	}
+
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
 		OwnerID:           workspace.OwnerID,
@@ -180,9 +191,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-		// chatDaemon is always constructed (only its worker is gated), so
-		// this is non-nil; agentapi treats a nil marker as "chatd absent".
-		ContextDirtyMarker: api.chatDaemon,
+		ContextDirtyMarker:   contextDirtyMarker,
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{

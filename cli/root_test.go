@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -103,6 +104,148 @@ func TestCommandHelp(t *testing.T) {
 			Cmd:  []string{"exp", "sync", "list", "--help"},
 		},
 	))
+}
+
+func TestResolveClientConnection(t *testing.T) {
+	t.Parallel()
+
+	run := func(t *testing.T, configure func(config.Root), args ...string) (string, http.RoundTripper, error, error) {
+		t.Helper()
+
+		var root cli.RootCmd
+		var gotURL string
+		var gotTransport http.RoundTripper
+		var gotErr error
+		cmd, err := root.Command([]*serpent.Command{{
+			Use: "resolve",
+			Handler: func(*serpent.Invocation) error {
+				serverURL, transport, err := root.ResolveClientConnection()
+				if serverURL != nil {
+					gotURL = serverURL.String()
+				}
+				gotTransport = transport
+				gotErr = err
+				return nil
+			},
+		}})
+		require.NoError(t, err)
+
+		inv, cfg := clitest.NewWithCommand(t, cmd, args...)
+		if configure != nil {
+			configure(cfg)
+		}
+		runErr := inv.Run()
+		return gotURL, gotTransport, gotErr, runErr
+	}
+
+	tests := []struct {
+		name           string
+		args           []string
+		configure      func(*testing.T, config.Root)
+		wantURL        string
+		wantTransport  bool
+		wantErr        string
+		wantRunErr     string
+		checkTransport func(*testing.T, http.RoundTripper)
+	}{
+		{
+			name:    "MissingURL",
+			args:    []string{"resolve"},
+			wantErr: cli.ErrClientURLNotConfigured.Error(),
+		},
+		{
+			name:          "URLFlag",
+			args:          []string{"--url", "https://example.com", "resolve"},
+			wantURL:       "https://example.com",
+			wantTransport: true,
+		},
+		{
+			name: "ConfiguredURL",
+			args: []string{"resolve"},
+			configure: func(t *testing.T, cfg config.Root) {
+				t.Helper()
+				require.NoError(t, cfg.URL().Write("https://configured.example.com"))
+			},
+			wantURL:       "https://configured.example.com",
+			wantTransport: true,
+		},
+		{
+			name: "URLFlagOverridesConfig",
+			args: []string{"--url", "https://flag.example.com", "resolve"},
+			configure: func(t *testing.T, cfg config.Root) {
+				t.Helper()
+				require.NoError(t, cfg.URL().Write("https://configured.example.com"))
+			},
+			wantURL:       "https://flag.example.com",
+			wantTransport: true,
+		},
+		{
+			name:       "InvalidURLFlag",
+			args:       []string{"--url", "%zz", "resolve"},
+			wantRunErr: "invalid URL escape",
+		},
+		{
+			name: "ClientTLSConfig",
+			args: func() []string {
+				certPath, keyPath := generateTLSCertificate(t)
+				return []string{
+					"--url", "https://example.com",
+					"--client-tls-cert-file", certPath,
+					"--client-tls-key-file", keyPath,
+					"resolve",
+				}
+			}(),
+			wantURL:       "https://example.com",
+			wantTransport: true,
+			checkTransport: func(t *testing.T, transport http.RoundTripper) {
+				t.Helper()
+
+				httpTransport, ok := transport.(*http.Transport)
+				require.True(t, ok)
+				require.NotNil(t, httpTransport.TLSClientConfig)
+				require.Len(t, httpTransport.TLSClientConfig.Certificates, 1)
+			},
+		},
+		{
+			name: "TLSConfigError",
+			args: []string{
+				"--url", "https://example.com",
+				"--client-tls-cert-file", "/tmp/missing-cert.pem",
+				"resolve",
+			},
+			wantErr: "load client TLS config: --client-tls-cert-file and --client-tls-key-file must be specified together",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var configure func(config.Root)
+			if tc.configure != nil {
+				configure = func(cfg config.Root) {
+					tc.configure(t, cfg)
+				}
+			}
+
+			serverURL, transport, err, runErr := run(t, configure, tc.args...)
+			if tc.wantRunErr != "" {
+				require.ErrorContains(t, runErr, tc.wantRunErr)
+				return
+			}
+			require.NoError(t, runErr)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantURL, serverURL)
+			require.Equal(t, tc.wantTransport, transport != nil)
+			if tc.checkTransport != nil {
+				tc.checkTransport(t, transport)
+			}
+		})
+	}
 }
 
 func TestRoot(t *testing.T) {

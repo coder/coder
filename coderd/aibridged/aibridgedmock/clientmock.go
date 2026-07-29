@@ -116,6 +116,21 @@ func (mr *MockDRPCClientMockRecorder) IsAuthorized(ctx, in any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAuthorized", reflect.TypeOf((*MockDRPCClient)(nil).IsAuthorized), ctx, in)
 }
 
+// IsBudgetExceeded mocks base method.
+func (m *MockDRPCClient) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBudgetExceeded", ctx, in)
+	ret0, _ := ret[0].(*proto.IsBudgetExceededResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsBudgetExceeded indicates an expected call of IsBudgetExceeded.
+func (mr *MockDRPCClientMockRecorder) IsBudgetExceeded(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBudgetExceeded", reflect.TypeOf((*MockDRPCClient)(nil).IsBudgetExceeded), ctx, in)
+}
+
 // RecordInterception mocks base method.
 func (m *MockDRPCClient) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 	m.ctrl.T.Helper()
@@ -204,4 +219,19 @@ func (m *MockDRPCClient) RecordToolUsage(ctx context.Context, in *proto.RecordTo
 func (mr *MockDRPCClientMockRecorder) RecordToolUsage(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordToolUsage", reflect.TypeOf((*MockDRPCClient)(nil).RecordToolUsage), ctx, in)
+}
+
+// WatchAIProviders mocks base method.
+func (m *MockDRPCClient) WatchAIProviders(ctx context.Context, in *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchAIProviders", ctx, in)
+	ret0, _ := ret[0].(proto.DRPCProviderConfigurator_WatchAIProvidersClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WatchAIProviders indicates an expected call of WatchAIProviders.
+func (mr *MockDRPCClientMockRecorder) WatchAIProviders(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchAIProviders", reflect.TypeOf((*MockDRPCClient)(nil).WatchAIProviders), ctx, in)
 }

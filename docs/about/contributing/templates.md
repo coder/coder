@@ -31,20 +31,20 @@ Before contributing templates, ensure you have:
 
 1. **Fork and clone the repository**:
 
-   ```bash
+   ```sh
    git clone https://github.com/your-username/registry.git
    cd registry
    ```
 
 2. **Install dependencies**:
 
-   ```bash
+   ```sh
    bun install
    ```
 
 3. **Understand the structure**:
 
-   ```text
+   ```txt
    registry/[namespace]/
    ├── templates/       # Your templates
    ├── .images/         # Namespace avatar and screenshots
@@ -57,20 +57,20 @@ Before contributing templates, ensure you have:
 
 If you're a new contributor, create your namespace directory:
 
-```bash
+```sh
 mkdir -p registry/[your-username]
 mkdir -p registry/[your-username]/.images
 ```
 
 Add your namespace avatar by downloading your GitHub avatar and saving it as `avatar.png`:
 
-```bash
+```sh
 curl -o registry/[your-username]/.images/avatar.png https://github.com/[your-username].png
 ```
 
 Create your namespace README at `registry/[your-username]/README.md`:
 
-```markdown
+```md
 ---
 display_name: "Your Name"
 bio: "Brief description of what you do"
@@ -94,7 +94,7 @@ Brief description of who you are and what you do.
 
 Create a directory for your template:
 
-```bash
+```sh
 mkdir -p registry/[your-username]/templates/[template-name]
 cd registry/[your-username]/templates/[template-name]
 ```
@@ -103,7 +103,7 @@ cd registry/[your-username]/templates/[template-name]
 
 Create `main.tf` with your complete Terraform configuration:
 
-```terraform
+```tf
 terraform {
   required_providers {
     coder = {
@@ -189,7 +189,7 @@ resource "coder_metadata" "workspace_info" {
 
 Create `README.md` with comprehensive documentation:
 
-```markdown
+```md
 ---
 display_name: "Ubuntu Development Environment"
 description: "Complete Ubuntu workspace with VS Code, Git, and development tools"
@@ -262,7 +262,7 @@ You can customize this template by:
 
 Use registry modules for common features:
 
-```terraform
+```tf
 # VS Code in browser
 module "code-server" {
   count    = data.coder_workspace.me.start_count
@@ -311,7 +311,7 @@ module "dotfiles" {
 
 Provide meaningful customization options:
 
-```terraform
+```tf
 variable "git_repo_url" {
   description = "Git repository to clone"
   type        = string
@@ -337,7 +337,7 @@ variable "workspace_name" {
 
 Test your template locally with Coder:
 
-```bash
+```sh
 # Navigate to your template directory
 cd registry/[your-username]/templates/[template-name]
 
@@ -400,13 +400,13 @@ Before submitting your template, verify:
 
 1. **Create a feature branch**:
 
-   ```bash
+   ```sh
    git checkout -b feat/add-python-template
    ```
 
 2. **Test thoroughly**:
 
-   ```bash
+   ```sh
    # Test with Coder
    coder templates push test-python-template -d .
    coder create test-workspace --template test-python-template
@@ -417,7 +417,7 @@ Before submitting your template, verify:
 
 3. **Commit with clear messages**:
 
-   ```bash
+   ```sh
    git add .
    git commit -m "Add Python development template with FastAPI setup"
    ```
@@ -432,7 +432,7 @@ Before submitting your template, verify:
 
 ### Docker-based template
 
-```terraform
+```tf
 # Simple Docker template
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
@@ -446,7 +446,7 @@ resource "docker_container" "workspace" {
 
 ### AWS EC2 template
 
-```terraform
+```tf
 # AWS EC2 template
 resource "aws_instance" "workspace" {
   count         = data.coder_workspace.me.start_count
@@ -463,7 +463,7 @@ resource "aws_instance" "workspace" {
 
 ### Kubernetes template
 
-```terraform
+```tf
 # Kubernetes template
 resource "kubernetes_pod" "workspace" {
   count = data.coder_workspace.me.start_count

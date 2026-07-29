@@ -285,7 +285,10 @@ function canSeeNotificationGroup(
 		case "Task Events":
 		case "Chat Events":
 		case "Custom Events":
+		case "AI Cost Control Events":
 			return true;
+		case "AI Cost Control Admin Events":
+			return permissions.createUser;
 		default:
 			return false;
 	}

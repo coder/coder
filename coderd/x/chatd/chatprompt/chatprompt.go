@@ -923,9 +923,20 @@ func hasErrorField(raw json.RawMessage) bool {
 	return ok
 }
 
+// injectMissingToolResults keeps tool results adjacent to the
+// assistant message that issued the calls. Hook effects, such as
+// pre_tool_use model context, can persist rows between an assistant
+// tool call and its result rows, so matching result rows found before
+// the next assistant message are hoisted back next to the call;
+// otherwise the interleaved row would make the real result look
+// orphaned. Unanswered local calls get synthetic interrupted results.
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 	result := make([]fantasy.Message, 0, len(prompt))
+	hoisted := make(map[int]bool)
 	for i := 0; i < len(prompt); i++ {
+		if hoisted[i] {
+			continue
+		}
 		msg := prompt[i]
 		result = append(result, msg)
 
@@ -936,28 +947,38 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		if len(toolCalls) == 0 {
 			continue
 		}
+		callIDs := make(map[string]struct{}, len(toolCalls))
+		for _, tc := range toolCalls {
+			callIDs[tc.ToolCallID] = struct{}{}
+		}
 
-		// Collect the tool call IDs that have results in the
-		// following tool message(s).
+		// Hoist tool rows answering this assistant's calls, in
+		// persisted order, from anywhere before the next assistant
+		// message. Interleaved non-tool rows keep their relative
+		// order after the results.
 		answered := make(map[string]struct{})
-		j := i + 1
-		for ; j < len(prompt); j++ {
-			if prompt[j].Role != fantasy.MessageRoleTool {
+		for j := i + 1; j < len(prompt); j++ {
+			if prompt[j].Role == fantasy.MessageRoleAssistant {
 				break
 			}
+			if prompt[j].Role != fantasy.MessageRoleTool {
+				continue
+			}
+			answersThisCall := false
 			for _, part := range prompt[j].Content {
 				tr, ok := safeAsToolResultPart(part)
 				if !ok {
 					continue
 				}
-				answered[tr.ToolCallID] = struct{}{}
+				if _, ok := callIDs[tr.ToolCallID]; ok {
+					answersThisCall = true
+					answered[tr.ToolCallID] = struct{}{}
+				}
 			}
-		}
-		if i+1 < j {
-			// Preserve persisted tool result ordering and inject any
-			// synthetic results after the existing contiguous tool messages.
-			result = append(result, prompt[i+1:j]...)
-			i = j - 1
+			if answersThisCall {
+				result = append(result, prompt[j])
+				hoisted[j] = true
+			}
 		}
 
 		// Build synthetic results for any unanswered tool calls.
@@ -1249,8 +1270,11 @@ func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string
 	return steps
 }
 
+// IsSyntheticPaste reports whether a file name and media type identify
+// a synthetic pasted-text attachment created by the chat UI.
+//
 // TODO: Replace filename-based detection with explicit origin metadata.
-func isSyntheticPaste(name string, mediaType string) bool {
+func IsSyntheticPaste(name string, mediaType string) bool {
 	if !syntheticPasteFileNamePattern.MatchString(name) {
 		return false
 	}
@@ -1554,7 +1578,7 @@ func partsToMessageParts(
 			// paste sent as a text/plain FilePart is dropped or rejected,
 			// so the model sees nothing. Converting it to TextPart keeps
 			// the pasted content visible to every provider.
-			if isSyntheticPaste(name, mediaType) {
+			if IsSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
 					ProviderOptions: opts,
@@ -1585,7 +1609,7 @@ func partsToMessageParts(
 			// When the target provider would drop a text-family file part,
 			// inline the content as text so the model still sees it.
 			//
-			// This must run after the isSyntheticPaste check above;
+			// This must run after the IsSyntheticPaste check above;
 			// synthetic pastes use a truncating path and must not fall
 			// through to the non-truncating inline path.
 			if acceptsFilePart != nil &&
@@ -1639,6 +1663,16 @@ func partsToMessageParts(
 			_, _ = sb.WriteString(part.ContextFileContent)
 			_, _ = sb.WriteString("\n</workspace-context>")
 			result = append(result, fantasy.TextPart{Text: sb.String()})
+		case codersdk.ChatMessagePartTypeHookContext:
+			// Lifecycle hook model context rides inside the user
+			// message and is sent to the model as plain text.
+			if strings.TrimSpace(part.Text) == "" {
+				continue
+			}
+			result = append(result, fantasy.TextPart{Text: part.Text})
+		case codersdk.ChatMessagePartTypeHookNotice:
+			// Client-only hook notice, never sent to the model.
+			continue
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue

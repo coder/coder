@@ -287,6 +287,62 @@ func TestPostLogin(t *testing.T) {
 		require.NotContains(t, apiErr.Message, string(codersdk.LoginTypeOIDC))
 	})
 
+	// Regression: the legacy `login_type = 'none'` migration converts these
+	// accounts to password auth, but they have no password hash. Converting
+	// login type must never let someone authenticate with an empty or guessed
+	// password.
+	t.Run("ConvertedNoneUserHasNoUsablePassword", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// A legacy machine user was created with login_type 'none' and no
+		// password. dbgen.User substitutes a random hash for an empty one, so
+		// clear it explicitly to match the real account.
+		noneUser := dbgen.User(t, db, database.User{
+			Email:     "legacy-machine-user@coder.com",
+			LoginType: database.LoginTypeNone,
+		})
+		//nolint:gocritic // Test setup requires a system context to clear the hash.
+		err := db.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             noneUser.ID,
+			HashedPassword: []byte{},
+		})
+		require.NoError(t, err)
+
+		// Apply the migration's conversion: login_type 'none' -> 'password'.
+		//nolint:gocritic // Test setup requires a system context to convert the login type.
+		_, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+			NewLoginType: database.LoginTypePassword,
+			UserID:       noneUser.ID,
+		})
+		require.NoError(t, err)
+
+		// Neither an empty password nor a guessed one may authenticate. An empty
+		// password is rejected by request validation (400); a non-empty guess
+		// fails the hash comparison against the empty stored hash (401). Both must
+		// deny access.
+		cases := []struct {
+			name       string
+			password   string
+			wantStatus int
+		}{
+			{"EmptyPassword", "", http.StatusBadRequest},
+			{"GuessedPassword", "hunter2", http.StatusUnauthorized},
+		}
+		for _, tc := range cases {
+			anonClient := codersdk.New(client.URL)
+			_, err := anonClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    noneUser.Email,
+				Password: tc.password,
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr, "%s must not authenticate", tc.name)
+			require.Equal(t, tc.wantStatus, apiErr.StatusCode(), "%s", tc.name)
+		}
+	})
+
 	t.Run("Suspended", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -952,18 +1008,17 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypeNone,
 		})
-		require.NoError(t, err)
-
-		found, err := client.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, found.LoginType, codersdk.LoginTypeNone)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "service account")
 	})
 
 	t.Run("CreateOIDCLoginType", func(t *testing.T) {
@@ -1440,6 +1495,70 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "SomeNewStrongPassword!",
 		})
 		require.NoError(t, err, "member should login successfully with the new password")
+	})
+
+	t.Run("UserAdminCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		apikey1, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey1ID, _, ok := strings.Cut(apikey1.Key, "-")
+		require.True(t, ok)
+
+		apikey2, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey2ID, _, ok := strings.Cut(apikey2.Key, "-")
+		require.True(t, ok)
+
+		// Confirm the token IDs resolve before the reset, so later
+		// 404s prove password reset removed them.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.NoError(t, err)
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.NoError(t, err)
+
+		err = userAdmin.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "user-admin should be able to update member password")
+
+		// The old session token was deleted with the password reset, so the
+		// member client is unauthorized before it logs back in.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
+
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    member.Email,
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "member should login successfully with the new password")
+
+		memberClient = codersdk.New(
+			memberClient.URL,
+			codersdk.WithSessionToken(resp.SessionToken),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(memberClient.URL)),
+		)
+
+		// After re-authentication, the old API keys should be gone from storage.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
 	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {

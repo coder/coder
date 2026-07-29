@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -25,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -40,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -914,6 +918,77 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
+	t.Parallel()
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client"),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+	require.True(t, conn.AwaitReachable(ctx))
+
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			OrganizationID:   user.OrganizationID,
+			WorkspaceOwnerID: user.UserID,
+			WorkspaceID:      r.Workspace.ID,
+			WorkspaceName:    r.Workspace.Name,
+			AgentName:        resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code: sql.NullInt32{
+				Int32: http.StatusSwitchingProtocols,
+				Valid: true,
+			},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			UserID: uuid.NullUUID{
+				UUID:  user.UserID,
+				Valid: true,
+			},
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = conn.Close()
+	require.NoError(t, err)
+
+	// A second handshake within the audit session stale interval is a
+	// reconnection and must be deduplicated rather than producing a
+	// second row.
+	conn2, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client2"),
+		})
+	require.NoError(t, err)
+	defer conn2.Close()
+	// The connection log write happens in the coordinate handler
+	// before any coordination traffic is served, so once the tunnel is
+	// reachable the second handshake has already been processed.
+	require.True(t, conn2.AwaitReachable(ctx))
+
+	tunnelRows := 0
+	for _, cl := range connLogger.ConnectionLogs() {
+		if cl.Type == database.ConnectionTypeTunnel {
+			tunnelRows++
+		}
+	}
+	require.Equal(t, 1, tunnelRows)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
@@ -3697,4 +3772,107 @@ func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (can
 	}
 	p.Unlock()
 	return cancel, err
+}
+
+// TestWorkspaceAgentsExternalAuthExpiresAt verifies that the expiry stored on
+// an ExternalAuthLink is returned in ExternalAuthResponse.ExpiresAt via the
+// full HTTP round-trip, covering both a non-zero and zero expiry.
+func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	const providerID = "test-provider"
+
+	// seedToken is both the access token value stored in the DB and the one
+	// the fake OAuth2 provider returns. When they match, RefreshToken detects
+	// no change and skips the DB update, preserving the seeded OAuthExpiry.
+	const seedToken = "seed-token"
+
+	// newSetup creates a coderdtest server with a minimal external-auth
+	// provider that has no ValidateURL (all tokens accepted as valid) and
+	// returns seedToken so that RefreshToken does not overwrite the link.
+	newSetup := func(t *testing.T) (agentToken string, agentClient *agentsdk.Client, db database.Store, ownerID uuid.UUID) {
+		t.Helper()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{
+					// Return seedToken so token.AccessToken == originalAccessToken
+					// in RefreshToken, preventing a DB update that would overwrite
+					// the seeded OAuthExpiry.
+					Token: &oauth2.Token{
+						AccessToken:  seedToken,
+						RefreshToken: "refresh-token",
+						Expiry:       dbtime.Now().Add(24 * time.Hour),
+					},
+				},
+				ID:    providerID,
+				Regex: regexp.MustCompile(`.*`),
+				Type:  codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				// ValidateURL intentionally omitted: tokens are always valid.
+				RefreshGroup: new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+
+		ac := agentsdk.New(ownerClient.URL, agentsdk.WithFixedToken(r.AgentToken))
+		return r.AgentToken, ac, db, user.ID
+	}
+
+	t.Run("NonZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// Seed a link with an 8-hour expiry and verify the response carries it.
+		want := dbtime.Now().Add(8 * time.Hour).UTC().Truncate(time.Second)
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      want,
+		})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL, "token should be valid, no redirect URL expected")
+		require.Equal(t, want, resp.ExpiresAt.UTC().Truncate(time.Second),
+			"ExpiresAt should match the expiry stored in the database")
+	})
+
+	t.Run("ZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// dbgen.ExternalAuthLink uses takeFirst which skips zero time.Time
+		// values and fills in a 24-hour default. Insert the link directly to
+		// store an explicit zero OAuthExpiry (token never expires).
+		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      time.Time{},
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL)
+		require.True(t, resp.ExpiresAt.IsZero(),
+			"ExpiresAt should be zero when the token has no expiry")
+	})
 }

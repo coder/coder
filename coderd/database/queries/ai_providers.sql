@@ -45,6 +45,7 @@ INSERT INTO ai_providers (
     type,
     name,
     display_name,
+    icon,
     enabled,
     base_url,
     settings,
@@ -54,6 +55,7 @@ INSERT INTO ai_providers (
     @type::ai_provider_type,
     @name::text,
     sqlc.narg('display_name')::text,
+    @icon::text,
     @enabled::boolean,
     @base_url::text,
     sqlc.narg('settings')::text,
@@ -68,6 +70,7 @@ UPDATE
 SET
     type = @type::ai_provider_type,
     display_name = sqlc.narg('display_name')::text,
+    icon = @icon::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,
     settings = sqlc.narg('settings')::text,

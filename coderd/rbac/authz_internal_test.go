@@ -312,18 +312,34 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
+		},
+		{
+			// User ACLs only grant permissions in organizations where the
+			// subject is currently a member.
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: ResourceWorkspace.AvailableActions(),
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.WildcardSymbol},
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
@@ -712,6 +728,154 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}))
+}
+
+// TestAuthorizeUserACLOrgMembership verifies that user ACL grants require org
+// membership, while site-wide roles still authorize independent of ACLs.
+func TestAuthorizeUserACLOrgMembership(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+
+	// Site template-admin, not a member of orgID.
+	siteTemplateAdmin := Subject{
+		ID:    "site-template-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleTemplateAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteTemplateAdminNotInOrg", siteTemplateAdmin, []authTestCase{
+		{
+			// Authorized by the site role, no ACL needed.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    true,
+		},
+		{
+			// Redundant ACL entry; still authorized by the site role.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteTemplateAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	// Site user-admin (no template perms), not a member of orgID.
+	siteUserAdmin := Subject{
+		ID:    "site-user-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminNotInOrg", siteUserAdmin, []authTestCase{
+		{
+			// No template role and no ACL entry: denied.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// An ACL grant must not authorize a non-member.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   false,
+		},
+	})
+
+	// Same site user-admin, now also a member of orgID.
+	siteUserAdminOrgMember := Subject{
+		ID:    "site-user-admin-org-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+			orgMemberRole(orgID),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminOrgMember", siteUserAdminOrgMember, []authTestCase{
+		{
+			// Org membership alone does not grant template update.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// As an org member, the ACL grant takes effect.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdminOrgMember.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
+}
+
+// TestAuthorizeWorkspaceAccessCreationBan tests a user who is a member of a
+// single organization and holds both organization-workspace-access and
+// organization-workspace-creation-ban in that organization. The ban's
+// negative permissions must override the workspace create elevation granted
+// by workspace-access. Because the ban denies creation in the user's only
+// organization, the any_org check used by the UI must also deny creation.
+func TestAuthorizeWorkspaceAccessCreationBan(t *testing.T) {
+	t.Parallel()
+	defOrg := uuid.New()
+
+	user := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+		},
+	}
+
+	testAuthorize(t, "WorkspaceAccessWithCreationBan", user, []authTestCase{
+		// any_org create is denied: the only organization vote is the ban's
+		// negative, so the max vote across all organizations is a deny.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: false},
+
+		// The banned actions are denied directly in the organization too.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Non-banned workspace actions granted by workspace-access remain.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionRead, policy.ActionUpdate}, allow: true},
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}, allow: true},
+	})
+
+	// The same user, now also a member of a second organization with
+	// workspace-access and no ban. One permissible organization out of two
+	// is enough for any_org to allow creation.
+	secondOrg := uuid.New()
+	userTwoOrgs := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(secondOrg))),
+		},
+	}
+
+	testAuthorize(t, "BannedInOneOfTwoOrgs", userTwoOrgs, []authTestCase{
+		// any_org create is allowed: the second organization votes to allow,
+		// and the max vote across all organizations wins.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
+
+		// The ban still denies creation in the banned organization.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Creation is allowed in the organization without the ban.
+		{resource: ResourceWorkspace.InOrg(secondOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: true},
+	})
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately

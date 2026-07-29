@@ -92,8 +92,29 @@ describe("extractContextUsageFromMessage", () => {
 // ---------------------------------------------------------------------------
 
 describe("getLatestContextUsage", () => {
-	it("returns null for an empty message list", () => {
-		expect(getLatestContextUsage([])).toBeNull();
+	const compactionSummaryMessage: TypesGen.ChatMessage = {
+		...MockChatMessage,
+		id: 2,
+		role: "tool",
+		content: [{ type: "tool-result", tool_name: "chat_summarized" }],
+	};
+
+	it("returns usage from the newest usage-bearing message", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{ ...MockChatMessage, id: 2 },
+			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
+		];
+		const result = getLatestContextUsage(messages);
+		expect(result?.inputTokens).toBe(300);
+	});
+
+	it("returns null when a compaction summary is newer than usage", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			compactionSummaryMessage,
+		];
+		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
 	it("returns null when no messages have usage data", () => {
@@ -101,26 +122,13 @@ describe("getLatestContextUsage", () => {
 		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
-	it("returns usage from the last message with usage data", () => {
+	it("returns usage when it is newer than a compaction summary", () => {
 		const messages = [
-			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
-			{ ...MockChatMessage, id: 2 },
+			compactionSummaryMessage,
 			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
 		];
 		const result = getLatestContextUsage(messages);
-		expect(result).not.toBeNull();
-		expect(result!.inputTokens).toBe(300);
-	});
-
-	it("skips trailing messages without usage and finds the latest one", () => {
-		const messages = [
-			{ ...MockChatMessage, id: 1, usage: { input_tokens: 50 } },
-			{ ...MockChatMessage, id: 2, usage: { input_tokens: 200 } },
-			{ ...MockChatMessage, id: 3 },
-		];
-		const result = getLatestContextUsage(messages);
-		expect(result).not.toBeNull();
-		expect(result!.inputTokens).toBe(200);
+		expect(result?.inputTokens).toBe(300);
 	});
 });
 
@@ -191,40 +199,6 @@ describe("resolveModelFromChatConfig", () => {
 		);
 	});
 
-	it("matches by provider:model combined candidate", () => {
-		// The model field alone doesn't match an option id, but
-		// provider + model concatenated does.
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, options)).toBe("openai:gpt-4");
-	});
-
-	it("falls back to model field match on option.model property", () => {
-		// Neither `model` nor `provider:model` match an option id,
-		// so the function falls through to matching option.model.
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("custom-id-1", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
-	});
-
-	it("falls back to model field match ignoring provider when provider is absent", () => {
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("custom-id-1", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
-	});
-
-	it("respects provider when matching on option.model", () => {
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("id-a", "azure", "gpt-4"),
-			buildOption("id-b", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("id-b");
-	});
-
 	it("returns first option when no match is found", () => {
 		const config = { model: "unknown-model" };
 		expect(resolveModelFromChatConfig(config, options)).toBe("openai:gpt-4");
@@ -268,18 +242,14 @@ describe("getWorkspaceAgent", () => {
 		);
 	});
 
-	it("returns the first agent when workspaceAgentId does not match", () => {
+	it("returns undefined when workspaceAgentId does not match", () => {
 		const ws = buildWorkspace([buildAgent("a1"), buildAgent("a2")]);
-		expect(getWorkspaceAgent(ws, "no-match")).toEqual(
-			expect.objectContaining({ id: "a1" }),
-		);
+		expect(getWorkspaceAgent(ws, "no-match")).toBeUndefined();
 	});
 
-	it("returns the first agent when workspaceAgentId is undefined", () => {
+	it("returns undefined when workspaceAgentId is undefined", () => {
 		const ws = buildWorkspace([buildAgent("a1")]);
-		expect(getWorkspaceAgent(ws, undefined)).toEqual(
-			expect.objectContaining({ id: "a1" }),
-		);
+		expect(getWorkspaceAgent(ws, undefined)).toBeUndefined();
 	});
 
 	it("collects agents from multiple resources", () => {

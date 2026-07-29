@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aiseats"
@@ -24,11 +26,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/notifications"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 var (
@@ -75,6 +81,10 @@ type store interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
+	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
+	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -86,9 +96,10 @@ type store interface {
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction; AcquireLock serializes against
 	// any in-flight env seed holding LockIDAIProvidersEnvSeed.
-	InTx(func(database.Store) error, *database.TxOptions) error
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
 	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
+
+	InTx(func(database.Store) error, *database.TxOptions) error
 }
 
 type Server struct {
@@ -97,24 +108,54 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	pubsub              pubsub.Pubsub
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	experiments       codersdk.Experiments
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
+	// budgetPeriod is the deployment-configured budgeting period used to
+	// derive the window over which user AI spend is aggregated.
+	budgetPeriod  codersdk.AIBudgetPeriod
+	clock         quartz.Clock
+	notifEnqueuer notifications.Enqueuer
+	// metrics records cost-control metrics. May be nil.
+	metrics *Metrics
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
-	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
-	aiSeatTracker aiseats.SeatTracker,
-) (*Server, error) {
-	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
+// Options carries the dependencies required to construct an aibridged Server.
+type Options struct {
+	Store         store
+	Pubsub        pubsub.Pubsub
+	AISeatTracker aiseats.SeatTracker
+	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
+	// enqueuer.
+	Enqueuer notifications.Enqueuer
 
-	for _, cfg := range externalAuthConfigs {
+	AccessURL           string
+	GatewayCfg          codersdk.AIBridgeConfig
+	ExternalAuthConfigs []*externalauth.Config
+	Experiments         codersdk.Experiments
+
+	Logger  slog.Logger
+	Clock   quartz.Clock
+	Metrics *Metrics
+}
+
+func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
+	enqueuer := opts.Enqueuer
+	if enqueuer == nil {
+		enqueuer = notifications.NewNoopEnqueuer()
+	}
+
+	eac := make(map[string]*externalauth.Config, len(opts.ExternalAuthConfigs))
+
+	for _, cfg := range opts.ExternalAuthConfigs {
 		// Only External Auth configs which are configured with an MCP URL are relevant to aibridged.
 		if cfg.MCPURL == "" {
 			continue
@@ -124,19 +165,25 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
-		store:               store,
-		logger:              logger,
+		store:               opts.Store,
+		pubsub:              opts.Pubsub,
+		logger:              opts.Logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
-		aiSeatTracker:       aiSeatTracker,
-		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(bridgeCfg.BudgetPolicy),
+		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
+		aiSeatTracker:       opts.AISeatTracker,
+		experiments:         opts.Experiments,
+		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
+		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
+		clock:               opts.Clock,
+		notifEnqueuer:       enqueuer,
+		metrics:             opts.Metrics,
 	}
 
-	if bridgeCfg.InjectCoderMCPTools {
-		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
-		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
+	if opts.GatewayCfg.InjectCoderMCPTools {
+		opts.Logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
+		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.AccessURL)
 		if err != nil {
-			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
+			opts.Logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
 		}
 		srv.coderMCPConfig = coderMCPConfig
 	}
@@ -228,8 +275,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
+		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+	}
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -250,10 +299,20 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		)
 	}
 
+	// The error type and message form one logical unit: the terminal error.
+	// Gate the message on the type so the row never carries a message without a
+	// type (the migration treats both-NULL as a successful interception).
+	errType := interceptionErrorType(in.GetErrorType())
+	var errMsg sql.NullString
+	if errType.Valid && in.GetErrorMessage() != "" {
+		errMsg = sql.NullString{String: truncateErrorMessage(in.GetErrorMessage()), Valid: true}
+	}
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:             intcID,
 		EndedAt:        in.EndedAt.AsTime(),
 		CredentialHint: in.CredentialHint,
+		ErrorType:      errType,
+		ErrorMessage:   errMsg,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -301,34 +360,94 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	// Snapshot the effective group, per-token prices and compute cost. A
-	// missing price row or unbudgeted user yields NULL columns.
+	// missing price row or no effective group yields NULL columns.
 	cost, err := s.resolveTokenUsageCost(ctx, intc, in)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve token usage cost: %w", err)
 	}
 
-	_, err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
-		ID:                    uuid.New(),
-		InterceptionID:        intcID,
-		ProviderResponseID:    in.GetMsgId(),
-		InputTokens:           in.GetInputTokens(),
-		OutputTokens:          in.GetOutputTokens(),
-		CacheReadInputTokens:  in.GetCacheReadInputTokens(),
-		CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
-		Metadata:              out,
-		CreatedAt:             in.GetCreatedAt().AsTime(),
-		EffectiveGroupID:      cost.effectiveGroupID,
-		InputPriceMicros:      cost.inputPriceMicros,
-		OutputPriceMicros:     cost.outputPriceMicros,
-		CacheReadPriceMicros:  cost.cacheReadPriceMicros,
-		CacheWritePriceMicros: cost.cacheWritePriceMicros,
-		CostMicros:            cost.costMicros,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("insert token usage: %w", err)
+	if err := s.recordTokenUsageAndSpend(ctx, intc, cost, in, out); err != nil {
+		return nil, xerrors.Errorf("record token usage and spend: %w", err)
 	}
 
 	return &proto.RecordTokenUsageResponse{}, nil
+}
+
+// recordTokenUsageAndSpend atomically records the token usage (including the
+// interception's cost) and, when the user is budgeted and the computed cost is
+// positive, accumulates that cost into the user's daily spend.
+func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
+	createdAt := in.GetCreatedAt().AsTime()
+
+	// Populated inside the transaction with any budget thresholds this
+	// interception crossed.
+	var crossings []budgetThresholdCrossing
+	err := s.store.InTx(func(tx database.Store) error {
+		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
+			ID:                    uuid.New(),
+			InterceptionID:        intc.ID,
+			ProviderResponseID:    in.GetMsgId(),
+			InputTokens:           in.GetInputTokens(),
+			OutputTokens:          in.GetOutputTokens(),
+			CacheReadInputTokens:  in.GetCacheReadInputTokens(),
+			CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
+			Metadata:              metadataJSON,
+			CreatedAt:             createdAt,
+			EffectiveGroupID:      cost.effectiveGroupID,
+			InputPriceMicros:      cost.inputPriceMicros,
+			OutputPriceMicros:     cost.outputPriceMicros,
+			CacheReadPriceMicros:  cost.cacheReadPriceMicros,
+			CacheWritePriceMicros: cost.cacheWritePriceMicros,
+			CostMicros:            cost.costMicros,
+		}); err != nil {
+			return xerrors.Errorf("insert token usage: %w", err)
+		}
+
+		// Skip the spend update when there is no effective group or the interception has no cost.
+		if !cost.effectiveGroupID.Valid || !cost.costMicros.Valid || cost.costMicros.Int64 <= 0 {
+			s.logger.Debug(ctx, "skipping spend update",
+				slog.F("interception_id", intc.ID),
+				slog.F("initiator_id", intc.InitiatorID),
+				slog.F("has_effective_group", cost.effectiveGroupID.Valid),
+				slog.F("has_cost", cost.costMicros.Valid),
+				slog.F("cost_micros", cost.costMicros.Int64),
+			)
+			return nil
+		}
+
+		if _, err := tx.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           intc.InitiatorID,
+			EffectiveGroupID: cost.effectiveGroupID.UUID,
+			// Day is derived from the record usage request CreatedAt
+			// so it matches the token usage row's created_at column.
+			Day:        dbtime.StartOfDay(createdAt.UTC()),
+			CostMicros: cost.costMicros.Int64,
+		}); err != nil {
+			return xerrors.Errorf("increment user daily spend: %w", err)
+		}
+
+		// Threshold detection is best-effort: a failed read must not roll back
+		// the committed spend, so the error is logged rather than propagated.
+		var detectErr error
+		crossings, detectErr = s.detectBudgetThresholdCrossings(ctx, tx, intc, cost, createdAt)
+		if detectErr != nil {
+			s.logger.Error(ctx, "failed to detect AI budget threshold crossing",
+				slog.F("interception_id", intc.ID),
+				slog.F("initiator_id", intc.InitiatorID),
+				slog.Error(detectErr))
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := s.notifyBudgetThresholdCrossings(ctx, crossings); err != nil {
+		s.logger.Error(ctx, "failed to send AI budget notifications",
+			slog.F("initiator_id", intc.InitiatorID),
+			slog.Error(err))
+	}
+	return nil
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
@@ -390,6 +509,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("tool_call_id", in.GetToolCallId()),
+			slog.F("item_id", in.GetItemId()),
 			slog.F("tool", in.GetTool()),
 			slog.F("input", in.GetInput()),
 			slog.F("server_url", in.GetServerUrl()),
@@ -410,6 +530,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
 		ProviderToolCallID: sql.NullString{String: in.GetToolCallId(), Valid: in.GetToolCallId() != ""},
+		ProviderItemID:     sql.NullString{String: in.GetItemId(), Valid: in.GetItemId() != ""},
 		ServerUrl:          sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
 		Tool:               in.GetTool(),
 		Input:              in.GetInput(),
@@ -691,6 +812,116 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
+// IsBudgetExceeded reports whether the user's AI spend has reached their
+// effective limit over [periodStart, now], where periodStart is the start of
+// the current deployment-configured budget period.
+func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (resp *proto.IsBudgetExceededResponse, retErr error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	start := s.clock.Now()
+	defer func() {
+		if s.metrics == nil {
+			return
+		}
+		outcome := "allowed"
+		switch {
+		case retErr != nil:
+			outcome = "error"
+		case resp != nil && resp.Exceeded:
+			outcome = "blocked"
+		}
+		s.metrics.EnforcementDuration.WithLabelValues(outcome).Observe(s.clock.Since(start).Seconds())
+	}()
+
+	userID, err := uuid.Parse(in.GetUserId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
+	}
+
+	periodWindow, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
+	if err != nil {
+		return nil, xerrors.Errorf("compute AI budget period: %w", err)
+	}
+
+	userBudget, err := s.checkUserAIBudget(ctx, userID, periodWindow.Start)
+	if err != nil {
+		return nil, err
+	}
+	if userBudget.Exceeded && s.metrics != nil {
+		s.metrics.BlockedRequests.WithLabelValues(userBudget.GroupID.String()).Inc()
+	}
+	return &proto.IsBudgetExceededResponse{
+		Exceeded:         userBudget.Exceeded,
+		SpendLimitMicros: userBudget.SpendLimitMicros,
+	}, nil
+}
+
+// userAIBudget is a snapshot of a user's AI budget status. SpendLimitMicros
+// is nil when no budget is configured for the user (unlimited). GroupID is the
+// effective group the limit resolved to, set only when a limit applies.
+type userAIBudget struct {
+	Exceeded         bool
+	SpendLimitMicros *int64
+	GroupID          uuid.UUID
+}
+
+// checkUserAIBudget evaluates the user's AI budget status aggregated over
+// [periodStart, now].
+//
+// Note: there is a potential race condition where two concurrent requests
+// from the same user can both pass the check if processed in parallel,
+// allowing brief overage. This is acceptable because:
+//   - Cost is only known after the LLM API returns.
+//   - Overage is bounded by request cost × concurrency; once the accumulated
+//     spend crosses the limit, subsequent requests are blocked.
+//   - Cost accounting is advisory, not strict. The goal is to prevent
+//     overages, not build an accounting system.
+//   - Fail-open is acceptable for this case.
+func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
+	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+	if err != nil {
+		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
+	}
+	// ok is false when no budget is configured. The nil Limit check keeps
+	// enforcement failing open if a caller resolves via the unlimited
+	// Everyone fallback.
+	if !ok || effectiveGroup.Limit == nil {
+		// No enforceable spend limit for the user; return zero-valued status.
+		return userAIBudget{}, nil
+	}
+
+	spend, err := s.store.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+		UserID:           userID,
+		EffectiveGroupID: effectiveGroup.GroupID,
+		PeriodStart:      periodStart,
+	})
+	if err != nil {
+		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveGroup.GroupID, err)
+	}
+
+	exceeded := spend.SpendMicros >= effectiveGroup.Limit.SpendLimitMicros
+
+	logger := s.logger.With(
+		slog.F("user_id", userID),
+		slog.F("effective_group_id", effectiveGroup.GroupID),
+		slog.F("period_start", periodStart),
+		slog.F("current_spend_micros", spend.SpendMicros),
+		slog.F("spend_limit_micros", effectiveGroup.Limit.SpendLimitMicros),
+		slog.F("exceeded", exceeded),
+	)
+	logger.Debug(ctx, "user AI spend status")
+	if exceeded {
+		logger.Warn(ctx, "user AI budget exceeded")
+	}
+
+	return userAIBudget{
+		Exceeded:         exceeded,
+		SpendLimitMicros: ptr.Ref(effectiveGroup.Limit.SpendLimitMicros),
+		GroupID:          effectiveGroup.GroupID,
+	}, nil
+}
+
 // GetAIProviders returns the full AI provider set (enabled and disabled) from
 // the database, which is the single source of truth seeded from coderd's
 // environment. Embedded and standalone AI Gateway daemons call this over DRPC
@@ -778,6 +1009,58 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 	return &proto.GetAIProvidersResponse{Providers: providers}, nil
 }
 
+// WatchAIProviders streams a payload-free change signal on each
+// AIProvidersChangedChannel event, plus one immediately on subscribe. Pubsub
+// drop errors produce a signal rather than failing the stream. Blocks until the
+// stream context or the server lifecycle is canceled.
+func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto.DRPCProviderConfigurator_WatchAIProvidersStream) error {
+	if s.pubsub == nil {
+		return xerrors.New("pubsub not configured")
+	}
+
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	// Cancel when the server lifecycle ends, not just when the stream closes.
+	stop := context.AfterFunc(s.lifecycleCtx, cancel)
+	defer stop()
+
+	// Buffered to one so a burst of events collapses into a single pending
+	// signal.
+	signals := make(chan struct{}, 1)
+	notify := func() {
+		select {
+		case signals <- struct{}{}:
+		default:
+		}
+	}
+
+	// Every event signals, including dropped-message errors.
+	unsubscribe, err := s.pubsub.SubscribeWithErr(coderdpubsub.AIProvidersChangedChannel, func(cbCtx context.Context, _ []byte, err error) {
+		if err != nil {
+			s.logger.Warn(cbCtx, "ai providers changed event delivered with error", slog.Error(err))
+		}
+		notify()
+	})
+	if err != nil {
+		return xerrors.Errorf("subscribe to %s: %w", coderdpubsub.AIProvidersChangedChannel, err)
+	}
+	defer unsubscribe()
+
+	// Initial signal on subscribe.
+	notify()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-signals:
+			if err := stream.Send(&proto.WatchAIProvidersResponse{}); err != nil {
+				return xerrors.Errorf("send ai providers change signal: %w", err)
+			}
+		}
+	}
+}
+
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
@@ -809,6 +1092,38 @@ func credentialKindOrDefault(kind string) database.CredentialKind {
 		return database.CredentialKindCentralized
 	}
 	return ck
+}
+
+// maxErrorMessageBytes caps the interception error message stored in the
+// database, enforced at this trust boundary regardless of caller behavior.
+const maxErrorMessageBytes = 1024
+
+// truncateErrorMessage caps msg to maxErrorMessageBytes, dropping any partial
+// trailing rune so the stored value stays valid UTF-8.
+func truncateErrorMessage(msg string) string {
+	if len(msg) <= maxErrorMessageBytes {
+		return msg
+	}
+	return strings.ToValidUTF8(msg[:maxErrorMessageBytes], "")
+}
+
+// interceptionErrorType maps the wire error type onto the nullable DB enum. An
+// empty value yields NULL (a successful interception). A non-empty but
+// unrecognized value (e.g. version skew where the client knows an enum the DB
+// migration does not yet) is stored as 'unknown' rather than NULL, so the row's
+// error columns stay consistent with a recorded error_message.
+func interceptionErrorType(errType string) database.NullAIBridgeInterceptionErrorType {
+	if errType == "" {
+		return database.NullAIBridgeInterceptionErrorType{}
+	}
+	et := database.AIBridgeInterceptionErrorType(errType)
+	if !et.Valid() {
+		et = database.AibridgeInterceptionErrorTypeUnknown
+	}
+	return database.NullAIBridgeInterceptionErrorType{
+		AIBridgeInterceptionErrorType: et,
+		Valid:                         true,
+	}
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {
@@ -883,6 +1198,8 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			Model:           settings.Bedrock.Model,
 			SmallFastModel:  settings.Bedrock.SmallFastModel,
 			RoleArn:         settings.Bedrock.RoleARN,
+			ExternalId:      settings.Bedrock.ExternalID,
+			Protocol:        string(settings.Bedrock.Protocol),
 		}
 	}
 

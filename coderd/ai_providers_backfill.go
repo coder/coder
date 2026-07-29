@@ -9,16 +9,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // BackfillBedrockProviderType promotes legacy ai_providers rows stored as
 // type=anthropic with Bedrock settings to type=bedrock. Must run after newAPI
 // so options.Database is dbcrypt-wrapped. Idempotent; errors are logged and
 // startup continues.
-//
-// BackfillChatModelConfigProviderStrings must run after this function so
-// provider types are correct when its JOIN executes.
 func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger slog.Logger) {
 	//nolint:gocritic // Startup-only backfill; no user actor is present.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
@@ -48,6 +44,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 			ID:          provider.ID,
 			Type:        database.AIProviderTypeBedrock,
 			DisplayName: provider.DisplayName,
+			Icon:        provider.Icon,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
 			Settings:    provider.Settings,
@@ -68,27 +65,5 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 	}
 	if promoted > 0 {
 		logger.Info(ctx, "backfilled bedrock provider types", slog.F("count", promoted))
-	}
-}
-
-// BackfillChatModelConfigProviderStrings fixes stale chat_model_configs.provider
-// strings left as "anthropic" when the linked provider was promoted from
-// type=anthropic to type=bedrock by BackfillBedrockProviderType. Errors are
-// logged and startup continues.
-func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Store, logger slog.Logger) {
-	//nolint:gocritic // Startup-only backfill; no user actor is present.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	result, err := db.BackfillChatModelConfigProvider(sysCtx, database.BackfillChatModelConfigProviderParams{
-		OldProvider: string(codersdk.AIProviderTypeAnthropic),
-		NewProvider: string(codersdk.AIProviderTypeBedrock),
-	})
-	if err != nil {
-		logger.Error(ctx, "backfill chat model config provider strings", slog.Error(err))
-		return
-	}
-	if result != nil {
-		if n, _ := result.RowsAffected(); n > 0 {
-			logger.Info(ctx, "backfilled chat model config provider strings", slog.F("count", n))
-		}
 	}
 }

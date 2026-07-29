@@ -18,8 +18,15 @@ import (
 func TestWorker_NewRequiresTaskStarterOrMessagePartBuffer(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
-	_, err := newChatWorker(nil, chatWorkerOptions{WorkerID: uuid.New(), Store: f.db, Pubsub: f.pubsub})
+	_, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), chatWorkerOptions{WorkerID: uuid.New(), Store: f.db, Pubsub: f.pubsub})
 	require.ErrorContains(t, err, "task starter or message part buffer is required")
+}
+
+func TestWorker_NewRequiresServer(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	_, err := newChatWorker(nil, testOptions(t, f, newRecordingTaskStarter()))
+	require.ErrorContains(t, err, "server is required")
 }
 
 func TestWorker_NewRequiresWorkerID(t *testing.T) {
@@ -27,7 +34,7 @@ func TestWorker_NewRequiresWorkerID(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	opts := testOptions(t, f, newRecordingTaskStarter())
 	opts.WorkerID = uuid.Nil
-	_, err := newChatWorker(nil, opts)
+	_, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
 	require.ErrorContains(t, err, "worker ID is required")
 }
 
@@ -37,7 +44,7 @@ func TestWorker_UsesConfiguredWorkerID(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	workerID := opts.WorkerID
-	worker, err := newChatWorker(nil, opts)
+	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
 	require.NoError(t, err)
 	require.Equal(t, workerID, worker.chatWorkerID())
 	require.NoError(t, worker.Start(context.Background()))

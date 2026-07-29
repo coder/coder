@@ -21,7 +21,7 @@ to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```shell
+```sh
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -41,10 +41,10 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for
-[port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
-or running [coder_apps](../templates/index.md) on an absolute path. Set this to
-a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
+The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
+It requires a DNS record and TLS certificate for `*.example.com`.
 
 > [!NOTE]
 > We do not recommend using a top-level-domain for Coder wildcard access
@@ -83,7 +83,7 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-   ```shell
+   ```sh
    kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
    ```
 

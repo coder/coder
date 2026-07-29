@@ -19,6 +19,7 @@ import type {
 	UpsertUserAIBudgetOverrideRequest,
 	User,
 	UserAIBudgetOverride,
+	UserAISpendStatus,
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
@@ -30,6 +31,7 @@ import {
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
+import { invalidateGroupMembersAISpend } from "./groups";
 import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
@@ -157,6 +159,17 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
+export const meAISpendKey = [...meKey, "aiSpend"] as const;
+
+export const meAISpend = (): UseQueryOptions<UserAISpendStatus> => {
+	return {
+		queryKey: meAISpendKey,
+		queryFn: () => API.getUserAISpend(),
+		// Polled so the avatar border reflects spend without opening the dropdown.
+		refetchInterval: 60_000,
+	};
+};
+
 const userKey = (usernameOrId: string) => ["user", usernameOrId];
 
 export const user = (usernameOrId: string) => {
@@ -191,6 +204,17 @@ export const userAIBudgetOverride = (
 	};
 };
 
+const invalidateUserAIBudgetQueries = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	Promise.all([
+		queryClient.invalidateQueries({
+			queryKey: getUserAIBudgetOverrideQueryKey(userId),
+		}),
+		invalidateGroupMembersAISpend(queryClient, userId),
+	]);
+
 export const saveUserAIBudgetOverride = (
 	queryClient: QueryClient,
 	userId: string,
@@ -199,9 +223,7 @@ export const saveUserAIBudgetOverride = (
 		mutationFn: (request: UpsertUserAIBudgetOverrideRequest) =>
 			API.upsertUserAIBudgetOverride(userId, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };
@@ -213,9 +235,7 @@ export const deleteUserAIBudgetOverride = (
 	return {
 		mutationFn: () => API.deleteUserAIBudgetOverride(userId),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };

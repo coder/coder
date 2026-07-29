@@ -13,7 +13,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Do**:
 
-```markdown
+```md
 # Configure your workspace
 ## Set up SSH access
 ### Connect through JetBrains Toolbox
@@ -21,7 +21,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Don't**:
 
-```markdown
+```md
 # Configure Your Workspace
 ## Set Up SSH Access
 ### Connect Through JetBrains Toolbox
@@ -38,7 +38,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Do**:
 
-```markdown
+```md
 ## Install Coder
 ## Installation
 ## Configure your workspace
@@ -47,7 +47,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Don't**:
 
-```markdown
+```md
 ## Installing Coder
 ## Configuring your workspace
 ```
@@ -64,7 +64,7 @@ The rule targets verb forms (`installing`, `configuring`, `deploying`), not the 
 When the `-ing` word is the actual subject the section describes (a feature, a noun, or an attribute), the heading is fine.
 When the `-ing` word is the verb form of a task the section walks through, rewrite as an imperative or as the noun form.
 
-*Enforced by `Coder.GerundHeading`, with the exceptions above scoped in the rule.*
+*Enforced by `Coder.GerundHeading`, with the exceptions listed earlier scoped in the rule.*
 
 ## No trailing punctuation in headings
 
@@ -80,8 +80,8 @@ The rule has scoped exceptions:
 
 **Do**:
 
-```markdown
-## What is a workspace
+```md
+## What's a workspace
 ## Quick reference
 ## What does the `panic!` macro do?
 ## Configure the `.vale.ini` file
@@ -89,14 +89,14 @@ The rule has scoped exceptions:
 
 **Don't**:
 
-```markdown
-## What is a workspace?
+```md
+## What's a workspace?
 ## Quick reference!
 ## Workspaces are great!
 ## Configure your workspace.
 ```
 
-The first **Don't** uses a trailing question mark for a label that is not actually a question.
+The first **Don't** uses a trailing question mark for a label that isn't actually a question.
 Reword as a noun phrase ("What a workspace is") or drop the question mark.
 The second and third are decorative.
 The fourth treats the heading as a sentence.
@@ -154,7 +154,7 @@ No Vale rule.*
 
 ### No comma in a short compound predicate
 
-When `and`, `or`, or `but` joins two verbs that share one subject, do not put a comma before the conjunction.
+When `and`, `or`, or `but` joins two verbs that share one subject, don't put a comma before the conjunction.
 The comma belongs there only when the conjunction joins two independent clauses, each with its own subject.
 
 **Do**:
@@ -209,7 +209,7 @@ This is the United States convention and matches the dominant style of the surro
 ## Semicolons sparingly
 
 Prefer two sentences.
-A semicolon joins two complete thoughts when they are tightly related and a period would lose the connection, but in technical prose two sentences almost always read more clearly.
+A semicolon joins two complete thoughts when they're tightly related and a period would lose the connection, but in technical prose two sentences almost always read more clearly.
 
 **Do**:
 

@@ -11,6 +11,7 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
+import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -39,12 +40,40 @@ import {
 } from "./ChatConversation/messageParsing";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
+
+// A resolved chat with no context (unpinned) or no resources authoritatively
+// has no workspace skills; only an unresolved chat leaves them unknown.
+// Duplicate names keep the first resource to match read_skill resolution,
+// which also collapses duplicates first-wins in resource order.
+export const workspaceSkillsFromChat = (
+	chat: TypesGen.Chat | undefined,
+): SkillMetadata[] | undefined => {
+	if (!chat) {
+		return undefined;
+	}
+	const skills = new Map<string, SkillMetadata>();
+	for (const resource of chat.context?.resources ?? []) {
+		if (
+			resource.kind !== "skill" ||
+			resource.status !== "ok" ||
+			skills.has(resource.skill_name ?? "")
+		) {
+			continue;
+		}
+		skills.set(resource.skill_name ?? "", {
+			name: resource.skill_name ?? "",
+			description: resource.skill_description ?? "",
+		});
+	}
+	return [...skills.values()];
+};
 
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
@@ -80,7 +109,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
-	const isChatCompleted = !hasStream && chatStatus !== "pending";
+	const isChatCompleted = !hasStream;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -173,9 +202,13 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -211,6 +244,9 @@ interface ChatPageInputProps {
 	// Pinned workspace-context state for the chat, surfaced by the
 	// context indicator (dirty marker and pinned resources).
 	chatContext?: TypesGen.ChatContext;
+	// Workspace skill menu data derived from the resolved chat detail;
+	// undefined while the chat is still loading.
+	workspaceSkills?: readonly SkillMetadata[];
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
@@ -242,9 +278,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	reasoningEffort,
+	onReasoningEffortChange,
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -265,6 +305,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	chatContext,
+	workspaceSkills,
 	workspaceOptions,
 	chatOrganizationId,
 	selectedWorkspaceId,
@@ -374,7 +415,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			(b): b is TypesGen.ChatFilePart => b.type === "file",
 		);
 		const files = fileBlocks.map((block, i) => {
-			const mt = block.media_type ?? "application/octet-stream";
+			const mt = block.media_type;
 			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
@@ -414,8 +455,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "pending";
+	const isStreaming = hasStreamState || chatStatus === "running";
 
 	const inputElement = (
 		<AgentChatInput
@@ -500,6 +540,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			reasoningEffort={reasoningEffort}
+			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
@@ -512,6 +554,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
@@ -521,6 +564,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			canConfigureAgentSetup={canConfigureAgentSetup}
 			providerCount={providerCount}
 			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
+			// Commands act on the whole chat, so they only make sense
+			// for new sends: hide them while editing a history or
+			// queued message.
+			slashCommands={
+				isEditing || isEditingHistoryMessage ? undefined : CHAT_SLASH_COMMANDS
+			}
 		/>
 	);
 

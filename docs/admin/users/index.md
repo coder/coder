@@ -82,7 +82,7 @@ The new user will appear in the **Users** list. Use the toggle to change their
 
 To create a user via the Coder CLI, run:
 
-```shell
+```sh
 coder users create
 ```
 
@@ -116,7 +116,7 @@ To suspend a user via the web UI:
 
 To suspend a user via the CLI, run:
 
-```shell
+```sh
 coder users suspend <username|user_id>
 ```
 
@@ -135,7 +135,7 @@ To activate a user via the web UI:
 
 To activate a user via the CLI, run:
 
-```shell
+```sh
 coder users activate <username|user_id>
 ```
 
@@ -161,7 +161,7 @@ logging in.
 
 You can also reset a password via the CLI:
 
-```shell
+```sh
 # run `coder reset-password <username> --help` for usage instructions
 coder reset-password <username>
 ```
@@ -172,7 +172,7 @@ coder reset-password <username>
 
 ### Resetting a password on Kubernetes
 
-```shell
+```sh
 kubectl exec -it deployment/coder -n coder -- /bin/bash
 
 coder reset-password <username>
@@ -193,6 +193,11 @@ to use the Coder's filter query:
 - To find users who login using Github:
   `login_type:github`
 - To find service accounts: `service_account:true`.
+
+Any text that is not part of a `key:value` filter is treated as a free-text
+search and matches against a user's username, email, and display name. For
+example, entering `jane` returns users whose username, email, or display name
+contains `jane`.
 
 The following filters are supported:
 
@@ -232,7 +237,7 @@ You can use the Coder CLI or API to retrieve your list of users.
 
 Use `users list` to export the list of users to a CSV file:
 
-```shell
+```sh
 coder users list > users.csv
 ```
 
@@ -242,7 +247,7 @@ Visit the [users list](../../reference/cli/users_list.md) documentation for more
 
 Use [get users](../../reference/api/users.md#get-users):
 
-```shell
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -250,7 +255,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
 
 To export the results to a CSV file, you can use [`jq`](https://jqlang.org/) to process the JSON response:
 
-```shell
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY' | \

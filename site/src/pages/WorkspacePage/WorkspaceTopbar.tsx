@@ -117,7 +117,7 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 	);
 
 	return (
-		<Topbar className="[grid-area:topbar]">
+		<Topbar className="[grid-area:topbar] flex-wrap gap-y-2">
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton asChild>
@@ -130,7 +130,7 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 			</Tooltip>
 
 			<div className="flex items-center gap-y-6 gap-x-2 flex-wrap px-3 py-2 mr-auto">
-				<TopbarData>
+				<TopbarData className="flex-wrap">
 					<OwnerBreadcrumb
 						ownerName={workspace.owner_name}
 						ownerAvatarUrl={workspace.owner_avatar_url}
@@ -217,7 +217,7 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 			</div>
 
 			{!isImmutable && (
-				<div className="flex items-center gap-4">
+				<div className="flex flex-wrap grow items-center justify-end gap-x-4 gap-y-2 min-h-12">
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}

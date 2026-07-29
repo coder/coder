@@ -1,10 +1,10 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
-	"database/sql"
 	"encoding/json"
 	"testing"
 
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -85,6 +86,146 @@ func TestLatestAssistantText(t *testing.T) {
 	})
 }
 
+func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
+			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+		},
+	})
+	require.NoError(t, err)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		Options:      modelConfigRaw,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "clamp reasoning effort",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:          database.ChatMessageRoleUser,
+				Content:       mustMarshalText(t, "hello"),
+				Visibility:    database.ChatMessageVisibilityBoth,
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				ReasoningEffort: database.NullChatReasoningEffort{
+					ChatReasoningEffort: database.ChatReasoningEffortHigh,
+					Valid:               true,
+				},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	providerOptions, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+	require.NotNil(t, providerOptions.ReasoningEffort)
+	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+}
+
+func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		LastModelConfigID: modelConfig.ID,
+		Title:             "subagent attribution",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "inspect the workspace"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: GatewayTokenName(user.ID),
+	})
+	require.NoError(t, err)
+	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+}
+
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
 // the old in-memory generationSideEffects stash. The server here never ran
 // prepareGeneration, so a passing test proves the finish-turn inputs are
@@ -113,7 +254,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:    "openai",
 			Model:       "gpt-4o-mini",
 			DisplayName: "gpt-4o-mini",
 			Options:     json.RawMessage(`{}`),
@@ -121,7 +261,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			p.Enabled = true
 			p.IsDefault = true
 		})
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -137,13 +276,15 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 					ContentVersion: chatprompt.CurrentContentVersion,
 					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 					ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-					APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 				},
 			},
 		})
 		require.NoError(t, err)
 
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(
+			t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		)
 		return server, created.Chat
 	}
 
@@ -193,7 +334,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.NotNil(t, result.StatusLabelModel)
 		require.Equal(t, "openai", result.FallbackProvider)
 		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
-		require.False(t, result.ProviderKeys.Empty())
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -233,12 +373,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			DisplayName:  "gpt-4o-mini",
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 		})
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -254,7 +392,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 					ContentVersion: chatprompt.CurrentContentVersion,
 					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 					ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-					APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 				},
 			},
 		})

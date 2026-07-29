@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -461,6 +462,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	t.Cleanup(func() { closer.Close() })
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
+	oauth2providertest.EnableDCR(t, coderClient)
 
 	ctx := t.Context()
 

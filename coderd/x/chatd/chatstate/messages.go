@@ -22,6 +22,7 @@ type Message struct {
 	Content             pqtype.NullRawMessage
 	Visibility          database.ChatMessageVisibility
 	ModelConfigID       uuid.NullUUID
+	ReasoningEffort     database.NullChatReasoningEffort
 	CreatedBy           uuid.NullUUID
 	ContentVersion      int16
 	Compressed          bool
@@ -34,8 +35,6 @@ type Message struct {
 	ContextLimit        sql.NullInt64
 	TotalCostMicros     sql.NullInt64
 	RuntimeMs           sql.NullInt64
-	ProviderResponseID  sql.NullString
-	APIKeyID            sql.NullString
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -50,7 +49,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		ChatID:              chatID,
 		CreatedBy:           make([]uuid.UUID, n),
 		ModelConfigID:       make([]uuid.UUID, n),
-		APIKeyID:            make([]string, n),
+		ReasoningEffort:     make([]string, n),
 		Role:                make([]database.ChatMessageRole, n),
 		Content:             make([]string, n),
 		ContentVersion:      make([]int16, n),
@@ -65,13 +64,12 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		Compressed:          make([]bool, n),
 		TotalCostMicros:     make([]int64, n),
 		RuntimeMs:           make([]int64, n),
-		ProviderResponseID:  make([]string, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
 		params.ModelConfigID[i] = nullUUIDOrNil(m.ModelConfigID)
-		if m.APIKeyID.Valid {
-			params.APIKeyID[i] = m.APIKeyID.String
+		if m.ReasoningEffort.Valid {
+			params.ReasoningEffort[i] = string(m.ReasoningEffort.ChatReasoningEffort)
 		}
 		params.Role[i] = m.Role
 		if m.Content.Valid {
@@ -93,11 +91,19 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.Compressed[i] = m.Compressed
 		params.TotalCostMicros[i] = nullInt64Or(m.TotalCostMicros, 0)
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
-		if m.ProviderResponseID.Valid {
-			params.ProviderResponseID[i] = m.ProviderResponseID.String
-		}
 	}
 	return params
+}
+
+// fromInsertedRows converts the rows returned by `InsertChatMessages`, which
+// sqlc types separately because the query wraps the insert in a CTE. The
+// conversion stops compiling if the row ever stops matching ChatMessage.
+func fromInsertedRows(rows []database.InsertChatMessagesRow) []database.ChatMessage {
+	messages := make([]database.ChatMessage, len(rows))
+	for i, row := range rows {
+		messages[i] = database.ChatMessage(row)
+	}
+	return messages
 }
 
 func nullUUIDOrNil(u uuid.NullUUID) uuid.UUID {

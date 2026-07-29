@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -28,8 +30,10 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	mAudit := audit.NewMock()
+	notifyEnq := &notificationstest.FakeEnqueuer{}
 	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
 		opts.Auditor = mAudit
+		opts.NotificationsEnqueuer = notifyEnq
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
@@ -68,6 +72,36 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		ResourceID:   chat.ID,
 		UserID:       firstUser.UserID,
 	}))
+	// Only the direct user-ACL grant is notified. The group member gains
+	// access but is not notified, because group grants are not expanded.
+	var sent []*notificationstest.FakeNotification
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+		return len(sent) == 1
+	}, testutil.IntervalFast)
+	require.Equal(t, sharedUser.ID, sent[0].UserID)
+	require.Equal(t, firstUser.UserID.String(), sent[0].CreatedBy)
+	require.Equal(t, map[string]string{
+		"chat_id":    chat.ID.String(),
+		"chat_title": chat.Title,
+		"initiator":  coderdtest.FirstUserParams.Username,
+	}, sent[0].Labels)
+	require.Equal(t, []uuid.UUID{chat.ID}, sent[0].Targets)
+	for _, notification := range sent {
+		require.NotEqual(t, groupMember.ID, notification.UserID)
+	}
+
+	notifyEnq.Clear()
+	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			sharedUser.ID.String(): codersdk.ChatRoleRead,
+		},
+		GroupRoles: map[string]codersdk.ChatRole{
+			sharedGroup.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared)))
 
 	acl, err := client.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)
@@ -156,6 +190,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared)))
 	_, err = sharedClientExp.GetChat(ctx, chat.ID)
 	requireSDKError(t, err, http.StatusNotFound)
 	_, err = groupMemberClientExp.GetChat(ctx, chat.ID)
@@ -168,6 +203,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared)))
 	require.True(t, mAudit.Contains(t, database.AuditLog{
 		Action:       database.AuditActionWrite,
 		ResourceType: database.ResourceTypeChat,
@@ -176,6 +212,57 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	}))
 	_, err = groupMemberClientExp.GetChat(ctx, chat.ID)
 	requireSDKError(t, err, http.StatusNotFound)
+}
+
+func TestChatACLSharingNotifiesDirectReadersOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	notifyEnq := &notificationstest.FakeEnqueuer{}
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.NotificationsEnqueuer = notifyEnq
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	// A non-owner org admin can share another user's chat via ActionShare.
+	adminClient, admin := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+	adminExp := codersdk.NewExperimentalClient(adminClient)
+	_, groupMember := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	_, directUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+	// The group contains both the sharing initiator and another member.
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: admin.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+
+	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "admin shared chat")
+
+	// Share with the group (which grants access to groupMember) and with
+	// directUser via the user ACL. Only directUser should be notified.
+	err := adminExp.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			directUser.ID.String(): codersdk.ChatRoleRead,
+		},
+		GroupRoles: map[string]codersdk.ChatRole{
+			group.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	var sent []*notificationstest.FakeNotification
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+		return len(sent) == 1
+	}, testutil.IntervalFast)
+	// Only the direct user-ACL grant is notified. The group member, initiator
+	// (admin), and owner (firstUser) are never notified.
+	require.Equal(t, directUser.ID, sent[0].UserID)
+	for _, notification := range sent {
+		require.NotEqual(t, groupMember.ID, notification.UserID)
+		require.NotEqual(t, admin.ID, notification.UserID)
+		require.NotEqual(t, firstUser.UserID, notification.UserID)
+	}
 }
 
 func TestChatACLSubChatInheritance(t *testing.T) {
@@ -465,7 +552,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	values := chatDeploymentValues(t)
+	values := coderdtest.DeploymentValues(t)
 	values.DisableChatSharing = true
 	store, pubsub := dbtestutil.NewDB(t)
 	client := newChatClient(t, func(opts *coderdtest.Options) {

@@ -21,6 +21,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { SpendPageView } from "./SpendPageView";
+import { toExclusiveEndOfDayDateRange } from "./utils/dateRange";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -132,11 +133,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	};
 
 	const onDateRangeChange = (value: DateRangeValue) => {
+		const nextDateRange = toExclusiveEndOfDayDateRange(value);
+
 		setSearchParams(
 			(prev) => {
 				const next = new URLSearchParams(prev);
-				next.set(startDateSearchParam, value.startDate.toISOString());
-				next.set(endDateSearchParam, value.endDate.toISOString());
+				next.set(startDateSearchParam, nextDateRange.startDate.toISOString());
+				next.set(endDateSearchParam, nextDateRange.endDate.toISOString());
 				next.delete("page");
 				return next;
 			},

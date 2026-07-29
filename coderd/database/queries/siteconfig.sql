@@ -120,6 +120,28 @@ SET value = CASE
 END
 WHERE site_configs.key = 'oauth2_github_default_eligible';
 
+-- name: GetOAuth2DCREnabled :one
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool;
+
+-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN sqlc.arg(enabled)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enabled)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled';
+
 -- name: UpsertWebpushVAPIDKeys :exec
 INSERT INTO site_configs (key, value)
 VALUES
@@ -190,6 +212,14 @@ SELECT
 -- name: UpsertChatTitleGenerationModelOverride :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override';
+
+-- name: GetChatCompactionModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id;
+
+-- name: UpsertChatCompactionModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override';
 
 -- name: GetChatDesktopEnabled :one
 SELECT
