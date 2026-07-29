@@ -552,9 +552,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<DurationField
 								label="Time until dormant"
 								valueMs={form.values.time_til_dormant_ms ?? 0}
-								onChange={(v) =>
-									void form.setFieldValue("time_til_dormant_ms", v)
-								}
+								onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
 								disabled={
 									isSubmitting || !form.values.inactivity_cleanup_enabled
 								}
@@ -588,7 +586,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								label="Time until deletion"
 								valueMs={form.values.time_til_dormant_autodelete_ms ?? 0}
 								onChange={(v) =>
-									void form.setFieldValue("time_til_dormant_autodelete_ms", v)
+									form.setFieldValue("time_til_dormant_autodelete_ms", v)
 								}
 								disabled={
 									isSubmitting ||
@@ -620,7 +618,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<DurationField
 								label="Time until cleanup"
 								valueMs={form.values.failure_ttl_ms ?? 0}
-								onChange={(v) => void form.setFieldValue("failure_ttl_ms", v)}
+								onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
 								disabled={isSubmitting || !form.values.failure_cleanup_enabled}
 								error={failureTtlField.error}
 								helperText={failureTtlField.helperText}

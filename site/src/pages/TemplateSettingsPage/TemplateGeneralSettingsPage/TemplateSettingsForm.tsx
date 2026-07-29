@@ -191,7 +191,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						onChange={onChangeTrimmed(form)}
 						fullWidth
 						label="Icon"
-						onPickEmoji={(value) => void form.setFieldValue("icon", value)}
+						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
 				</FormFields>
 			</FormSection>
