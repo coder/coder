@@ -732,7 +732,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.UserAIBudgetOverride
-// @Router /api/v2/users/{user}/ai/budget [get]
+// @Router /api/v2/users/{user}/ai/budget/override [get]
 func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -760,7 +760,7 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
 // @Success 200 {object} codersdk.UserAIBudgetOverride
-// @Router /api/v2/users/{user}/ai/budget [put]
+// @Router /api/v2/users/{user}/ai/budget/override [put]
 func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -857,7 +857,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 // @Tags Enterprise
 // @Param user path string true "User ID, username, or me"
 // @Success 204
-// @Router /api/v2/users/{user}/ai/budget [delete]
+// @Router /api/v2/users/{user}/ai/budget/override [delete]
 func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -961,8 +961,10 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		resp.EffectiveGroupID = &effectiveGroup.GroupID
 		if effectiveGroup.Limit != nil {
-			resp.SpendLimitMicros = &effectiveGroup.Limit.SpendLimitMicros
-			resp.LimitSource = &effectiveGroup.Limit.Source
+			resp.EffectiveBudget = &codersdk.AIBudgetLimit{
+				SpendLimitMicros: effectiveGroup.Limit.SpendLimitMicros,
+				LimitSource:      effectiveGroup.Limit.Source,
+			}
 		}
 		logger = logger.With(slog.F("effective_group_id", effectiveGroup.GroupID))
 

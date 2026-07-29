@@ -267,6 +267,16 @@ export interface AIBridgeToolCall {
 }
 
 // From codersdk/aibridge.go
+/**
+ * AIBudgetLimit is an AI spend limit and the tier that produced it. Both
+ * fields are always populated together.
+ */
+export interface AIBudgetLimit {
+	readonly spend_limit_micros: number;
+	readonly limit_source: AIBudgetLimitSource;
+}
+
+// From codersdk/aibridge.go
 export type AIBudgetLimitSource = "group" | "user_override";
 
 export const AIBudgetLimitSources: AIBudgetLimitSource[] = [
@@ -309,16 +319,6 @@ export interface AIGatewayKey {
  * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
-
-// From codersdk/aibridge.go
-/**
- * AIGroupBudget is an AI spend limit and the tier that produced it. Both
- * fields are always populated together.
- */
-export interface AIGroupBudget {
-	readonly spend_limit_micros: number;
-	readonly limit_source: AIBudgetLimitSource;
-}
 
 // From codersdk/aiproviders.go
 /**
@@ -5261,7 +5261,7 @@ export interface GroupMemberAISpend {
 	 * effective budget source. Null when the user's budget resolves to another
 	 * group or no budget applies to the user.
 	 */
-	readonly group_budget: AIGroupBudget | null;
+	readonly group_budget: AIBudgetLimit | null;
 	/**
 	 * GroupSpendMicros is the user's spend attributed to the queried group
 	 * over the current budget period.
@@ -10001,7 +10001,7 @@ export interface UserAIBudgetOverride {
 /**
  * UserAIBudgetSummary is the effective AI budget for a user. When no budget
  * applies, the effective group falls back to the Everyone group with a null
- * limit and source.
+ * budget.
  */
 export interface UserAIBudgetSummary {
 	readonly user_id: string;
@@ -10012,15 +10012,11 @@ export interface UserAIBudgetSummary {
 	 */
 	readonly effective_group_id: string | null;
 	/**
-	 * SpendLimitMicros is the effective spend limit in micro-units.
-	 * Null when no budget applies to the user (unlimited).
+	 * EffectiveBudget is the spend limit that applies to the user, whether it
+	 * came from a group budget or a user override. Null when no budget
+	 * applies, leaving the user's spend unlimited.
 	 */
-	readonly spend_limit_micros: number | null;
-	/**
-	 * LimitSource identifies which tier produced the limit. Null when no
-	 * budget applies.
-	 */
-	readonly limit_source: AIBudgetLimitSource | null;
+	readonly effective_budget: AIBudgetLimit | null;
 }
 
 // From codersdk/chats.go
