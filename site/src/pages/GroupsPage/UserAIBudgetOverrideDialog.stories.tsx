@@ -39,6 +39,7 @@ const meta: Meta<typeof UserAIBudgetOverrideDialog> = {
 		onOpenChange: () => undefined,
 		user: MockUserMember,
 		currentGroup: MockGroup,
+		canUpdate: true,
 	},
 };
 
@@ -85,6 +86,41 @@ export const WithoutOverride: Story = {
 		await expect(
 			body.queryByRole("button", { name: "Update" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** An existing override still hides the controls, so it can't be removed. */
+export const ReadOnlyWithoutPermission: Story = {
+	args: { canUpdate: false },
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: mockOverride,
+			},
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("$12,000 USD")).toBeInTheDocument();
+		await expect(
+			body.getByText(
+				/To update this limit, contact your deployment administrator\./,
+			),
+		).toBeInTheDocument();
+		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
+		await expect(
+			body.queryByLabelText("Custom monthly budget"),
+		).not.toBeInTheDocument();
+		await expect(
+			body.queryByRole("button", { name: "Budget assigned to" }),
+		).not.toBeInTheDocument();
+		await expect(
+			body.queryByRole("button", { name: "Update" }),
+		).not.toBeInTheDocument();
+		// Nothing to submit or cancel, so the dialog has no action buttons.
+		await expect(body.queryAllByRole("button")).toHaveLength(0);
 	},
 };
 

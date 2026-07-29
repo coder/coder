@@ -66,11 +66,20 @@ interface UserAIBudgetOverrideDialogProps {
 	user: ReducedUser;
 	currentGroup: Group;
 	effectiveGroupId?: string | null;
+	// When false, the budget is shown without the controls to change it.
+	canUpdate: boolean;
 }
 
 export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
-> = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
+> = ({
+	open,
+	onOpenChange,
+	user,
+	currentGroup,
+	effectiveGroupId,
+	canUpdate,
+}) => {
 	const queryClient = useQueryClient();
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
@@ -135,7 +144,7 @@ export const UserAIBudgetOverrideDialog: FC<
 						<Spinner loading />
 						Loading AI budget...
 					</div>
-				) : (
+				) : canUpdate ? (
 					<OverrideForm
 						user={user}
 						currentGroup={currentGroup}
@@ -152,11 +161,89 @@ export const UserAIBudgetOverrideDialog: FC<
 						onRemove={deleteMutation.mutateAsync}
 						onClose={() => onOpenChange(false)}
 					/>
+				) : (
+					<ReadOnlyBudget
+						user={user}
+						currentGroup={currentGroup}
+						override={budgetOverrideQuery.data ?? null}
+						groupBudget={groupBudgetQuery.data ?? null}
+						userGroups={userGroupsQuery.data ?? []}
+					/>
 				)}
 			</DialogContent>
 		</Dialog>
 	);
 };
+
+interface BudgetSummaryProps {
+	user: ReducedUser;
+	currentGroup: Group;
+	override: UserAIBudgetOverride | null;
+	// The group the override charges spend to, when it can be resolved.
+	overrideGroup: Group | undefined;
+	groupBudget: GroupAIBudget | null;
+}
+
+/** The member's effective limit as a sentence, to place inside a paragraph. */
+const BudgetSummary: FC<BudgetSummaryProps> = ({
+	user,
+	currentGroup,
+	override,
+	overrideGroup,
+	groupBudget,
+}) =>
+	override ? (
+		<>
+			{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
+			<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
+			<Bold>
+				{overrideGroup ? groupDisplayName(overrideGroup) : "their group"}
+			</Bold>{" "}
+			group.
+		</>
+	) : (
+		<>
+			{user.username}'s monthly limit is{" "}
+			<Bold>
+				{groupBudget ? formatUSD(groupBudget.spend_limit_micros) : "uncapped"}
+			</Bold>
+			, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
+		</>
+	);
+
+interface ReadOnlyBudgetProps {
+	user: ReducedUser;
+	currentGroup: Group;
+	override: UserAIBudgetOverride | null;
+	groupBudget: GroupAIBudget | null;
+	userGroups: readonly Group[];
+}
+
+/**
+ * The budget without any editing controls. Setting an override requires
+ * updating both the user and the group it charges, so group admins can read a
+ * member's budget without being able to change it.
+ */
+const ReadOnlyBudget: FC<ReadOnlyBudgetProps> = ({
+	user,
+	currentGroup,
+	override,
+	groupBudget,
+	userGroups,
+}) => (
+	<p className="m-0 text-sm text-content-secondary">
+		<BudgetSummary
+			user={user}
+			currentGroup={currentGroup}
+			override={override}
+			overrideGroup={[currentGroup, ...userGroups].find(
+				(group) => group.id === override?.group_id,
+			)}
+			groupBudget={groupBudget}
+		/>{" "}
+		To update this limit, contact your deployment administrator.
+	</p>
+);
 
 interface OverrideFormProps {
 	user: ReducedUser;
@@ -266,26 +353,13 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	return (
 		<form onSubmit={handleSubmit} className="flex flex-col gap-5">
 			<p className="m-0 text-sm text-content-secondary">
-				{override ? (
-					<>
-						{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
-						<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
-						<Bold>
-							{overrideGroup ? groupDisplayName(overrideGroup) : "their group"}
-						</Bold>{" "}
-						group.
-					</>
-				) : (
-					<>
-						{user.username}'s monthly limit is{" "}
-						<Bold>
-							{groupBudget
-								? formatUSD(groupBudget.spend_limit_micros)
-								: "uncapped"}
-						</Bold>
-						, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
-					</>
-				)}
+				<BudgetSummary
+					user={user}
+					currentGroup={currentGroup}
+					override={override}
+					overrideGroup={overrideGroup}
+					groupBudget={groupBudget}
+				/>
 			</p>
 
 			<Separator />
