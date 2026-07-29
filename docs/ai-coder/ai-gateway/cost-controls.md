@@ -8,12 +8,8 @@ AI Governance Cost Control governs AI spend in two complementary ways:
 
 - **Enforcement** stops a user's AI Gateway requests once their spend reaches
   their budget.
-- **Reporting** shows what each user and group has spent during the budget
+- **Reporting** shows what each user and group has spent in the current budget
   period.
-
-Administrators set budgets on groups. AI Gateway records estimated spend against
-the budget that applies to each user, then blocks further requests when that
-spend reaches the limit.
 
 AI Governance Cost Control requires:
 
@@ -22,48 +18,29 @@ AI Governance Cost Control requires:
 
 > [!NOTE]
 > AI Governance Cost Control reports estimated spend rather than billed cost.
-> For details, see [How spend is estimated](#how-spend-is-estimated).
-
-## How AI Governance Cost Control works
+> Estimates will not match your provider invoices exactly. For details, see
+> [How spend is estimated](#how-spend-is-estimated).
 
 These terms appear throughout this page and in the dashboard:
 
-| Term                 | What it means                                                       | Where it is set                      |
-|----------------------|---------------------------------------------------------------------|--------------------------------------|
-| **Budget period**    | The window spend accumulates in before it resets.                   | Deployment settings                  |
-| **Group budget**     | A spend limit granted to each member of a group.                    | **Groups** > group > **Settings**    |
-| **User override**    | A spend limit for one user that supersedes their group budget.      | **Groups** > group > **Members** tab |
-| **Effective budget** | The limit AI Gateway enforces for a given user.                     | Resolved automatically               |
-| **Budget group**     | The group a user's spend is recorded against.                       | Resolved automatically               |
-| **Estimated spend**  | The approximate cost of a user's token usage in the current period. | Calculated by Coder                  |
+| Term                | What it means                                                                     | Where it is set                      |
+|---------------------|-----------------------------------------------------------------------------------|--------------------------------------|
+| **Budget period**   | The window spend accumulates in before it resets. Defaults to the calendar month. | Deployment settings                  |
+| **Budget policy**   | The rule that picks a user's effective group. Defaults to the highest budget.     | Deployment settings                  |
+| **Group budget**    | A spend limit granted to each member of a group.                                  | **Groups** > group > **Settings**    |
+| **User override**   | A spend limit for one user that supersedes their group budget.                    | **Groups** > group > **Members** tab |
+| **Effective group** | The group that supplies a user's budget and records their spend.                  | Resolved automatically               |
+| **Estimated spend** | A user's approximate spend in the current budget period.                          | Calculated by Coder                  |
 
-### How the effective budget is resolved
-
-Every user has exactly one effective budget. AI Gateway resolves it in this
-order:
-
-1. The user's override, if one exists.
-1. The highest budget among the groups the user belongs to.
-1. No limit, if none of those groups has a budget.
-
-> [!NOTE]
-> Groups with identical budgets are ranked by the organization membership the
-> user joined first, then by group ID. Spend by users without a budget is
-> recorded against the **Everyone** group, so it stays visible in reports.
-
-Changing which budget applies to a user affects future requests only. Spend that
-Coder has already recorded stays with the group it was attributed to, so a user's
-history can span several groups.
-
-## Configure deployment settings
+## Deployment settings
 
 Two deployment-wide settings govern budget resolution and the reset window. Each
 accepts a single value today.
 
-| Setting       | Flag                 | Environment variable     | YAML key        | Values    | Default   |
-|---------------|----------------------|--------------------------|-----------------|-----------|-----------|
-| Budget policy | `--ai-budget-policy` | `CODER_AI_BUDGET_POLICY` | `budget_policy` | `highest` | `highest` |
-| Budget period | `--ai-budget-period` | `CODER_AI_BUDGET_PERIOD` | `budget_period` | `month`   | `month`   |
+| Setting       | Flag                 | Environment variable     | Supported values | Default   |
+|---------------|----------------------|--------------------------|------------------|-----------|
+| Budget policy | `--ai-budget-policy` | `CODER_AI_BUDGET_POLICY` | `highest`        | `highest` |
+| Budget period | `--ai-budget-period` | `CODER_AI_BUDGET_PERIOD` | `month`          | `month`   |
 
 - **Budget policy** determines which budget wins when a user belongs to more
   than one budgeted group. `highest` selects the largest.
@@ -72,7 +49,18 @@ accepts a single value today.
 
 Neither setting can be scoped to an organization or a group.
 
-## Set a group budget
+## Budgets
+
+**Every user's spend is recorded against a group.** A user only has a budget
+when one is set on a group they belong to, or when they are given a personal
+override.
+
+> [!NOTE]
+> No budgets exist when AI Governance Cost Control is first deployed. Until an
+> administrator sets them, users have **unlimited spend** and their spend is
+> recorded against the **Everyone** group.
+
+### Group budget
 
 Setting a group budget requires the Owner, User Admin, Organization Admin, or
 Organization User Admin [role](../../admin/users/groups-roles.md).
@@ -88,11 +76,11 @@ whole. A budget of $200 gives every member $200 to spend.
 Budget values behave as follows:
 
 - An empty field means no limit. The field displays `unlimited`.
-- `$0` blocks every AI Gateway request from members whose effective budget
-  resolves to this group.
+- `$0` blocks every AI Gateway request from members whose effective group is
+  this group.
 - The maximum is `$1,000,000` per member per budget period.
 
-## Override a budget for a user
+### User override
 
 Adding or removing an override requires the Owner or User Admin
 [role](../../admin/users/groups-roles.md). Organization administrators can view
@@ -114,7 +102,29 @@ Overrides behave as follows:
 - The user must belong to the group selected in **Budget assigned to**.
 - `$0` and the `$1,000,000` maximum apply to overrides as well.
 - Disabling **Override group budget** removes the override and returns the user
-  to the highest budget among their groups.
+  to the budget of their [effective group](#effective-group-resolution).
+
+### Effective group resolution
+
+A user can belong to several groups that have budgets, and can also hold an
+override. AI Gateway resolves a single effective group for each request, in this
+order:
+
+1. The user's [override](#user-override) takes precedence over every group
+   budget.
+1. Otherwise, the [budget policy](#deployment-settings) selects one of the
+   groups the user belongs to. The default policy, `highest`, selects the group
+   with the largest budget.
+1. If none of those groups has a budget, the user has unlimited spend and their
+   spend is recorded against the **Everyone** group.
+
+> [!NOTE]
+> Groups with identical budgets are ranked by the organization membership the
+> user joined first, then by group ID.
+
+Recorded spend is immutable. Changing which budget applies to a user affects
+future requests only: spend that Coder has already recorded stays with the group
+it was attributed to, so a user's history can span several groups.
 
 ## How spend is estimated
 
@@ -145,7 +155,7 @@ therefore produces a partial first period.
 ## How enforcement works
 
 AI Gateway checks each request before forwarding it, comparing the user's
-recorded spend for the current budget period against their effective budget:
+recorded spend for the current budget period against their budget:
 
 - Spend below the budget: the request proceeds.
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` and directs
@@ -180,10 +190,10 @@ For delivery methods, see
 
 ## Monitor spend
 
-Spend reporting is available in the dashboard, as a CSV export, and through
-Prometheus.
+Spend reporting is available in the Coder dashboard, as a CSV export, and
+through Prometheus.
 
-### In the dashboard
+### In the Coder dashboard
 
 Visibility follows the viewer's role:
 
@@ -195,9 +205,9 @@ Visibility follows the viewer's role:
 
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
-- The **Members** tab of a group reports each member's spend, their effective
-  budget, and its source, labeled `Custom limit` for an override or
-  `Group limit` for a group budget.
+- The **Members** tab of a group reports each member's spend, their budget, and
+  its source, labeled `Custom limit` for an override or `Group limit` for a
+  group budget.
 - The avatar menu reports the signed-in user's own spend for the budget period
   as `$<spend> / $<budget> USD`.
 
@@ -247,8 +257,8 @@ Existing limits are not converted. Recreate them:
 
 1. Record the limits currently set under **Admin settings** > **AI** >
    **Spend**, including the default limit and any group or user overrides.
-1. Recreate group limits as [group budgets](#set-a-group-budget).
-1. Recreate per-user limits as [user overrides](#override-a-budget-for-a-user).
+1. Recreate group limits as [group budgets](#group-budget).
+1. Recreate per-user limits as [user overrides](#user-override).
 
 Expect the following differences:
 
