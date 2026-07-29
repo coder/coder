@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -272,4 +273,65 @@ func TestEventMessagesSkipsBlankModelContext(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, database.ChatMessageVisibilityModel, messages[0].Visibility)
+}
+
+func TestComposeUserPromptContentOverride(t *testing.T) {
+	t.Parallel()
+
+	text := codersdk.ChatMessageText("original")
+	reference := codersdk.ChatMessageFileReference("main.go", 1, 3, "package main")
+	upload := codersdk.ChatMessageFile(uuid.New(), "image/png", "shot.png")
+	override := &Result{InputOverride: json.RawMessage(`{"prompt":"replacement"}`)}
+
+	t.Run("ReplacesTextInPlaceAndKeepsAttachments", func(t *testing.T) {
+		t.Parallel()
+
+		parts, overridden, err := ComposeUserPromptContent([]codersdk.ChatMessagePart{reference, text, upload}, override)
+		require.NoError(t, err)
+		require.True(t, overridden)
+		require.Equal(t, []codersdk.ChatMessagePart{
+			reference,
+			codersdk.ChatMessageText("replacement"),
+			upload,
+		}, parts)
+	})
+
+	t.Run("CollapsesEveryTextPart", func(t *testing.T) {
+		t.Parallel()
+
+		parts, overridden, err := ComposeUserPromptContent([]codersdk.ChatMessagePart{
+			text,
+			upload,
+			codersdk.ChatMessageText("trailing"),
+		}, override)
+		require.NoError(t, err)
+		require.True(t, overridden)
+		require.Equal(t, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("replacement"),
+			upload,
+		}, parts)
+	})
+
+	t.Run("AppendsWhenSubmissionHasNoText", func(t *testing.T) {
+		t.Parallel()
+
+		parts, overridden, err := ComposeUserPromptContent([]codersdk.ChatMessagePart{upload}, override)
+		require.NoError(t, err)
+		require.True(t, overridden)
+		require.Equal(t, []codersdk.ChatMessagePart{upload, codersdk.ChatMessageText("replacement")}, parts)
+	})
+
+	t.Run("KeepsSubmittedPartsWithoutOverride", func(t *testing.T) {
+		t.Parallel()
+
+		submitted := []codersdk.ChatMessagePart{text, upload}
+		parts, overridden, err := ComposeUserPromptContent(submitted, &Result{UserMessage: "notice"})
+		require.NoError(t, err)
+		require.False(t, overridden)
+		require.Equal(t, []codersdk.ChatMessagePart{
+			text,
+			upload,
+			{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "notice"},
+		}, parts)
+	})
 }

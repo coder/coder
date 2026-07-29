@@ -410,19 +410,20 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		return resp.ID
 	}
 
-	redactedFile := uploadFile("redacted.png")
+	createFile := uploadFile("create.png")
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		ModelConfigID:  &model.ID,
 		Content: []codersdk.ChatInputPart{
 			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME create"},
-			{Type: codersdk.ChatInputPartTypeFile, FileID: redactedFile},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: createFile},
 		},
 	})
 	require.NoError(t, err)
 	created, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Empty(t, created.Files, "overridden create must not link dropped attachments")
+	require.Len(t, created.Files, 1, "an overridden create must keep linking its attachments")
+	require.Equal(t, createFile, created.Files[0].ID)
 
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
@@ -437,23 +438,37 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 	require.False(t, sendResp.Queued)
 	afterSend, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, afterSend.Files, 1)
-	require.Equal(t, keptFile, afterSend.Files[0].ID)
+	require.Len(t, afterSend.Files, 2)
+	require.ElementsMatch(t, []uuid.UUID{createFile, keptFile}, []uuid.UUID{afterSend.Files[0].ID, afterSend.Files[1].ID})
 
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
-	droppedFile := uploadFile("dropped.png")
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+	overriddenFile := uploadFile("overridden.png")
+	sendResp, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 3, Content: "package main"},
 			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME send"},
-			{Type: codersdk.ChatInputPartTypeFile, FileID: droppedFile},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: overriddenFile},
 		},
 	})
 	require.NoError(t, err)
+	require.False(t, sendResp.Queued)
 	afterOverride, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, afterOverride.Files, 1, "overridden send must not link dropped attachments")
-	require.Equal(t, keptFile, afterOverride.Files[0].ID)
+	require.Len(t, afterOverride.Files, 3, "an overridden send must keep linking its attachments")
+	require.ElementsMatch(t, []uuid.UUID{createFile, keptFile, overriddenFile}, []uuid.UUID{
+		afterOverride.Files[0].ID,
+		afterOverride.Files[1].ID,
+		afterOverride.Files[2].ID,
+	})
+
+	require.NotNil(t, sendResp.Message)
+	require.Equal(t, codersdk.ChatMessageRoleUser, sendResp.Message.Role)
+	require.Equal(t, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+		codersdk.ChatMessageText("redacted"),
+		codersdk.ChatMessageFile(overriddenFile, "image/png", "overridden.png"),
+	}, sendResp.Message.Content)
 }
 
 func TestChatHookNoticeMessagesInResponses(t *testing.T) {

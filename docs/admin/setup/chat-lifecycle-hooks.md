@@ -121,6 +121,8 @@ Permission rules depend on the event:
 
 - For `user_prompt_submit`, `allow` requires `input_override` in the exact form `{"prompt":"replacement text"}`.
   Coder stores and sends the replacement prompt instead of the original prompt.
+  The override replaces only submitted text, matching the concatenated `prompt` field the consumer receives.
+  Attachments and file references remain in `parts`, so consumers that must block them should inspect `parts` and return `deny`.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
