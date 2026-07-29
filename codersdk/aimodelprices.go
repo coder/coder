@@ -46,7 +46,7 @@ func (c *ExperimentalClient) PutAIModelPrices(ctx context.Context, prices []AIMo
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil

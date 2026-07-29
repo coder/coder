@@ -94,15 +94,15 @@ type priceCompare struct {
 
 // modelPricesUpdate reads a wire-format seed file (or stdin via `-`), diffs it
 // against the current server state, prints a summary, and (after an
-// interactive confirm or `--yes`) applies the full seed via PUT. Rows not in
-// the seed are left untouched.
+// interactive confirm or `--yes`) applies only the additions and changes via
+// PUT. Rows not in the seed are left untouched.
 func (r *RootCmd) modelPricesUpdate() *serpent.Command {
 	return &serpent.Command{
 		Use:   "update <seed file | ->",
 		Short: "Apply a wire-format price seed to the server",
 		Long: "Read a wire-format price seed (the output of `import`), diff it against the " +
 			"current server state, print additions, changes, and unchanged counts, then apply " +
-			"the full seed via the API. Use `-` to read the seed from stdin.",
+			"only the additions and changes via the API. Use `-` to read the seed from stdin.",
 		Middleware: serpent.RequireNArgs(1),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
@@ -141,27 +141,35 @@ func (r *RootCmd) modelPricesUpdate() *serpent.Command {
 				return xerrors.Errorf("list current prices: %w", err)
 			}
 
-			// Build maps keyed by provider + "\x00" + model.
-			seedMap := make(map[string]modelprices.PriceRow, len(seedRows))
+			// Reject duplicate (provider, model) pairs in the seed.
+			seen := make(map[string]struct{}, len(seedRows))
 			for _, row := range seedRows {
-				seedMap[row.Provider+"\x00"+row.Model] = row
+				key := row.Provider + "\x00" + row.Model
+				if _, ok := seen[key]; ok {
+					return xerrors.Errorf("duplicate entry for provider %q model %q", row.Provider, row.Model)
+				}
+				seen[key] = struct{}{}
 			}
+
+			// Build a lookup map of the current server state keyed by
+			// provider + "\x00" + model.
 			curMap := make(map[string]codersdk.AIModelPrice, len(current))
 			for _, row := range current {
 				curMap[row.Provider+"\x00"+row.Model] = row
 			}
 
-			// Categorize.
+			// Categorize. Iterate the sorted seedRows slice (not a map)
+			// for deterministic output order.
 			var additions []modelprices.PriceRow
 			type changeEntry struct {
-				provider string
-				model    string
-				old      priceCompare
-				new      priceCompare
+				seedRow modelprices.PriceRow
+				old     priceCompare
+				new     priceCompare
 			}
 			var changes []changeEntry
 			unchanged := 0
-			for key, seedRow := range seedMap {
+			for _, seedRow := range seedRows {
+				key := seedRow.Provider + "\x00" + seedRow.Model
 				curRow, ok := curMap[key]
 				if !ok {
 					additions = append(additions, seedRow)
@@ -184,10 +192,9 @@ func (r *RootCmd) modelPricesUpdate() *serpent.Command {
 					continue
 				}
 				changes = append(changes, changeEntry{
-					provider: seedRow.Provider,
-					model:    seedRow.Model,
-					old:      oldCmp,
-					new:      newCmp,
+					seedRow: seedRow,
+					old:     oldCmp,
+					new:     newCmp,
 				})
 			}
 
@@ -210,7 +217,7 @@ func (r *RootCmd) modelPricesUpdate() *serpent.Command {
 				cliui.Infof(inv.Stdout, "Changes (%d):", len(changes))
 				for _, c := range changes {
 					diff := cmp.Diff(c.old, c.new)
-					_, _ = fmt.Fprintf(inv.Stdout, "  %s/%s:\n%s\n", c.provider, c.model, indentLines(diff, "    "))
+					_, _ = fmt.Fprintf(inv.Stdout, "  %s/%s:\n%s\n", c.seedRow.Provider, c.seedRow.Model, indentLines(diff, "    "))
 				}
 			}
 
@@ -228,20 +235,31 @@ func (r *RootCmd) modelPricesUpdate() *serpent.Command {
 				return xerrors.Errorf("apply canceled: %w", err)
 			}
 
-			// Construct the SDK payload from the seed rows (zero timestamps).
-			sdkPrices := make([]codersdk.AIModelPrice, 0, len(seedRows))
-			for _, row := range seedRows {
-				sdkPrices = append(sdkPrices, codersdk.AIModelPrice{
-					Provider:        row.Provider,
-					Model:           row.Model,
-					InputPrice:      row.InputPrice,
-					OutputPrice:     row.OutputPrice,
-					CacheReadPrice:  row.CacheReadPrice,
-					CacheWritePrice: row.CacheWritePrice,
+			// Collect only the rows that need to be applied (additions +
+			// changes), not the full seed.
+			var toApply []codersdk.AIModelPrice
+			for _, a := range additions {
+				toApply = append(toApply, codersdk.AIModelPrice{
+					Provider:        a.Provider,
+					Model:           a.Model,
+					InputPrice:      a.InputPrice,
+					OutputPrice:     a.OutputPrice,
+					CacheReadPrice:  a.CacheReadPrice,
+					CacheWritePrice: a.CacheWritePrice,
+				})
+			}
+			for _, c := range changes {
+				toApply = append(toApply, codersdk.AIModelPrice{
+					Provider:        c.seedRow.Provider,
+					Model:           c.seedRow.Model,
+					InputPrice:      c.seedRow.InputPrice,
+					OutputPrice:     c.seedRow.OutputPrice,
+					CacheReadPrice:  c.seedRow.CacheReadPrice,
+					CacheWritePrice: c.seedRow.CacheWritePrice,
 				})
 			}
 
-			if err := exp.PutAIModelPrices(ctx, sdkPrices); err != nil {
+			if err := exp.PutAIModelPrices(ctx, toApply); err != nil {
 				return xerrors.Errorf("apply prices: %w", err)
 			}
 

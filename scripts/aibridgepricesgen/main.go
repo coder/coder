@@ -84,6 +84,7 @@ func runPrices(data []byte, upstream map[string]modelprices.UpstreamProvider) er
 // supportedProviders, rejects missing providers, and validates. It does not
 // write.
 func runPricesRows(data []byte, upstream map[string]modelprices.UpstreamProvider) ([]modelprices.PriceRow, error) {
+	warnNegativePrices(upstream)
 	rows, err := modelprices.Transform(data)
 	if err != nil {
 		return nil, err
@@ -133,7 +134,7 @@ func missingProviders(upstream map[string]modelprices.UpstreamProvider, provider
 // filterProviders keeps only rows whose provider is in the allowlist,
 // preserving the (already sorted) row order.
 func filterProviders(rows []modelprices.PriceRow, providers []string) []modelprices.PriceRow {
-	out := rows[:0]
+	out := make([]modelprices.PriceRow, 0, len(rows))
 	for _, r := range rows {
 		if slices.Contains(providers, r.Provider) {
 			out = append(out, r)
@@ -153,6 +154,32 @@ func validate(rows []modelprices.PriceRow) error {
 		}
 	}
 	return xerrors.New("converted rows have no pricing data; upstream schema may have changed")
+}
+
+// warnNegativePrices prints a stderr warning for every negative upstream cost
+// field. modelprices.Transform silently drops negatives (treating them as
+// missing); this restores the visibility the generator's old toMicros provided.
+func warnNegativePrices(upstream map[string]modelprices.UpstreamProvider) {
+	for providerID, provider := range upstream {
+		for modelID, m := range provider.Models {
+			if m.Cost == nil {
+				continue
+			}
+			for _, pc := range []struct {
+				name  string
+				value *float64
+			}{
+				{"input", m.Cost.Input},
+				{"output", m.Cost.Output},
+				{"cache_read", m.Cost.CacheRead},
+				{"cache_write", m.Cost.CacheWrite},
+			} {
+				if pc.value != nil && *pc.value < 0 {
+					_, _ = fmt.Fprintf(os.Stderr, "warning: negative %s price %f for %s/%s, treating as missing\n", pc.name, *pc.value, providerID, modelID)
+				}
+			}
+		}
+	}
 }
 
 func write(w io.Writer, rows []modelprices.PriceRow) error {

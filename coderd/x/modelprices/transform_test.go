@@ -155,6 +155,28 @@ func TestTransformNoPricedModels(t *testing.T) {
 	require.Empty(t, rows)
 }
 
+// TestTransformRounding verifies that a fractional USD-per-million-token
+// price rounds correctly to micro-units. 0.075 * 1_000_000 = 75000.
+func TestTransformRounding(t *testing.T) {
+	t.Parallel()
+
+	const upstreamJSON = `{
+		"anthropic": {
+			"models": {
+				"claude-round": {
+					"cost": {"input": 0.075, "output": 0.075}
+				}
+			}
+		}
+	}`
+
+	rows, err := modelprices.Transform([]byte(upstreamJSON))
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, int64(75_000), *rows[0].InputPrice)
+	require.Equal(t, int64(75_000), *rows[0].OutputPrice)
+}
+
 func TestTransformInvalidJSON(t *testing.T) {
 	t.Parallel()
 

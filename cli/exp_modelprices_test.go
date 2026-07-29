@@ -149,4 +149,32 @@ func TestModelPrices(t *testing.T) {
 	inv.Stdin = bytes.NewReader(seedBytes)
 	require.NoError(t, inv.WithContext(ctx).Run(), "update via stdin should succeed")
 	require.Contains(t, strings.ToLower(stdinBuf.String()), "no changes", "stdin update of identical prices should report no changes")
+
+	// --- list (default table format) ---
+	// The table output should contain the provider, model, and a formatted
+	// price. Table formatting varies, so use strings.Contains.
+	inv, root = clitest.New(t, "exp", "model-prices", "list")
+	clitest.SetupConfig(t, client, root)
+	var tableBuf bytes.Buffer
+	inv.Stdout = &tableBuf
+	require.NoError(t, inv.WithContext(ctx).Run(), "list (table) should succeed")
+	tableOut := tableBuf.String()
+	require.Contains(t, tableOut, "anthropic", "table output should contain the anthropic provider")
+	require.Contains(t, tableOut, "test-cli-model-1", "table output should contain test-cli-model-1")
+	require.Contains(t, tableOut, "$10.00", "table output should contain the formatted input price")
+
+	// --- list --output json --provider anthropic ---
+	// All returned rows should be from anthropic; no openai rows.
+	inv, root = clitest.New(t, "exp", "model-prices", "list", "--output", "json", "--provider", "anthropic")
+	clitest.SetupConfig(t, client, root)
+	var provBuf bytes.Buffer
+	inv.Stdout = &provBuf
+	require.NoError(t, inv.WithContext(ctx).Run(), "list with --provider should succeed")
+	var provRows []codersdk.AIModelPrice
+	require.NoError(t, json.Unmarshal(provBuf.Bytes(), &provRows), "provider-filtered list must emit valid AIModelPrice JSON")
+	require.NotEmpty(t, provRows, "--provider anthropic should return at least one row")
+	for _, p := range provRows {
+		require.Equal(t, "anthropic", p.Provider, "all rows should be from anthropic")
+		require.NotEqual(t, "openai", p.Provider, "no openai rows should be present")
+	}
 }

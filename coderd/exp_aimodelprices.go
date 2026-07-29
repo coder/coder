@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -17,7 +18,7 @@ import (
 // @Summary List AI model prices
 // @ID list-ai-model-prices
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Tags AI Gateway
 // @Produce json
 // @Success 200 {array} codersdk.AIModelPrice
 // @Router /api/experimental/ai/model-prices [get]
@@ -63,17 +64,18 @@ func dbAIModelPricesToSDK(prices []database.AIModelPrice) []codersdk.AIModelPric
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Upsert AI model prices
-// @ID put-ai-model-prices
+// @ID upsert-ai-model-prices
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Tags AI Gateway
 // @Accept json
-// @Produce json
-// @Success 200 {array} codersdk.AIModelPrice
+// @Param request body codersdk.AIModelPrice true "Model prices"
+// @Success 204
 // @Router /api/experimental/ai/model-prices [put]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) putAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	r.Body = http.MaxBytesReader(rw, r.Body, 1<<20)
 	rawBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -100,30 +102,43 @@ func (api *API) putAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, p := range prices {
-		if p.InputPrice != nil && *p.InputPrice < 0 {
+	seen := make(map[string]bool, len(prices))
+	for i, p := range prices {
+		if p.Provider == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Input price must not be negative.",
+				Message: fmt.Sprintf("Element %d: provider must not be empty.", i),
 			})
 			return
 		}
-		if p.OutputPrice != nil && *p.OutputPrice < 0 {
+		if p.Model == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Output price must not be negative.",
+				Message: fmt.Sprintf("Element %d: model must not be empty.", i),
 			})
 			return
 		}
-		if p.CacheReadPrice != nil && *p.CacheReadPrice < 0 {
+		key := p.Provider + "\x00" + p.Model
+		if seen[key] {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cache read price must not be negative.",
+				Message: fmt.Sprintf("Duplicate entry for provider %q model %q.", p.Provider, p.Model),
 			})
 			return
 		}
-		if p.CacheWritePrice != nil && *p.CacheWritePrice < 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cache write price must not be negative.",
-			})
-			return
+		seen[key] = true
+		for _, pc := range []struct {
+			name  string
+			value *int64
+		}{
+			{"input price", p.InputPrice},
+			{"output price", p.OutputPrice},
+			{"cache read price", p.CacheReadPrice},
+			{"cache write price", p.CacheWritePrice},
+		} {
+			if pc.value != nil && *pc.value < 0 {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Element %d (%s/%s): %s must not be negative.", i, p.Provider, p.Model, pc.name),
+				})
+				return
+			}
 		}
 	}
 
@@ -140,19 +155,5 @@ func (api *API) putAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return the updated list so callers get timestamps back.
-	updated, err := api.Database.GetAIModelPrices(ctx)
-	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list AI model prices after upsert.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, dbAIModelPricesToSDK(updated))
+	rw.WriteHeader(http.StatusNoContent)
 }

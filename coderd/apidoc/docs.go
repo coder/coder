@@ -71,7 +71,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "AI Gateway"
                 ],
                 "summary": "List AI model prices",
                 "operationId": "list-ai-model-prices",
@@ -97,23 +97,25 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
-                    "Experimental"
+                    "AI Gateway"
                 ],
                 "summary": "Upsert AI model prices",
-                "operationId": "put-ai-model-prices",
-                "responses": {
-                    "200": {
-                        "description": "OK",
+                "operationId": "upsert-ai-model-prices",
+                "parameters": [
+                    {
+                        "description": "Model prices",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.AIModelPrice"
-                            }
+                            "$ref": "#/definitions/codersdk.AIModelPrice"
                         }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [

@@ -184,7 +184,8 @@ func TestValidate(t *testing.T) {
 		t.Parallel()
 		// Mirrors what would happen if upstream renamed the `cost` key:
 		// Go's decoder silently drops it, every row gets all-null prices,
-		// and convert returns syntactically valid rows with no pricing.
+		// and modelprices.Transform returns syntactically valid rows with
+		// no pricing.
 		rows := []modelprices.PriceRow{
 			{Provider: "anthropic", Model: "claude-x"},
 			{Provider: "openai", Model: "gpt-x"},
