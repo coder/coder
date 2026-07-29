@@ -78,6 +78,11 @@ const placeholderOverrides: Record<string, string> = {
 	frequency_penalty: "-2.0 to 2.0",
 };
 
+/** Capitalize the first letter of a string. */
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /**
  * Convert a dot-and-underscore-separated json_name into a
  * human-readable label.
@@ -86,11 +91,6 @@ const placeholderOverrides: Record<string, string> = {
  * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
  * snakeToPrettyLabel("reasoning_effort")        // "Reasoning Effort"
  */
-/** Capitalize the first letter of a string. */
-function capitalize(s: string): string {
-	return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 function snakeToPrettyLabel(field: FieldSchema): string {
 	if (field.label) {
 		return field.label;
