@@ -1189,7 +1189,7 @@
 						},
 						{
 							"title": "AI Gateway",
-							"description": "Govern and observe AI coding traffic with AI Gateway, an LLM proxy built into the Coder control plane.",
+							"description": "Govern and observe AI coding traffic with AI Gateway.",
 							"path": "./ai-coder/ai-gateway/index.md",
 							"icon_path": "./images/icons/api.svg",
 							"state": ["ai governance add-on"],
