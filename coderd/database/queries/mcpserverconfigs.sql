@@ -20,6 +20,10 @@ SELECT
     *
 FROM
     mcp_server_configs
+WHERE
+    true
+    -- Authorize Filter clause will be injected below in GetAuthorizedMCPServerConfigs
+    -- @authorize_filter
 ORDER BY
     display_name ASC;
 

@@ -28,6 +28,7 @@ const (
 	ResourceIdpsyncSettings               RBACResource = "idpsync_settings"
 	ResourceInboxNotification             RBACResource = "inbox_notification"
 	ResourceLicense                       RBACResource = "license"
+	ResourceMCPServerConfig               RBACResource = "mcp_server_config"
 	ResourceNotificationMessage           RBACResource = "notification_message"
 	ResourceNotificationPreference        RBACResource = "notification_preference"
 	ResourceNotificationTemplate          RBACResource = "notification_template"
@@ -107,6 +108,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceIdpsyncSettings:               {ActionRead, ActionUpdate},
 	ResourceInboxNotification:             {ActionCreate, ActionRead, ActionUpdate},
 	ResourceLicense:                       {ActionCreate, ActionDelete, ActionRead},
+	ResourceMCPServerConfig:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationMessage:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},
