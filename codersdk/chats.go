@@ -295,9 +295,9 @@ const (
 	// and stripped from every client-facing conversion; the server rejects
 	// it in client-submitted content.
 	ChatMessagePartTypeHookContext ChatMessagePartType = "hook-context"
-	// ChatMessagePartTypeHookNotice is a user-facing notice attached to a
-	// user prompt by a lifecycle hook. It is excluded from model prompt
-	// assembly; the server rejects it in client-submitted content.
+	// ChatMessagePartTypeHookNotice is a user-facing lifecycle hook notice,
+	// either attached to a prompt or in its own row. It is excluded from model
+	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
 )
 

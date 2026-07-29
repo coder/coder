@@ -631,9 +631,20 @@ const ChatMessageItem = memo<{
 					// Keep links in dimmed notices out of accessibility navigation.
 					inert={isAfterEditingMessage ? true : undefined}
 				>
-					<LifecycleHookNotice urlTransform={urlTransform}>
-						{parsed.markdown}
-					</LifecycleHookNotice>
+					{parsed.hookNotices.length > 0 ? (
+						parsed.hookNotices.map((notice, index) => (
+							<LifecycleHookNotice
+								key={`${message.id}-hook-notice-${index}`}
+								urlTransform={urlTransform}
+							>
+								{notice}
+							</LifecycleHookNotice>
+						))
+					) : (
+						<TimelineNotice>
+							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
+						</TimelineNotice>
+					)}
 				</div>
 			);
 		}

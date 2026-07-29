@@ -36,7 +36,12 @@ func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message
 		})
 	}
 	if result.GetUserMessage() != "" {
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.UserMessage)})
+		// Use a typed part so clients can distinguish hook notices from other
+		// system rows.
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeHookNotice,
+			Text: result.UserMessage,
+		}})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook user message: %w", err)
 		}

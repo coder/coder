@@ -68,7 +68,9 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
 		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		parsed.sources.length > 0 ||
+		// Keep hook-notice-only rows visible in the timeline.
+		parsed.hookNotices.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");

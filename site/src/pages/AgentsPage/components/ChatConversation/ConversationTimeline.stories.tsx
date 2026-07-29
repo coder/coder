@@ -415,7 +415,7 @@ export const LifecycleHookNotice: Story = {
 				role: "system",
 				content: [
 					{
-						type: "text",
+						type: "hook-notice",
 						text: "Your organization requires an approval before deployment.",
 					},
 				],
@@ -434,6 +434,30 @@ export const LifecycleHookNotice: Story = {
 		).toBeVisible();
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SystemMessageWithoutHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [{ type: "text", text: "Maintenance starts in ten minutes." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(
+			within(notice).getByText("Maintenance starts in ten minutes."),
+		).toBeVisible();
+		expect(
+			within(notice).queryByText("Lifecycle hook"),
 		).not.toBeInTheDocument();
 	},
 };

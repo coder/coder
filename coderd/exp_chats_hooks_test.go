@@ -343,7 +343,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 			continue
 		}
 		for _, part := range message.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "Search result approved by policy." {
+			if part.Type == codersdk.ChatMessagePartTypeHookNotice && part.Text == "Search result approved by policy." {
 				foundPostToolNotice = true
 			}
 		}
@@ -591,7 +591,7 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 			continue
 		}
 		for _, part := range message.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "session notice" {
+			if part.Type == codersdk.ChatMessagePartTypeHookNotice && part.Text == "session notice" {
 				sessionNoticeFound = true
 			}
 		}
