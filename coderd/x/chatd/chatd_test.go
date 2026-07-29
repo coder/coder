@@ -5523,7 +5523,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 
 	const compactionSummary = "manual compaction summary"
 
-	t.Run("compacts below threshold and returns to waiting", func(t *testing.T) {
+	t.Run("compacts below threshold and returns to waiting without hooks", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5571,7 +5571,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 			"compaction commit must consume the request marker")
 		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
 		require.Equal(t, int32(1), streamCount.Load(),
-			"manual compaction must not trigger an assistant follow-up")
+			"manual compaction alone must not trigger an assistant follow-up")
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -8182,7 +8182,7 @@ func insertChatMessageParts(
 	messages, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	return messages[0]
+	return database.ChatMessage(messages[0])
 }
 
 func createPlanSubagentChatWithHistory(

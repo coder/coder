@@ -195,7 +195,7 @@ coder_ai_gateway_interceptions_total{client="Codex",initiator_id="95f6752b-08cc-
 coder_ai_gateway_key_pool_state{provider="openai",state="valid"} 2
 coder_ai_gateway_key_pool_state{provider="openai",state="temporary"} 0
 coder_ai_gateway_key_pool_state{provider="openai",state="permanent"} 0
-# HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized, forbidden).
+# HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized).
 # TYPE coder_ai_gateway_key_pool_state_transitions_total counter
 coder_ai_gateway_key_pool_state_transitions_total{provider="openai",reason="rate_limited"} 1
 # HELP coder_ai_gateway_key_pool_exhaustions_total The number of times the key pool was exhausted with no usable key (outcome: rate_limited, auth_failed).
