@@ -169,7 +169,14 @@ export const EditOAuth2AppPageView: FC = () => {
 					Configure this application to use Coder as an OAuth2 provider.
 				</p>
 
-				<dl className="m-0 grid w-full max-w-3xl grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-6 gap-y-3">
+				{searchParams.has("created") && (
+					<Alert severity="info" dismissible>
+						Your OAuth2 application has been created. Generate a client secret
+						below to start using your application.
+					</Alert>
+				)}
+
+				<dl className="m-0 grid grid-cols-[max-content_max-content] items-center gap-x-6 gap-y-3">
 					<EndpointField label="Client ID" value={app.id} />
 					<EndpointField
 						label="Authorization URL"
@@ -177,13 +184,6 @@ export const EditOAuth2AppPageView: FC = () => {
 					/>
 					<EndpointField label="Token URL" value={app.endpoints.token} />
 				</dl>
-
-				{searchParams.has("created") && (
-					<Alert severity="info" dismissible>
-						Your OAuth2 application has been created. Generate a client secret
-						below to start using your application.
-					</Alert>
-				)}
 
 				{secretsQuery.error ? (
 					<ErrorAlert error={secretsQuery.error} />
@@ -371,9 +371,9 @@ const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
 	return (
 		<>
 			<dt className="text-sm text-content-secondary">{label}</dt>
-			<dd className="m-0 min-w-0">
-				<div className="flex items-center gap-1 min-w-0">
-					<code className="min-w-0 flex-1 truncate rounded-md border border-solid border-border bg-surface-secondary px-2 py-1 font-mono text-xs text-content-primary">
+			<dd className="m-0">
+				<div className="flex items-center gap-1">
+					<code className="w-fit rounded-md bg-surface-secondary px-2 py-1 font-mono text-xs text-content-primary">
 						{value}
 					</code>
 					<CopyButton
