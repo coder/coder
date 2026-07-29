@@ -26196,6 +26196,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "spend_limit_micros": {
+                    "description": "SpendLimitMicros must not exceed MaxAISpendLimitMicros.",
                     "type": "integer",
                     "minimum": 0
                 }
@@ -26213,6 +26214,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "spend_limit_micros": {
+                    "description": "SpendLimitMicros must not exceed MaxAISpendLimitMicros.",
                     "type": "integer",
                     "minimum": 0
                 }

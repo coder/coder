@@ -15,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+// MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
+// $1,000,000 per member per budget period.
+const MaxAISpendLimitMicros int64 = 1_000_000_000_000
+
 // AIBudgetLimitSource identifies which tier produced the user's
 // effective budget limit.
 type AIBudgetLimitSource string
@@ -418,6 +422,7 @@ type GroupAIBudget struct {
 }
 
 type UpsertGroupAIBudgetRequest struct {
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
@@ -485,8 +490,9 @@ type UserAIBudgetOverride struct {
 type UpsertUserAIBudgetOverrideRequest struct {
 	// GroupID is the group the user's spend is attributed to. The user must
 	// be a member of this group.
-	GroupID          uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
-	SpendLimitMicros int64     `json:"spend_limit_micros" validate:"gte=0"`
+	GroupID uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
 // UserAIBudgetOverride returns the AI spend budget override configured for the given user.
