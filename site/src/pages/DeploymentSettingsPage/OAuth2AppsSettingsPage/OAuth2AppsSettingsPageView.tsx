@@ -6,6 +6,11 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { Filter, type UseFilterResult } from "#/components/Filter/Filter";
+import {
+	PaginationContainer,
+	type PaginationResult,
+} from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -24,7 +29,9 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 type OAuth2AppsSettingsProps = {
-	apps?: TypesGen.OAuth2ProviderApp[];
+	apps?: readonly TypesGen.OAuth2ProviderApp[];
+	appsQuery: PaginationResult<TypesGen.OAuth2ProviderAppsResponse>;
+	filter: UseFilterResult;
 	isLoading: boolean;
 	error: unknown;
 	canCreateApp: boolean;
@@ -41,10 +48,15 @@ const AddApplicationButton: FC = () => (
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
+	appsQuery,
+	filter,
 	isLoading,
 	error,
 	canCreateApp,
 }) => {
+	const isFiltered = filter.used;
+	const isEmpty = !isLoading && !error && (!apps || apps.length === 0);
+
 	return (
 		<div>
 			<SettingsHeader
@@ -62,30 +74,52 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				</div>
 			)}
 
-			<Table className="table-fixed" aria-label="OAuth2 applications">
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-1/3">Name</TableHead>
-						<TableHead className="w-1/3">Callback URL</TableHead>
-						<TableHead className="w-12">
-							<span className="sr-only">Open</span>
-						</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody size="lg">
-					{isLoading ? (
-						<TableLoader />
-					) : !error && (!apps || apps.length === 0) ? (
-						<TableEmpty
-							message="No OAuth2 applications configured"
-							description="Add an application to use Coder as an OAuth2 provider."
-							cta={canCreateApp ? <AddApplicationButton /> : undefined}
-						/>
-					) : (
-						apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)
-					)}
-				</TableBody>
-			</Table>
+			<Filter
+				filter={filter}
+				error={error}
+				isLoading={isLoading}
+				presets={[{ query: "", name: "All applications" }]}
+				optionsSkeleton={null}
+			/>
+
+			<PaginationContainer query={appsQuery} paginationUnitLabel="applications">
+				<Table className="table-fixed" aria-label="OAuth2 applications">
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-1/3">Name</TableHead>
+							<TableHead className="w-1/3">Callback URL</TableHead>
+							<TableHead className="w-12">
+								<span className="sr-only">Open</span>
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody size="lg">
+						{isLoading ? (
+							<TableLoader />
+						) : isEmpty ? (
+							<TableEmpty
+								message={
+									isFiltered
+										? "No OAuth2 applications match your search"
+										: "No OAuth2 applications configured"
+								}
+								description={
+									isFiltered
+										? "Try adjusting your search query."
+										: "Add an application to use Coder as an OAuth2 provider."
+								}
+								cta={
+									!isFiltered && canCreateApp ? (
+										<AddApplicationButton />
+									) : undefined
+								}
+							/>
+						) : (
+							apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)
+						)}
+					</TableBody>
+				</Table>
+			</PaginationContainer>
 		</div>
 	);
 };

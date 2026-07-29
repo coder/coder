@@ -23,15 +23,46 @@ import (
 func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		queryParams := r.URL.Query()
+		parser := httpapi.NewQueryParamParser()
+		search := parser.String(queryParams, "", "q")
+		pagination := codersdk.Pagination{
+			AfterID: parser.UUID(queryParams, uuid.Nil, "after_id"),
+			// A limit of 0 should be interpreted by the SQL query as "null" or
+			// "no limit". Do not make this value anything besides 0.
+			Limit:  int(parser.PositiveInt32(queryParams, 0, "limit")),
+			Offset: int(parser.PositiveInt32(queryParams, 0, "offset")),
+		}
+		if len(parser.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Query parameters have invalid values.",
+				Validations: parser.Errors,
+			})
+			return
+		}
 
 		rawUserID := r.URL.Query().Get("user_id")
 		if rawUserID == "" {
-			dbApps, err := db.GetOAuth2ProviderApps(ctx)
+			dbApps, err := db.GetOAuth2ProviderApps(ctx, database.GetOAuth2ProviderAppsParams{
+				AfterID: pagination.AfterID,
+				Search:  search,
+				// #nosec G115 - Pagination offsets are small and fit in int32
+				OffsetOpt: int32(pagination.Offset),
+				// #nosec G115 - Pagination limits are small and fit in int32
+				LimitOpt: int32(pagination.Limit),
+			})
 			if err != nil {
 				httpapi.InternalServerError(rw, err)
 				return
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(accessURL, dbApps))
+			count := 0
+			if len(dbApps) > 0 {
+				count = int(dbApps[0].Count)
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppsResponse{
+				Apps:  db2sdk.OAuth2ProviderAppsFromRows(accessURL, dbApps),
+				Count: count,
+			})
 			return
 		}
 
@@ -54,7 +85,10 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		for _, app := range userApps {
 			sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(accessURL, app.OAuth2ProviderApp))
 		}
-		httpapi.Write(ctx, rw, http.StatusOK, sdkApps)
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppsResponse{
+			Apps:  sdkApps,
+			Count: len(sdkApps),
+		})
 	}
 }
 
