@@ -1015,6 +1015,38 @@ func TestFeatureComparison(t *testing.T) {
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
+		{
+			Name:     "SoftHardLimitsIgnored",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), SoftLimit: ptr.Ref(int64(80)), HardLimit: ptr.Ref(int64(120))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100))},
+			Expected: 0,
+		},
+		{
+			Name: "NewerIssuedAtWinsOverSoftHardLimits",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       ptr.Ref(int64(50)),
+				SoftLimit:   ptr.Ref(int64(40)),
+				HardLimit:   ptr.Ref(int64(60)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       ptr.Ref(int64(100)),
+				SoftLimit:   ptr.Ref(int64(80)),
+				HardLimit:   ptr.Ref(int64(120)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			Expected: 1,
+		},
 	}
 
 	for _, tc := range testCases {

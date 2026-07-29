@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -1653,13 +1652,6 @@ func latestSubagentAssistantMessage(
 	if err != nil {
 		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
-
-	sort.Slice(messages, func(i, j int) bool {
-		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
-			return messages[i].ID < messages[j].ID
-		}
-		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
-	})
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]

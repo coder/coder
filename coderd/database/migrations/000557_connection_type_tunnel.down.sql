@@ -1,0 +1,8 @@
+-- The 'tunnel' enum value is intentionally not removed. Postgres cannot
+-- drop an enum value in place; removing it would require recreating
+-- connection_type and rewriting the connection_logs type column, which
+-- takes an exclusive lock on the table and would have to DELETE all
+-- tunnel rows (audit data) because they cannot exist in the old type.
+-- Leaving the value in place is harmless: old code never queries for it
+-- and renders unknown types without error. This matches the precedent
+-- of other enum-value additions (e.g. 000517, 000531).

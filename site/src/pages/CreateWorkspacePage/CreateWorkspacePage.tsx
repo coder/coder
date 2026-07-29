@@ -24,9 +24,12 @@ import type {
 	MinimalUser,
 	Workspace,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -89,11 +92,18 @@ const CreateWorkspacePage: FC = () => {
 		...checkAuthorization({
 			checks: createWorkspaceChecks(
 				templateQuery.data?.organization_id ?? "",
+				me.id,
 				templateQuery.data?.id,
 			),
 		}),
 		enabled: Boolean(templateQuery.data),
 	});
+	// Scoped to the template's organization and to workspaces owned by the
+	// current user; holding workspace-create permission in other organizations
+	// does not grant access here.
+	const canCreateWorkspaceInOrg = Boolean(
+		permissionsQuery.data?.createWorkspaceForUserID,
+	);
 
 	const templateVersionQuery = useQuery({
 		...templateVersion(realizedVersionId ?? ""),
@@ -259,7 +269,10 @@ const CreateWorkspacePage: FC = () => {
 	const isLoadingFormData =
 		ws.current?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
-		permissionsQuery.isLoading;
+		// isPending stays true until the permission data exists, covering the
+		// renders where the query is still disabled or has not started fetching,
+		// during which isLoading would be false.
+		permissionsQuery.isPending;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
@@ -309,12 +322,14 @@ const CreateWorkspacePage: FC = () => {
 
 	let autoCreateReady =
 		mode === "auto" &&
+		canCreateWorkspaceInOrg &&
 		hasAllRequiredExternalAuth &&
 		autoCreateConsented &&
 		presetResolved;
 
 	const showAutoCreateConsent =
 		mode === "auto" &&
+		canCreateWorkspaceInOrg &&
 		!autoCreateConsented &&
 		!autoCreateError &&
 		presetResolved;
@@ -403,66 +418,74 @@ const CreateWorkspacePage: FC = () => {
 				onDeny={() => setMode("form")}
 			/>
 
-			{shouldShowLoader ? (
+			{loadFormDataError ? (
+				// The view reads the template and permission results
+				// unconditionally, so render query failures as a page-level
+				// error instead of the form.
+				<Margins>
+					<ErrorAlert error={loadFormDataError} className="my-4" />
+				</Margins>
+			) : shouldShowLoader ? (
 				<Loader />
 			) : (
-				<CreateWorkspacePageView
-					mode={mode}
-					defaultName={defaultName}
-					diagnostics={latestResponse?.diagnostics ?? []}
-					disabledParams={disabledParams}
-					defaultOwner={defaultOwner}
-					owner={owner}
-					setOwner={setOwner}
-					autofillParameters={autofillParameters}
-					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
-					error={
-						wsError ||
-						createWorkspaceMutation.error ||
-						autoCreateError ||
-						loadFormDataError ||
-						autoCreateWorkspaceMutation.error
-					}
-					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data}
-					versionId={realizedVersionId}
-					versionName={templateVersionQuery.data?.name}
-					externalAuth={externalAuth ?? []}
-					externalAuthPollingState={externalAuthPollingState}
-					startPollingExternalAuth={startPollingExternalAuth}
-					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					parameters={sortedParams}
-					presets={presets}
-					urlPreset={urlPresetResult.preset}
-					urlPresetError={
-						autoCreateError?.detail === urlPresetResult.error
-							? undefined
-							: urlPresetResult.error
-					}
-					hasIgnoredUrlParams={hasIgnoredUrlParams}
-					creatingWorkspace={createWorkspaceMutation.isPending}
-					sendMessage={sendMessage}
-					onCancel={() => {
-						navigate(-1);
-					}}
-					onSubmit={async (request, owner) => {
-						let workspaceRequest = request;
-						if (realizedVersionId) {
-							workspaceRequest = {
-								...request,
-								template_id: undefined,
-								template_version_id: realizedVersionId,
-							};
+				<RequirePermission isFeatureVisible={canCreateWorkspaceInOrg}>
+					<CreateWorkspacePageView
+						mode={mode}
+						defaultName={defaultName}
+						diagnostics={latestResponse?.diagnostics ?? []}
+						disabledParams={disabledParams}
+						defaultOwner={defaultOwner}
+						owner={owner}
+						setOwner={setOwner}
+						autofillParameters={autofillParameters}
+						canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
+						error={
+							wsError ||
+							createWorkspaceMutation.error ||
+							autoCreateError ||
+							autoCreateWorkspaceMutation.error
 						}
+						resetMutation={createWorkspaceMutation.reset}
+						template={templateQuery.data}
+						versionId={realizedVersionId}
+						versionName={templateVersionQuery.data?.name}
+						externalAuth={externalAuth ?? []}
+						externalAuthPollingState={externalAuthPollingState}
+						startPollingExternalAuth={startPollingExternalAuth}
+						hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
+						permissions={permissionsQuery.data as CreateWorkspacePermissions}
+						parameters={sortedParams}
+						presets={presets}
+						urlPreset={urlPresetResult.preset}
+						urlPresetError={
+							autoCreateError?.detail === urlPresetResult.error
+								? undefined
+								: urlPresetResult.error
+						}
+						hasIgnoredUrlParams={hasIgnoredUrlParams}
+						creatingWorkspace={createWorkspaceMutation.isPending}
+						sendMessage={sendMessage}
+						onCancel={() => {
+							navigate(-1);
+						}}
+						onSubmit={async (request, owner) => {
+							let workspaceRequest = request;
+							if (realizedVersionId) {
+								workspaceRequest = {
+									...request,
+									template_id: undefined,
+									template_version_id: realizedVersionId,
+								};
+							}
 
-						const workspace = await createWorkspaceMutation.mutateAsync({
-							...workspaceRequest,
-							userId: owner.id,
-						});
-						onCreateWorkspace(workspace);
-					}}
-				/>
+							const workspace = await createWorkspaceMutation.mutateAsync({
+								...workspaceRequest,
+								userId: owner.id,
+							});
+							onCreateWorkspace(workspace);
+						}}
+					/>
+				</RequirePermission>
 			)}
 		</>
 	);

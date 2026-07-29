@@ -3740,6 +3740,7 @@ export interface ConnectionLog {
 	 * WebInfo is only set when `type` is one of:
 	 * - `ConnectionTypePortForwarding`
 	 * - `ConnectionTypeWorkspaceApp`
+	 * - `ConnectionTypeTunnel`
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
@@ -3817,6 +3818,7 @@ export type ConnectionType =
 	| "port_forwarding"
 	| "reconnecting_pty"
 	| "ssh"
+	| "tunnel"
 	| "vscode"
 	| "workspace_app";
 
@@ -3825,6 +3827,7 @@ export const ConnectionTypes: ConnectionType[] = [
 	"port_forwarding",
 	"reconnecting_pty",
 	"ssh",
+	"tunnel",
 	"vscode",
 	"workspace_app",
 ];
@@ -4310,8 +4313,11 @@ export interface CreateUserRequestWithOrgs {
 // From codersdk/usersecrets.go
 /**
  * CreateUserSecretRequest is the payload for creating a new user
- * secret. Name and Value are required. All other fields are optional
- * and default to empty string.
+ * secret. Name and Value are required. An enabled secret must have at
+ * least one of EnvName or FilePath non-empty so it has an injection
+ * target; to keep a secret without injecting it, set Enabled to false.
+ * All other fields are optional and default to empty string. Enabled
+ * defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
 	readonly name: string;
@@ -4319,6 +4325,7 @@ export interface CreateUserSecretRequest {
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/userskills.go
@@ -5240,6 +5247,21 @@ export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
 	readonly limit?: number;
+	/**
+	 * SoftLimit is the advisory warning threshold that accompanies Limit for
+	 * features whose license carries it. For these features, Limit carries
+	 * the purchased allocation.
+	 *
+	 * Only certain features set this field:
+	 * - FeatureAgentRuntimeHours
+	 */
+	readonly soft_limit?: number;
+	/**
+	 * HardLimit is the enforcement threshold that accompanies Limit for
+	 * features whose license carries it. See SoftLimit for the set of
+	 * features that use these thresholds.
+	 */
+	readonly hard_limit?: number;
 	readonly actual?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
@@ -5251,6 +5273,7 @@ export interface Feature {
 	 *
 	 * Only certain features set these fields:
 	 * - FeatureManagedAgentLimit
+	 * - FeatureAgentRuntimeHours
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5261,6 +5284,7 @@ export type FeatureName =
 	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
+	| "agent_runtime_hours"
 	| "appearance"
 	| "audit_log"
 	| "boundary"
@@ -5290,6 +5314,7 @@ export const FeatureNames: FeatureName[] = [
 	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
+	"agent_runtime_hours",
 	"appearance",
 	"audit_log",
 	"boundary",
@@ -6651,6 +6676,22 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"token",
 ];
 
+// From codersdk/oauth2.go
+/**
+ * OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+ *
+ * DynamicClientRegistrationEnabled is a pointer so a PUT can omit it to leave
+ * the current value unchanged, rather than a decoded zero value silently
+ * resetting it to false. This matters once a second field lands in this
+ * struct (e.g. a future initial-access-token requirement): a client built
+ * against an older, single-field version of this struct would otherwise
+ * always encode the newer field's zero value, silently clearing it on every
+ * unrelated update. GET always returns a non-nil value.
+ */
+export interface OAuth2ProviderSettings {
+	readonly dynamic_client_registration_enabled?: boolean;
+}
+
 // From codersdk/client.go
 /**
  * OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
@@ -6880,13 +6921,19 @@ export interface Organization extends MinimalOrganization {
 export interface OrganizationGroupAISpend {
 	readonly group_id: string;
 	/**
-	 * SpendLimitMicros is the group's configured AI spend limit. Null when
-	 * the group has no configured budget.
+	 * SpendLimitMicros is the group's configured AI spend budget per member.
+	 * Null when the group has no configured budget.
 	 */
 	readonly spend_limit_micros: number | null;
 	/**
-	 * CurrentSpendMicros is the group's spend over the current budget
-	 * period.
+	 * TotalSpendLimitMicros is the currently configured combined budget of the
+	 * members attributed to this group, with each member's override replacing
+	 * their share. Null when the group has no budget, and zero when no members
+	 * are attributed to it.
+	 */
+	readonly total_spend_limit_micros: number | null;
+	/**
+	 * CurrentSpendMicros is the group's spend over the current budget period.
 	 */
 	readonly current_spend_micros: number;
 }
@@ -7861,6 +7908,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -7898,6 +7946,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
@@ -9958,13 +10007,16 @@ export interface UpdateUserQuietHoursScheduleRequest {
  * UpdateUserSecretRequest is the payload for partially updating a
  * user secret. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty string" (pointer
- * to empty string).
+ * to empty string). If the post-update row is enabled it must still
+ * have at least one of EnvName or FilePath non-empty; clearing both
+ * targets is only allowed when the secret is (or becomes) disabled.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/userskills.go
@@ -10468,6 +10520,13 @@ export interface UserSecret {
 	readonly description: string;
 	readonly env_name: string;
 	readonly file_path: string;
+	/**
+	 * Enabled controls whether the secret is injected into workspaces.
+	 * Disabled secrets remain visible and editable, but are not added
+	 * to the agent manifest, so they are not exposed as environment
+	 * variables or written to secret files.
+	 */
+	readonly enabled: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -10487,6 +10546,16 @@ export const UserSecretEnvNameField = "env_name";
  * name used in coderd route segments.
  */
 export const UserSecretFilePathField = "file_path";
+
+// From codersdk/usersecretvalidation.go
+/**
+ * UserSecretInjectionTargetRequiredDetail explains the injection-target
+ * invariant. It is shared by the create validator above and the PATCH
+ * handler's post-state check in coderd. The value is a user-facing
+ * validation message, not a credential.
+ */
+export const UserSecretInjectionTargetRequiredDetail =
+	"An enabled secret must have at least one of env_name or file_path set. To keep a secret without injecting it, set enabled to false instead of clearing both targets."; //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // From codersdk/usersecretvalidation.go
 /**

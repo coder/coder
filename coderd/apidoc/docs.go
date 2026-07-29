@@ -4648,6 +4648,68 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/oauth2-provider/settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 provider settings.",
+                "operationId": "get-oauth2-provider-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update OAuth2 provider settings.",
+                "operationId": "update-oauth2-provider-settings",
+                "parameters": [
+                    {
+                        "description": "OAuth2 provider settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations": {
             "get": {
                 "produces": [
@@ -17884,9 +17946,6 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
-                "signature": {
-                    "type": "string"
-                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -18464,7 +18523,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ConnectionType"
                 },
                 "web_info": {
-                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `",
+                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeTunnel` + "`" + `",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -18557,7 +18616,8 @@ const docTemplate = `{
                 "jetbrains",
                 "reconnecting_pty",
                 "workspace_app",
-                "port_forwarding"
+                "port_forwarding",
+                "tunnel"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -18565,7 +18625,8 @@ const docTemplate = `{
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding"
+                "ConnectionTypePortForwarding",
+                "ConnectionTypeTunnel"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -19271,6 +19332,9 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"
@@ -20504,11 +20568,19 @@ const docTemplate = `{
                 "entitlement": {
                     "$ref": "#/definitions/codersdk.Entitlement"
                 },
+                "hard_limit": {
+                    "description": "HardLimit is the enforcement threshold that accompanies Limit for\nfeatures whose license carries it. See SoftLimit for the set of\nfeatures that use these thresholds.",
+                    "type": "integer"
+                },
                 "limit": {
                     "type": "integer"
                 },
+                "soft_limit": {
+                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
+                    "type": "integer"
+                },
                 "usage_period": {
-                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UsagePeriod"
@@ -20682,7 +20754,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current_spend_micros": {
-                    "description": "CurrentSpendMicros is the group's spend over the current budget\nperiod.",
+                    "description": "CurrentSpendMicros is the group's spend over the current budget period.",
                     "type": "integer"
                 },
                 "group_id": {
@@ -20700,7 +20772,11 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the group's configured AI spend limit. Null when\nthe group has no configured budget.",
+                    "description": "SpendLimitMicros is the group's configured AI spend budget per member.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the currently configured combined budget of the\nmembers attributed to this group, with each member's override replacing\ntheir share. Null when the group has no budget, and zero when no members\nare attributed to it.",
                     "type": "integer"
                 }
             }
@@ -21928,6 +22004,14 @@ const docTemplate = `{
                 "OAuth2ProviderResponseTypeToken"
             ]
         },
+        "codersdk.OAuth2ProviderSettings": {
+            "type": "object",
+            "properties": {
+                "dynamic_client_registration_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OAuth2TokenEndpointAuthMethod": {
             "type": "string",
             "enum": [
@@ -22180,7 +22264,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current_spend_micros": {
-                    "description": "CurrentSpendMicros is the group's spend over the current budget\nperiod.",
+                    "description": "CurrentSpendMicros is the group's spend over the current budget period.",
                     "type": "integer"
                 },
                 "group_id": {
@@ -22188,7 +22272,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the group's configured AI spend limit. Null when\nthe group has no configured budget.",
+                    "description": "SpendLimitMicros is the group's configured AI spend budget per member.\nNull when the group has no configured budget.",
+                    "type": "integer"
+                },
+                "total_spend_limit_micros": {
+                    "description": "TotalSpendLimitMicros is the currently configured combined budget of the\nmembers attributed to this group, with each member's override replacing\ntheir share. Null when the group has no budget, and zero when no members\nare attributed to it.",
                     "type": "integer"
                 }
             }
@@ -23732,6 +23820,7 @@ const docTemplate = `{
                 "health_settings",
                 "notifications_settings",
                 "prebuilds_settings",
+                "oauth2_provider_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -23769,6 +23858,7 @@ const docTemplate = `{
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
                 "ResourceTypePrebuildsSettings",
+                "ResourceTypeOAuth2ProviderSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
@@ -26047,6 +26137,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "env_name": {
                     "type": "string"
                 },
@@ -26654,6 +26747,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "enabled": {
+                    "description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+                    "type": "boolean"
                 },
                 "env_name": {
                     "type": "string"

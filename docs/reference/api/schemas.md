@@ -2825,7 +2825,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2921,7 +2920,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "result_delta": "string",
   "result_reset": true,
-  "signature": "string",
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -2967,7 +2965,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -3092,7 +3089,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3175,7 +3171,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3405,7 +3400,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3571,7 +3565,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3652,7 +3645,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3721,7 +3713,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3839,7 +3830,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "result_delta": "string",
     "result_reset": true,
-    "signature": "string",
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -4205,7 +4195,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
 | `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
 | `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp`                                              |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                     |
 | `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
@@ -4357,9 +4347,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 
@@ -4541,7 +4531,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4623,7 +4612,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -5129,6 +5117,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "name": "string",
@@ -5138,13 +5127,14 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.CreateUserSkillRequest
 
@@ -7122,7 +7112,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -7190,7 +7179,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -7201,7 +7192,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -7484,7 +7477,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "actual": 0,
   "enabled": true,
   "entitlement": "entitled",
+  "hard_limit": 0,
   "limit": 0,
+  "soft_limit": 0,
   "usage_period": {
     "end": "2019-08-24T14:15:22Z",
     "issued_at": "2019-08-24T14:15:22Z",
@@ -7495,15 +7490,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                            |
+|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                        |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                        |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                        |
+| `hard_limit`  | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds. |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                        |
+|`soft_limit`|integer|false||Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation.
+Only certain features set this field: - FeatureAgentRuntimeHours|
 |`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
 These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
-Only certain features set these fields: - FeatureManagedAgentLimit|
+Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgentRuntimeHours|
 
 ## codersdk.FriendlyDiagnostic
 
@@ -7758,19 +7756,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `period_end`           | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                      |
-| `period_start`         | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                    |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.GroupMemberAISpend
 
@@ -9070,6 +9070,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |-----------------|
 | `code`, `token` |
 
+## codersdk.OAuth2ProviderSettings
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Properties
+
+| Name                                  | Type    | Required | Restrictions | Description |
+|---------------------------------------|---------|----------|--------------|-------------|
+| `dynamic_client_registration_enabled` | boolean | false    |              |             |
+
 ## codersdk.OAuth2TokenEndpointAuthMethod
 
 ```json
@@ -9302,17 +9316,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "current_spend_micros": 0,
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.OrganizationGroupsAISpend
 
@@ -9322,7 +9338,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
@@ -11047,9 +11064,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -13846,6 +13863,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "value": "string"
@@ -13854,12 +13872,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.UpdateUserSkillRequest
 
@@ -14545,6 +14564,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -14555,15 +14575,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|---------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description` | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`     | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`    | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_path`   | string  | false    |              |                                                                                                                                                                                                                                      |
+| `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
 
 ## codersdk.UserSkill
 

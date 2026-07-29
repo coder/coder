@@ -3544,46 +3544,53 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		require.Equal(t, group.ID, resp.Groups[0].GroupID)
 	})
 
+	// The group has a single member, so a budgeted group's total matches its
+	// per-member limit and an unbudgeted group reports null.
 	tests := []struct {
-		name             string
-		setBudget        bool
-		spendLimit       int64
-		spent            int64
-		wantSpendLimit   *int64
-		wantCurrentSpend int64
+		name                string
+		setBudget           bool
+		spendLimit          int64
+		spent               int64
+		wantSpendLimit      *int64
+		wantTotalSpendLimit *int64
+		wantCurrentSpend    int64
 	}{
 		{
 			name: "NoBudgetNoSpend",
 		},
 		{
-			name:             "ZeroLimitBudget",
-			setBudget:        true,
-			spendLimit:       0,
-			wantSpendLimit:   ptr.Ref(int64(0)),
-			wantCurrentSpend: 0,
+			name:                "ZeroLimitBudget",
+			setBudget:           true,
+			spendLimit:          0,
+			wantSpendLimit:      ptr.Ref(int64(0)),
+			wantTotalSpendLimit: ptr.Ref(int64(0)),
+			wantCurrentSpend:    0,
 		},
 		{
-			name:             "BudgetZeroSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 0,
+			name:                "BudgetZeroSpend",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    0,
 		},
 		{
-			name:             "BudgetWithSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			spent:            250_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 250_000_000,
+			name:                "BudgetWithSpend",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			spent:               250_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    250_000_000,
 		},
 		{
-			name:             "SpendExceedsLimit",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			spent:            1_500_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 1_500_000_000,
+			name:                "SpendExceedsLimit",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			spent:               1_500_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    1_500_000_000,
 		},
 	}
 
@@ -3631,9 +3638,38 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 			require.Len(t, got.Groups, 1)
 			require.Equal(t, group.ID, got.Groups[0].GroupID)
 			require.Equal(t, tt.wantSpendLimit, got.Groups[0].SpendLimitMicros)
+			require.Equal(t, tt.wantTotalSpendLimit, got.Groups[0].TotalSpendLimitMicros)
 			require.Equal(t, tt.wantCurrentSpend, got.Groups[0].CurrentSpendMicros)
 		})
 	}
+
+	t.Run("TotalCombinesAllMembers", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "total-all-members-org-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a second member in a group with a per-member budget.
+		_, second := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
+		_, err := adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{second.ID.String()},
+		})
+		require.NoError(t, err)
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		// When: querying the group's spend.
+		got, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, []uuid.UUID{group.ID})
+		require.NoError(t, err)
+
+		// Then: the total covers both members while the per-member limit is unchanged.
+		require.Len(t, got.Groups, 1)
+		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.Groups[0].SpendLimitMicros)
+		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.Groups[0].TotalSpendLimitMicros)
+		require.Equal(t, int64(0), got.Groups[0].CurrentSpendMicros)
+	})
 }
 
 func TestOrganizationGroupsAISpendRoleAccess(t *testing.T) {
@@ -4660,46 +4696,53 @@ func TestGroupAISpend(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
+	// The group has a single member, so a budgeted group's total matches its
+	// per-member limit and an unbudgeted group reports null.
 	tests := []struct {
-		name             string
-		setBudget        bool
-		spendLimit       int64
-		spent            int64
-		wantSpendLimit   *int64
-		wantCurrentSpend int64
+		name                string
+		setBudget           bool
+		spendLimit          int64
+		spent               int64
+		wantSpendLimit      *int64
+		wantTotalSpendLimit *int64
+		wantCurrentSpend    int64
 	}{
 		{
 			name: "NoBudgetNoSpend",
 		},
 		{
-			name:             "ZeroLimitBudget",
-			setBudget:        true,
-			spendLimit:       0,
-			wantSpendLimit:   ptr.Ref(int64(0)),
-			wantCurrentSpend: 0,
+			name:                "ZeroLimitBudget",
+			setBudget:           true,
+			spendLimit:          0,
+			wantSpendLimit:      ptr.Ref(int64(0)),
+			wantTotalSpendLimit: ptr.Ref(int64(0)),
+			wantCurrentSpend:    0,
 		},
 		{
-			name:             "BudgetZeroSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 0,
+			name:                "BudgetZeroSpend",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    0,
 		},
 		{
-			name:             "BudgetWithSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			spent:            250_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 250_000_000,
+			name:                "BudgetWithSpend",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			spent:               250_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    250_000_000,
 		},
 		{
-			name:             "SpendExceedsLimit",
-			setBudget:        true,
-			spendLimit:       1_000_000_000,
-			spent:            1_500_000_000,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantCurrentSpend: 1_500_000_000,
+			name:                "SpendExceedsLimit",
+			setBudget:           true,
+			spendLimit:          1_000_000_000,
+			spent:               1_500_000_000,
+			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
+			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend:    1_500_000_000,
 		},
 	}
 
@@ -4746,9 +4789,37 @@ func TestGroupAISpend(t *testing.T) {
 			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
 			require.Equal(t, group.ID, got.GroupID)
 			require.Equal(t, tt.wantSpendLimit, got.SpendLimitMicros)
+			require.Equal(t, tt.wantTotalSpendLimit, got.TotalSpendLimitMicros)
 			require.Equal(t, tt.wantCurrentSpend, got.CurrentSpendMicros)
 		})
 	}
+
+	t.Run("TotalCombinesAllMembers", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "total-all-members-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a second member in a group with a per-member budget.
+		_, second := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
+		_, err := adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{second.ID.String()},
+		})
+		require.NoError(t, err)
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		// When: querying the group's spend.
+		got, err := adminClient.GroupAISpend(ctx, group.ID)
+		require.NoError(t, err)
+
+		// Then: the total covers both members while the per-member limit is unchanged.
+		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.SpendLimitMicros)
+		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.TotalSpendLimitMicros)
+		require.Equal(t, int64(0), got.CurrentSpendMicros)
+	})
 }
 
 func TestGroupAISpendRoleAccess(t *testing.T) {

@@ -145,7 +145,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (
@@ -1962,6 +1962,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+		Enabled:     takeFirst(seed.Enabled, true),
 	}
 	for _, mut := range mutators {
 		mut(&params)
