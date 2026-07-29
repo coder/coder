@@ -2,16 +2,18 @@ import { type FC, useId, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 type DynamicClientRegistrationSettingProps = {
 	enabled: boolean;
 	canEdit: boolean;
+	isUpdating: boolean;
 	onChange: (enabled: boolean) => void;
 };
 
 export const DynamicClientRegistrationSetting: FC<
 	DynamicClientRegistrationSettingProps
-> = ({ enabled, canEdit, onChange }) => {
+> = ({ enabled, canEdit, isUpdating, onChange }) => {
 	const headingId = useId();
 	const [isEnableDialogOpen, setIsEnableDialogOpen] = useState(false);
 
@@ -44,16 +46,18 @@ export const DynamicClientRegistrationSetting: FC<
 				{enabled ? (
 					<Button
 						variant="outline"
-						disabled={!canEdit}
+						disabled={!canEdit || isUpdating}
 						onClick={() => onChange(false)}
 					>
+						<Spinner loading={isUpdating} aria-hidden />
 						Disable
 					</Button>
 				) : (
 					<Button
-						disabled={!canEdit}
+						disabled={!canEdit || isUpdating}
 						onClick={() => setIsEnableDialogOpen(true)}
 					>
+						<Spinner loading={isUpdating} aria-hidden />
 						Enable
 					</Button>
 				)}

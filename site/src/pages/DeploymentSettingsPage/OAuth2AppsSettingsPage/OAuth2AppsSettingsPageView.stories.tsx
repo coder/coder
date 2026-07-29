@@ -8,7 +8,10 @@ const meta: Meta<typeof OAuth2AppsSettingsPageView> = {
 	component: OAuth2AppsSettingsPageView,
 	args: {
 		canCreateApp: true,
+		canViewSettings: true,
 		canEditSettings: true,
+		isLoadingSettings: false,
+		isUpdatingSettings: false,
 		dynamicClientRegistrationEnabled: false,
 		onDynamicClientRegistrationChange: fn(),
 	},
@@ -70,7 +73,7 @@ export const SettingsTabRendersDynamicClientRegistration: Story = {
 
 export const SettingsTabHiddenWithoutPermission: Story = {
 	args: {
-		dynamicClientRegistrationEnabled: undefined,
+		canViewSettings: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -80,6 +83,26 @@ export const SettingsTabHiddenWithoutPermission: Story = {
 		).toBeVisible();
 		await expect(
 			canvas.queryByRole("tab", { name: "Settings" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// The tab is present from first paint so it does not shift into the tab bar
+// once the settings request resolves.
+export const SettingsTabLoading: Story = {
+	args: {
+		isLoadingSettings: true,
+		dynamicClientRegistrationEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("tab", { name: "Settings" })).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
+		await expect(canvas.getByLabelText("Loading settings")).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: "Enable" }),
 		).not.toBeInTheDocument();
 	},
 };

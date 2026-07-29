@@ -6,6 +6,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -35,7 +36,10 @@ type OAuth2AppsSettingsProps = {
 	isLoading: boolean;
 	error: unknown;
 	canCreateApp: boolean;
+	canViewSettings: boolean;
 	canEditSettings: boolean;
+	isLoadingSettings: boolean;
+	isUpdatingSettings: boolean;
 	dynamicClientRegistrationEnabled: boolean | undefined;
 	onDynamicClientRegistrationChange: (enabled: boolean) => void;
 };
@@ -54,14 +58,13 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	isLoading,
 	error,
 	canCreateApp,
+	canViewSettings,
 	canEditSettings,
+	isLoadingSettings,
+	isUpdatingSettings,
 	dynamicClientRegistrationEnabled,
 	onDynamicClientRegistrationChange,
 }) => {
-	// The settings query is skipped for users without viewDeploymentConfig, so
-	// an undefined value means the settings tab has nothing to show.
-	const canViewSettings = dynamicClientRegistrationEnabled !== undefined;
-
 	return (
 		<div>
 			<SettingsHeader
@@ -116,11 +119,15 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 
 				{canViewSettings && (
 					<TabsContent value="settings" className="pt-6">
-						<DynamicClientRegistrationSetting
-							enabled={dynamicClientRegistrationEnabled}
-							canEdit={canEditSettings}
-							onChange={onDynamicClientRegistrationChange}
-						/>
+						{isLoadingSettings && <Loader label="Loading settings" />}
+						{dynamicClientRegistrationEnabled !== undefined && (
+							<DynamicClientRegistrationSetting
+								enabled={dynamicClientRegistrationEnabled}
+								canEdit={canEditSettings}
+								isUpdating={isUpdatingSettings}
+								onChange={onDynamicClientRegistrationChange}
+							/>
+						)}
 					</TabsContent>
 				)}
 			</Tabs>

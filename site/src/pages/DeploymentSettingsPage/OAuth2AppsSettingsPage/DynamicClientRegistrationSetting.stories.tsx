@@ -8,6 +8,7 @@ const meta: Meta<typeof DynamicClientRegistrationSetting> = {
 	args: {
 		enabled: false,
 		canEdit: true,
+		isUpdating: false,
 		onChange: fn(),
 	},
 };
@@ -87,6 +88,31 @@ export const CancelEnable: Story = {
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
 		await expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+export const Updating: Story = {
+	args: {
+		isUpdating: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
+	},
+};
+
+export const UpdatingWhileEnabled: Story = {
+	args: {
+		enabled: true,
+		isUpdating: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByRole("button", { name: "Disable" }),
+		).toBeDisabled();
 	},
 };
 

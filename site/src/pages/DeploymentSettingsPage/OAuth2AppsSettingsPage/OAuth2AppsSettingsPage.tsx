@@ -22,6 +22,7 @@ const OAuth2AppsSettingsPage: FC = () => {
 	);
 
 	const canCreateApp = permissions.createOAuth2App;
+	const canViewSettings = permissions.viewDeploymentConfig;
 	const canEditSettings = permissions.editDeploymentConfig;
 
 	return (
@@ -35,7 +36,10 @@ const OAuth2AppsSettingsPage: FC = () => {
 					appsQuery.error ?? settingsQuery.error ?? updateSettingsMutation.error
 				}
 				canCreateApp={canCreateApp}
+				canViewSettings={canViewSettings}
 				canEditSettings={canEditSettings}
+				isLoadingSettings={settingsQuery.isLoading}
+				isUpdatingSettings={updateSettingsMutation.isPending}
 				dynamicClientRegistrationEnabled={
 					settingsQuery.data?.dynamic_client_registration_enabled
 				}
