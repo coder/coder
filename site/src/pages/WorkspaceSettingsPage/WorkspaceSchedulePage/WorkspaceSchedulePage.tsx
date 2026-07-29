@@ -173,7 +173,9 @@ const WorkspaceSchedulePage: FC = () => {
 					navigate(`/@${username}/${workspaceName}`);
 				}}
 				onClose={() => {
-					navigate(`/@${username}/${workspaceName}`);
+					// Keep the user on the schedule page; the saved value still
+					// applies on the next workspace start.
+					setIsConfirmingApply(false);
 				}}
 			/>
 		</div>
