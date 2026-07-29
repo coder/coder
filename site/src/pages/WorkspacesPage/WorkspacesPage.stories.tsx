@@ -15,7 +15,11 @@ import {
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
 import { workspacesKey } from "#/api/queries/workspaces";
-import type { Workspace, WorkspaceAppHealth } from "#/api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAppHealth,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
 import {
 	MockDefaultOrganization,
@@ -370,6 +374,58 @@ export const BatchUpdateRunningWorkspace: Story = {
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[2],
 		);
+	},
+};
+
+export const BatchUpdateShowsSubmittingState: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: updateRunningWorkspaces,
+			count: updateRunningWorkspaces.length,
+		});
+		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		// Hold the mutation pending so the button's submitting state stays
+		// observable until the story explicitly resolves it.
+		let resolveUpdate!: () => void;
+		const pendingUpdate = new Promise<WorkspaceBuild>((resolve) => {
+			resolveUpdate = () => resolve(MockWorkspaceBuild);
+		});
+		spyOn(API, "updateWorkspace").mockReturnValue(pendingUpdate);
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /Update/ }));
+
+		const modal = await body.findByRole("dialog", { name: /Review Updates/i });
+		await user.click(
+			within(modal).getByRole("checkbox", {
+				name: /I acknowledge these risks\./,
+			}),
+		);
+		const updateButton = within(modal).getByRole("button", { name: /Update/ });
+		await user.click(updateButton);
+
+		await step("Button reflects the submitting state", async () => {
+			await waitFor(() => expect(updateButton).toBeDisabled());
+			await within(modal).findByText(
+				"Waiting for workspaces to finish processing",
+			);
+		});
+
+		await step("Resolving the update clears the submitting state", async () => {
+			resolveUpdate();
+			await waitFor(() =>
+				expect(
+					body.queryByText("Waiting for workspaces to finish processing"),
+				).not.toBeInTheDocument(),
+			);
+		});
 	},
 };
 
