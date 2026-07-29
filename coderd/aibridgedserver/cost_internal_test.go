@@ -113,32 +113,42 @@ func TestComputeCost(t *testing.T) {
 			want:        9_150_000_000_000,
 		},
 		{
-			name: "cost exactly at the column ceiling is in range",
+			name: "cost exactly at the bound is in range",
 			price: database.AIModelPrice{
 				// 1 micro-unit per token, so cost equals the token count.
 				InputPrice: nullInt64(1_000_000),
 			},
-			inputTokens: math.MaxInt64,
-			want:        math.MaxInt64,
+			inputTokens: 10_000_000_000_000, // $10M, the bound
+			want:        10_000_000_000_000,
 		},
 		{
-			name: "cost above the column ceiling is out of range",
+			name: "cost one micro-unit above the bound is out of range",
 			price: database.AIModelPrice{
-				InputPrice: nullInt64(2_000_000), // 2 micro-units per token
+				InputPrice: nullInt64(1_000_000),
 			},
-			inputTokens:    math.MaxInt64, // 2 * int64 max
+			inputTokens:    10_000_000_000_001,
 			wantOutOfRange: true,
 		},
 		{
-			// Each category fits on its own; only their sum exceeds the column,
+			// A cost the column could hold is still rejected, because it would
+			// poison the running total it feeds.
+			name: "cost the column could hold is out of range",
+			price: database.AIModelPrice{
+				InputPrice: nullInt64(1_000_000),
+			},
+			inputTokens:    math.MaxInt64,
+			wantOutOfRange: true,
+		},
+		{
+			// Each category fits on its own; only their sum exceeds the bound,
 			// so the range check has to run on the total.
-			name: "sum of in-range categories above the ceiling is out of range",
+			name: "sum of in-range categories above the bound is out of range",
 			price: database.AIModelPrice{
 				InputPrice:  nullInt64(1_000_000),
 				OutputPrice: nullInt64(1_000_000),
 			},
-			inputTokens:    math.MaxInt64/2 + 1,
-			outputTokens:   math.MaxInt64/2 + 1,
+			inputTokens:    6_000_000_000_000,
+			outputTokens:   6_000_000_000_000,
 			wantOutOfRange: true,
 		},
 		{
