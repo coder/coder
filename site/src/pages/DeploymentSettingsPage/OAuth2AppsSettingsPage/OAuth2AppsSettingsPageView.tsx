@@ -1,21 +1,11 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
-import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -38,6 +28,7 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
@@ -134,87 +125,6 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				)}
 			</Tabs>
 		</div>
-	);
-};
-
-type DynamicClientRegistrationSettingProps = {
-	enabled: boolean;
-	canEdit: boolean;
-	onChange: (enabled: boolean) => void;
-};
-
-const DynamicClientRegistrationSetting: FC<
-	DynamicClientRegistrationSettingProps
-> = ({ enabled, canEdit, onChange }) => {
-	const headingId = useId();
-	const [isEnableDialogOpen, setIsEnableDialogOpen] = useState(false);
-
-	return (
-		<>
-			<section
-				aria-labelledby={headingId}
-				className="flex flex-row items-start justify-between gap-8"
-			>
-				<div className="flex flex-col gap-1 max-w-xl">
-					<div className="flex flex-row items-center gap-2">
-						<h3
-							id={headingId}
-							className="text-content-primary text-base font-semibold m-0"
-						>
-							Dynamic Client Registration
-						</h3>
-						{enabled && (
-							<Badge size="sm" variant="green" className="border-0 shadow-none">
-								Enabled
-							</Badge>
-						)}
-					</div>
-					<p className="text-sm text-content-secondary m-0">
-						Allow OAuth2 clients to register themselves against this deployment
-						without prior administrator approval (RFC 7591).
-					</p>
-				</div>
-
-				{enabled ? (
-					<Button
-						variant="outline"
-						disabled={!canEdit}
-						onClick={() => onChange(false)}
-					>
-						Disable
-					</Button>
-				) : (
-					<Button
-						disabled={!canEdit}
-						onClick={() => setIsEnableDialogOpen(true)}
-					>
-						Enable
-					</Button>
-				)}
-			</section>
-
-			<Dialog open={isEnableDialogOpen} onOpenChange={setIsEnableDialogOpen}>
-				<DialogContent variant="destructive" className="max-w-xl">
-					<DialogHeader>
-						<DialogTitle>Enable Dynamic Client Registration?</DialogTitle>
-						<DialogDescription>
-							Only enable Dynamic Client Registration if you intend to support
-							self-service OAuth2 client registration.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogActions
-							confirmVariant="destructive"
-							onConfirm={() => {
-								setIsEnableDialogOpen(false);
-								onChange(true);
-							}}
-							onCancel={() => setIsEnableDialogOpen(false)}
-						/>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</>
 	);
 };
 
