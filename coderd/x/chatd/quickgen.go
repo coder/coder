@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/object"
@@ -19,6 +22,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"charm.land/fantasy/schema"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -87,6 +91,50 @@ func generateQuickgenObject[T any](
 	return result, err
 }
 
+// generateQuickgenObjectWithTool generates a structured object by forcing the
+// model to call the schema-named tool. Unlike LanguageModel.GenerateObject,
+// this does not allow providers to select text-based JSON generation.
+func generateQuickgenObjectWithTool[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	var zero T
+	call.Schema = schema.Generate(reflect.TypeOf(zero))
+	call.Temperature = ptr.Ref(quickgenTemperature)
+
+	var response *fantasy.ObjectResponse
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		response, genErr = object.GenerateWithTool(retryCtx, model, call)
+		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
+			call.Temperature = nil
+			response, genErr = object.GenerateWithTool(retryCtx, model, call)
+		}
+		return genErr
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	encoded, err := json.Marshal(response.Object)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal generated object: %w", err)
+	}
+	var result T
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		return nil, xerrors.Errorf("unmarshal generated object: %w", err)
+	}
+	return &fantasy.ObjectResult[T]{
+		Object:           result,
+		RawText:          response.RawText,
+		Usage:            response.Usage,
+		FinishReason:     response.FinishReason,
+		Warnings:         response.Warnings,
+		ProviderMetadata: response.ProviderMetadata,
+	}, nil
+}
+
 // isTemperatureRejectedError reports whether a provider rejected the
 // request because the model does not accept the temperature parameter,
 // for example Anthropic's "`temperature` is deprecated for this model."
@@ -138,6 +186,7 @@ var preferredTitleModels = []struct {
 type shortTextCandidate struct {
 	provider        string
 	model           string
+	config          database.ChatModelConfig
 	route           aiGatewayModelRoute
 	lm              fantasy.LanguageModel
 	providerOptions fantasy.ProviderOptions
@@ -176,6 +225,10 @@ type generatedTitle struct {
 
 type generatedTurnStatusLabel struct {
 	Label string `json:"label" description:"Compact 2-5 word current chat status label"`
+}
+
+type generatedSlackThreadActivity struct {
+	Activity string `json:"activity" description:"Lowercase 1-4 word present-progressive activity"`
 }
 
 // GenerateChatTitleAsync fires a best-effort, automatic title-generation
@@ -1081,6 +1134,261 @@ func generateStructuredTurnStatusLabel(
 		return "", xerrors.New("generated turn status label was invalid")
 	}
 	return label, nil
+}
+
+const slackThreadStatusPrompt = `Write a compact live activity for a Slack assistant status.
+Use the user message and recent committed activity to describe what the assistant is doing now.
+Populate activity with 1-4 words beginning with a lowercase present-progressive verb.
+Return the activity only, without a subject, quotes, punctuation, markdown, or an ellipsis.
+Do not repeat secrets or detailed command arguments.
+
+Good examples:
+- reviewing chatd code
+- running Go tests
+- checking Slack behavior
+- updating coderd/x/chatd/quicken.go
+
+Bad examples:
+- Reviewing chatd code
+- Assistant started reviewing chatd code
+- it identified a bug in chatd
+- Agent is looking for a security vulnerability in chatd
+- assistant explained how to review chatd code`
+
+const (
+	maxSlackThreadStatusInputRunes   = 2000
+	maxSlackThreadStatusUserRunes    = 800
+	maxSlackThreadStatusMessageRunes = 300
+	maxSlackThreadStatusMessages     = 3
+	slackThreadStatusModelTimeout    = 20 * time.Second
+)
+
+func buildSlackThreadStatusInput(messages []database.ChatMessage) string {
+	latestUser := -1
+	userText := ""
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Visibility != database.ChatMessageVisibilityBoth || message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		text := chatprompt.TitleText(parts, nil)
+		if text == "" {
+			continue
+		}
+		latestUser = i
+		userText = truncateRunes(text, maxSlackThreadStatusUserRunes)
+		break
+	}
+	if latestUser == -1 {
+		return ""
+	}
+
+	recent := make([]string, 0, maxSlackThreadStatusMessages)
+	for _, message := range messages[latestUser+1:] {
+		if message.Visibility != database.ChatMessageVisibilityBoth {
+			continue
+		}
+		if message.Role != database.ChatMessageRoleAssistant && message.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		summary := slackThreadStatusMessageSummary(message)
+		if summary == "" {
+			continue
+		}
+		recent = append(recent, truncateRunes(summary, maxSlackThreadStatusMessageRunes))
+		if len(recent) > maxSlackThreadStatusMessages {
+			recent = recent[1:]
+		}
+	}
+
+	var input strings.Builder
+	_, _ = input.WriteString("User message:\n")
+	_, _ = input.WriteString(userText)
+	if len(recent) > 0 {
+		_, _ = input.WriteString("\n\nRecent committed activity:\n")
+		for i, summary := range recent {
+			if i > 0 {
+				_ = input.WriteByte('\n')
+			}
+			_, _ = fmt.Fprintf(&input, "%d. %s", i+1, summary)
+		}
+	}
+	return truncateRunes(input.String(), maxSlackThreadStatusInputRunes)
+}
+
+func slackThreadStatusMessageSummary(message database.ChatMessage) string {
+	parts, err := chatprompt.ParseContent(message)
+	if err != nil {
+		return ""
+	}
+
+	summaries := make([]string, 0, len(parts))
+	for _, part := range parts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeToolCall:
+			if part.ToolName == "" {
+				continue
+			}
+			programs := parsedCommandNames(part.ParsedCommands)
+			summary := "called " + part.ToolName
+			if len(programs) > 0 {
+				summary += " (" + strings.Join(programs, ", ") + ")"
+			}
+			summaries = append(summaries, summary)
+		case codersdk.ChatMessagePartTypeToolResult:
+			if part.ToolName == "" {
+				continue
+			}
+			outcome := "succeeded"
+			if part.IsError {
+				outcome = "failed"
+			}
+			summaries = append(summaries, part.ToolName+" "+outcome)
+		}
+	}
+	text := contentBlocksToText(parts)
+	if text != "" {
+		summaries = append(summaries, "said "+text)
+	}
+	return strings.Join(summaries, "; ")
+}
+
+func parsedCommandNames(commands [][]string) []string {
+	names := make([]string, 0, len(commands))
+	for _, command := range commands {
+		if len(command) == 0 || command[0] == "" || slices.Contains(names, command[0]) {
+			continue
+		}
+		names = append(names, command[0])
+	}
+	return names
+}
+
+func generateStructuredSlackThreadStatus(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
+	input string,
+) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", xerrors.New("Slack thread status input was empty")
+	}
+
+	prompt := fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: slackThreadStatusPrompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: input},
+			},
+		},
+	}
+
+	var maxOutputTokens int64 = 256
+	result, err := generateQuickgenObjectWithTool[generatedSlackThreadActivity](ctx, model, fantasy.ObjectCall{
+		Prompt:            prompt,
+		SchemaName:        "provide_status",
+		SchemaDescription: "Provide the assistant's current activity.",
+		MaxOutputTokens:   &maxOutputTokens,
+		ProviderOptions:   providerOptions,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("generate structured Slack thread status: %w", err)
+	}
+
+	status, ok := formatSlackThreadStatusActivity(result.Object.Activity)
+	if !ok {
+		return "", xerrors.New("generated Slack thread activity was invalid")
+	}
+	return status, nil
+}
+
+func formatSlackThreadStatusActivity(activity string) (string, bool) {
+	activity = strings.TrimSpace(activity)
+	if activity == "" || strings.ContainsAny(activity, "\r\n") || hasSentenceBoundary(activity) {
+		return "", false
+	}
+	activity = strings.Join(strings.Fields(activity), " ")
+	words := strings.Fields(activity)
+	if len(words) < 1 || len(words) > 4 {
+		return "", false
+	}
+	firstRune, _ := utf8.DecodeRuneInString(activity)
+	if !unicode.IsLower(firstRune) || !strings.HasSuffix(strings.ToLower(words[0]), "ing") {
+		return "", false
+	}
+	if strings.ContainsAny(activity, ".!?") || strings.HasPrefix(activity, "is ") {
+		return "", false
+	}
+	return "is " + activity + "...", true
+}
+
+func (p *Server) generateSlackThreadStatus(
+	ctx context.Context,
+	chat database.Chat,
+) (string, error) {
+	statusCtx, cancel := context.WithTimeout(ctx, slackThreadStatusModelTimeout)
+	defer cancel()
+
+	messages, err := p.db.GetChatMessagesForPromptByChatID(statusCtx, chat.ID)
+	if err != nil {
+		return "", xerrors.Errorf("load Slack thread status messages: %w", err)
+	}
+	input := buildSlackThreadStatusInput(messages)
+	if input == "" {
+		return "", nil
+	}
+
+	modelOpts := modelBuildOptionsFromMessages(messages)
+	statusCtx = withActiveTurnAPIKeyID(statusCtx, modelOpts)
+	candidate, _, ok, err := p.resolveCheapTitleModel(statusCtx, p.db, chat, modelOpts)
+	if err != nil {
+		return "", xerrors.Errorf("resolve Slack thread status model: %w", err)
+	}
+	if !ok {
+		return "", nil
+	}
+
+	triggerMessageID, historyTipMessageID, _ := deriveChatDebugSeed(messages)
+	statusModel := candidate.lm
+	finishDebugRun := func(error) {}
+	debugSvc := p.existingDebugService()
+	if debugSvc != nil && debugSvc.IsEnabled(statusCtx, chat.ID, chat.OwnerID) {
+		statusCtx, statusModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
+			statusCtx,
+			chat,
+			debugSvc,
+			candidate,
+			modelOpts,
+			chatdebug.KindQuickgen,
+			triggerMessageID,
+			historyTipMessageID,
+			chatdebug.SeedSummary("Slack thread status"),
+			p.logger,
+		)
+	}
+
+	status, err := generateStructuredSlackThreadStatus(
+		statusCtx,
+		statusModel,
+		candidate.providerOptions,
+		input,
+	)
+	finishDebugRun(err)
+	if err != nil {
+		return "", err
+	}
+	return status, nil
 }
 
 func turnStatusLabelStateContext(status database.ChatStatus) string {

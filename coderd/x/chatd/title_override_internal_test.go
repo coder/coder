@@ -399,6 +399,66 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	require.Equal(t, preferredConfig, gotConfig)
 }
 
+func TestResolveCheapTitleModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns no candidate instead of the main chat model", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		chat, _ := titleOverrideTestChatAndMessages(t)
+
+		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+		db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{
+			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
+		}, nil)
+
+		server := titleOverrideTestServer(db, logger)
+		candidate, overrideSet, ok, err := server.resolveCheapTitleModel(ctx, db, chat, modelBuildOptions{})
+		require.NoError(t, err)
+		require.False(t, overrideSet)
+		require.False(t, ok)
+		require.Nil(t, candidate.lm)
+	})
+
+	t.Run("selects the title generation override", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		chat, _ := titleOverrideTestChatAndMessages(t)
+		overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+		providerID := uuid.New()
+		overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+
+		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+		db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+		db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+			ProviderID: providerID,
+			APIKey:     "test-key",
+		}}, nil).AnyTimes()
+
+		server := titleOverrideTestServer(db, logger)
+		candidate, overrideSet, ok, err := server.resolveCheapTitleModel(
+			ctx,
+			db,
+			chat,
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		)
+		require.NoError(t, err)
+		require.True(t, overrideSet)
+		require.True(t, ok)
+		require.NotNil(t, candidate.lm)
+		require.Equal(t, overrideConfig, candidate.config)
+	})
+}
+
 func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
 	t.Parallel()
 

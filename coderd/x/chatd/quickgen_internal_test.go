@@ -855,6 +855,99 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 	}
 }
 
+func TestBuildSlackThreadStatusInput(t *testing.T) {
+	t.Parallel()
+
+	user := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("review slackd and chatd"),
+	)
+	omitted := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("old activity that should be omitted"),
+	)
+	toolCall := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessagePart{
+			Type:           codersdk.ChatMessagePartTypeToolCall,
+			ToolName:       "execute",
+			Args:           json.RawMessage(`{"command":"cat /secret/path"}`),
+			ParsedCommands: [][]string{{"go", "./coderd/x/chatd"}},
+		},
+		codersdk.ChatMessageReasoning("private chain of thought"),
+	)
+	toolResult := mustChatMessage(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeToolResult,
+			ToolName: "execute",
+			Result:   json.RawMessage(`{"secret":"tool output"}`),
+		},
+	)
+	latest := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("checking the status lifecycle"),
+	)
+	hidden := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityModel,
+		codersdk.ChatMessageText("hidden model message"),
+	)
+
+	input := buildSlackThreadStatusInput([]database.ChatMessage{
+		user, omitted, toolCall, toolResult, latest, hidden,
+	})
+
+	require.Contains(t, input, "User message:\nreview slackd and chatd")
+	require.NotContains(t, input, "old activity that should be omitted")
+	require.Contains(t, input, "called execute (go)")
+	require.Contains(t, input, "execute succeeded")
+	require.Contains(t, input, "checking the status lifecycle")
+	require.NotContains(t, input, "/secret/path")
+	require.NotContains(t, input, "tool output")
+	require.NotContains(t, input, "private chain of thought")
+	require.NotContains(t, input, "hidden model message")
+}
+
+func TestBuildSlackThreadStatusInputBoundsLongContent(t *testing.T) {
+	t.Parallel()
+
+	user := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText(strings.Repeat("user ", 1000)),
+	)
+	first := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText(strings.Repeat("first ", 1000)),
+	)
+	latest := mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("latest activity marker"),
+	)
+
+	input := buildSlackThreadStatusInput([]database.ChatMessage{user, first, latest})
+	require.LessOrEqual(t, len([]rune(input)), maxSlackThreadStatusInputRunes)
+	require.Contains(t, input, "latest activity marker")
+}
+
+func TestFormatSlackThreadStatusActivity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		activity string
+		want     string
+		ok       bool
+	}{
+		{name: "one word", activity: "typing", want: "is typing...", ok: true},
+		{name: "four words", activity: "reviewing Slack status code", want: "is reviewing Slack status code...", ok: true},
+		{name: "not lowercase", activity: "Reviewing chatd", ok: false},
+		{name: "not progressive", activity: "review chatd", ok: false},
+		{name: "too many words", activity: "reviewing the Slack thread status code", ok: false},
+		{name: "sentence", activity: "reviewing chatd. Running tests", ok: false},
+		{name: "already formatted", activity: "is reviewing chatd...", ok: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := formatSlackThreadStatusActivity(tt.activity)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestFallbackTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
@@ -1118,6 +1211,99 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		model := &chattest.FakeModel{}
 		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
+	})
+}
+
+func TestGenerateStructuredSlackThreadStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns formatted activity", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+				require.Len(t, call.Tools, 1)
+				require.Equal(t, "provide_status", call.Tools[0].GetName())
+				require.NotNil(t, call.ToolChoice)
+				require.Equal(t, fantasy.SpecificToolChoice("provide_status"), *call.ToolChoice)
+				return &fantasy.Response{
+					Content: fantasy.ResponseContent{
+						fantasy.ToolCallContent{
+							ToolCallID: "status-call",
+							ToolName:   "provide_status",
+							Input:      `{"activity":"reviewing chatd code"}`,
+						},
+					},
+				}, nil
+			},
+		}
+
+		status, err := generateStructuredSlackThreadStatus(t.Context(), model, nil, "status input")
+		require.NoError(t, err)
+		require.Equal(t, "is reviewing chatd code...", status)
+	})
+
+	t.Run("sends required tool choice", func(t *testing.T) {
+		t.Parallel()
+
+		server, requests := newOpenAICompatStructuredOutputServer(t, "provide_status", `{"activity":"running Go tests"}`)
+		model := openAICompatTestModel(t, server.URL)
+
+		status, err := generateStructuredSlackThreadStatus(t.Context(), model, nil, "status input")
+		require.NoError(t, err)
+		require.Equal(t, "is running Go tests...", status)
+		body := testutil.TryReceive(t.Context(), t, requests)
+		require.Equal(t, "required", body["tool_choice"])
+		require.Equal(t, quickgenTemperature, body["temperature"])
+	})
+
+	t.Run("rejects invalid activity", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: fantasy.ResponseContent{
+						fantasy.ToolCallContent{
+							ToolCallID: "status-call",
+							ToolName:   "provide_status",
+							Input:      `{"activity":"Finished tests"}`,
+						},
+					},
+				}, nil
+			},
+		}
+
+		_, err := generateStructuredSlackThreadStatus(t.Context(), model, nil, "status input")
+		require.ErrorContains(t, err, "generated Slack thread activity was invalid")
+	})
+
+	t.Run("drops rejected temperature", func(t *testing.T) {
+		t.Parallel()
+
+		var sawTemperature []bool
+		model := &chattest.FakeModel{
+			GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+				sawTemperature = append(sawTemperature, call.Temperature != nil)
+				if len(sawTemperature) == 1 {
+					return nil, newTemperatureRejectedError()
+				}
+				return &fantasy.Response{
+					Content: fantasy.ResponseContent{
+						fantasy.ToolCallContent{
+							ToolCallID: "status-call",
+							ToolName:   "provide_status",
+							Input:      `{"activity":"reviewing chatd code"}`,
+						},
+					},
+				}, nil
+			},
+		}
+
+		status, err := generateStructuredSlackThreadStatus(t.Context(), model, nil, "status input")
+		require.NoError(t, err)
+		require.Equal(t, "is reviewing chatd code...", status)
+		require.Equal(t, []bool{true, false}, sawTemperature)
 	})
 }
 

@@ -2732,48 +2732,71 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (fantasy.LanguageModel, database.ChatModelConfig, error) {
-	overrideConfig, overrideModel, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	candidate, overrideSet, ok, resolveErr := p.resolveCheapTitleModel(ctx, store, chat, modelOpts)
+	if resolveErr != nil {
+		if overrideSet {
+			return nil, database.ChatModelConfig{}, xerrors.Errorf(
+				"resolve manual title generation model override: %w",
+				resolveErr,
+			)
+		}
+		p.logger.Debug(ctx, "failed to resolve preferred manual title model",
+			slog.F("chat_id", chat.ID),
+			slog.Error(resolveErr),
+		)
+	} else if ok {
+		return candidate.lm, candidate.config, nil
+	}
+
+	return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+}
+
+// resolveCheapTitleModel resolves the configured title-generation override or
+// the highest-priority enabled lightweight title model. It never falls back to
+// the chat's main model.
+func (p *Server) resolveCheapTitleModel(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (candidate shortTextCandidate, overrideSet bool, ok bool, err error) {
+	overrideConfig, overrideModel, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
 		modelOpts,
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return nil, database.ChatModelConfig{}, xerrors.Errorf(
-				"resolve manual title generation model override: %w",
-				overrideErr,
-			)
+			return shortTextCandidate{}, true, false, overrideErr
 		}
-		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
+		p.logger.Debug(ctx, "failed to resolve title generation model override",
 			slog.F("chat_id", chat.ID),
 			slog.Error(overrideErr),
 		)
-	} else if overrideSet {
-		return overrideModel, overrideConfig, nil
+	}
+	if overrideSet {
+		return shortTextCandidate{
+			provider:        string(overrideRoute.Provider.Type),
+			model:           overrideConfig.Model,
+			config:          overrideConfig,
+			route:           overrideRoute,
+			lm:              overrideModel,
+			providerOptions: p.titleGenerationProviderOptions(ctx, overrideModel, overrideConfig),
+		}, true, true, nil
 	}
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to list manual title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return shortTextCandidate{}, false, false, xerrors.Errorf("list enabled chat model configs: %w", err)
 	}
-
 	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return shortTextCandidate{}, false, false, nil
 	}
 
 	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
 	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return shortTextCandidate{}, false, false, xerrors.Errorf("resolve lightweight title model route: %w", err)
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
@@ -2782,15 +2805,17 @@ func (p *Server) resolveManualTitleModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return shortTextCandidate{}, false, false, xerrors.Errorf("create lightweight title model: %w", err)
 	}
 
-	return model, config, nil
+	return shortTextCandidate{
+		provider:        string(route.Provider.Type),
+		model:           config.Model,
+		config:          config,
+		route:           route,
+		lm:              model,
+		providerOptions: p.titleGenerationProviderOptions(ctx, model, config),
+	}, false, true, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(

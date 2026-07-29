@@ -115,12 +115,19 @@ func (r *runner) bootstrap() bool {
 		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
 	}
-	// The Slack thread status maintenance goroutine lives for the
-	// runner's lifetime: while alive it keeps the bound Slack thread's
-	// status set, and it clears the status when r.ctx is canceled.
+	// The Slack thread status maintenance goroutine lives for the runner's
+	// lifetime. It keeps a generated activity set on the bound Slack thread and
+	// clears the status when r.ctx is canceled.
 	// Labels are stamped at chat creation and never change for slackd
 	// chats, so capturing them once here is safe.
-	r.slackStatus = newSlackThreadStatus(r.opts.SlackAPI, chat, r.opts.Logger, r.opts.Clock)
+	r.slackStatus = newSlackThreadStatus(
+		r.opts.SlackAPI,
+		chat,
+		r.opts.Store.GetChatByID,
+		r.mgr.server.generateSlackThreadStatus,
+		r.opts.Logger,
+		r.opts.Clock,
+	)
 	if r.slackStatus != nil {
 		r.slackStatus.start(r.ctx)
 	}
