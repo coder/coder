@@ -3535,6 +3535,7 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatSystemPromptSettings    ResourceType = "chat_system_prompt_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3609,7 +3610,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
-		ResourceTypeOauth2ProviderSettings:
+		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatSystemPromptSettings:
 		return true
 	}
 	return false
@@ -3653,6 +3655,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatSystemPromptSettings,
 	}
 }
 

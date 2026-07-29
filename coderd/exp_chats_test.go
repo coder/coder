@@ -200,12 +200,31 @@ func findUserMessage(t testing.TB, messages []database.ChatMessage) database.Cha
 	return messages[idx]
 }
 
+// failNextChatSystemPromptStore lets a test force single chat system prompt
+// queries to fail once. Flags that affect in-transaction writes are shared
+// across InTx wrappers.
 type failNextChatSystemPromptStore struct {
 	database.Store
 
 	failNextGetChatIncludeDefaultSystemPrompt    atomic.Bool
 	failNextGetChatSystemPromptConfig            atomic.Bool
-	failNextUpsertChatIncludeDefaultSystemPrompt atomic.Bool
+	failNextUpsertChatIncludeDefaultSystemPrompt *atomic.Bool
+}
+
+func newFailNextChatSystemPromptStore(store database.Store) *failNextChatSystemPromptStore {
+	return &failNextChatSystemPromptStore{
+		Store: store,
+		failNextUpsertChatIncludeDefaultSystemPrompt: &atomic.Bool{},
+	}
+}
+
+func (s *failNextChatSystemPromptStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextChatSystemPromptStore{
+			Store: tx,
+			failNextUpsertChatIncludeDefaultSystemPrompt: s.failNextUpsertChatIncludeDefaultSystemPrompt,
+		})
+	}, txOpts)
 }
 
 func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
@@ -227,6 +246,38 @@ func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Co
 		return database.GetChatSystemPromptConfigRow{}, stderrors.New("forced chat system prompt configuration read failure")
 	}
 	return s.Store.GetChatSystemPromptConfig(ctx)
+}
+
+// failNextUpsertChatPlanModeInstructionsStore lets a test force the plan-mode
+// instructions upsert to fail once, sharing its failure state across InTx
+// wrappers.
+type failNextUpsertChatPlanModeInstructionsStore struct {
+	database.Store
+
+	failNextUpsertChatPlanModeInstructions *atomic.Bool
+}
+
+func newFailNextUpsertChatPlanModeInstructionsStore(store database.Store) *failNextUpsertChatPlanModeInstructionsStore {
+	return &failNextUpsertChatPlanModeInstructionsStore{
+		Store:                                  store,
+		failNextUpsertChatPlanModeInstructions: &atomic.Bool{},
+	}
+}
+
+func (s *failNextUpsertChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextUpsertChatPlanModeInstructionsStore{
+			Store:                                  tx,
+			failNextUpsertChatPlanModeInstructions: s.failNextUpsertChatPlanModeInstructions,
+		})
+	}, txOpts)
+}
+
+func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstructions(ctx context.Context, instructions string) error {
+	if s.failNextUpsertChatPlanModeInstructions.CompareAndSwap(true, false) {
+		return stderrors.New("forced plan mode instructions upsert failure")
+	}
+	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
@@ -12466,7 +12517,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := &failNextChatSystemPromptStore{Store: rawDB}
+		store := newFailNextChatSystemPromptStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -12636,7 +12687,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := &failNextChatSystemPromptStore{Store: rawDB}
+		store := newFailNextChatSystemPromptStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -12685,7 +12736,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := &failNextChatSystemPromptStore{Store: rawDB}
+		store := newFailNextChatSystemPromptStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -12767,6 +12818,176 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
 	})
+
+	t.Run("Audit", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, auditClient.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// A value change emits a Write entry for the deployment singleton.
+		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "You are a test assistant.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
+		require.Equal(t, "", logs[0].ResourceTarget)
+		require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+		require.Equal(t, uuid.Nil, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+		// A value-identical PUT emits nothing (the write still happens).
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "You are a test assistant.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+
+		resp, err := auditClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "You are a test assistant.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+
+		// An omitted-flag PUT is not mis-suppressed: the stored toggle row
+		// keeps the effective include-default flag false, so a prompt-only
+		// change still emits an entry.
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Custom without default.",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Renamed without default.",
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		resp, err = auditClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Renamed without default.", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+
+		// A failed PUT emits nothing.
+		mAudit.ResetLogs()
+		tooLong := strings.Repeat("a", 131073)
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: tooLong,
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// A failing write must not leave a stale Old behind: the request
+	// fails with 500 and no audit entry, and a later no-change PUT is
+	// still recognized as unchanged (suppressed) rather than audited as
+	// a change from the value the failed request had read.
+	t.Run("AuditFailureThenNoChangeSuppressed", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSystemPromptStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextUpsertChatIncludeDefaultSystemPrompt.Store(true)
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "First prompt.",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+		require.Empty(t, mAudit.AuditLogs())
+
+		// The failed write rolled back, so the effective state is still
+		// the deployment default (empty prompt, include-default true).
+		// Repeating the same effective state through the toggle-only
+		// default changes nothing and must stay suppressed.
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	t.Run("AuditIncludeDefaultFallbackFlip", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, auditClient.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// Seed only the prompt key, like a pre-toggle deployment: with no
+		// include-default row, the effective flag falls back to false
+		// while a non-empty custom prompt exists.
+		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Legacy custom instructions.",
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		resp, err := auditClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Legacy custom instructions.", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+
+		// Clearing the prompt without sending the flag flips the
+		// effective include-default value from false to true. The entry
+		// must be emitted and its diff must carry the boolean change,
+		// which is why the handler re-reads the pair after writing.
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "",
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
+
+		resp, err = auditClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+
+		// Repeating the cleared state changes nothing: no entry.
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "",
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+	})
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
@@ -12840,6 +13061,99 @@ func TestChatPlanModeInstructions(t *testing.T) {
 
 		_, err := memberClient.GetChatPlanModeInstructions(ctx)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("Audit", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, auditClient.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// A value change emits a Write entry.
+		err := auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Draft a plan first.",
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
+		require.Equal(t, "", logs[0].ResourceTarget)
+		require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+		require.Equal(t, uuid.Nil, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+		// A value-identical PUT emits nothing (the write still happens).
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Draft a plan first.",
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+
+		resp, err := auditClient.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Draft a plan first.", resp.PlanModeInstructions)
+
+		// A failed PUT emits nothing.
+		mAudit.ResetLogs()
+		tooLong := strings.Repeat("a", 131073)
+		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: tooLong,
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// A failing upsert must not leave a stale Old behind: the request
+	// fails with 500 and no audit entry, and a later no-change PUT is
+	// still recognized as unchanged (suppressed) rather than audited as
+	// a change from the value the failed request had read.
+	t.Run("AuditFailureThenNoChangeSuppressed", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpsertChatPlanModeInstructionsStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Persist me.",
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		mAudit.ResetLogs()
+		store.failNextUpsertChatPlanModeInstructions.Store(true)
+		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Never stored.",
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+		require.Empty(t, mAudit.AuditLogs())
+
+		// The failed write rolled back, so the stored value is still
+		// "Persist me." and repeating it is a no-op: no entry.
+		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Persist me.",
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
 	})
 }
 

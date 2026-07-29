@@ -4552,6 +4552,15 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+
+	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -4570,6 +4579,14 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := api.Database.InTx(func(tx database.Store) error {
+		oldConfig, err := tx.GetChatSystemPromptConfig(ctx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = database.ChatSystemPromptSettings{
+			SystemPrompt:               oldConfig.ChatSystemPrompt,
+			IncludeDefaultSystemPrompt: oldConfig.IncludeDefaultSystemPrompt,
+		}
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
 		}
@@ -4579,7 +4596,31 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// avoiding a backward-compatibility regression for older clients
 		// that only send system_prompt.
 		if req.IncludeDefaultSystemPrompt != nil {
-			return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+			if err := tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt); err != nil {
+				return err
+			}
+		}
+		// Re-read the pair to build New: the effective include-default flag
+		// is computed from the toggle row AND the current prompt, so a
+		// prompt-only write can flip it without the request carrying the
+		// flag.
+		newConfig, err := tx.GetChatSystemPromptConfig(ctx)
+		if err != nil {
+			return err
+		}
+		if newConfig.ChatSystemPrompt == oldConfig.ChatSystemPrompt &&
+			newConfig.IncludeDefaultSystemPrompt == oldConfig.IncludeDefaultSystemPrompt {
+			// Value-identical PUT: leave both audit sides without a
+			// resource ID, which suppresses the audit entry entirely.
+			// The upserts above still run either way.
+			return nil
+		}
+		// Artificial ID for auditing purposes, set only on New so the
+		// entry shows the old-to-new transition.
+		aReq.New = database.ChatSystemPromptSettings{
+			ID:                         uuid.New(),
+			SystemPrompt:               newConfig.ChatSystemPrompt,
+			IncludeDefaultSystemPrompt: newConfig.IncludeDefaultSystemPrompt,
 		}
 		return nil
 	}, nil)
@@ -4625,6 +4666,14 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -4643,7 +4692,34 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+	// The read and write share one transaction so the audited old value is
+	// exactly the value this request replaced.
+	err := api.Database.InTx(func(tx database.Store) error {
+		oldInstructions, err := tx.GetChatPlanModeInstructions(ctx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = database.ChatSystemPromptSettings{
+			PlanModeInstructions: oldInstructions,
+		}
+		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+			return err
+		}
+		if sanitizedInstructions == oldInstructions {
+			// Value-identical PUT: leave both audit sides without a
+			// resource ID, which suppresses the audit entry entirely.
+			// The upsert above still runs either way.
+			return nil
+		}
+		// Artificial ID for auditing purposes, set only on New so the
+		// entry shows the old-to-new transition.
+		aReq.New = database.ChatSystemPromptSettings{
+			ID:                   uuid.New(),
+			PlanModeInstructions: sanitizedInstructions,
+		}
+		return nil
+	}, nil)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",
 			Detail:  err.Error(),
