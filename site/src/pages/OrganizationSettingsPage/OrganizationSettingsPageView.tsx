@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
@@ -19,13 +18,17 @@ import {
 	FormSection,
 	HorizontalForm,
 } from "#/components/Form/Form";
-import { IconField } from "#/components/IconField/IconField";
+import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Textarea } from "#/components/Textarea/Textarea";
+import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
+import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -81,6 +84,9 @@ export const OrganizationSettingsPageView: FC<
 		enableReinitialize: true,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
+	const descriptionField = getFieldHelpers("description");
+	const descriptionErrorId = `${descriptionField.id}-error`;
+	const iconField = getFieldHelpers("icon");
 
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [pendingSharingChange, setPendingSharingChange] =
@@ -111,31 +117,58 @@ export const OrganizationSettingsPageView: FC<
 						className="border-0 p-0 m-0 w-full"
 					>
 						<FormFields>
-							<TextField
-								{...getFieldHelpers("name")}
+							<FormField
+								field={getFieldHelpers("name")}
+								label="Slug"
 								onChange={onChangeTrimmed(form)}
 								autoFocus
-								fullWidth
-								label="Slug"
 							/>
-							<TextField
-								{...getFieldHelpers("display_name")}
-								fullWidth
+							<FormField
+								field={getFieldHelpers("display_name")}
 								label="Display name"
 							/>
-							<TextField
-								{...getFieldHelpers("description")}
-								multiline
-								fullWidth
-								label="Description"
-								rows={2}
-							/>
-							<IconField
-								{...getFieldHelpers("icon")}
-								onChange={onChangeTrimmed(form)}
-								fullWidth
-								onPickEmoji={(value) => form.setFieldValue("icon", value)}
-							/>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={descriptionField.id}>Description</Label>
+								<Textarea
+									id={descriptionField.id}
+									name={descriptionField.name}
+									value={descriptionField.value}
+									onChange={descriptionField.onChange}
+									onBlur={descriptionField.onBlur}
+									rows={2}
+									aria-invalid={descriptionField.error}
+									aria-describedby={
+										descriptionField.error ? descriptionErrorId : undefined
+									}
+									className={cn(
+										descriptionField.error && "border-border-destructive",
+									)}
+								/>
+								{descriptionField.error && (
+									<span
+										id={descriptionErrorId}
+										className="text-xs text-content-destructive"
+									>
+										{descriptionField.helperText}
+									</span>
+								)}
+							</div>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={iconField.id}>Icon</Label>
+								<IconPickerField
+									id={iconField.id}
+									value={form.values.icon ?? ""}
+									onChange={(value) => {
+										void form.setFieldValue("icon", value.trim());
+										void form.setFieldTouched("icon", true);
+									}}
+								/>
+								{iconField.error && (
+									<span className="text-xs text-content-destructive">
+										{iconField.helperText}
+									</span>
+								)}
+							</div>
 						</FormFields>
 					</fieldset>
 				</FormSection>

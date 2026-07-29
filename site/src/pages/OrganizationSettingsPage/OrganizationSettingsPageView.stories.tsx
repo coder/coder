@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockDefaultOrganization,
@@ -21,6 +21,25 @@ export default meta;
 type Story = StoryObj<typeof OrganizationSettingsPageView>;
 
 export const Example: Story = {};
+
+export const EditInfoFields: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		for (const name of ["Slug", "Display name", "Description", "Icon"]) {
+			const field = canvas.getByRole("textbox", { name });
+			await user.clear(field);
+			await user.type(field, "edited");
+			await expect(field).toHaveValue("edited");
+		}
+
+		const slug = canvas.getByRole("textbox", { name: "Slug" });
+		await user.type(slug, " invalid!");
+		await user.tab();
+		await expect(slug).toHaveAttribute("aria-invalid", "true");
+	},
+};
 
 export const DefaultOrg: Story = {
 	args: {
