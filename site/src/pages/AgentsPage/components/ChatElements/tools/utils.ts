@@ -101,23 +101,6 @@ const isCommandReference = (value: string, command: string): boolean => {
 const normalizeCommandReference = (value: string): string =>
 	value.trim().toLowerCase().replace(/\s+/g, " ");
 
-export const toProviderLabel = (
-	providerDisplayName: string,
-	providerID: string,
-	providerType: string,
-): string => {
-	if (providerDisplayName) {
-		return providerDisplayName;
-	}
-	if (providerID) {
-		return providerID;
-	}
-	if (providerType) {
-		return providerType;
-	}
-	return "Git provider";
-};
-
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
 
 export const formatShellDurationMs = (
@@ -274,12 +257,10 @@ export const formatResultOutput = (result: unknown): string | null => {
 	}
 	const rec = asRecord(result);
 	if (rec) {
-		// For execute tool, show the output field.
 		const output = asString(rec.output).trim();
 		if (output) {
 			return output;
 		}
-		// For read_file, show the content field.
 		const content = asString(rec.content).trim();
 		if (content) {
 			return content;
@@ -375,7 +356,7 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 	};
 }
 
-export function getFileViewerOptions(isDark: boolean) {
+function getFileViewerOptions(isDark: boolean) {
 	return {
 		overflow: "scroll" as const,
 		themeType: (isDark ? "dark" : "light") as "dark" | "light",
@@ -423,56 +404,6 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
 	"--diffs-selection-number-fg": "hsl(var(--content-link))",
 	"--diffs-gap-style": "1px solid hsl(var(--border-default))",
-};
-
-/**
- * Checks whether a tool result should be rendered as a syntax-highlighted
- * file viewer. Returns the file path, content, and whether the header
- * should be hidden.
- */
-export const getFileContentForViewer = (
-	toolName: string,
-	args: unknown,
-	result: unknown,
-): {
-	path: string;
-	content: string;
-	disableHeader?: boolean;
-	disableLineNumbers?: boolean;
-} | null => {
-	if (toolName === "execute") {
-		const rec = asRecord(result);
-		if (!rec) {
-			return null;
-		}
-		const output = asString(rec.output).trim();
-		if (!output) {
-			return null;
-		}
-		return {
-			path: "output.sh",
-			content: output,
-			disableHeader: true,
-			disableLineNumbers: true,
-		};
-	}
-	if (toolName !== "read_file") {
-		return null;
-	}
-	const parsed = parseArgs(args);
-	const path = parsed ? asString(parsed.path).trim() : "";
-	if (!path) {
-		return null;
-	}
-	const rec = asRecord(result);
-	if (!rec) {
-		return null;
-	}
-	const content = asString(rec.content).trim();
-	if (!content) {
-		return null;
-	}
-	return { path, content };
 };
 
 /**

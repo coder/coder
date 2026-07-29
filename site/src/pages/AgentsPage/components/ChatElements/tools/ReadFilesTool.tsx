@@ -19,7 +19,7 @@ const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 });
 
 export const ReadFilesTool: FC<{
-	tools: readonly MergedTool[];
+	tools: readonly [MergedTool, ...MergedTool[]];
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 }> = ({ tools, expanded, onExpandedChange }) => {
@@ -29,7 +29,6 @@ export const ReadFilesTool: FC<{
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
 	const isError = tools.some((tool) => tool.isError);
-	const hasContent = items.length > 0;
 	const label = isRunning
 		? `Reading ${tools.length} files…`
 		: `Read ${tools.length} files`;
@@ -42,7 +41,6 @@ export const ReadFilesTool: FC<{
 				status={isRunning ? "running" : isError ? "error" : "completed"}
 				isError={isError}
 				errorMessage={errorMessage || "Failed to read one or more files"}
-				hasContent={hasContent}
 				expanded={expanded}
 				onExpandedChange={onExpandedChange}
 			>

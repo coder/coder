@@ -13,7 +13,6 @@ export type UserInlineRenderBlock =
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
-	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
 	hasUserMessageBody: boolean;
@@ -26,11 +25,6 @@ type MessageEntryInput = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 };
-
-type HiddenTimelineEntryReason =
-	| "tool-result"
-	| "metadata-only"
-	| "empty-non-user";
 
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
@@ -66,9 +60,7 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
 	);
 	const hasRenderableContent =
-		visibleBlocks.length > 0 ||
-		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		visibleBlocks.length > 0 || parsed.sources.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
@@ -93,33 +85,20 @@ const isToolResultOnlyEntry = ({
 	parsed.markdown === "" &&
 	parsed.reasoning === "";
 
-const getHiddenTimelineEntryReason = ({
+const shouldHideTimelineEntry = ({
 	message,
 	parsed,
-}: MessageEntryInput): HiddenTimelineEntryReason | undefined => {
+}: MessageEntryInput): boolean => {
 	const parts = message.content ?? [];
 	const { hasRenderableContent } = getRenderableContentState(parsed);
 
-	if (
+	return (
 		isToolResultOnlyEntry({ message, parsed }) ||
-		isProviderToolResultOnlyMessage(parts)
-	) {
-		return "tool-result";
-	}
-
-	if (isMetadataOnlyMessage(parts)) {
-		return "metadata-only";
-	}
-
-	if (message.role !== "user" && !hasRenderableContent) {
-		return "empty-non-user";
-	}
-
-	return undefined;
+		isProviderToolResultOnlyMessage(parts) ||
+		isMetadataOnlyMessage(parts) ||
+		(message.role !== "user" && !hasRenderableContent)
+	);
 };
-
-const shouldHideTimelineEntry = (entry: MessageEntryInput): boolean =>
-	getHiddenTimelineEntryReason(entry) !== undefined;
 
 export const deriveMessageDisplayState = ({
 	message,
@@ -161,7 +140,6 @@ export const deriveMessageDisplayState = ({
 		!hasCopyableContent &&
 		(hasThinkingOnlyContent || parsed.sources.length > 0);
 	return {
-		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
 		hasUserMessageBody,
@@ -214,6 +192,9 @@ const mergeReadFileMessageGroup = (
 	};
 };
 
+// The only place hidden entries are dropped, so every rendered row comes from
+// the result and nothing downstream may re-derive whether an entry is hidden.
+//
 // Real transcripts place hidden tool-result-only messages between
 // sequential read_file assistant messages. Those hidden entries stay
 // transparent so the visible timeline reflects one file-reading run instead

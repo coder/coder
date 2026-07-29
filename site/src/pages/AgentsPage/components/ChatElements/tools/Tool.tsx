@@ -14,16 +14,11 @@ import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
-import {
-	ExecuteAuthRequiredTool,
-	ExecuteTool as ExecuteToolComponent,
-	WaitForExternalAuthTool,
-} from "./ExecuteTool";
+import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -47,8 +42,6 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
-	getFileContentForViewer,
-	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
@@ -59,7 +52,6 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 import { WriteFileTool } from "./WriteFileTool";
@@ -227,20 +219,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-	const outputBlock = data.transcriptBlocks.find(
-		(block) => block.kind === "output",
-	);
 
-	if (data.authenticateURL) {
-		return (
-			<ExecuteAuthRequiredTool
-				command={data.command}
-				output={outputBlock?.text ?? ""}
-				authenticateURL={data.authenticateURL}
-				providerLabel={data.providerLabel}
-			/>
-		);
-	}
 	return (
 		<ExecuteToolComponent
 			command={data.command}
@@ -283,45 +262,6 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 		/>
 	);
 };
-
-const WaitForExternalAuthRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
-	const rec = asRecord(result);
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-	const authenticated = rec ? Boolean(rec.authenticated) : false;
-	const timedOut = rec ? Boolean(rec.timed_out) : false;
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	return (
-		<WaitForExternalAuthTool
-			providerLabel={providerLabel}
-			status={status}
-			authenticated={authenticated}
-			timedOut={timedOut}
-			isError={isError}
-			errorMessage={errorMessage || undefined}
-		/>
-	);
-};
-
-const ReadFileRenderer: FC<ToolRendererProps> = ({
-	status,
-	args,
-	result,
-	isError,
-}) => (
-	<ReadFileTool
-		{...getReadFileToolData({ args, result, isError })}
-		status={status}
-	/>
-);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -884,31 +824,15 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 
 type GenericToolContentProps = {
 	toolInput: string | null;
-	fileContent: ReturnType<typeof getFileContentForViewer>;
-	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
 	isDark: boolean;
 	resultOutput: string | null;
 };
 
 const GenericToolContent: FC<GenericToolContentProps> = ({
 	toolInput,
-	fileContent,
-	fileContentOptions,
 	isDark,
 	resultOutput,
 }) => {
-	const output = fileContent
-		? {
-				file: { name: fileContent.path, contents: fileContent.content },
-				options: fileContentOptions,
-			}
-		: resultOutput
-			? {
-					file: { name: "output.json", contents: resultOutput },
-					options: getFileViewerOptionsNoHeader(isDark),
-				}
-			: undefined;
-
 	return (
 		<>
 			{toolInput && (
@@ -918,11 +842,11 @@ const GenericToolContent: FC<GenericToolContentProps> = ({
 					options={getFileViewerOptionsNoHeader(isDark)}
 				/>
 			)}
-			{output && (
+			{resultOutput && (
 				<ToolFileViewer
 					label={toolInput ? "Output" : undefined}
-					file={output.file}
-					options={output.options}
+					file={{ name: "output.json", contents: resultOutput }}
+					options={getFileViewerOptionsNoHeader(isDark)}
 				/>
 			)}
 		</>
@@ -954,22 +878,13 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
-	const fileContent = getFileContentForViewer(name, args, result);
-	const fileViewerOpts = getFileViewerOptions(isDark);
-	const fileContentOptions = fileContent
-		? {
-				...fileViewerOpts,
-				disableFileHeader: fileContent.disableHeader,
-				disableLineNumbers: fileContent.disableLineNumbers,
-			}
-		: fileViewerOpts;
 
 	// Look up MCP server config for icon and slug.
 	const mcpServer = mcpServerConfigId
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(toolInput || fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || resultOutput);
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	const fallbackErrorMessage = getGenericToolErrorMessage({
@@ -1004,8 +919,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			<ToolCall.Content>
 				<GenericToolContent
 					toolInput={toolInput}
-					fileContent={fileContent}
-					fileContentOptions={fileContentOptions}
 					isDark={isDark}
 					resultOutput={resultOutput}
 				/>
@@ -1062,11 +975,11 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+	// read_file is absent on purpose: the timeline routes it to
+	// ReadFileTimelineBlock, so an entry here would never be reached.
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
-	wait_for_external_auth: WaitForExternalAuthRenderer,
-	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,

@@ -284,6 +284,43 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 	},
 };
 
+const unpairedResultState = buildStreamRenderState([
+	{ type: "text", text: "Working on it." },
+	{ type: "tool-result", tool_call_id: "tc-unpaired", result_delta: "" },
+	{ type: "text", text: "Wrapped up." },
+]);
+
+/**
+ * An empty result delta can arrive before its call, leaving a block with no
+ * tool. The row holds its place while the stream is live.
+ */
+export const EmptyToolResultBeforeItsCall: Story = {
+	args: unpairedResultState,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Waiting for tool details…")).toBeVisible();
+		expect(canvas.getByLabelText("Tool call running")).toBeVisible();
+	},
+};
+
+/** While reconnecting, the unresolved row is dropped but earlier text stays. */
+export const EmptyToolResultBeforeItsCallSettled: Story = {
+	args: {
+		...unpairedResultState,
+		liveStatus: buildLiveStatus({
+			streamState: unpairedResultState.streamState,
+			reconnectState: buildReconnectState(),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByLabelText("Tool call running"),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("Wrapped up.")).toBeVisible();
+	},
+};
+
 const editFilesArgs = {
 	files: JSON.stringify([
 		{

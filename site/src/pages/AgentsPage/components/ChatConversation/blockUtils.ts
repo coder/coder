@@ -1,4 +1,5 @@
 import { asString } from "../ChatElements/runtimeTypeUtils";
+import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type { MergedTool, RenderBlock } from "./types";
 
 export const asNonEmptyString = (value: unknown): string | undefined => {
@@ -31,49 +32,60 @@ export const appendTextBlock = (
 	return nextBlocks;
 };
 
-type ToolGroupRenderBlock = {
-	type: "tool-group";
-	ids: string[];
-};
+type TimelineBlock =
+	| (Exclude<RenderBlock, { type: "tool" }> & { sourceIndex: number })
+	| { type: "tool"; tool: MergedTool }
+	| { type: "unresolved-tool"; id: string }
+	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
-type TimelineRenderBlock = RenderBlock | ToolGroupRenderBlock;
-
-export const groupSequentialReadFileBlocks = (
+/**
+ * Resolves each tool block's id against `tools` and collapses adjacent
+ * read_file tools into one `read-files` block, including a run of one, so the
+ * renderer switches on shape instead of looking tools up. A block becomes
+ * `unresolved-tool` when its tool has not arrived, or when the tool has not yet
+ * streamed enough to render a row, which otherwise leaves a gap.
+ *
+ * Non-tool blocks carry their index in `blocks`, which never moves, so
+ * collapsing a read-file run cannot renumber the keys of later blocks.
+ */
+export const toTimelineBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-): TimelineRenderBlock[] => {
+): TimelineBlock[] => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const grouped: TimelineRenderBlock[] = [];
-	let currentReadFileIDs: string[] = [];
+	const timeline: TimelineBlock[] = [];
+	let readFileRun: [MergedTool, ...MergedTool[]] | undefined;
 
-	const flushReadFileIDs = () => {
-		if (currentReadFileIDs.length === 0) {
+	const flushReadFileRun = () => {
+		if (!readFileRun) {
 			return;
 		}
-		if (currentReadFileIDs.length === 1) {
-			grouped.push({ type: "tool", id: currentReadFileIDs[0] });
-		} else {
-			grouped.push({
-				type: "tool-group",
-				ids: currentReadFileIDs,
-			});
-		}
-		currentReadFileIDs = [];
+		timeline.push({ type: "read-files", tools: readFileRun });
+		readFileRun = undefined;
 	};
 
-	for (const block of blocks) {
-		if (block.type === "tool") {
-			const tool = toolByID.get(block.id);
-			if (tool?.name === "read_file") {
-				currentReadFileIDs.push(block.id);
-				continue;
-			}
+	for (const [sourceIndex, block] of blocks.entries()) {
+		if (block.type !== "tool") {
+			flushReadFileRun();
+			timeline.push({ ...block, sourceIndex });
+			continue;
 		}
 
-		flushReadFileIDs();
-		grouped.push(block);
+		const tool = toolByID.get(block.id);
+		if (!tool || !shouldRenderTool(tool)) {
+			flushReadFileRun();
+			timeline.push({ type: "unresolved-tool", id: block.id });
+			continue;
+		}
+		if (tool.name === "read_file") {
+			readFileRun = readFileRun ? [...readFileRun, tool] : [tool];
+			continue;
+		}
+
+		flushReadFileRun();
+		timeline.push({ type: "tool", tool });
 	}
 
-	flushReadFileIDs();
-	return grouped;
+	flushReadFileRun();
+	return timeline;
 };

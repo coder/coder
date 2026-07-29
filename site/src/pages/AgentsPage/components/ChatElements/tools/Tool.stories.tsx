@@ -1,19 +1,13 @@
+import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
+import { ReadFileTool } from "./ReadFileTool";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -42,6 +36,14 @@ const meta: Meta<typeof Tool> = {
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+	},
+	// These stories assert on rendered diff text, which appears only once the
+	// shared highlighter has these themes attached.
+	beforeEach: async () => {
+		await preloadHighlighter({
+			themes: ["github-dark-high-contrast", "github-light"],
+			langs: [],
+		});
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -101,16 +103,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { success: true },
 	},
 	{
-		name: "wait_for_external_auth",
-		args: { provider: "github" },
-		result: { provider_display_name: "GitHub", authenticated: true },
-	},
-	{
-		name: "read_file",
-		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
-		result: { content: "export const AgentChatPage = () => null;" },
-	},
-	{
 		name: "write_file",
 		args: { path: "docs/example.md", content: "# Example\n" },
 		result: { path: "docs/example.md" },
@@ -167,6 +159,10 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "chat_summarized",
 		result: { summary: "Earlier transcript content was compacted." },
+	},
+	{
+		name: "list_agents",
+		result: { agents: [] },
 	},
 	{
 		name: "propose_plan",
@@ -235,13 +231,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		args: { prompt: "Inspect the UI." },
 		result: { chat_id: "desktop-child", status: "completed" },
 		subagentVariants: new Map([["desktop-child", "computer_use"]]),
-	},
-	{
-		name: "read_file",
-		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
-		status: "error",
-		isError: true,
-		result: { error: "File not found" },
 	},
 	{
 		name: "create_workspace",
@@ -541,99 +530,6 @@ export const ProcessOutputStringError: Story = {
 		expect(
 			canvas.getByRole("img", { name: "Failed to read process output" }),
 		).toBeVisible();
-	},
-};
-
-export const ExecuteAuthRequired: Story = {
-	args: {
-		result: {
-			auth_required: true,
-			provider_display_name: "GitHub",
-			authenticate_url: "https://coder.example.com/external-auth/github",
-			output:
-				"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", {
-			name: "Authenticate with GitHub",
-		});
-		expect(button).toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "Open authentication link" }),
-		).toHaveAttribute("href", "https://coder.example.com/external-auth/github");
-
-		const openSpy = spyOn(window, "open").mockImplementation(() => null);
-		await userEvent.click(button);
-		expect(openSpy).toHaveBeenCalledWith(
-			"https://coder.example.com/external-auth/github",
-			"_blank",
-			"width=900,height=600",
-		);
-		openSpy.mockRestore();
-	},
-};
-
-// ---------------------------------------------------------------------------
-// WaitForExternalAuth stories
-// ---------------------------------------------------------------------------
-
-export const WaitForExternalAuthRunning: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "running",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Waiting for GitHub authentication..."),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Authentication in progress" }),
-		).toBeVisible();
-	},
-};
-
-export const WaitForExternalAuthAuthenticated: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Authenticated with GitHub")).toBeInTheDocument();
-	},
-};
-
-export const WaitForExternalAuthTimedOut: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			timed_out: true,
-		},
-	},
-};
-
-export const WaitForExternalAuthError: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "error",
-		isError: true,
-		result: {
-			provider_display_name: "GitHub",
-			error: "Authentication failed: token exchange was rejected.",
-		},
 	},
 };
 
@@ -2341,27 +2237,17 @@ const tallWideFileContent = [
 	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
 ].join("\n");
 
-export const ReadFileLongLine: Story = {
-	args: {
-		name: "read_file",
-		args: { path: "site/src/config.ts" },
-		result: { content: longCodeLine },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /Read config.ts/i }),
-		);
-		await expectDiffText(canvasElement, "apiUrl");
-	},
-};
-
+// read_file has no renderer registry entry. ReadFileTimelineBlock mounts
+// ReadFileTool for a single file, minus the tool-call wrapper.
 export const ReadFileTallAndWide: Story = {
-	args: {
-		name: "read_file",
-		args: { path: "site/src/config.ts" },
-		result: { content: tallWideFileContent },
-	},
+	render: () => (
+		<ReadFileTool
+			path="site/src/config.ts"
+			content={tallWideFileContent}
+			status="completed"
+			isError={false}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -3147,7 +3033,11 @@ export const CreateWorkspaceBuildFailed: Story = {
 	},
 };
 
-export const AllToolIconsTranscript: Story = {
+/**
+ * Non-exhaustive gallery of the icons and labels the common `<Tool>` names
+ * render. Per-path coverage lives in the dedicated stories above.
+ */
+export const ToolIconGalleryTranscript: Story = {
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
 			<DesktopPanelContext.Provider

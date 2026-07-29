@@ -243,9 +243,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -271,9 +269,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 		});
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("completed");
+		expect(buildStreamTools(state)[0].status).toBe("completed");
 	});
 
 	it("completes a streamed tool result when an empty delta carries the final result", () => {
@@ -295,9 +291,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: "Use ",
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -322,9 +316,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: false,
 		});
 		expect(state!.toolResults["call-advisor-2"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("completed");
+		expect(buildStreamTools(state)[0].status).toBe("completed");
 	});
 
 	it("marks a streamed tool result as error when an empty delta carries is_error", () => {
@@ -346,9 +338,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: "partial advice",
 			isStreaming: true,
 		});
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -363,9 +353,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 		});
 		expect(state!.toolResults["call-advisor-3"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("ignores empty tool result deltas", () => {
@@ -385,9 +373,7 @@ describe("applyMessagePartToStreamState", () => {
 
 		expect(state).not.toBeNull();
 		expect(state!.toolResults["edit-1"]).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 	});
 
 	it("resets streaming tool result deltas", () => {
@@ -413,9 +399,7 @@ describe("applyMessagePartToStreamState", () => {
 
 		expect(state).not.toBeNull();
 		expect(state!.toolResults["call-advisor-1"]).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("running");
+		expect(buildStreamTools(state)[0].status).toBe("running");
 
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
@@ -458,9 +442,7 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 		});
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("clears streaming state for bare error tool results", () => {
@@ -485,9 +467,7 @@ describe("applyMessagePartToStreamState", () => {
 		});
 
 		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
-		expect(
-			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
-		).toBe("error");
+		expect(buildStreamTools(state)[0].status).toBe("error");
 	});
 
 	it("accumulates multiple tool calls in sequence", () => {
@@ -689,7 +669,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: { error: "permission denied" },
 			isError: true,
 		});
-		const tools = buildStreamTools(state!.toolCalls, state!.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0]).toEqual({
 			id: "tc-1",
@@ -703,8 +683,8 @@ describe("applyMessagePartToStreamState", () => {
 });
 
 describe("buildStreamTools", () => {
-	it("returns empty array for null toolCalls", () => {
-		expect(buildStreamTools(null, null)).toEqual([]);
+	it("returns empty array without stream state", () => {
+		expect(buildStreamTools(null)).toEqual([]);
 	});
 
 	it("returns running status for calls without results", () => {
@@ -716,14 +696,14 @@ describe("buildStreamTools", () => {
 			toolResults: {},
 			sources: [],
 		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("running");
 	});
 
 	it("returns completed status when call has a result", () => {
 		const state: StreamState = {
-			blocks: [],
+			blocks: [{ type: "tool", id: "tc-1" }],
 			toolCalls: {
 				"tc-1": { id: "tc-1", name: "bash" },
 			},
@@ -737,27 +717,61 @@ describe("buildStreamTools", () => {
 			},
 			sources: [],
 		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
+		const tools = buildStreamTools(state);
 		expect(tools[0].status).toBe("completed");
 	});
 
-	it("includes orphan results with no matching call", () => {
+	it("includes a result that arrives before its call", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { output: "done" },
+		});
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(1);
+		expect(tools[0]).toEqual({
+			id: "tc-1",
+			name: "bash",
+			result: { output: "done" },
+			isError: false,
+			status: "completed",
+		});
+	});
+
+	it("skips a block whose call and result have not arrived", () => {
+		const state: StreamState = {
+			blocks: [{ type: "tool", id: "tc-1" }],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		};
+		expect(buildStreamTools(state)).toEqual([]);
+	});
+
+	it("skips a tool whose block has not arrived", () => {
 		const state: StreamState = {
 			blocks: [],
 			toolCalls: {},
 			toolResults: {
-				"tc-1": {
-					id: "tc-1",
-					name: "bash",
-					result: "output",
-					isError: false,
-				},
+				"tc-1": { id: "tc-1", name: "bash", result: "ok", isError: false },
 			},
 			sources: [],
 		};
-		const tools = buildStreamTools(state.toolCalls, state.toolResults);
-		expect(tools).toHaveLength(1);
-		expect(tools[0].status).toBe("completed");
+		expect(buildStreamTools(state)).toEqual([]);
+	});
+
+	it("skips block ids that only resolve through the prototype chain", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "tool", id: "toString" },
+				{ type: "tool", id: "__proto__" },
+			],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		};
+		expect(buildStreamTools(state)).toEqual([]);
 	});
 });
 
@@ -821,111 +835,5 @@ describe("reference stability across text-only streaming", () => {
 			args: { path: "/tmp" },
 		});
 		expect(state!.toolCalls).not.toBe(afterFirst.toolCalls);
-	});
-});
-
-describe("compiler cache guard simulation", () => {
-	// These tests replicate the compiler's $[n] !== dep guard logic
-	// with real applyMessagePartToStreamState output. They prove the
-	// runtime cache hit/miss behavior, not just the structural property.
-
-	it("whole-object guard misses on every text chunk; sub-field guard never misses", () => {
-		let state: StreamState | null = null;
-		state = applyMessagePartToStreamState(state, {
-			type: "tool-call",
-			tool_name: "bash",
-			tool_call_id: "tc-1",
-			args: { command: "ls" },
-		});
-
-		// Simulate first render: populate both cache strategies.
-		let prevState = state;
-		let prevToolCalls = state?.toolCalls ?? null;
-		let prevToolResults = state?.toolResults ?? null;
-
-		let wholeObjectMisses = 0;
-		let subFieldMisses = 0;
-
-		// 100 text-only chunks, simulating streaming.
-		for (let i = 0; i < 100; i++) {
-			state = applyMessagePartToStreamState(state, {
-				type: "text",
-				text: `word${i} `,
-			});
-
-			// Before: compiler guard on whole streamState.
-			if (prevState !== state) {
-				wholeObjectMisses++;
-				prevState = state;
-			}
-
-			// After: compiler guard on toolCalls and toolResults.
-			const tc = state?.toolCalls ?? null;
-			const tr = state?.toolResults ?? null;
-			if (prevToolCalls !== tc || prevToolResults !== tr) {
-				subFieldMisses++;
-				prevToolCalls = tc;
-				prevToolResults = tr;
-			}
-		}
-
-		// Before: buildStreamTools called 100 times (every chunk).
-		expect(wholeObjectMisses).toBe(100);
-		// After: buildStreamTools called 0 times (guard passes).
-		expect(subFieldMisses).toBe(0);
-	});
-
-	it("sub-field guard misses only when tool data actually changes", () => {
-		let state: StreamState | null = null;
-		state = applyMessagePartToStreamState(state, {
-			type: "tool-call",
-			tool_name: "bash",
-			tool_call_id: "tc-1",
-			args: { command: "ls" },
-		});
-
-		let prevToolCalls = state?.toolCalls ?? null;
-		let prevToolResults = state?.toolResults ?? null;
-		let subFieldMisses = 0;
-
-		const checkGuard = () => {
-			const tc = state?.toolCalls ?? null;
-			const tr = state?.toolResults ?? null;
-			if (prevToolCalls !== tc || prevToolResults !== tr) {
-				subFieldMisses++;
-				prevToolCalls = tc;
-				prevToolResults = tr;
-			}
-		};
-
-		// 10 text chunks: 0 misses.
-		for (let i = 0; i < 10; i++) {
-			state = applyMessagePartToStreamState(state, {
-				type: "text",
-				text: `chunk${i} `,
-			});
-			checkGuard();
-		}
-		expect(subFieldMisses).toBe(0);
-
-		// Tool result arrives: 1 miss.
-		state = applyMessagePartToStreamState(state, {
-			type: "tool-result",
-			tool_name: "bash",
-			tool_call_id: "tc-1",
-			result: { output: "file.txt" },
-		});
-		checkGuard();
-		expect(subFieldMisses).toBe(1);
-
-		// 10 more text chunks: still 1 total miss.
-		for (let i = 0; i < 10; i++) {
-			state = applyMessagePartToStreamState(state, {
-				type: "text",
-				text: `more${i} `,
-			});
-			checkGuard();
-		}
-		expect(subFieldMisses).toBe(1);
 	});
 });

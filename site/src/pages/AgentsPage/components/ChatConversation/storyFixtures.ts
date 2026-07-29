@@ -45,10 +45,7 @@ export const buildStreamRenderState = (
 
 	return {
 		streamState,
-		streamTools: buildStreamTools(
-			streamState?.toolCalls,
-			streamState?.toolResults,
-		),
+		streamTools: buildStreamTools(streamState),
 		liveStatus: buildLiveStatus({ streamState }),
 	};
 };

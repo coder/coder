@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { groupSequentialReadFileBlocks } from "./blockUtils";
+import { toTimelineBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	buildDisplayMessages,
@@ -291,31 +291,7 @@ export const BlockList: FC<{
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
-	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
-
-	// Pre-compute which tool IDs have a corresponding block so
-	// we can render "remaining" (block-less) tools afterwards.
-	const blockToolIDs = new Set(
-		displayBlocks.flatMap((block) => {
-			if (block.type === "tool") {
-				return toolByID.has(block.id) || isStreaming ? [block.id] : [];
-			}
-			if (block.type === "tool-group") {
-				return block.ids;
-			}
-			return [];
-		}),
-	);
-
-	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
-
-	// A thinking block is actively streaming only when it is the
-	// very last block in the list. Once newer content arrives
-	// (response, tool call, etc.) the thinking phase is over.
-	const lastDisplayBlockIsThinking =
-		displayBlocks.length > 0 &&
-		displayBlocks[displayBlocks.length - 1].type === "thinking";
+	const displayBlocks = toTimelineBlocks(blocks, tools);
 
 	return (
 		<>
@@ -324,21 +300,21 @@ export const BlockList: FC<{
 					case "response": {
 						const responseEl = isStreaming ? (
 							<SmoothedResponse
-								key={`${keyPrefix}-response-${index}`}
+								key={`${keyPrefix}-response-${block.sourceIndex}`}
 								text={block.text}
 								streamKey={keyPrefix}
 								urlTransform={urlTransform}
 							/>
 						) : (
 							<Response
-								key={`${keyPrefix}-response-${index}`}
+								key={`${keyPrefix}-response-${block.sourceIndex}`}
 								urlTransform={urlTransform}
 							>
 								{block.text}
 							</Response>
 						);
 						return (
-							<Fragment key={`${keyPrefix}-response-${index}`}>
+							<Fragment key={`${keyPrefix}-response-${block.sourceIndex}`}>
 								{responseEl}
 							</Fragment>
 						);
@@ -346,14 +322,10 @@ export const BlockList: FC<{
 					case "thinking":
 						return (
 							<ReasoningDisclosure
-								key={`${keyPrefix}-thinking-${index}`}
-								id={`${keyPrefix}-thinking-${index}`}
+								key={`${keyPrefix}-thinking-${block.sourceIndex}`}
+								id={`${keyPrefix}-thinking-${block.sourceIndex}`}
 								text={block.text}
-								isStreaming={
-									isStreaming &&
-									lastDisplayBlockIsThinking &&
-									index === displayBlocks.length - 1
-								}
+								isStreaming={isStreaming && index === displayBlocks.length - 1}
 								urlTransform={urlTransform}
 								thinkingDisplayMode={thinkingDisplayMode}
 							/>
@@ -361,7 +333,7 @@ export const BlockList: FC<{
 					case "file-reference":
 						return (
 							<div
-								key={`${keyPrefix}-file-reference-${index}`}
+								key={`${keyPrefix}-file-reference-${block.sourceIndex}`}
 								className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
 							>
 								<span className="shrink-0 text-xs font-medium text-content-link">
@@ -372,45 +344,24 @@ export const BlockList: FC<{
 								</span>
 							</div>
 						);
-					case "tool-group": {
-						const [firstGroupTool, ...restGroupTools] = block.ids
-							.map((id) => toolByID.get(id))
-							.filter((tool) => tool !== undefined);
-						if (!firstGroupTool) {
-							return null;
-						}
+					case "read-files":
 						return (
 							<ReadFileTimelineBlock
-								key={firstGroupTool.id}
-								tools={[firstGroupTool, ...restGroupTools]}
+								key={block.tools[0].id}
+								tools={block.tools}
 							/>
 						);
-					}
-					case "tool": {
-						const tool = toolByID.get(block.id);
-						if (!tool) {
-							if (!isStreaming) {
-								return null;
-							}
-							// Streaming placeholder for not-yet-resolved tool.
-							return (
-								<Tool
-									key={block.id}
-									name="Tool"
-									status="running"
-									isError={false}
-									shellToolDisplayMode={shellToolDisplayMode}
-									codeDiffDisplayMode={codeDiffDisplayMode}
-									subagentTitles={subagentTitles}
-									subagentVariants={subagentVariants}
-									subagentStatusOverrides={subagentStatusOverrides}
-									mcpServers={mcpServers}
+					case "unresolved-tool":
+						return isStreaming ? (
+							<ToolCall.Root key={block.id} status="running" hasContent={false}>
+								<ToolCall.Header
+									iconName="unknown"
+									label="Waiting for tool details…"
 								/>
-							);
-						}
-						if (tool.name === "read_file") {
-							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
-						}
+							</ToolCall.Root>
+						) : null;
+					case "tool": {
+						const tool = block.tool;
 						return (
 							<Tool
 								key={tool.id}
@@ -450,7 +401,7 @@ export const BlockList: FC<{
 					case "file":
 						return (
 							<AttachmentBlock
-								key={`${keyPrefix}-file-${block.file_id ?? index}`}
+								key={`${keyPrefix}-file-${block.file_id ?? block.sourceIndex}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
@@ -461,7 +412,7 @@ export const BlockList: FC<{
 					case "sources":
 						return (
 							<WebSearchSources
-								key={`${keyPrefix}-sources-${index}`}
+								key={`${keyPrefix}-sources-${block.sourceIndex}`}
 								sources={block.sources}
 							/>
 						);
@@ -471,41 +422,6 @@ export const BlockList: FC<{
 					}
 				}
 			})}
-			{remainingTools.map((tool) => (
-				<Tool
-					key={tool.id}
-					name={tool.name}
-					args={tool.args}
-					result={tool.result}
-					status={tool.status}
-					isError={tool.isError}
-					killedBySignal={tool.killedBySignal}
-					shellToolDisplayMode={shellToolDisplayMode}
-					codeDiffDisplayMode={codeDiffDisplayMode}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={
-						isStreaming ? subagentStatusOverrides : undefined
-					}
-					mcpServerConfigId={tool.mcpServerConfigId}
-					mcpServers={mcpServers}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					isLatestAskUserQuestion={
-						tool.id === latestAskUserQuestionToolId &&
-						!hasUserResponseAfterAskQuestion
-					}
-					previousResponseText={
-						tool.name === "ask_user_question"
-							? askUserQuestionResponseTextByToolId?.get(tool.id)
-							: undefined
-					}
-					modelIntent={tool.modelIntent}
-					parsedCommands={tool.parsedCommands}
-				/>
-			))}
 		</>
 	);
 };
@@ -586,9 +502,6 @@ const ChatMessageItem = memo<{
 			hasActiveStream,
 			isAwaitingFirstStreamChunk,
 		});
-		if (displayState.shouldHide) {
-			return null;
-		}
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -1175,16 +1088,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// per-bubble prev/next arrow buttons that jump the transcript
 		// to the neighbouring user prompt.
 		const visibleUserMessageIds: number[] = [];
-		for (const { message, parsed } of parsedMessages) {
-			if (message.role !== "user") continue;
-			const { shouldHide } = deriveMessageDisplayState({
-				message,
-				parsed,
-				hideActions: false,
-				hasActiveStream: false,
-				isAwaitingFirstStreamChunk: false,
-			});
-			if (!shouldHide) visibleUserMessageIds.push(message.id);
+		for (const { message } of displayMessages) {
+			if (message.role === "user") visibleUserMessageIds.push(message.id);
 		}
 		const userNeighborsById = new Map<
 			number,
@@ -1203,7 +1108,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		let hasUserResponseAfterAskQuestion = false;
 		const askUserQuestionResponseTextByToolId = new Map<string, string>();
 		let pendingAskUserQuestionToolId: string | undefined;
-		for (const { message, parsed } of parsedMessages) {
+		for (const { message, parsed } of displayMessages) {
 			let askUserQuestionToolIdInMessage: string | undefined;
 			for (const tool of parsed.tools) {
 				if (tool.name === "ask_user_question") {
@@ -1243,16 +1148,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				>
 					{displayMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
-							const { shouldHide } = deriveMessageDisplayState({
-								message,
-								parsed,
-								hideActions: false,
-								hasActiveStream: false,
-								isAwaitingFirstStreamChunk: false,
-							});
-							if (shouldHide) {
-								return null;
-							}
 							return (
 								<StickyUserMessage
 									key={message.id}

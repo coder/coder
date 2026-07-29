@@ -234,46 +234,47 @@ const getStreamToolStatus = (
 	return result.isError ? "error" : "completed";
 };
 
+/**
+ * Reads a block id off a stream map. Ids come from the provider, so they can
+ * name something on `Object.prototype` that was never streamed.
+ */
+const ownValue = <T>(record: Record<string, T>, key: string): T | undefined =>
+	Object.hasOwn(record, key) ? record[key] : undefined;
+
+/**
+ * Iterates blocks rather than the call map, so a tool cannot exist without a
+ * row to render it in. A block whose call and result have both yet to arrive is
+ * skipped, which leaves `toTimelineBlocks` to hold its place.
+ */
 export const buildStreamTools = (
-	toolCalls: StreamState["toolCalls"] | null | undefined,
-	toolResults: StreamState["toolResults"] | null | undefined,
+	state: StreamState | null | undefined,
 ): MergedTool[] => {
-	if (!toolCalls) {
+	if (!state) {
 		return [];
 	}
-	const calls = Object.values(toolCalls);
-	const seen = new Set<string>();
 	const merged: MergedTool[] = [];
 
-	for (const call of calls) {
-		seen.add(call.id);
-		const result = toolResults?.[call.id];
+	for (const block of state.blocks) {
+		if (block.type !== "tool") {
+			continue;
+		}
+		const call = ownValue(state.toolCalls, block.id);
+		const result = ownValue(state.toolResults, block.id);
+		const source = call ?? result;
+		if (!source) {
+			continue;
+		}
 		merged.push({
-			id: call.id,
-			name: call.name,
-			args: call.args,
+			id: block.id,
+			name: source.name,
+			args: call?.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: getStreamToolStatus(result),
-			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
-			modelIntent: call.modelIntent,
-			parsedCommands: call.parsedCommands,
+			mcpServerConfigId: call?.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent: call?.modelIntent,
+			parsedCommands: call?.parsedCommands,
 		});
-	}
-
-	if (toolResults) {
-		for (const result of Object.values(toolResults)) {
-			if (!seen.has(result.id)) {
-				merged.push({
-					id: result.id,
-					name: result.name,
-					result: result.result,
-					isError: result.isError,
-					status: getStreamToolStatus(result),
-					mcpServerConfigId: result.mcpServerConfigId,
-				});
-			}
-		}
 	}
 
 	return merged;

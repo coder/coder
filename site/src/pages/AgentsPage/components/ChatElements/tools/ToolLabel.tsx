@@ -2,6 +2,11 @@ import type React from "react";
 import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
 
+/**
+ * Label for tools rendered by `GenericToolRenderer`: any tool that is neither a
+ * subagent tool nor in `toolRenderers`, plus `process_signal`, which delegates
+ * to it, and `advisor`, which renders this directly.
+ */
 export const ToolLabel: React.FC<{
 	name: string;
 	args: unknown;
@@ -12,21 +17,6 @@ export const ToolLabel: React.FC<{
 	const parsedResult = asRecord(result);
 
 	switch (name) {
-		case "execute": {
-			const command = parsed ? asString(parsed.command) : "";
-			if (command) {
-				return (
-					<code className="truncate font-mono text-xs text-content-primary">
-						{command}
-					</code>
-				);
-			}
-			return <span className="truncate text-[13px]">Running command</span>;
-		}
-		case "process_output":
-			return (
-				<span className="truncate text-[13px]">Reading process output</span>
-			);
 		case "process_signal": {
 			const signal = parsed ? asString(parsed.signal) : "";
 			const processId = parsed ? asString(parsed.process_id) : "";
@@ -66,69 +56,6 @@ export const ToolLabel: React.FC<{
 		}
 		case "process_list":
 			return <span className="truncate text-[13px]">Listing processes</span>;
-		case "read_file":
-			return <span className="truncate text-[13px]">Reading file…</span>;
-		case "write_file": {
-			const path = parsed ? asString(parsed.path) : "";
-			if (path) {
-				return (
-					<code className="truncate font-mono text-xs text-content-primary">
-						{path}
-					</code>
-				);
-			}
-			return <span className="truncate text-[13px]">Writing file</span>;
-		}
-		case "edit_files": {
-			const files = parsed?.files;
-			if (Array.isArray(files) && files.length === 1) {
-				const path = asString((files[0] as Record<string, unknown>)?.path);
-				if (path) {
-					return (
-						<code className="truncate font-mono text-xs text-content-primary">
-							{path}
-						</code>
-					);
-				}
-			}
-			return <span className="truncate text-[13px]">Editing files</span>;
-		}
-		case "create_workspace": {
-			const wsName = parsedResult ? asString(parsedResult.workspace_name) : "";
-			if (wsName) {
-				return <span className="truncate text-[13px]">Created {wsName}</span>;
-			}
-			return <span className="truncate text-[13px]">Creating workspace</span>;
-		}
-		case "list_templates": {
-			const count = parsedResult
-				? ((parsedResult.count as number | undefined) ?? 0)
-				: 0;
-			return (
-				<span className="truncate text-[13px]">
-					{count === 0
-						? "Listing templates…"
-						: count === 1
-							? "Listed 1 template"
-							: `Listed ${count} templates`}
-				</span>
-			);
-		}
-		case "read_template": {
-			const templateRec = parsedResult
-				? asRecord(parsedResult.template)
-				: undefined;
-			const tmplName = templateRec
-				? asString(templateRec.display_name) || asString(templateRec.name)
-				: "";
-			return (
-				<span className="truncate text-[13px]">
-					{tmplName ? `Read template ${tmplName}` : "Reading template…"}
-				</span>
-			);
-		}
-		case "chat_summarized":
-			return <span className="truncate text-[13px]">Summarized</span>;
 		case "attach_file": {
 			const attachedName =
 				(parsedResult ? asString(parsedResult.name) : "") ||
@@ -139,52 +66,12 @@ export const ToolLabel: React.FC<{
 				<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
 			);
 		}
-		case "computer":
-			return <span className="truncate text-[13px]">Screenshot</span>;
-		case "propose_plan": {
-			const path = parsed ? asString(parsed.path) || "PLAN.md" : "PLAN.md";
-			const filename = getPathBasename(path) || "PLAN.md";
-			return <span className="truncate text-[13px]">{filename}</span>;
-		}
 		case "advisor":
 			return (
 				<span className="truncate text-[13px] leading-4 text-content-secondary">
 					Advisor
 				</span>
 			);
-		case "read_skill": {
-			const skillName = parsed ? asString(parsed.name) : "";
-			return (
-				<span className="truncate text-[13px]">
-					{skillName
-						? parsedResult
-							? `Read skill ${skillName}`
-							: `Reading skill ${skillName}…`
-						: "Reading skill…"}
-				</span>
-			);
-		}
-		case "read_skill_file": {
-			const skillName = parsed ? asString(parsed.name) : "";
-			const filePath = parsed ? asString(parsed.path) : "";
-			const label =
-				skillName && filePath
-					? `${skillName}/${filePath}`
-					: skillName || filePath || "skill file";
-			return (
-				<span className="truncate text-[13px]">
-					{parsedResult ? `Read ${label}` : `Reading ${label}…`}
-				</span>
-			);
-		}
-		case "start_workspace": {
-			const wsName = parsedResult ? asString(parsedResult.workspace_name) : "";
-			return (
-				<span className="truncate text-[13px]">
-					{wsName ? `Started ${wsName}` : "Starting workspace…"}
-				</span>
-			);
-		}
 
 		default: {
 			const displayName = mcpSlug ? humanizeMCPToolName(mcpSlug, name) : name;

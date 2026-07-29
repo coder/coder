@@ -6,7 +6,7 @@ const stoppedWorkspaceError =
 
 describe("toolVisibility", () => {
 	describe("getExecuteRenderData", () => {
-		it("parses execute output and auth metadata from result payloads", () => {
+		it("parses execute output and metadata from result payloads", () => {
 			expect(
 				getExecuteRenderData(
 					{ command: "git fetch origin" },
@@ -14,9 +14,6 @@ describe("toolVisibility", () => {
 						output: " fetched ",
 						wall_duration_ms: "47200",
 						background_process_id: "process-1",
-						auth_required: true,
-						authenticate_url: "https://example.com/auth",
-						provider_display_name: "GitHub",
 					},
 				),
 			).toEqual({
@@ -24,8 +21,6 @@ describe("toolVisibility", () => {
 				transcriptBlocks: [{ kind: "output", text: "fetched" }],
 				durationMs: 47200,
 				isBackgrounded: true,
-				authenticateURL: "https://example.com/auth",
-				providerLabel: "GitHub",
 			});
 		});
 
@@ -67,7 +62,7 @@ describe("toolVisibility", () => {
 	});
 
 	describe("shouldRenderTool", () => {
-		it("hides execute rows with neither a command nor an auth prompt", () => {
+		it("hides execute rows with no command", () => {
 			expect(
 				shouldRenderTool({
 					name: "execute",
@@ -78,16 +73,13 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it("keeps execute rows when auth is required even without a command", () => {
+		it("renders execute rows that have a command", () => {
 			expect(
 				shouldRenderTool({
 					name: "execute",
 					status: "completed",
-					args: {},
-					result: {
-						auth_required: true,
-						authenticate_url: "https://example.com/auth",
-					},
+					args: { command: "git status" },
+					result: { output: "clean" },
 				}),
 			).toBe(true);
 		});
