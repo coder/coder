@@ -81,7 +81,6 @@ export const ToolIcon: React.FC<{
 			return <TerminalIcon className={base} />;
 		case "read_file":
 		case "read_skill":
-		case "read_skill_file":
 			return <FileTextIcon className={base} />;
 		case "write_file":
 		case "edit_files":
