@@ -5938,6 +5938,21 @@ func (mr *MockStoreMockRecorder) GetTemplatesWithFilter(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatesWithFilter", reflect.TypeOf((*MockStore)(nil).GetTemplatesWithFilter), ctx, arg)
 }
 
+// GetTotalChatMessageRuntimeMsInRange mocks base method.
+func (m *MockStore) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTotalChatMessageRuntimeMsInRange", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTotalChatMessageRuntimeMsInRange indicates an expected call of GetTotalChatMessageRuntimeMsInRange.
+func (mr *MockStoreMockRecorder) GetTotalChatMessageRuntimeMsInRange(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalChatMessageRuntimeMsInRange", reflect.TypeOf((*MockStore)(nil).GetTotalChatMessageRuntimeMsInRange), ctx, arg)
+}
+
 // GetTotalUsageDCManagedAgentsV1 mocks base method.
 func (m *MockStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
 	m.ctrl.T.Helper()
@@ -9144,6 +9159,21 @@ func (m *MockStore) ListTasks(ctx context.Context, arg database.ListTasksParams)
 func (mr *MockStoreMockRecorder) ListTasks(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTasks", reflect.TypeOf((*MockStore)(nil).ListTasks), ctx, arg)
+}
+
+// ListUsageEventCreatedAtsByTypeSince mocks base method.
+func (m *MockStore) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg database.ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUsageEventCreatedAtsByTypeSince", ctx, arg)
+	ret0, _ := ret[0].([]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUsageEventCreatedAtsByTypeSince indicates an expected call of ListUsageEventCreatedAtsByTypeSince.
+func (mr *MockStoreMockRecorder) ListUsageEventCreatedAtsByTypeSince(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsageEventCreatedAtsByTypeSince", reflect.TypeOf((*MockStore)(nil).ListUsageEventCreatedAtsByTypeSince), ctx, arg)
 }
 
 // ListUserChatCompactionThresholds mocks base method.

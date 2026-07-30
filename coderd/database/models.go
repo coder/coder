@@ -6143,7 +6143,8 @@ type UsageEvent struct {
 	EventType string `db:"event_type" json:"event_type"`
 	// Event payload. Determined by the matching usage struct for this event type.
 	EventData json.RawMessage `db:"event_data" json:"event_data"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
 	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
 	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
