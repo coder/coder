@@ -663,3 +663,42 @@ GROUP BY
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
+
+-- name: GetAIBridgeChatCost :one
+-- AI Gateway cost for one chat tree: the root chat plus every subagent
+-- beneath it. The spawning chat's ID is recorded as the interception session
+-- ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+-- to its parent rather than the root, and only whole trees can be summed. The
+-- owner check guards against session-id collisions. Usage without an
+-- effective group never reaches ai_user_daily_spend.
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
+			c.root_chat_id = @root_chat_id::uuid
+			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
+		)
+		-- Restrict to aibridge.ClientCoderAgents so another client's session
+		-- reference cannot match a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request;

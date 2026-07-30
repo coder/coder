@@ -1081,6 +1081,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeChatCost").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeChatCost").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeInterceptionByID(ctx, id)

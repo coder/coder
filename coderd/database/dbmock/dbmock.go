@@ -1858,6 +1858,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// GetAIBridgeChatCost mocks base method.
+func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeChatCost", ctx, rootChatID)
+	ret0, _ := ret[0].(database.GetAIBridgeChatCostRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeChatCost indicates an expected call of GetAIBridgeChatCost.
+func (mr *MockStoreMockRecorder) GetAIBridgeChatCost(ctx, rootChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeChatCost", reflect.TypeOf((*MockStore)(nil).GetAIBridgeChatCost), ctx, rootChatID)
+}
+
 // GetAIBridgeInterceptionByID mocks base method.
 func (m *MockStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()

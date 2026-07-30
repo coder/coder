@@ -11,6 +11,7 @@ const meta: Meta<typeof ChatSummary> = {
 		createdAt: "2024-05-01T12:00:00Z",
 		updatedAt: "2024-05-02T15:30:00Z",
 		costMicros: 1_250_000,
+		showCost: true,
 	},
 	decorators: [
 		(Story) => (
@@ -93,13 +94,31 @@ export const CostError: Story = {
 };
 
 export const PartialCost: Story = {
-	args: { costMicros: 0, unpricedMessagesHavingUsageCount: 3 },
+	args: { costMicros: 0, unpricedRequestCount: 3 },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText(
-				"Excludes 3 messages with usage but without model pricing.",
-			),
+			canvas.getByText("Excludes unpriced usage from 3 requests."),
 		).toBeInTheDocument();
+	},
+};
+
+export const SubagentTreeCost: Story = {
+	args: { isSubagent: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Cost covers this agent's whole chat/),
+		).toBeInTheDocument();
+	},
+};
+
+export const CostHidden: Story = {
+	args: { showCost: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
+		await expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("$1.25")).not.toBeInTheDocument();
 	},
 };

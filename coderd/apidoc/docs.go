@@ -582,7 +582,7 @@ const docTemplate = `{
         },
         "/api/experimental/chats/{chat}/cost": {
             "get": {
-                "description": "Experimental: this endpoint is subject to change.",
+                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
                 "produces": [
                     "application/json"
                 ],
@@ -17504,13 +17504,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "priced_message_count": {
+                "request_count": {
                     "type": "integer"
                 },
                 "total_cost_micros": {
                     "type": "integer"
                 },
-                "unpriced_messages_having_usage_count": {
+                "unpriced_request_count": {
                     "type": "integer"
                 }
             }

@@ -1156,6 +1156,59 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 	return total_deleted, err
 }
 
+const getAIBridgeChatCost = `-- name: GetAIBridgeChatCost :one
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
+			c.root_chat_id = $1::uuid
+			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
+		)
+		-- Restrict to aibridge.ClientCoderAgents so another client's session
+		-- reference cannot match a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request
+`
+
+type GetAIBridgeChatCostRow struct {
+	TotalCostMicros      int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	RequestCount         int64 `db:"request_count" json:"request_count"`
+	UnpricedRequestCount int64 `db:"unpriced_request_count" json:"unpriced_request_count"`
+}
+
+// AI Gateway cost for one chat tree: the root chat plus every subagent
+// beneath it. The spawning chat's ID is recorded as the interception session
+// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+// to its parent rather than the root, and only whole trees can be summed. The
+// owner check guards against session-id collisions. Usage without an
+// effective group never reaches ai_user_daily_spend.
+func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (GetAIBridgeChatCostRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeChatCost, rootChatID)
+	var i GetAIBridgeChatCostRow
+	err := row.Scan(&i.TotalCostMicros, &i.RequestCount, &i.UnpricedRequestCount)
+	return i, err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
