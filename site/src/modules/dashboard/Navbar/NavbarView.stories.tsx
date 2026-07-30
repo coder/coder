@@ -15,6 +15,12 @@ const tasksFilter: TasksFilter = {
 	owner: MockUserOwner.username,
 };
 
+// The admin settings dropdown is hidden below the `md` breakpoint, where the
+// navbar collapses into `MobileMenu`, so stories that open the dropdown can
+// only be snapshotted at desktop width. `MobileMenu.stories.tsx` covers the
+// collapsed menu.
+const desktopOnly = { pixel: { matrix: { viewports: ["desktop"] } } };
+
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
@@ -49,6 +55,7 @@ export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
 export const ForAdmin: Story = {
+	parameters: desktopOnly,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -58,6 +65,7 @@ export const ForAdmin: Story = {
 };
 
 export const ForAuditor: Story = {
+	parameters: desktopOnly,
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -73,6 +81,7 @@ export const ForAuditor: Story = {
 };
 
 export const ForOrgAdmin: Story = {
+	parameters: desktopOnly,
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -89,6 +98,7 @@ export const ForOrgAdmin: Story = {
 };
 
 export const ForSingleOrgOSSAdmin: Story = {
+	parameters: desktopOnly,
 	args: {
 		adminPermissions: {
 			canViewDeployment: true,
