@@ -1285,7 +1285,7 @@ jobs:
       - name: Install rcodesign
         run: |
           set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
           sudo tar -xzf /tmp/rcodesign.tar.gz \
             -C /usr/bin \
             --strip-components=1 \
@@ -1319,7 +1319,7 @@ jobs:
           touch /tmp/ev_cert.pem
           chmod 600 /tmp/ev_cert.pem
           echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
