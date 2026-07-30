@@ -8,8 +8,8 @@ AI Governance Cost Control governs AI spend in two complementary ways:
 
 - **Enforcement** stops a user's requests routed via AI Gateway once their
   spend reaches their budget.
-- **Reporting** shows what each user and group has spent in the current budget
-  period.
+- **Reporting** shows what each user and group has approximately spent in the
+  current budget period.
 
 AI Governance Cost Control requires:
 
