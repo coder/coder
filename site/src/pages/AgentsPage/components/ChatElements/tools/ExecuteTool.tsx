@@ -1,9 +1,7 @@
 import {
-	CheckIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LayersIcon,
-	LoaderIcon,
 	OctagonXIcon,
 } from "lucide-react";
 import type React from "react";
@@ -301,42 +299,14 @@ export const WaitForExternalAuthTool: React.FC<{
 }) => {
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
-	let statusIcon: React.ReactNode = isRunning ? (
-		<LoaderIcon
-			aria-label="Authentication in progress"
-			role="img"
-			className="size-3.5 shrink-0 animate-spin text-content-link motion-reduce:animate-none"
-		/>
-	) : null;
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
-		statusIcon = (
-			<OctagonXIcon
-				aria-label="Authentication failed"
-				role="img"
-				className="size-3.5 shrink-0 text-content-destructive"
-			/>
-		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
-		statusIcon = (
-			<CircleAlertIcon
-				aria-label="Authentication timed out"
-				role="img"
-				className="size-3.5 shrink-0 text-content-warning"
-			/>
-		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
-		statusIcon = (
-			<CheckIcon
-				aria-label="Authentication completed"
-				role="img"
-				className="size-3.5 shrink-0 text-content-success"
-			/>
-		);
 	}
 
 	return (
@@ -352,10 +322,11 @@ export const WaitForExternalAuthTool: React.FC<{
 		>
 			<ToolCall.HeaderLayout>
 				<ToolCall.HeaderButton className="min-w-0 flex-1 font-normal text-content-secondary">
-					<ToolCall.LeadingIcon>{statusIcon}</ToolCall.LeadingIcon>
+					<ToolCall.LeadingIcon name="wait_for_external_auth" />
 					<ToolCall.Label className="text-content-primary">
 						{label}
 					</ToolCall.Label>
+					<ToolCall.Status />
 				</ToolCall.HeaderButton>
 			</ToolCall.HeaderLayout>
 		</ToolCall.Root>

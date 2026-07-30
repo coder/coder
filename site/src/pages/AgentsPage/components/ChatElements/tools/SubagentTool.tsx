@@ -3,7 +3,6 @@ import {
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
-	LoaderIcon,
 	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
@@ -109,11 +108,9 @@ function getSubagentLabel(
 }
 
 /**
- * Resolves a sub-agent status string and tool-level status into a
- * display icon. The sub-agent status in the tool result is a
- * snapshot from when the tool returned and may be stale (e.g. a
- * background sub-agent records "running" forever). The icon is
- * therefore driven primarily by the tool-call status itself.
+ * Leading icon for a sub-agent row. Driven by `toolStatus` rather
+ * than the raw sub-agent status, which is a snapshot from when the
+ * tool returned and may be stale.
  */
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
@@ -131,31 +128,22 @@ const SubagentStatusIcon: React.FC<{
 	showDesktopPreview = false,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
+	const DefaultIcon =
+		iconKind === "monitor" || (toolStatus === "running" && showDesktopPreview)
+			? MonitorIcon
+			: BotIcon;
 	if (isTimeout && !subagentCompleted) {
 		return <ClockIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
 	}
-	if (toolStatus === "running") {
-		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-			);
-		}
-		return (
-			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-		);
-	}
 	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
 
 /**
- * Specialized rendering for delegated sub-agent tool calls.
- * Shows a clickable header row with the sub-agent title, status
- * icon, and a chevron to expand the prompt / report below. A
- * "View Agent" link navigates to the sub-agent chat.
+ * Row for a delegated sub-agent tool call, with a link to the
+ * sub-agent chat and an expandable prompt / report.
  */
 export const SubagentTool: React.FC<{
 	descriptor: SubagentDescriptor;
@@ -242,6 +230,7 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
+					<ToolCall.Status />
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
