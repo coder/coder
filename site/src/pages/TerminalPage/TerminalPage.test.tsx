@@ -23,9 +23,6 @@ const { mockSessionId } = vi.hoisted(() => ({
 vi.mock("uuid", () => ({
 	v4: () => "terminal-page-test-reconnect-token",
 }));
-vi.mock("#/utils/sessionId", () => ({
-	generateSessionId: () => mockSessionId,
-}));
 vi.stubGlobal("jest", vi);
 await import("jest-canvas-mock");
 const { default: WS } = await import("jest-websocket-mock");
