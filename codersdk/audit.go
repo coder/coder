@@ -44,18 +44,18 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp             ResourceType = "workspace_app"
-	ResourceTypeTask                     ResourceType = "task"
-	ResourceTypeAISeat                   ResourceType = "ai_seat"
-	ResourceTypeAIProvider               ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey            ResourceType = "ai_provider_key"
-	ResourceTypeAIGatewayKey             ResourceType = "ai_gateway_key"
-	ResourceTypeGroupAIBudget            ResourceType = "group_ai_budget"
-	ResourceTypeUserAIBudgetOverride     ResourceType = "user_ai_budget_override"
-	ResourceTypeChat                     ResourceType = "chat"
-	ResourceTypeUserSecret               ResourceType = "user_secret"
-	ResourceTypeUserSkill                ResourceType = "user_skill"
-	ResourceTypeChatSystemPromptSettings ResourceType = "chat_system_prompt_settings"
+	ResourceTypeWorkspaceApp            ResourceType = "workspace_app"
+	ResourceTypeTask                    ResourceType = "task"
+	ResourceTypeAISeat                  ResourceType = "ai_seat"
+	ResourceTypeAIProvider              ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey           ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey            ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                    ResourceType = "chat"
+	ResourceTypeUserSecret              ResourceType = "user_secret"
+	ResourceTypeUserSkill               ResourceType = "user_skill"
+	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -134,8 +134,8 @@ func (r ResourceType) FriendlyString() string {
 		return "user secret"
 	case ResourceTypeUserSkill:
 		return "user skill"
-	case ResourceTypeChatSystemPromptSettings:
-		return "chat system prompt settings"
+	case ResourceTypeChatInstructionSettings:
+		return "chat instruction settings"
 	default:
 		return "unknown"
 	}

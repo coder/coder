@@ -7956,7 +7956,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
-	| "chat_system_prompt_settings"
+	| "chat_instruction_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -7995,7 +7995,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
-	"chat_system_prompt_settings",
+	"chat_instruction_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

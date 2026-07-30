@@ -158,9 +158,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserSkill:
 		return typed.Name
-	case database.ChatSystemPromptSettings:
-		// Deployment singleton, no target.
-		return ""
+	case database.ChatInstructionSettings:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -170,6 +169,22 @@ func ResourceTarget[T Auditable](tgt T) string {
 // An example is singleton configuration resources.
 // 51A51C = "Static"
 var noID = uuid.MustParse("51A51C00-0000-0000-0000-000000000000")
+
+// Fixed IDs for the two chat instruction settings. History-by-setting works
+// only if every change to one setting carries the same resource ID, so
+// unlike the per-write artificial IDs of the other settings singletons,
+// these never change. C1A7 = "Chat".
+var (
+	ChatInstructionSystemPromptID = uuid.MustParse("C1A715C0-0000-0000-0000-000000000001")
+	ChatInstructionPlanModeID     = uuid.MustParse("C1A715C0-0000-0000-0000-000000000002")
+)
+
+// Human-readable targets for the two chat instruction settings, so an audit
+// row names the setting it concerns.
+const (
+	ChatInstructionSystemPromptName = "System prompt"
+	ChatInstructionPlanModeName     = "Plan mode instructions"
+)
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
@@ -246,8 +261,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSkill:
 		return typed.ID
-	case database.ChatSystemPromptSettings:
-		// Artificial ID for auditing purposes.
+	case database.ChatInstructionSettings:
+		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
@@ -324,8 +339,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
-	case database.ChatSystemPromptSettings:
-		return database.ResourceTypeChatSystemPromptSettings
+	case database.ChatInstructionSettings:
+		return database.ResourceTypeChatInstructionSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -416,9 +431,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserSkill:
 		// User skills are global to the user across organizations.
 		return false
-	case database.ChatSystemPromptSettings:
-		// Artificial ID for auditing purposes. This is a deployment
-		// singleton, not scoped to any organization.
+	case database.ChatInstructionSettings:
+		// Deployment settings, not scoped to any organization.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
