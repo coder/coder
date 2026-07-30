@@ -513,6 +513,7 @@ export const BlockList: FC<{
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					hookRewritten={tool.hookRewritten}
 				/>
 			))}
 		</>
