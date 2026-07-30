@@ -134,7 +134,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		t.Parallel()
 
 		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
-		fields := requestFields(t, tp, "session_id="+testSessionID)
+		fields := requestFields(t, tp, tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		val, ok := fieldValue(fields, "session_id")
 		require.True(t, ok, "session_id should be on the log context")
@@ -148,7 +148,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 
 		// A nil tracer provider disables span creation, but the session_id
 		// must still land on the log context.
-		fields := requestFields(t, nil, "session_id="+testSessionID)
+		fields := requestFields(t, nil, tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		val, ok := fieldValue(fields, "session_id")
 		require.True(t, ok, "session_id should be on the log context even when tracing is disabled")
@@ -167,7 +167,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		t.Parallel()
 
 		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
-		fields := requestFields(t, tp, "session_id=not-a-valid-session-id")
+		fields := requestFields(t, tp, tracing.SessionIDBaggageKey+"=not-a-valid-session-id")
 
 		_, ok := fieldValue(fields, "session_id")
 		require.False(t, ok, "malformed session_id should be ignored")

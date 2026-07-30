@@ -42,11 +42,11 @@ func TestSessionIDFromHeaders(t *testing.T) {
 		baggage string
 		want    string
 	}{
-		{"Valid", "session_id=" + validID, validID},
-		{"WithOtherMembers", "foo=bar,session_id=" + validID + ",baz=qux", validID},
+		{"Valid", SessionIDBaggageKey + "=" + validID, validID},
+		{"WithOtherMembers", "foo=bar," + SessionIDBaggageKey + "=" + validID + ",baz=qux", validID},
 		{"Missing", "foo=bar", ""},
 		{"NoHeader", "", ""},
-		{"Malformed", "session_id=not-a-hex-value", ""},
+		{"Malformed", SessionIDBaggageKey + "=not-a-hex-value", ""},
 	}
 
 	for _, c := range cases {
