@@ -60,9 +60,6 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
-// Names with no toolRenderers entry render through GenericToolRenderer,
-// and process_signal's registered renderer delegates to it. advisor's
-// label is rendered directly by AdvisorTool.
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
 > = {
