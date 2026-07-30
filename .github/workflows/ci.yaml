@@ -573,6 +573,7 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
@@ -986,14 +987,14 @@ jobs:
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
       # outdatedAgent e2e tests so most runs skip the flaky GitHub release
-      # download entirely. The cache key is keyed off the test files that pin
-      # the downloaded versions, so it invalidates when those versions change.
+      # download entirely. The cache key is keyed off the file that pins the
+      # downloaded versions, so it invalidates when those versions change.
       - name: Restore e2e Coder release binary cache
         id: coder-e2e-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/coder-e2e-cache
-          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/tests/outdatedCLI.spec.ts', 'site/e2e/tests/outdatedAgent.spec.ts') }}
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/constants.ts') }}
           restore-keys: |
             coder-e2e-cache-${{ runner.os }}-
 
@@ -1284,7 +1285,7 @@ jobs:
       - name: Install rcodesign
         run: |
           set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
           sudo tar -xzf /tmp/rcodesign.tar.gz \
             -C /usr/bin \
             --strip-components=1 \
@@ -1318,7 +1319,7 @@ jobs:
           touch /tmp/ev_cert.pem
           chmod 600 /tmp/ev_cert.pem
           echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 

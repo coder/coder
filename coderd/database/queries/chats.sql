@@ -484,6 +484,8 @@ LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
 -- name: GetChatMessagesForPromptByChatID :many
+-- The compaction boundary and final ordering must use the same key so tool
+-- results remain after their assistant calls.
 WITH latest_compressed_summary AS (
     SELECT
         id
@@ -495,7 +497,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -538,7 +539,6 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC;
 
 -- name: GetChats :many
@@ -778,6 +778,7 @@ ORDER BY
 -- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -795,6 +796,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,

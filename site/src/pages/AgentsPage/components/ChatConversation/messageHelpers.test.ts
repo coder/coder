@@ -47,6 +47,7 @@ const parsed = (
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 	...overrides,
 });
 

@@ -3,7 +3,7 @@
 This chart deploys the Coder AI Gateway as a standalone Kubernetes Deployment.
 The Gateway connects to Coder using `CODER_URL` and an AI Gateway key. To forward
 proxied AI traffic to the standalone Gateway, configure the Coder AI Gateway
-Proxy (`aibridgeproxyd`) after installing the chart.
+Proxy after installing the chart.
 
 The chart does not create credentials or TLS Secrets.
 

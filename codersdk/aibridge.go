@@ -15,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+// MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
+// $1,000,000 per member per budget period.
+const MaxAISpendLimitMicros int64 = 1_000_000_000_000
+
 // AIBudgetLimitSource identifies which tier produced the user's
 // effective budget limit.
 type AIBudgetLimitSource string
@@ -28,28 +32,26 @@ const (
 	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
 )
 
-// AIGroupBudget is an AI spend limit and the tier that produced it. Both
+// AIBudgetLimit is an AI spend limit and the tier that produced it. Both
 // fields are always populated together.
-type AIGroupBudget struct {
+type AIBudgetLimit struct {
 	SpendLimitMicros int64               `json:"spend_limit_micros"`
 	LimitSource      AIBudgetLimitSource `json:"limit_source"`
 }
 
 // UserAIBudgetSummary is the effective AI budget for a user. When no budget
 // applies, the effective group falls back to the Everyone group with a null
-// limit and source.
+// budget.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the group the spend is attributed to, falling back to
 	// the Everyone group when no budget applies. Null only when the user has no
 	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// SpendLimitMicros is the effective spend limit in micro-units.
-	// Null when no budget applies to the user (unlimited).
-	SpendLimitMicros *int64 `json:"spend_limit_micros"`
-	// LimitSource identifies which tier produced the limit. Null when no
-	// budget applies.
-	LimitSource *AIBudgetLimitSource `json:"limit_source"`
+	// EffectiveBudget is the spend limit that applies to the user, whether it
+	// came from a group budget or a user override. Null when no budget
+	// applies, leaving the user's spend unlimited.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
 }
 
 // AISpendPeriodWindow is the [Start, End) window over which AI spend is
@@ -122,7 +124,7 @@ type GroupMemberAISpend struct {
 	// GroupBudget is the budget when the queried group is this user's
 	// effective budget source. Null when the user's budget resolves to another
 	// group or no budget applies to the user.
-	GroupBudget *AIGroupBudget `json:"group_budget"`
+	GroupBudget *AIBudgetLimit `json:"group_budget"`
 	// GroupSpendMicros is the user's spend attributed to the queried group
 	// over the current budget period.
 	GroupSpendMicros int64 `json:"group_spend_micros"`
@@ -418,6 +420,7 @@ type GroupAIBudget struct {
 }
 
 type UpsertGroupAIBudgetRequest struct {
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
@@ -485,14 +488,15 @@ type UserAIBudgetOverride struct {
 type UpsertUserAIBudgetOverrideRequest struct {
 	// GroupID is the group the user's spend is attributed to. The user must
 	// be a member of this group.
-	GroupID          uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
-	SpendLimitMicros int64     `json:"spend_limit_micros" validate:"gte=0"`
+	GroupID uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
 // UserAIBudgetOverride returns the AI spend budget override configured for the given user.
 func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (UserAIBudgetOverride, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		nil,
 	)
 	if err != nil {
@@ -510,7 +514,7 @@ func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (User
 // UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
 func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID, req UpsertUserAIBudgetOverrideRequest) (UserAIBudgetOverride, error) {
 	res, err := c.Request(ctx, http.MethodPut,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		req,
 	)
 	if err != nil {
@@ -528,7 +532,7 @@ func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID,
 // DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
 func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		nil,
 	)
 	if err != nil {

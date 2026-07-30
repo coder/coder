@@ -314,6 +314,12 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
 	}
+	// Part types intentionally excluded from all generated variants.
+	// If you add a new part type, either reference it in a variants
+	// tag or add it here with a reason.
+	excludedTypes := map[codersdk.ChatMessagePartType]string{
+		codersdk.ChatMessagePartTypeHookContext: "internal only, stripped from client-facing conversions by db2sdk",
+	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
 		knownTypes[pt] = true
@@ -353,8 +359,14 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		}
 	}
 
-	// Every known type must appear in at least one variants tag.
+	// Every known type must appear in at least one variants tag
+	// unless it is intentionally excluded from client codegen.
 	for pt := range knownTypes {
+		if _, excluded := excludedTypes[pt]; excluded {
+			assert.False(t, coveredTypes[pt],
+				"ChatMessagePartType %q is in excludedTypes but referenced by a variants tag; %s", pt, editHint)
+			continue
+		}
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
 	}
