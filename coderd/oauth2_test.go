@@ -1831,6 +1831,7 @@ func TestOAuth2PublicClient(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
 
 	registerPublicClient := func(ctx context.Context, t *testing.T, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
 		resp, err := ownerClient.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
@@ -2022,6 +2023,7 @@ func TestOAuth2RevokeTokenOwnership(t *testing.T) {
 
 	ownerClient := coderdtest.New(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
 
 	registerApp := func(ctx context.Context, t *testing.T, public bool) codersdk.OAuth2ClientRegistrationResponse {
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -2129,6 +2131,7 @@ func TestOAuth2ProviderAppsByUserIDAndBulkRevoke(t *testing.T) {
 
 	ownerClient := coderdtest.New(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
 
 	tests := []struct {
 		name   string

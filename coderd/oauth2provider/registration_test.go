@@ -256,6 +256,8 @@ func TestCreateDynamicClientRegistration_Transaction(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mDB := dbmock.NewMockStore(ctrl)
 
+			mDB.EXPECT().GetOAuth2DCREnabled(gomock.Any()).Return(true, nil).Times(1)
+
 			// InTx must invoke the closure against the same store handle
 			// (the mock itself, standing in for `tx`) so the two inserts
 			// below are recorded as happening inside one shared
