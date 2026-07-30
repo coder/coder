@@ -30,7 +30,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd"
@@ -308,41 +307,6 @@ func (s *failNextUpsertChatSystemPromptStore) UpsertChatSystemPrompt(ctx context
 	return s.Store.UpsertChatSystemPrompt(ctx, prompt)
 }
 
-// failNextGetChatPlanModeInstructionsStore lets a test force plan-mode
-// instructions reads to fail until the armed count reaches zero. Best-effort
-// audit captures swallow these errors without retrying, which is why a
-// one-shot flag is not enough: the failure would stay latent and fire on a
-// later, unrelated read.
-type failNextGetChatPlanModeInstructionsStore struct {
-	database.Store
-
-	armedGetChatPlanModeInstructionsFailures *atomic.Int64
-}
-
-func newFailNextGetChatPlanModeInstructionsStore(store database.Store) *failNextGetChatPlanModeInstructionsStore {
-	return &failNextGetChatPlanModeInstructionsStore{
-		Store:                                    store,
-		armedGetChatPlanModeInstructionsFailures: &atomic.Int64{},
-	}
-}
-
-func (s *failNextGetChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return function(&failNextGetChatPlanModeInstructionsStore{
-			Store:                                    tx,
-			armedGetChatPlanModeInstructionsFailures: s.armedGetChatPlanModeInstructionsFailures,
-		})
-	}, txOpts)
-}
-
-func (s *failNextGetChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
-	if s.armedGetChatPlanModeInstructionsFailures != nil && s.armedGetChatPlanModeInstructionsFailures.Load() > 0 {
-		s.armedGetChatPlanModeInstructionsFailures.Add(-1)
-		return "", stderrors.New("forced plan mode instructions read failure")
-	}
-	return s.Store.GetChatPlanModeInstructions(ctx)
-}
-
 // failNextUpsertChatPlanModeInstructionsStore lets a test force the plan-mode
 // instructions upsert to fail once, sharing its failure state across InTx
 // wrappers.
@@ -375,77 +339,6 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
-// failNextChatSettingsLockStore lets a test force the chat settings advisory
-// lock acquisition to fail once, sharing its failure state across InTx
-// wrappers.
-type failNextChatSettingsLockStore struct {
-	database.Store
-
-	failNextAcquireLock *atomic.Bool
-}
-
-func newFailNextChatSettingsLockStore(store database.Store) *failNextChatSettingsLockStore {
-	return &failNextChatSettingsLockStore{
-		Store:               store,
-		failNextAcquireLock: &atomic.Bool{},
-	}
-}
-
-func (s *failNextChatSettingsLockStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return function(&failNextChatSettingsLockStore{
-			Store:               tx,
-			failNextAcquireLock: s.failNextAcquireLock,
-		})
-	}, txOpts)
-}
-
-func (s *failNextChatSettingsLockStore) AcquireLock(ctx context.Context, id int64) error {
-	if s.failNextAcquireLock.CompareAndSwap(true, false) {
-		return stderrors.New("forced advisory lock acquisition failure")
-	}
-	return s.Store.AcquireLock(ctx, id)
-}
-
-// commitFailChatPlanModeInstructionsStore runs the audited callback
-// normally, then fails the transaction exactly like a commit failure: Old
-// was captured, the upsert succeeded, and only the machinery completing the
-// transaction failed. The fallback re-read runs outside the transaction and
-// succeeds.
-type commitFailChatPlanModeInstructionsStore struct {
-	database.Store
-
-	// failNextCommit arms exactly one commit failure for the next audited
-	// transaction whose callback succeeds.
-	failNextCommit *atomic.Bool
-	// inFallback marks the direct write path so it is never failed.
-	inFallback *atomic.Bool
-}
-
-func newCommitFailChatPlanModeInstructionsStore(store database.Store) *commitFailChatPlanModeInstructionsStore {
-	return &commitFailChatPlanModeInstructionsStore{
-		Store:          store,
-		failNextCommit: &atomic.Bool{},
-		inFallback:     &atomic.Bool{},
-	}
-}
-
-func (s *commitFailChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	// The fallback direct write calls the plain upsert, not InTx, so only
-	// the audited transaction reaches this wrapper.
-	return s.Store.InTx(func(tx database.Store) error {
-		if err := function(tx); err != nil {
-			return err
-		}
-		// The callback succeeded; fail completion once when armed, like a
-		// commit error.
-		if s.failNextCommit.CompareAndSwap(true, false) {
-			return stderrors.New("commit transaction: forced commit failure")
-		}
-		return nil
-	}, txOpts)
-}
-
 // normalizingChatPlanModeInstructionsStore stores an uppercased value on// normalizingChatPlanModeInstructionsStore stores an uppercased value on
 // every upsert, so tests can prove the audited New comes from the stored
 // value, not the request text.
@@ -461,31 +354,6 @@ func (s *normalizingChatPlanModeInstructionsStore) InTx(function func(database.S
 
 func (s *normalizingChatPlanModeInstructionsStore) UpsertChatPlanModeInstructions(ctx context.Context, instructions string) error {
 	return s.Store.UpsertChatPlanModeInstructions(ctx, strings.ToUpper(instructions))
-}
-
-// recordingSink captures slog entries so tests can assert on messages the
-// handler logs, e.g. best-effort audit capture failures.
-type recordingSink struct {
-	mu      sync.Mutex
-	entries []slog.SinkEntry
-}
-
-func (s *recordingSink) LogEntry(_ context.Context, e slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entries = append(s.entries, e)
-}
-
-func (*recordingSink) Sync() {}
-
-func (s *recordingSink) messages() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	msgs := make([]string, len(s.entries))
-	for i, e := range s.entries {
-		msgs[i] = e.Message
-	}
-	return msgs
 }
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
@@ -13149,105 +13017,6 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.NotContains(t, string(logs[0].Diff), "must not leak")
 	})
 
-	// A failing audit capture read must not change the request outcome:
-	// the write still happens and the response is still 204, the entry is
-	// just skipped. The Old-capture read fails here.
-	t.Run("AuditOldCaptureFailureStillWrites", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSystemPromptStore(rawDB)
-		mAudit := audit.NewMock()
-		sink := &recordingSink{}
-		logger := slog.Make(sink)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-			Logger:           &logger,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		store.armedGetChatSystemPromptConfigFailures.Store(1)
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               "Written despite the failed audit read.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-		require.Contains(t, sink.messages(), "audit old capture failed, writing chat system prompt without a diff")
-
-		resp, err := client.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Written despite the failed audit read.", resp.SystemPrompt)
-		require.True(t, resp.IncludeDefaultSystemPrompt)
-	})
-
-	// Isolated New-branch proof: the Old capture succeeds, the upserts
-	// succeed, and only the New re-read fails. The write still completes
-	// with 204 and the warn names the New capture. The write-scoped store
-	// counts GetChatSystemPromptConfig calls across InTx boundaries: the
-	// first failing call is the New re-read because the Old capture is the
-	// first call and only reads, while the upsert failure injection used
-	// in earlier tests aborts before any re-read.
-	t.Run("AuditNewCaptureDegradesViaWarn", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSystemPromptStore(rawDB)
-		mAudit := audit.NewMock()
-		sink := &recordingSink{}
-		logger := slog.Make(sink)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-			Logger:           &logger,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               "Initial prompt.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		require.Len(t, mAudit.AuditLogs(), 1)
-
-		// The Old capture of the next PUT reads the stored "Initial
-		// prompt." and succeeds; the armed failure then fires on the New
-		// re-read only, because the Old read is the first call and the
-		// armed countdown starts after it.
-		mAudit.ResetLogs()
-		store.armedGetChatSystemPromptConfigFailures.Store(1)
-		store.getChatSystemPromptConfigCallsBeforeFailure.Store(1)
-		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt: "Changed prompt.",
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-		require.Contains(t, sink.messages(), "audit new capture failed, writing chat system prompt without a diff")
-
-		resp, err := client.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Changed prompt.", resp.SystemPrompt)
-	})
-
 	// A failing upsert rolls the transaction back: the request fails with
 	// 500, no audit entry is emitted, and the stale Old the failed request
 	// captured must not poison a later no-change PUT into being audited
@@ -13306,49 +13075,6 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
-	})
-
-	// When the advisory lock cannot be taken, the write still happens
-	// through main's direct path and the response stays 204; the attempt
-	// exports with an empty diff. Accepted degradation: two concurrent
-	// identical writes can both record in this state.
-	t.Run("AuditLockFailureFallsBack", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSettingsLockStore(rawDB)
-		mAudit := audit.NewMock()
-		sink := &recordingSink{}
-		logger := slog.Make(sink)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-			Logger:           &logger,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		store.failNextAcquireLock.Store(true)
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               "Written despite the lock failure.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-		require.Contains(t, sink.messages(), "chat system prompt update transaction failed")
-
-		resp, err := client.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Written despite the lock failure.", resp.SystemPrompt)
-		require.True(t, resp.IncludeDefaultSystemPrompt)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
@@ -13673,42 +13399,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.NotContains(t, string(logs[0].Diff), "must not leak")
 	})
 
-	// A failing audit old-capture read must not change the request
-	// outcome: the write still happens and the response is still 204,
-	// the entry is just skipped.
-	t.Run("AuditOldCaptureFailureStillWrites", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextGetChatPlanModeInstructionsStore(rawDB)
-		mAudit := audit.NewMock()
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		store.armedGetChatPlanModeInstructionsFailures.Store(1)
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Written despite the failed audit read.",
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-
-		resp, err := client.GetChatPlanModeInstructions(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Written despite the failed audit read.", resp.PlanModeInstructions)
-	})
-
 	// The audited New must be the STORED value, not the request text: the
 	// write may normalize the value, and request-derived text would
 	// misreport the change. The store uppercases every upsert; the entry
@@ -13809,186 +13499,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
-	})
-
-	// When the advisory lock cannot be taken, the write still happens
-	// through main's direct path and the response stays 204; the attempt
-	// exports with an empty diff.
-	t.Run("AuditLockFailureFallsBack", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSettingsLockStore(rawDB)
-		mAudit := audit.NewMock()
-		sink := &recordingSink{}
-		logger := slog.Make(sink)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-			Logger:           &logger,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		store.failNextAcquireLock.Store(true)
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Written despite the lock failure.",
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-		require.Contains(t, sink.messages(), "plan mode instructions update transaction failed")
-
-		resp, err := client.GetChatPlanModeInstructions(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Written despite the lock failure.", resp.PlanModeInstructions)
-	})
-
-	// When the transaction fails AFTER Old was captured and the write
-	// succeeded (a commit-time machinery failure), the fallback direct
-	// write lands the value and the request succeeds, so the entry is
-	// the ordinary one: Old to the stored New, real diff, 204. A
-	// degraded empty-diff row here would under-report a change that
-	// happened.
-	t.Run("AuditCommitFailureEmitsOrdinaryEntry", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newCommitFailChatPlanModeInstructionsStore(rawDB)
-		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			newSettings, ok := newVal.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			if oldSettings.PlanModeInstructions == newSettings.PlanModeInstructions {
-				return audit.Map{}
-			}
-			return audit.Map{
-				"plan_mode_instructions": {Old: oldSettings.PlanModeInstructions, New: newSettings.PlanModeInstructions},
-			}
-		})
-		sink := &recordingSink{}
-		logger := slog.Make(sink)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-			Logger:           &logger,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Baseline instructions.",
-		})
-		require.NoError(t, err)
-		require.Len(t, mAudit.AuditLogs(), 1)
-
-		mAudit.ResetLogs()
-		store.failNextCommit.Store(true)
-		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Committed instructions.",
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.Contains(t, sink.messages(), "plan mode instructions update transaction failed")
-		var diff map[string]codersdk.AuditDiffField
-		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
-		require.Equal(t, map[string]codersdk.AuditDiffField{
-			"plan_mode_instructions": {Old: "Baseline instructions.", New: "Committed instructions."},
-		}, diff)
-
-		resp, err := client.GetChatPlanModeInstructions(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Committed instructions.", resp.PlanModeInstructions)
-	})
-
-	// A retry with a divergent value after a lock failure lands through
-	// the direct write path: the request succeeds, and because the lock
-	// failure meant no baseline existed, the row is the degraded one
-	// (real status, empty diff). A subsequent ordinary write with no
-	// failures then produces the ordinary old-to-new entry, proving the
-	// degraded write did not desync the baseline.
-	t.Run("AuditFallbackThenOrdinaryEntry", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSettingsLockStore(rawDB)
-		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			newSettings, ok := newVal.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			if oldSettings.PlanModeInstructions == newSettings.PlanModeInstructions {
-				return audit.Map{}
-			}
-			return audit.Map{
-				"plan_mode_instructions": {Old: oldSettings.PlanModeInstructions, New: newSettings.PlanModeInstructions},
-			}
-		})
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Baseline instructions.",
-		})
-		require.NoError(t, err)
-		require.Len(t, mAudit.AuditLogs(), 1)
-
-		// Lock failure on the retry with a corrected value: no baseline
-		// was captured, so the row is degraded (empty diff) and the
-		// direct write path still lands the value.
-		mAudit.ResetLogs()
-		store.failNextAcquireLock.Store(true)
-		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Corrected instructions.",
-		})
-		require.NoError(t, err)
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
-		require.JSONEq(t, "{}", string(logs[0].Diff))
-
-		resp, err := client.GetChatPlanModeInstructions(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Corrected instructions.", resp.PlanModeInstructions)
-
-		// The next ordinary write diffs against the fallback-written
-		// value, proving the degraded write did not desync the baseline.
-		mAudit.ResetLogs()
-		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Third instructions.",
-		})
-		require.NoError(t, err)
-		logs = mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		var diff map[string]codersdk.AuditDiffField
-		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
-		require.Equal(t, map[string]codersdk.AuditDiffField{
-			"plan_mode_instructions": {Old: "Corrected instructions.", New: "Third instructions."},
-		}, diff)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
