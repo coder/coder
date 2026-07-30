@@ -630,7 +630,8 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				ExpiresAt:   expires,
 				HashPrefix:  []byte(token.Prefix),
 				RefreshHash: token.Hashed,
-				AppSecretID: secret.ID,
+				AppID:       test.app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,
 			})
