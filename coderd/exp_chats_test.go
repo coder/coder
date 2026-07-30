@@ -375,6 +375,23 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
+// normalizingChatPlanModeInstructionsStore stores an uppercased value on
+// every upsert, so tests can prove the audited New comes from the stored
+// value, not the request text.
+type normalizingChatPlanModeInstructionsStore struct {
+	database.Store
+}
+
+func (s *normalizingChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&normalizingChatPlanModeInstructionsStore{Store: tx})
+	}, txOpts)
+}
+
+func (s *normalizingChatPlanModeInstructionsStore) UpsertChatPlanModeInstructions(ctx context.Context, instructions string) error {
+	return s.Store.UpsertChatPlanModeInstructions(ctx, strings.ToUpper(instructions))
+}
+
 // recordingSink captures slog entries so tests can assert on messages the
 // handler logs, e.g. best-effort audit capture failures.
 type recordingSink struct {
@@ -13454,6 +13471,54 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		resp, err := client.GetChatPlanModeInstructions(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "Written despite the failed audit read.", resp.PlanModeInstructions)
+	})
+
+	// The audited New must be the STORED value, not the request text: the
+	// write may normalize the value, and request-derived text would
+	// misreport the change. The store uppercases every upsert; the entry
+	// must carry the stored uppercase form.
+	t.Run("AuditNewIsStoredValue", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &normalizingChatPlanModeInstructionsStore{Store: rawDB}
+		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldSettings, ok := old.(database.ChatSystemPromptSettings)
+			assert.True(t, ok)
+			newSettings, ok := newVal.(database.ChatSystemPromptSettings)
+			assert.True(t, ok)
+			return audit.Map{
+				"plan_mode_instructions": {Old: oldSettings.PlanModeInstructions, New: newSettings.PlanModeInstructions},
+			}
+		})
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "normalize me",
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+		require.Equal(t, map[string]codersdk.AuditDiffField{
+			"plan_mode_instructions": {Old: "", New: "NORMALIZE ME"},
+		}, diff)
+
+		resp, err := client.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "NORMALIZE ME", resp.PlanModeInstructions)
 	})
 
 	// A failing upsert rolls the transaction back: the request fails with

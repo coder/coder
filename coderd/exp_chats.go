@@ -4745,8 +4745,22 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			writeErr = err
 			return err
 		}
-		if oldErr != nil || sanitizedInstructions == oldInstructions {
+		if oldErr != nil {
 			// Without a baseline there is no meaningful change detection.
+			return nil
+		}
+		// Re-read the stored value to build New and to compare: the write
+		// may normalize the value, so request-derived text can
+		// misreport the change. Same best-effort rule as the Old
+		// capture: a failed re-read must not roll back the completed
+		// upsert.
+		newInstructions, newErr := tx.GetChatPlanModeInstructions(ctx)
+		if newErr != nil {
+			api.Logger.Warn(ctx, "audit new capture failed, writing plan mode instructions without an audit entry",
+				slog.Error(newErr))
+			return nil
+		}
+		if newInstructions == oldInstructions {
 			// A value-identical PUT leaves both audit sides without a
 			// resource ID, which suppresses the audit entry entirely.
 			// The upsert above still runs either way.
@@ -4756,7 +4770,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		// entry shows the old-to-new transition.
 		aReq.New = database.ChatSystemPromptSettings{
 			ID:                   uuid.New(),
-			PlanModeInstructions: sanitizedInstructions,
+			PlanModeInstructions: newInstructions,
 		}
 		return nil
 	}, nil)
