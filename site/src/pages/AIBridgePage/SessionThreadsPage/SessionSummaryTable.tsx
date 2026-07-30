@@ -31,8 +31,13 @@ interface SessionSummaryTableProps {
 	// networkCalls is undefined when the session did not pass through Agent
 	// Firewall, which renders as "Disabled".
 	networkCalls?: AIBridgeSessionNetworkCallSummary;
-	topDomains?: readonly AIBridgeSessionNetworkDomain[];
-	domainCount?: number;
+	// networkDomains is undefined when the session contacted no destination
+	// hosts. totalCount is the number of distinct domains contacted, which
+	// renders as a "+N more" overflow beyond topDomain.
+	networkDomains?: {
+		readonly topDomain: AIBridgeSessionNetworkDomain;
+		readonly totalCount: number;
+	};
 }
 
 export const SessionSummaryTable = ({
@@ -48,8 +53,7 @@ export const SessionSummaryTable = ({
 	toolCallCount,
 	tokenUsageMetadata,
 	networkCalls,
-	topDomains,
-	domainCount,
+	networkDomains,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
 		endTime !== undefined
@@ -203,7 +207,7 @@ export const SessionSummaryTable = ({
 
 			<div className="flex items-center justify-between">
 				<dt className="shrink-0 font-normal whitespace-nowrap">
-					Network calls
+					Network requests
 				</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary">
 					{networkCallsValue}
@@ -228,18 +232,18 @@ export const SessionSummaryTable = ({
 				</div>
 			)}
 
-			{topDomains !== undefined && topDomains.length > 0 && (
+			{networkDomains !== undefined && (
 				<div className="flex items-start justify-between">
 					<dt className="shrink-0 font-normal whitespace-nowrap mt-px">
 						Top domains
 					</dt>
 					<dd className="ml-4 min-w-0 text-content-primary text-right">
-						<div className="truncate" title={topDomains[0].domain}>
-							{topDomains[0].domain}
+						<div className="truncate" title={networkDomains.topDomain.domain}>
+							{networkDomains.topDomain.domain}
 						</div>
-						{domainCount !== undefined && domainCount > 1 && (
+						{networkDomains.totalCount > 1 && (
 							<div className="text-content-secondary text-xs">
-								+{(domainCount - 1).toLocaleString("en-US")} more
+								+{(networkDomains.totalCount - 1).toLocaleString("en-US")} more
 							</div>
 						)}
 					</dd>

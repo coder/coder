@@ -75,6 +75,10 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		0,
 	);
 
+	// The API returns only the single most contacted host, alongside the total
+	// distinct domain count that drives the "+N more" overflow.
+	const topDomain = session?.network_top_domains?.[0];
+
 	return (
 		<>
 			<nav className="mb-6">
@@ -116,8 +120,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}
 							networkCalls={session.network_calls}
-							topDomains={session.network_top_domains}
-							domainCount={session.network_domain_count}
+							networkDomains={
+								topDomain && {
+									topDomain,
+									totalCount: session.network_domain_count ?? 1,
+								}
+							}
 						/>
 					)}
 				</aside>

@@ -88,15 +88,13 @@ export const NetworkActivity: Story = {
 	args: {
 		...Default.args,
 		networkCalls: { total: 7, blocked: 2 },
-		topDomains: [
-			{ domain: "api.github.com", count: 4 },
-			{ domain: "registry.npmjs.org", count: 2 },
-			{ domain: "hooks.slack.com", count: 1 },
-		],
-		domainCount: 14,
+		networkDomains: {
+			topDomain: { domain: "api.github.com", count: 4 },
+			totalCount: 14,
+		},
 	},
 	play: async ({ canvas }) => {
-		await expect(canvas.getByText("Network calls")).toBeInTheDocument();
+		await expect(canvas.getByText("Network requests")).toBeInTheDocument();
 		await expect(canvas.getByText("7")).toBeInTheDocument();
 		await expect(
 			canvas.getByText("Blocked network requests"),
@@ -111,8 +109,10 @@ export const NetworkSingleDomain: Story = {
 	args: {
 		...Default.args,
 		networkCalls: { total: 3, blocked: 0 },
-		topDomains: [{ domain: "api.github.com", count: 3 }],
-		domainCount: 1,
+		networkDomains: {
+			topDomain: { domain: "api.github.com", count: 3 },
+			totalCount: 1,
+		},
 	},
 	play: async ({ canvas }) => {
 		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
