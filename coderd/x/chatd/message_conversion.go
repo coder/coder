@@ -127,7 +127,9 @@ func buildAssistantParts(
 					part.CreatedAt = &ts
 				}
 			}
-			if part.ToolCallID != "" {
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
 				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
