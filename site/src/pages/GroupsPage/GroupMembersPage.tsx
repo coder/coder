@@ -47,7 +47,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
@@ -81,11 +80,7 @@ const GroupMembersPage: FC = () => {
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
