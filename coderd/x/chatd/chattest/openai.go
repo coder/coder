@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // OpenAIHandler handles OpenAI API requests and returns a response.
@@ -85,6 +87,44 @@ func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+// UnmarshalJSON accepts both string content and the structured
+// content-part array the SDK emits for multi-part messages,
+// concatenating the text items with newlines.
+func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Role = raw.Role
+	if len(raw.Content) == 0 {
+		m.Content = ""
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(raw.Content, &text); err == nil {
+		m.Content = text
+		return nil
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw.Content, &parts); err != nil {
+		return xerrors.Errorf("decode message content: %w", err)
+	}
+	var texts []string
+	for _, part := range parts {
+		if part.Type == "text" && part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	m.Content = strings.Join(texts, "\n")
+	return nil
 }
 
 // OpenAIToolFunction represents the function definition inside a tool.

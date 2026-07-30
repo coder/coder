@@ -13,7 +13,7 @@ const OAuth2AppsSettingsPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("OAuth2 Applications")}</title>
+			<title>{pageTitle("OAuth2 applications")}</title>
 
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}

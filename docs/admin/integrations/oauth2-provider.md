@@ -67,6 +67,36 @@ curl -X POST \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
 
+## Dynamic Client Registration
+
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Check or change the setting with the CLI:
+
+```sh
+coder oauth2-provider dcr enable
+coder oauth2-provider dcr disable
+```
+
+Or with the management API:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dynamic_client_registration_enabled": true}' \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+```sh
+curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+Disabling only blocks *new* self-registrations. Applications that already
+registered while it was enabled keep authorizing and exchanging tokens
+normally; disabling does not revoke or otherwise affect them.
+
 ## Integration Patterns
 
 ### Client Authentication Methods
