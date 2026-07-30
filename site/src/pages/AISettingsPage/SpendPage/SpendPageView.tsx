@@ -237,7 +237,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 						<div className="flex max-w-[1100px] flex-col gap-8">
 							<Alert severity="info">
 								<AlertDescription>
-									Cost controls features will move to AI Governance in v2.37.{" "}
+									Cost controls features will move to AI Governance in v2.36.{" "}
 									<Link
 										href={docs("/ai-coder/ai-gateway/cost-controls")}
 										target="_blank"

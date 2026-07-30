@@ -39,6 +39,7 @@ const meta: Meta<typeof UserAIBudgetOverrideDialog> = {
 		onOpenChange: () => undefined,
 		user: MockUserMember,
 		currentGroup: MockGroup,
+		canUpdate: true,
 	},
 };
 
@@ -85,6 +86,80 @@ export const WithoutOverride: Story = {
 		await expect(
 			body.queryByRole("button", { name: "Update" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** Without permission, an existing override can be read but not removed. */
+export const ReadOnlyWithOverride: Story = {
+	args: { canUpdate: false },
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: mockOverride,
+			},
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("$12,000 USD")).toBeInTheDocument();
+		await expect(
+			body.getByText(/To update this limit, contact a Coder administrator\./),
+		).toBeInTheDocument();
+		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
+		await expect(
+			body.queryByLabelText("Custom monthly budget"),
+		).not.toBeInTheDocument();
+		await expect(
+			body.queryByRole("button", { name: "Budget assigned to" }),
+		).not.toBeInTheDocument();
+		for (const name of ["Update", "Cancel", "Close"]) {
+			await expect(
+				body.queryByRole("button", { name }),
+			).not.toBeInTheDocument();
+		}
+	},
+};
+
+/** Without permission or an override, the group's budget is shown as-is. */
+export const ReadOnlyWithoutOverride: Story = {
+	args: { canUpdate: false },
+	parameters: {
+		queries: [
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserMember.id), data: null },
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("$5,000 USD")).toBeInTheDocument();
+		await expect(
+			body.getByText(/To update this limit, contact a Coder administrator\./),
+		).toBeInTheDocument();
+		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
+		await expect(
+			body.queryByRole("button", { name: "Update" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** The assigned group is in another organization, so it can't be named. */
+export const OverrideWithUnresolvableGroup: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: { ...mockOverride, group_id: "another-org-group" },
+			},
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		const summary = await body.findByText(/charged to/);
+		await expect(summary).toHaveTextContent("charged to their group.");
+		await expect(summary).not.toHaveTextContent("group group");
 	},
 };
 
