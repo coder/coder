@@ -4524,13 +4524,6 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// SetChatSystemPromptAuditDiffOverrideForTesting sets the audit diff override
-// used by the chat system instructions PUT handlers. Tests use it to pin the
-// captured Old/New pair; production wiring leaves it nil.
-func (api *API) SetChatSystemPromptAuditDiffOverrideForTesting(fn func(old, newVal any) audit.Map) {
-	api.chatSystemPromptAuditDiffOverride = fn
-}
-
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4561,11 +4554,10 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
-		Audit:        *api.Auditor.Load(),
-		Log:          api.Logger,
-		Request:      r,
-		Action:       database.AuditActionWrite,
-		DiffOverride: api.chatSystemPromptAuditDiffOverride,
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
 	})
 	defer commitAudit()
 
@@ -4697,11 +4689,10 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
-		Audit:        *api.Auditor.Load(),
-		Log:          api.Logger,
-		Request:      r,
-		Action:       database.AuditActionWrite,
-		DiffOverride: api.chatSystemPromptAuditDiffOverride,
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
 	})
 	defer commitAudit()
 

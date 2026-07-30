@@ -13193,19 +13193,15 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 	// The audit diff for the fallback flip must carry the re-read boolean,
 	// not the stale Old value: a regression that built New from the Old
 	// capture would emit no include_default_system_prompt diff entry. The
-	// diff override on the API pins the captured Old/New pair, which the
-	// mock auditor's empty diff cannot express.
+	// mock's test-supplied diff function pins the captured Old/New pair,
+	// which the default empty mock diff cannot express.
 	t.Run("AuditFallbackFlipDiffCarriesReReadValue", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		mAudit := audit.NewMock()
-		auditClient, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
-			opts.Auditor = mAudit
-		})
 		// This runs on the HTTP handler goroutine (via the deferred
 		// commitAudit), so it must use assert, not require: require calls
 		// t.FailNow, which is only legal on the test goroutine.
-		api.SetChatSystemPromptAuditDiffOverrideForTesting(func(old, newVal any) audit.Map {
+		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
 			oldSettings, ok := old.(database.ChatSystemPromptSettings)
 			assert.True(t, ok)
 			newSettings, ok := newVal.(database.ChatSystemPromptSettings)
@@ -13214,6 +13210,9 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 				"system_prompt":                 {Old: oldSettings.SystemPrompt, New: newSettings.SystemPrompt},
 				"include_default_system_prompt": {Old: oldSettings.IncludeDefaultSystemPrompt, New: newSettings.IncludeDefaultSystemPrompt},
 			}
+		})
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
 		})
 		_ = coderdtest.CreateFirstUser(t, auditClient.Client)
 		// Discard the login entry emitted by user creation.
