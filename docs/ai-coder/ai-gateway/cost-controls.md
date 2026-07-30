@@ -152,8 +152,6 @@ request:
 - Spend below the budget: the request proceeds.
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` with a
   message that describes the issue.
-- Budget check fails: AI Gateway returns a `500` error instead of forwarding the
-  request upstream.
 
 Users without a budget have **unlimited spend**, so their requests proceed
 without enforcement. A blocked user's access resumes when the budget period
@@ -193,8 +191,13 @@ Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
 therefore produces a partial first period.
 
 To see which models are priced in the release version you run, consult the
-[price book](https://github.com/coder/coder/blob/main/coderd/aibridge/prices/data/prices.json)
-in the Coder repository.
+price book for your Coder version:
+
+```text
+https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/data/prices.json
+```
+
+Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 
 > [!IMPORTANT]
 > Estimated spend can differ from provider-reported amounts, and some usage might
