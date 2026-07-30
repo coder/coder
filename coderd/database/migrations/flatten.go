@@ -2,24 +2,22 @@ package migrations
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 )
 
-// archiveShardSize is the number of migration versions held by each archive
-// directory. Older migrations are grouped into directories named for the
-// version range they hold, for example "000001-000100", so that the migrations
-// directory stays browsable: GitHub truncates directory listings and its
-// contents API at 1000 entries, which previously hid both the newest
-// migrations and the tooling in this package.
+// archiveShardSize is the number of migration versions per archive directory,
+// which is named for the range it holds, for example "000001-000100".
 const archiveShardSize = 100
 
-// shardDirName returns the archive directory name holding the given version.
 func shardDirName(version int) string {
 	start := ((version - 1) / archiveShardSize) * archiveShardSize
 	return fmt.Sprintf("%06d-%06d", start+1, start+archiveShardSize)
@@ -52,20 +50,20 @@ func isSixDigits(s string) bool {
 	return true
 }
 
-// flattenFS presents a migrations tree that may contain archive directories as
-// a single flat directory of migration files.
+// flattenFS presents a migrations tree containing archive directories as a
+// single flat directory.
 //
-// golang-migrate reads migrations from one directory and does not recurse. It
-// also resolves a deployment's current schema version by reading that version's
-// migration file, so every migration ever shipped must stay readable no matter
-// which archive directory it now lives in, or upgrades from older versions fail.
-// Flattening at read time keeps archiving a pure file move: it changes no
-// version numbers and leaves historical releases, whose migrations are all in
-// the root, loadable by the same code.
+// golang-migrate reads migrations from one directory and does not recurse, and
+// it resolves a deployment's current schema version by reading that version's
+// migration file. Every migration ever shipped therefore has to stay readable
+// regardless of which archive directory holds it, or upgrades from older
+// versions fail.
 type flattenFS struct {
 	inner fs.FS
 	// paths maps each migration file name to its location within inner.
 	paths map[string]string
+	// entries is the flattened listing, sorted by name.
+	entries []fs.DirEntry
 }
 
 func flatten(inner fs.FS) (*flattenFS, error) {
@@ -81,9 +79,8 @@ func flatten(inner fs.FS) (*flattenFS, error) {
 			if _, _, ok := parseShardDirName(d.Name()); ok {
 				return nil
 			}
-			// Directories that are not archives hold no migrations. Skipping
-			// rather than failing keeps this usable on the on-disk tree, which
-			// also contains testdata.
+			// testdata holds fixtures and schema dumps that reuse the migration
+			// naming scheme but are not migrations.
 			return fs.SkipDir
 		}
 		if !strings.HasSuffix(p, ".sql") {
@@ -94,15 +91,22 @@ func flatten(inner fs.FS) (*flattenFS, error) {
 			return xerrors.Errorf("duplicate migration %q found at %q and %q", name, existing, p)
 		}
 		f.paths[name] = p
+		f.entries = append(f.entries, d)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	sort.Slice(f.entries, func(i, j int) bool {
+		return f.entries[i].Name() < f.entries[j].Name()
+	})
 	return f, nil
 }
 
 func (f *flattenFS) Open(name string) (fs.File, error) {
+	if name == "." {
+		return &flattenRoot{entries: f.entries}, nil
+	}
 	location, ok := f.paths[name]
 	if !ok {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
@@ -114,19 +118,42 @@ func (f *flattenFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if name != "." {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
 	}
-	names := make([]string, 0, len(f.paths))
-	for name := range f.paths {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	entries := make([]fs.DirEntry, 0, len(names))
-	for _, name := range names {
-		info, err := fs.Stat(f.inner, f.paths[name])
-		if err != nil {
-			return nil, xerrors.Errorf("stat migration %q: %w", name, err)
-		}
-		entries = append(entries, fs.FileInfoToDirEntry(info))
-	}
-	return entries, nil
+	return slices.Clone(f.entries), nil
 }
+
+// flattenRoot is the flattened tree's root directory, which has no counterpart
+// in the underlying fs.
+type flattenRoot struct {
+	entries []fs.DirEntry
+	offset  int
+}
+
+func (*flattenRoot) Stat() (fs.FileInfo, error) { return flattenRootInfo{}, nil }
+func (*flattenRoot) Close() error               { return nil }
+
+func (*flattenRoot) Read([]byte) (int, error) {
+	return 0, &fs.PathError{Op: "read", Path: ".", Err: xerrors.New("is a directory")}
+}
+
+func (r *flattenRoot) ReadDir(n int) ([]fs.DirEntry, error) {
+	remaining := r.entries[r.offset:]
+	if n <= 0 {
+		r.offset = len(r.entries)
+		return slices.Clone(remaining), nil
+	}
+	if len(remaining) == 0 {
+		return nil, io.EOF
+	}
+	remaining = remaining[:min(n, len(remaining))]
+	r.offset += len(remaining)
+	return slices.Clone(remaining), nil
+}
+
+type flattenRootInfo struct{}
+
+func (flattenRootInfo) Name() string       { return "." }
+func (flattenRootInfo) Size() int64        { return 0 }
+func (flattenRootInfo) Mode() fs.FileMode  { return fs.ModeDir | 0o555 }
+func (flattenRootInfo) ModTime() time.Time { return time.Time{} }
+func (flattenRootInfo) IsDir() bool        { return true }
+func (flattenRootInfo) Sys() any           { return nil }

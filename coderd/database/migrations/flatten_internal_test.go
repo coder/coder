@@ -18,8 +18,6 @@ import (
 
 var migrationFileRE = regexp.MustCompile(`^(\d{6})_.+\.(?:up|down)\.sql$`)
 
-// diskMigrations maps every migration file name in the package directory to its
-// slash-separated path, whether it sits in the root or in an archive directory.
 func diskMigrations(t *testing.T) map[string]string {
 	t.Helper()
 
@@ -58,10 +56,10 @@ func migrationVersion(t *testing.T, name string) int {
 	return version
 }
 
-// TestEmbeddedMigrationsCoverDisk guards the one archive mistake that has no
-// other symptom. golang-migrate skips directories and unparseable names without
-// reporting anything, so if the go:embed patterns stop matching an archive
-// directory its migrations disappear from the binary silently.
+// TestEmbeddedMigrationsCoverDisk guards the one archive mistake with no other
+// symptom: golang-migrate skips directories and unparseable names silently, so
+// an embed pattern that stops matching an archive directory drops migrations
+// from the binary without any error.
 func TestEmbeddedMigrationsCoverDisk(t *testing.T) {
 	t.Parallel()
 
@@ -88,10 +86,8 @@ func TestEmbeddedMigrationsCoverDisk(t *testing.T) {
 		"embedded migrations differ from those on disk; check the go:embed patterns in migrate.go")
 }
 
-// TestMigrationVersionsAreContiguous keeps every version from 1 to the newest
-// present with both directions. A deployment can be running any historical
-// version, and golang-migrate resolves that starting point by reading the
-// version's own migration file before it applies anything newer.
+// TestMigrationVersionsAreContiguous holds the invariant behind flattenFS: a
+// deployment can be running any historical version, so none may go missing.
 func TestMigrationVersionsAreContiguous(t *testing.T) {
 	t.Parallel()
 
@@ -115,9 +111,6 @@ func TestMigrationVersionsAreContiguous(t *testing.T) {
 	}
 }
 
-// TestArchiveLayout pins each migration's directory to its version so the layout
-// stays mechanical: archives form a complete prefix of aligned ranges and the
-// newest range stays in the root.
 func TestArchiveLayout(t *testing.T) {
 	t.Parallel()
 
@@ -139,6 +132,9 @@ func TestArchiveLayout(t *testing.T) {
 		archives[entry.Name()] = true
 		archiveEnd = max(archiveEnd, end)
 	}
+
+	require.NotZerof(t, archiveEnd,
+		"no archive directories found; migrations 000001 onward should be archived to keep the root listable")
 
 	for version := archiveShardSize; version <= archiveEnd; version += archiveShardSize {
 		require.Truef(t, archives[shardDirName(version)],
@@ -166,9 +162,6 @@ func TestArchiveLayout(t *testing.T) {
 	}
 }
 
-// TestFlattenServesArchivedVersions covers the read that makes upgrades from old
-// deployments work: golang-migrate asks for the version the database is already
-// on, which for an old deployment is an archived one.
 func TestFlattenServesArchivedVersions(t *testing.T) {
 	t.Parallel()
 
@@ -198,6 +191,22 @@ func TestFlattenServesArchivedVersions(t *testing.T) {
 	next, err := driver.Next(42)
 	require.NoError(t, err)
 	require.EqualValues(t, 501, next)
+}
+
+func TestFlattenIsConformingFS(t *testing.T) {
+	t.Parallel()
+
+	flat, err := flatten(fstest.MapFS{
+		"000001-000100/000042_archived.up.sql": {Data: []byte("SELECT 42;")},
+		"000501_recent.up.sql":                 {Data: []byte("SELECT 501;")},
+	})
+	require.NoError(t, err)
+	require.NoError(t, fstest.TestFS(flat, "000042_archived.up.sql", "000501_recent.up.sql"))
+
+	// The flattened view must not expose the archive directories themselves, or
+	// walking it would yield each migration twice.
+	_, err = flat.Open("000001-000100")
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func TestFlattenRejectsDuplicateMigrations(t *testing.T) {

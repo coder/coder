@@ -1547,9 +1547,8 @@ func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 }
 
 // TestMigrateFromArchivedVersion upgrades a database whose current version lives
-// in an archive directory rather than the migrations root. golang-migrate reads
-// the version a database is already on before applying anything newer, so this is
-// the path taken by every deployment older than the newest archived range.
+// in an archive directory, the path taken by every deployment older than the
+// newest archived range.
 func TestMigrateFromArchivedVersion(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
