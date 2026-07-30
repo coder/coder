@@ -46,6 +46,11 @@ export const ReadOnly: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
+		// A disabled button is skipped by Tab and fires no pointer events, so the
+		// reason has to be readable on the page rather than attached to it.
+		await expect(
+			canvas.getByText(/permission to edit deployment configuration/),
+		).toBeVisible();
 	},
 };
 
@@ -60,6 +65,9 @@ export const EnabledReadOnly: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Disable" }),
 		).toBeDisabled();
+		await expect(
+			canvas.getByText(/permission to edit deployment configuration/),
+		).toBeVisible();
 	},
 };
 
@@ -111,6 +119,11 @@ export const Updating: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
+		// Disabled mid-request is self-evident and momentary. Only a permission
+		// problem earns an explanation.
+		await expect(
+			canvas.queryByText(/permission to edit deployment configuration/),
+		).not.toBeInTheDocument();
 	},
 };
 

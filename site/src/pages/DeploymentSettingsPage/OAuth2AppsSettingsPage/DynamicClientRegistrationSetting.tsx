@@ -41,6 +41,17 @@ export const DynamicClientRegistrationSetting: FC<
 						Allow OAuth2 clients to register themselves against this deployment
 						without prior administrator approval (RFC 7591).
 					</p>
+					{/*
+					 * A disabled button takes no focus and no pointer events, so it
+					 * cannot carry the reason it is disabled. Stating the reason here
+					 * puts it in reading order ahead of the button for everyone.
+					 */}
+					{!canEdit && (
+						<p className="text-sm text-content-secondary m-0 mt-1">
+							You need permission to edit deployment configuration to change
+							this setting.
+						</p>
+					)}
 				</div>
 
 				{enabled ? (
