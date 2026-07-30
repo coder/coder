@@ -1,0 +1,23 @@
+{
+	"id": "docker-multi-agent",
+	"display_name": "Docker (Multiple Agents)",
+	"os": "linux",
+	"agents": [
+		{ "name": "main", "display_name": "Primary", "default": true },
+		{ "name": "dev", "display_name": "Dev" }
+	],
+	"default_context": {
+		"container_image": "codercom/example-base:ubuntu"
+	},
+	"variables": [
+		{
+			"name": "container_image",
+			"type": "string",
+			"description": "Container image for both workspace agents. The image determines which tools and languages are available in the workspace by default.",
+			"default": "codercom/example-base:ubuntu",
+			"required": false,
+			"sensitive": false,
+			"computed": false
+		}
+	]
+}
