@@ -2449,27 +2449,24 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 			if org.Deleted {
 				continue
 			}
-			overrides, err := opts.Database.GetChatModelOverridesByOrganization(ctx, org.ID.String())
+			override, err := opts.Database.GetChatOrganizationModelOverride(ctx, database.GetChatOrganizationModelOverrideParams{
+				OrganizationID: org.ID,
+				Context:        string(codersdk.ChatModelOverrideContextAdvisor),
+			})
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
 			if err != nil {
-				opts.Logger.Warn(ctx, "get chat model overrides for telemetry",
+				opts.Logger.Warn(ctx, "get chat advisor model override for telemetry",
 					slog.F("organization_id", org.ID.String()), slog.Error(err))
 				continue
 			}
-			for _, override := range overrides {
-				if override.Key != "agents_advisor_model_override:"+org.ID.String() {
-					continue
-				}
-				parsed, ok := parseAdvisorOverrideValue(override.Value)
-				if !ok {
-					continue
-				}
-				provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, parsed)
-				payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
-					OrganizationID: org.ID.String(),
-					Provider:       provider,
-					Model:          model,
-				})
-			}
+			provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, override.ModelConfigID)
+			payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
+				OrganizationID: org.ID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
 		}
 	}
 	val, err := json.Marshal(payload)
@@ -2478,22 +2475,6 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 		return nil
 	}
 	return val
-}
-
-// parseAdvisorOverrideValue extracts the model config ID from a stored
-// advisor override value ('<model-config-id>[:<effort>]'). Empty and
-// malformed values report not-ok: they carry no resolvable override.
-func parseAdvisorOverrideValue(raw string) (uuid.UUID, bool) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return uuid.Nil, false
-	}
-	rawID, _, _ := strings.Cut(trimmed, ":")
-	id, err := uuid.Parse(rawID)
-	if err != nil || id == uuid.Nil {
-		return uuid.Nil, false
-	}
-	return id, true
 }
 
 func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {

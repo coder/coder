@@ -2405,8 +2405,8 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgID.String(), Value: modelID.String() + ":high"}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor), ModelConfigID: modelID}, nil)
 		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
 			Model:        "gpt-6-preview",
 			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
@@ -2442,10 +2442,10 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 				{ID: orgBID, Name: "org-b"},
 			}, nil)
 		// Only org A has an override; org B is unset.
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgAID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgAID.String(), Value: modelID.String()}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgBID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgBID.String(), Value: ""}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgAID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{OrganizationID: orgAID, Context: string(codersdk.ChatModelOverrideContextAdvisor), ModelConfigID: modelID}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgBID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
 			Return(database.ChatModelConfig{Model: "gpt-6-preview", AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true}}, nil)
 		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
@@ -2470,17 +2470,20 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		require.Empty(t, payload.Overrides)
 	})
 
-	t.Run("MalformedOverrideSkipped", func(t *testing.T) {
+	t.Run("UnsetOverrideSkipped", func(t *testing.T) {
 		t.Parallel()
 
+		// Typed storage cannot hold a malformed override (the pre-U4 string
+		// parse had a malformed case; the typed column does not). The state
+		// carrying no resolvable override is absence of a row.
 		orgID := uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgID.String(), Value: "not-a-uuid"}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
@@ -2496,8 +2499,8 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgID.String(), Value: modelID.String()}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor), ModelConfigID: modelID}, nil)
 		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
 			Return(database.ChatModelConfig{}, sql.ErrNoRows)
 
@@ -2601,8 +2604,8 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return(nil, sql.ErrConnDone)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
@@ -2618,8 +2621,8 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgID.String(), Value: modelID.String()}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor), ModelConfigID: modelID}, nil)
 		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
 			Return(database.ChatModelConfig{}, sql.ErrConnDone)
 
@@ -2640,8 +2643,8 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).
 			Return([]database.Organization{{ID: orgID, Name: "org-a"}}, nil)
-		db.EXPECT().GetChatModelOverridesByOrganization(gomock.Any(), orgID.String()).
-			Return([]database.SiteConfig{{Key: "agents_advisor_model_override:" + orgID.String(), Value: modelID.String()}}, nil)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor)}).
+			Return(database.ChatOrganizationModelOverride{OrganizationID: orgID, Context: string(codersdk.ChatModelOverrideContextAdvisor), ModelConfigID: modelID}, nil)
 		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
 			Model:        "gpt-6-preview",
 			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},

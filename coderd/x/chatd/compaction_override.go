@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	"charm.land/fantasy"
@@ -20,24 +21,20 @@ func readCompactionModelOverride(
 	ctx context.Context,
 	db database.Store,
 	orgID uuid.UUID,
-) (string, error) {
-	key, err := ChatModelOverrideSiteConfigKey(
-		codersdk.ChatModelOverrideContextCompaction,
-		orgID,
-	)
-	if err != nil {
-		return "", err
-	}
+) (database.ChatOrganizationModelOverride, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatModelOverrideByOrganization(chatdCtx, key)
+	override, err := db.GetChatOrganizationModelOverride(chatdCtx, database.GetChatOrganizationModelOverrideParams{
+		OrganizationID: orgID,
+		Context:        compactionOverrideContext,
+	})
 	if err != nil {
-		return "", xerrors.Errorf(
+		return database.ChatOrganizationModelOverride{}, xerrors.Errorf(
 			"get chat compaction model override: %w",
 			err,
 		)
 	}
-	return raw, nil
+	return override, nil
 }
 
 // compactionModelOverride carries the built compaction override model plus
@@ -67,8 +64,8 @@ type resolvedCompactionOverride struct {
 }
 
 // resolveCompactionOverrideConfig resolves the stored compaction model
-// override for the chat's organization. Unset, malformed, stale, and
-// credential-less overrides fall back to the chat model (nil override).
+// override for the chat's organization. Unset (no row), disabled-config,
+// and credential-less overrides fall back to the chat model (nil override).
 // This runs on every generation prepare because the override's context
 // limit feeds the compaction trigger; the model client is built only when
 // compaction runs.
@@ -76,8 +73,12 @@ func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (*resolvedCompactionOverride, error) {
-	raw, err := readCompactionModelOverride(ctx, p.db, chat.OrganizationID)
+	override, err := readCompactionModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Absence is unset: no compaction override configured.
+			return nil, nil //nolint:nilnil // Nil override with nil error means use the chat model.
+		}
 		return nil, xerrors.Errorf(
 			"read compaction model override: %w",
 			err,
@@ -87,8 +88,7 @@ func (p *Server) resolveCompactionOverrideConfig(
 	modelConfig, providerName, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		compactionOverrideContext,
-		raw,
-		chat.OrganizationID,
+		override,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {

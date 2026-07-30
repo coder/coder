@@ -3026,14 +3026,23 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 
 // From codersdk/chats.go
 /**
- * ChatModelOverrideResponse is the response body for the chat model override
- * configuration endpoint.
+ * ChatModelOverrideResponse is the response body for one chat model override
+ * context in an organization. An empty ModelConfigID means the context is
+ * unset (no override row).
  */
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverridesResponse is the response body for listing every chat
+ * model override context in an organization in one response.
+ */
+export interface ChatModelOverridesResponse {
+	readonly overrides: readonly ChatModelOverrideResponse[];
 }
 
 // From codersdk/chats.go
@@ -3184,7 +3193,6 @@ export interface ChatPersonalModelOverride {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -9556,25 +9564,12 @@ export interface UpdateActiveTemplateVersion {
 // From codersdk/chats.go
 /**
  * UpdateAdvisorConfigRequest is the request body for updating advisor
- * runtime configuration. Model selection moved to the org-scoped model
- * override endpoints (context "advisor"): the deprecated fields below
- * exist solely to detect stale clients, because the JSON decoder ignores
- * unknown fields. A request carrying either field is rejected so a stale
- * client cannot believe it set a model.
+ * runtime configuration. Model selection lives on the org-scoped model
+ * override endpoints (context "advisor"); it is deliberately absent here.
  */
 export interface UpdateAdvisorConfigRequest {
 	readonly max_uses_per_run: number;
 	readonly max_output_tokens: number;
-	/**
-	 * DeprecatedModelConfigID rejects stale writes. See
-	 * ChatModelOverrideContextAdvisor for the replacement.
-	 */
-	readonly model_config_id?: string;
-	/**
-	 * DeprecatedReasoningEffort rejects stale writes alongside
-	 * DeprecatedModelConfigID.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/deployment.go

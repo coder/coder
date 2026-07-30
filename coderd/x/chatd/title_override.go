@@ -2,7 +2,7 @@ package chatd
 
 import (
 	"context"
-	"strings"
+	"database/sql"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -11,71 +11,49 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const titleGenerationOverrideContext = "title_generation"
-
-type parsedModelOverride struct {
-	modelConfigID   uuid.UUID
-	reasoningEffort *string
-}
-
-func parseModelOverride(raw string) (parsedModelOverride, bool) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return parsedModelOverride{}, true
-	}
-	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
-	modelConfigID, err := uuid.Parse(rawID)
-	if err != nil || (hasEffort && rawEffort == "") {
-		return parsedModelOverride{}, false
-	}
-	parsed := parsedModelOverride{modelConfigID: modelConfigID}
-	if hasEffort {
-		parsed.reasoningEffort = &rawEffort
-	}
-	return parsed, true
-}
 
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
 	orgID uuid.UUID,
-) (string, error) {
-	key, err := ChatModelOverrideSiteConfigKey(
-		codersdk.ChatModelOverrideContextTitleGeneration,
-		orgID,
-	)
-	if err != nil {
-		return "", err
-	}
+) (database.ChatOrganizationModelOverride, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatModelOverrideByOrganization(chatdCtx, key)
+	override, err := db.GetChatOrganizationModelOverride(chatdCtx, database.GetChatOrganizationModelOverrideParams{
+		OrganizationID: orgID,
+		Context:        titleGenerationOverrideContext,
+	})
 	if err != nil {
-		return "", xerrors.Errorf(
+		return database.ChatOrganizationModelOverride{}, xerrors.Errorf(
 			"get chat title generation model override: %w",
 			err,
 		)
 	}
-	return raw, nil
+	return override, nil
 }
 
 // resolveTitleGenerationModelOverride resolves the chat organization's
 // title generation model override. overrideSet is true when an override was
-// configured and resolved; a configured override that does not resolve
-// (unknown, disabled, or cross-org config) is ignored, and model
-// construction failures after a successful resolution stay hard failures.
-// When overrideSet is false, callers may fall back to the default title
-// model.
+// configured, whether or not it resolves: a configured override that does
+// not resolve (disabled or soft-deleted config, since the composite FK
+// makes cross-org pins unrepresentable) is a HARD failure, matching the
+// pre-org-scoping behavior. Model construction failures after a successful
+// resolution stay hard failures. When overrideSet is false (no row
+// configured), callers may fall back to the default title model.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (database.ChatModelConfig, fantasy.LanguageModel, aiGatewayModelRoute, bool, error) {
-	raw, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
+	override, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Absence is unset: fall back to the default title model.
+			return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, nil
+		}
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
@@ -85,14 +63,13 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	modelConfig, _, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
-		raw,
-		chat.OrganizationID,
+		override,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},
-		modelOverrideFailureModeSoft,
+		modelOverrideFailureModeHard,
 	)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, overrideSet, err

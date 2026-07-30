@@ -13439,18 +13439,15 @@ func TestChatModelOverrides(t *testing.T) {
 		context         codersdk.ChatModelOverrideContext
 		modelConfigID   string
 		reasoningEffort *string
-		isMalformed     bool
 	}
 
 	type settingTest struct {
-		name     string
-		context  codersdk.ChatModelOverrideContext
-		dbGet    func(context.Context, database.Store, uuid.UUID) (string, error)
-		dbUpsert func(context.Context, database.Store, uuid.UUID, string) error
+		name    string
+		context codersdk.ChatModelOverrideContext
 	}
 
 	settingPath := func(orgID uuid.UUID, overrideContext codersdk.ChatModelOverrideContext) string {
-		return "/api/experimental/organizations/" + orgID.String() + "/chats/config/model-override/" + string(overrideContext)
+		return "/api/experimental/organizations/" + orgID.String() + "/ai/model-overrides/" + string(overrideContext)
 	}
 
 	getOverride := func(
@@ -13459,16 +13456,20 @@ func TestChatModelOverrides(t *testing.T) {
 		orgID uuid.UUID,
 		overrideContext codersdk.ChatModelOverrideContext,
 	) (overrideResponse, error) {
-		resp, err := client.GetOrganizationChatModelOverride(ctx, orgID, overrideContext)
+		resp, err := client.GetOrganizationChatModelOverrides(ctx, orgID)
 		if err != nil {
 			return overrideResponse{}, err
 		}
-		return overrideResponse{
-			context:         resp.Context,
-			modelConfigID:   resp.ModelConfigID,
-			reasoningEffort: resp.ReasoningEffort,
-			isMalformed:     resp.IsMalformed,
-		}, nil
+		for _, override := range resp.Overrides {
+			if override.Context == overrideContext {
+				return overrideResponse{
+					context:         override.Context,
+					modelConfigID:   override.ModelConfigID,
+					reasoningEffort: override.ReasoningEffort,
+				}, nil
+			}
+		}
+		return overrideResponse{}, xerrors.Errorf("override context %q not present in list response", overrideContext)
 	}
 
 	putOverrideWithEffort := func(
@@ -13500,63 +13501,39 @@ func TestChatModelOverrides(t *testing.T) {
 	}
 
 	dbGetOverride := func(ctx context.Context, db database.Store, orgID uuid.UUID, overrideContext codersdk.ChatModelOverrideContext) (string, error) {
-		key, err := chatd.ChatModelOverrideSiteConfigKey(overrideContext, orgID)
+		row, err := db.GetChatOrganizationModelOverride(ctx, database.GetChatOrganizationModelOverrideParams{
+			OrganizationID: orgID,
+			Context:        string(overrideContext),
+		})
+		if stderrors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
 		if err != nil {
 			return "", err
 		}
-		return db.GetChatModelOverrideByOrganization(ctx, key)
-	}
-	dbUpsertOverride := func(ctx context.Context, db database.Store, orgID uuid.UUID, overrideContext codersdk.ChatModelOverrideContext, value string) error {
-		key, err := chatd.ChatModelOverrideSiteConfigKey(overrideContext, orgID)
-		if err != nil {
-			return err
+		value := row.ModelConfigID.String()
+		if row.ReasoningEffort.Valid {
+			value += ":" + row.ReasoningEffort.String
 		}
-		return db.UpsertChatModelOverrideByOrganization(ctx, database.UpsertChatModelOverrideByOrganizationParams{
-			Key:   key,
-			Value: value,
-		})
+		return value, nil
 	}
 
 	settings := []settingTest{
 		{
 			name:    "General",
 			context: codersdk.ChatModelOverrideContextGeneral,
-			dbGet: func(ctx context.Context, db database.Store, orgID uuid.UUID) (string, error) {
-				return dbGetOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextGeneral)
-			},
-			dbUpsert: func(ctx context.Context, db database.Store, orgID uuid.UUID, value string) error {
-				return dbUpsertOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextGeneral, value)
-			},
 		},
 		{
 			name:    "Explore",
 			context: codersdk.ChatModelOverrideContextExplore,
-			dbGet: func(ctx context.Context, db database.Store, orgID uuid.UUID) (string, error) {
-				return dbGetOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextExplore)
-			},
-			dbUpsert: func(ctx context.Context, db database.Store, orgID uuid.UUID, value string) error {
-				return dbUpsertOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextExplore, value)
-			},
 		},
 		{
 			name:    "TitleGeneration",
 			context: codersdk.ChatModelOverrideContextTitleGeneration,
-			dbGet: func(ctx context.Context, db database.Store, orgID uuid.UUID) (string, error) {
-				return dbGetOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextTitleGeneration)
-			},
-			dbUpsert: func(ctx context.Context, db database.Store, orgID uuid.UUID, value string) error {
-				return dbUpsertOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextTitleGeneration, value)
-			},
 		},
 		{
 			name:    "Compaction",
 			context: codersdk.ChatModelOverrideContextCompaction,
-			dbGet: func(ctx context.Context, db database.Store, orgID uuid.UUID) (string, error) {
-				return dbGetOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextCompaction)
-			},
-			dbUpsert: func(ctx context.Context, db database.Store, orgID uuid.UUID, value string) error {
-				return dbUpsertOverride(ctx, db, orgID, codersdk.ChatModelOverrideContextCompaction, value)
-			},
 		},
 	}
 
@@ -13602,9 +13579,8 @@ func TestChatModelOverrides(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, setting.context, resp.context)
 				require.Empty(t, resp.modelConfigID)
-				require.False(t, resp.isMalformed)
 
-				raw, err := setting.dbGet(dbCtx, db, firstUser.OrganizationID)
+				raw, err := dbGetOverride(dbCtx, db, firstUser.OrganizationID, setting.context)
 				require.NoError(t, err)
 				require.Empty(t, raw, "expected empty stored override for %s", settingPath(firstUser.OrganizationID, setting.context))
 			})
@@ -13615,7 +13591,7 @@ func TestChatModelOverrides(t *testing.T) {
 				err := putOverride(ctx, adminClient, firstUser.OrganizationID, setting.context, openAIModel.ID.String())
 				require.NoError(t, err)
 
-				raw, err := setting.dbGet(dbCtx, db, firstUser.OrganizationID)
+				raw, err := dbGetOverride(dbCtx, db, firstUser.OrganizationID, setting.context)
 				require.NoError(t, err)
 				require.Equal(t, openAIModel.ID.String(), raw, "expected stored override for %s", settingPath(firstUser.OrganizationID, setting.context))
 
@@ -13623,12 +13599,11 @@ func TestChatModelOverrides(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, setting.context, resp.context)
 				require.Equal(t, openAIModel.ID.String(), resp.modelConfigID)
-				require.False(t, resp.isMalformed)
 
 				err = putOverride(ctx, adminClient, firstUser.OrganizationID, setting.context, "")
 				require.NoError(t, err)
 
-				raw, err = setting.dbGet(dbCtx, db, firstUser.OrganizationID)
+				raw, err = dbGetOverride(dbCtx, db, firstUser.OrganizationID, setting.context)
 				require.NoError(t, err)
 				require.Empty(t, raw, "expected cleared override for %s", settingPath(firstUser.OrganizationID, setting.context))
 
@@ -13636,7 +13611,6 @@ func TestChatModelOverrides(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, setting.context, resp.context)
 				require.Empty(t, resp.modelConfigID)
-				require.False(t, resp.isMalformed)
 			})
 
 			t.Run("AdminCanSetReasoningEffort", func(t *testing.T) {
@@ -13645,7 +13619,7 @@ func TestChatModelOverrides(t *testing.T) {
 				err := putOverrideWithEffort(ctx, adminClient, firstUser.OrganizationID, setting.context, reasoningModel.ID.String(), ptr.Ref("high"))
 				require.NoError(t, err)
 
-				raw, err := setting.dbGet(dbCtx, db, firstUser.OrganizationID)
+				raw, err := dbGetOverride(dbCtx, db, firstUser.OrganizationID, setting.context)
 				require.NoError(t, err)
 				require.Equal(t, reasoningModel.ID.String()+":high", raw)
 
@@ -13653,7 +13627,6 @@ func TestChatModelOverrides(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, reasoningModel.ID.String(), resp.modelConfigID)
 				require.Equal(t, ptr.Ref("high"), resp.reasoningEffort)
-				require.False(t, resp.isMalformed)
 
 				err = putOverride(ctx, adminClient, firstUser.OrganizationID, setting.context, "")
 				require.NoError(t, err)
@@ -13693,31 +13666,6 @@ func TestChatModelOverrides(t *testing.T) {
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
 				require.Equal(t, "This model does not support reasoning effort.", sdkErr.Detail)
-			})
-
-			t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				require.NoError(t, setting.dbUpsert(dbCtx, db, firstUser.OrganizationID, "not-a-uuid"))
-
-				resp, err := getOverride(ctx, adminClient, firstUser.OrganizationID, setting.context)
-				require.NoError(t, err)
-				require.Equal(t, setting.context, resp.context)
-				require.Empty(t, resp.modelConfigID)
-				require.True(t, resp.isMalformed)
-
-				err = putOverride(ctx, adminClient, firstUser.OrganizationID, setting.context, "")
-				require.NoError(t, err)
-
-				raw, err := setting.dbGet(dbCtx, db, firstUser.OrganizationID)
-				require.NoError(t, err)
-				require.Empty(t, raw, "expected malformed override to be cleared for %s", settingPath(firstUser.OrganizationID, setting.context))
-
-				resp, err = getOverride(ctx, adminClient, firstUser.OrganizationID, setting.context)
-				require.NoError(t, err)
-				require.Equal(t, setting.context, resp.context)
-				require.Empty(t, resp.modelConfigID)
-				require.False(t, resp.isMalformed)
 			})
 
 			t.Run("InvalidUUIDReturns400", func(t *testing.T) {
@@ -13783,17 +13731,8 @@ func TestChatModelOverrides(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 		unknownContext := codersdk.ChatModelOverrideContext("not-a-context")
 
-		_, err := getOverride(ctx, adminClient, firstUser.OrganizationID, unknownContext)
+		err := putOverride(ctx, adminClient, firstUser.OrganizationID, unknownContext, "")
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
-		require.Equal(
-			t,
-			`Expected one of general, explore, title_generation, compaction, advisor. Got "not-a-context".`,
-			sdkErr.Detail,
-		)
-
-		err = putOverride(ctx, adminClient, firstUser.OrganizationID, unknownContext, "")
-		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
@@ -13811,10 +13750,7 @@ func TestChatModelOverrides(t *testing.T) {
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		unknownContext := codersdk.ChatModelOverrideContext("not-a-context")
 
-		_, err := getOverride(ctx, memberClient, firstUser.OrganizationID, unknownContext)
-		requireSDKError(t, err, http.StatusNotFound)
-
-		err = putOverride(ctx, memberClient, firstUser.OrganizationID, unknownContext, "")
+		err := putOverride(ctx, memberClient, firstUser.OrganizationID, unknownContext, "")
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 }
@@ -13948,7 +13884,6 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		modelConfigID string,
 		reasoningEffort *string,
 		isSet bool,
-		isMalformed bool,
 	) {
 		t.Helper()
 		override := personalOverride(resp, overrideContext)
@@ -13957,7 +13892,6 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		require.Equal(t, modelConfigID, override.ModelConfigID)
 		require.Equal(t, reasoningEffort, override.ReasoningEffort)
 		require.Equal(t, isSet, override.IsSet)
-		require.Equal(t, isMalformed, override.IsMalformed)
 	}
 	assertOverride := func(
 		resp codersdk.UserChatPersonalModelOverridesResponse,
@@ -13965,17 +13899,15 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		mode codersdk.ChatPersonalModelOverrideMode,
 		modelConfigID string,
 		isSet bool,
-		isMalformed bool,
 	) {
 		t.Helper()
-		assertOverrideWithEffort(resp, overrideContext, mode, modelConfigID, nil, isSet, isMalformed)
+		assertOverrideWithEffort(resp, overrideContext, mode, modelConfigID, nil, isSet)
 	}
 	assertDeploymentDefault := func(
 		resp codersdk.UserChatPersonalModelOverridesResponse,
 		overrideContext codersdk.ChatModelOverrideContext,
 		modelConfigID string,
 		reasoningEffort *string,
-		isMalformed bool,
 	) {
 		t.Helper()
 		var override codersdk.ChatModelOverrideResponse
@@ -13990,31 +13922,49 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		require.Equal(t, overrideContext, override.Context)
 		require.Equal(t, modelConfigID, override.ModelConfigID)
 		require.Equal(t, reasoningEffort, override.ReasoningEffort)
-		require.Equal(t, isMalformed, override.IsMalformed)
 	}
 	upsertRaw := func(
 		overrideContext codersdk.ChatPersonalModelOverrideContext,
-		value string,
+		mode codersdk.ChatPersonalModelOverrideMode,
+		modelConfigID uuid.NullUUID,
+		reasoningEffort sql.NullString,
 	) {
 		t.Helper()
-		err := db.UpsertUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertUserChatPersonalModelOverrideParams{
-			UserID: member.ID,
-			Key:    chatd.ChatPersonalModelOverrideKey(firstUser.OrganizationID, overrideContext),
-			Value:  value,
+		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
+			UserID:          member.ID,
+			OrganizationID:  firstUser.OrganizationID,
+			Context:         string(overrideContext),
+			Mode:            string(mode),
+			ModelConfigID:   modelConfigID,
+			ReasoningEffort: reasoningEffort,
 		})
 		require.NoError(t, err)
 	}
+	upsertRawMode := func(overrideContext codersdk.ChatPersonalModelOverrideContext, mode codersdk.ChatPersonalModelOverrideMode) {
+		t.Helper()
+		upsertRaw(overrideContext, mode, uuid.NullUUID{}, sql.NullString{})
+	}
 	getRawFor := func(userID uuid.UUID, overrideContext codersdk.ChatPersonalModelOverrideContext) string {
 		t.Helper()
-		raw, err := db.GetUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetUserChatPersonalModelOverrideParams{
-			UserID: userID,
-			Key:    chatd.ChatPersonalModelOverrideKey(firstUser.OrganizationID, overrideContext),
+		row, err := db.GetChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetChatUserModelOverrideParams{
+			UserID:         userID,
+			OrganizationID: firstUser.OrganizationID,
+			Context:        string(overrideContext),
 		})
 		if stderrors.Is(err, sql.ErrNoRows) {
 			return ""
 		}
 		require.NoError(t, err)
-		return raw
+		switch row.Mode {
+		case string(codersdk.ChatPersonalModelOverrideModeModel):
+			value := "model:" + row.ModelConfigID.UUID.String()
+			if row.ReasoningEffort.Valid {
+				value += ":" + row.ReasoningEffort.String
+			}
+			return value
+		default:
+			return row.Mode
+		}
 	}
 	getRaw := func(overrideContext codersdk.ChatPersonalModelOverrideContext) string {
 		t.Helper()
@@ -14024,32 +13974,32 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	// GET without the organization query parameter resolves to the
 	// default organization, so these calls intentionally pass nil.
 	t.Run("GETDisabledReturnsMissingDefaults", func(t *testing.T) {
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
 		require.False(t, resp.Enabled)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", false, false)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false, false)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false)
 	})
 
-	upsertRaw(codersdk.ChatPersonalModelOverrideContextRoot, string(codersdk.ChatPersonalModelOverrideModeChatDefault))
-	upsertRaw(codersdk.ChatPersonalModelOverrideContextGeneral, string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault))
-	upsertRaw(codersdk.ChatPersonalModelOverrideContextExplore, "model:"+modelConfig.ID.String())
+	upsertRawMode(codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault)
+	upsertRawMode(codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault)
+	upsertRaw(codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeModel, uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, sql.NullString{})
 
 	t.Run("GETDisabledReturnsSavedValues", func(t *testing.T) {
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
 		require.False(t, resp.Enabled)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, false)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true)
 	})
 
 	t.Run("GETIncludesDeploymentDefaults", func(t *testing.T) {
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
-		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, modelConfig.ID.String(), nil, false)
-		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextExplore, defaultModelConfig.ID.String(), nil, false)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, modelConfig.ID.String(), nil)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextExplore, defaultModelConfig.ID.String(), nil)
 	})
 
 	t.Run("GETIncludesDeploymentDefaultReasoningEffort", func(t *testing.T) {
@@ -14059,13 +14009,13 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
-		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, reasoningModelConfig.ID.String(), ptr.Ref("high"), false)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, reasoningModelConfig.ID.String(), ptr.Ref("high"))
 	})
 
 	t.Run("PUTDisabledReturns403AndPreservesRows", func(t *testing.T) {
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID: modelConfig.ID.String(),
 		})
@@ -14084,28 +14034,9 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		codersdk.ChatPersonalModelOverrideContextExplore,
 	}
 
-	t.Run("PutRequiresOrganization", func(t *testing.T) {
-		// PUT requires the organization query parameter; the SDK always
-		// sends it, so exercise the bare path directly.
-		res, err := memberClient.Request(
-			ctx,
-			http.MethodPut,
-			"/api/experimental/chats/config/user-personal-model-overrides/general",
-			codersdk.UpdateUserChatPersonalModelOverrideRequest{
-				Mode: codersdk.ChatPersonalModelOverrideModeChatDefault,
-			},
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		var apiErr codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
-		require.Equal(t, "Missing organization query parameter.", apiErr.Message)
-	})
-
 	t.Run("PUTRejectsUnknownMode", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode: codersdk.ChatPersonalModelOverrideMode("banana"),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -14115,23 +14046,23 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 
 	t.Run("PUTChatDefaultRoundTrips", func(t *testing.T) {
 		for _, overrideContext := range contexts {
-			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 				Mode: codersdk.ChatPersonalModelOverrideModeChatDefault,
 			})
 			require.NoError(t, err)
 		}
 
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
 		require.True(t, resp.Enabled)
 		for _, overrideContext := range contexts {
-			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, false)
+			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true)
 		}
 	})
 
 	t.Run("PUTChatDefaultRejectsNonEmptyModelConfigID", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextRoot)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:          codersdk.ChatPersonalModelOverrideModeChatDefault,
 			ModelConfigID: modelConfig.ID.String(),
 		})
@@ -14145,21 +14076,21 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 			codersdk.ChatPersonalModelOverrideContextGeneral,
 			codersdk.ChatPersonalModelOverrideContextExplore,
 		} {
-			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 				Mode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
 			})
 			require.NoError(t, err)
 		}
 
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true)
 	})
 
 	t.Run("PUTDeploymentDefaultRejectsNonEmptyModelConfigID", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:          codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
 			ModelConfigID: modelConfig.ID.String(),
 		})
@@ -14169,7 +14100,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	})
 
 	t.Run("PUTDeploymentDefaultRejectsRoot", func(t *testing.T) {
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -14177,22 +14108,22 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 
 	t.Run("PUTModelRoundTrips", func(t *testing.T) {
 		for _, overrideContext := range contexts {
-			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 				Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 				ModelConfigID: modelConfig.ID.String(),
 			})
 			require.NoError(t, err)
 		}
 
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
 		for _, overrideContext := range contexts {
-			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true, false)
+			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true)
 		}
 	})
 
 	t.Run("PUTModelRoundTripsReasoningEffort", func(t *testing.T) {
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModelConfig.ID.String(),
 			ReasoningEffort: ptr.Ref("high"),
@@ -14200,14 +14131,14 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "model:"+reasoningModelConfig.ID.String()+":high", getRaw(codersdk.ChatPersonalModelOverrideContextGeneral))
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
+		resp, err := memberClient.GetMemberChatPersonalModelOverrides(ctx, firstUser.OrganizationID, "me")
 		require.NoError(t, err)
-		assertOverrideWithEffort(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeModel, reasoningModelConfig.ID.String(), ptr.Ref("high"), true, false)
+		assertOverrideWithEffort(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeModel, reasoningModelConfig.ID.String(), ptr.Ref("high"), true)
 	})
 
 	t.Run("PUTReasoningEffortRejectsNonModelMode", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
 			ReasoningEffort: ptr.Ref("high"),
 		})
@@ -14218,7 +14149,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 
 	t.Run("PUTReasoningEffortMustBeSelectable", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModelConfig.ID.String(),
 			ReasoningEffort: ptr.Ref("xhigh"),
@@ -14231,7 +14162,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 
 	t.Run("PUTReasoningEffortUnsupportedModel", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
-		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := memberClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   modelConfig.ID.String(),
 			ReasoningEffort: ptr.Ref("high"),
@@ -14306,7 +14237,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				rawBefore := getRawFor(tc.userID, codersdk.ChatPersonalModelOverrideContextGeneral)
-				err := tc.client.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+				err := tc.client.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 					Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 					ModelConfigID: tc.modelConfigID,
 				})
@@ -14316,25 +14247,6 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 				require.Equal(t, rawBefore, rawAfter)
 			})
 		}
-	})
-
-	t.Run("GETMalformedStoredValueFallsBackToContextDefault", func(t *testing.T) {
-		upsertRaw(codersdk.ChatPersonalModelOverrideContextRoot, "model:not-a-uuid")
-
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
-		require.NoError(t, err)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, true)
-	})
-
-	t.Run("GETRootDeploymentDefaultIsMalformed", func(t *testing.T) {
-		upsertRaw(
-			codersdk.ChatPersonalModelOverrideContextRoot,
-			string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault),
-		)
-
-		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx, nil)
-		require.NoError(t, err)
-		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, true)
 	})
 }
 
@@ -14393,12 +14305,14 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		require.Equal(t, chat.LastModelConfigID, storedChat.LastModelConfigID)
 		return chat
 	}
-	upsertRootRaw := func(userID uuid.UUID, value string) {
+	upsertRootRaw := func(userID uuid.UUID, mode codersdk.ChatPersonalModelOverrideMode, modelConfigID uuid.NullUUID) {
 		t.Helper()
-		err := db.UpsertUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertUserChatPersonalModelOverrideParams{
-			UserID: userID,
-			Key:    chatd.ChatPersonalModelOverrideKey(firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot),
-			Value:  value,
+		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
+			UserID:         userID,
+			OrganizationID: firstUser.OrganizationID,
+			Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
+			Mode:           string(mode),
+			ModelConfigID:  modelConfigID,
 		})
 		require.NoError(t, err)
 	}
@@ -14407,7 +14321,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		AllowUsers: true,
 	})
 	require.NoError(t, err)
-	err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+	err = adminClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 		Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 		ModelConfigID: overrideModel.ID.String(),
 	})
@@ -14433,7 +14347,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 			AllowUsers: true,
 		})
 		require.NoError(t, err)
-		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err = adminClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode: codersdk.ChatPersonalModelOverrideModeChatDefault,
 		})
 		require.NoError(t, err)
@@ -14442,14 +14356,8 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
 	})
 
-	t.Run("MalformedRootFallsBackToDefault", func(t *testing.T) {
-		upsertRootRaw(firstUser.UserID, "garbage")
-		chat := createChat(adminClient, "malformed root falls back", nil)
-		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
-	})
-
 	t.Run("RootModelOverrideUsesSavedModel", func(t *testing.T) {
-		err := adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err := adminClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID: overrideModel.ID.String(),
 		})
@@ -14472,7 +14380,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		err = adminClient.UpdateMemberChatPersonalModelOverride(ctx, firstUser.OrganizationID, "me", codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModel.ID.String(),
 			ReasoningEffort: ptr.Ref("high"),
@@ -14485,11 +14393,11 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	})
 
 	t.Run("UnavailableRootModelFallsBackToDefault", func(t *testing.T) {
-		upsertRootRaw(firstUser.UserID, "model:"+disabledModel.ID.String())
+		upsertRootRaw(firstUser.UserID, codersdk.ChatPersonalModelOverrideModeModel, uuid.NullUUID{UUID: disabledModel.ID, Valid: true})
 		chat := createChat(adminClient, "disabled root model falls back", nil)
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
 
-		upsertRootRaw(member.ID, "model:"+overrideModel.ID.String())
+		upsertRootRaw(member.ID, codersdk.ChatPersonalModelOverrideModeModel, uuid.NullUUID{UUID: overrideModel.ID, Valid: true})
 		chat = createChat(memberClient, "missing user key falls back", nil)
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
 	})
@@ -15252,12 +15160,12 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	overrideResp, err := adminClient.GetOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextAdvisor)
+	overridesResp, err := adminClient.GetOrganizationChatModelOverrides(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
+	overrideResp := findChatModelOverride(t, overridesResp, codersdk.ChatModelOverrideContextAdvisor)
 	require.Equal(t, codersdk.ChatModelOverrideContextAdvisor, overrideResp.Context)
 	require.Equal(t, modelConfig.ID.String(), overrideResp.ModelConfigID)
 	require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), overrideResp.ReasoningEffort)
-	require.False(t, overrideResp.IsMalformed)
 
 	// The deployment advisor config carries only runtime limits.
 	runtimeWant := codersdk.AdvisorConfig{
@@ -15434,8 +15342,9 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	overrideResp, err := adminClient.GetOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextAdvisor)
+	overridesResp, err := adminClient.GetOrganizationChatModelOverrides(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
+	overrideResp := findChatModelOverride(t, overridesResp, codersdk.ChatModelOverrideContextAdvisor)
 	require.Equal(t, modelConfig.ID.String(), overrideResp.ModelConfigID)
 	require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), overrideResp.ReasoningEffort)
 
@@ -15448,47 +15357,15 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 
 	// The overwrite dropped the reasoning effort; the org GET must reflect
 	// that while the runtime limits stay put.
-	overrideResp, err = adminClient.GetOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextAdvisor)
+	overridesResp, err = adminClient.GetOrganizationChatModelOverrides(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
+	overrideResp = findChatModelOverride(t, overridesResp, codersdk.ChatModelOverrideContextAdvisor)
 	require.Equal(t, modelConfig.ID.String(), overrideResp.ModelConfigID)
 	require.Nil(t, overrideResp.ReasoningEffort)
 
 	runtimeResp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, runtimeWant, runtimeResp)
-}
-
-// TestChatAdvisorConfig_StaleWriteRejected pins that a deployment advisor
-// config PUT carrying the removed model fields fails loudly instead of
-// silently dropping them, and leaves the stored config untouched.
-func TestChatAdvisorConfig_StaleWriteRejected(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newChatClient(t)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-
-	before := codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   7,
-		MaxOutputTokens: 512,
-	}
-	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
-		MaxUsesPerRun:   before.MaxUsesPerRun,
-		MaxOutputTokens: before.MaxOutputTokens,
-	})
-	require.NoError(t, err)
-
-	err = adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
-		MaxUsesPerRun:           3,
-		DeprecatedModelConfigID: ptr.Ref(uuid.New()),
-	})
-	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Contains(t, sdkErr.Message, "organization-scoped advisor model override endpoint")
-
-	resp, err := adminClient.GetChatAdvisorConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, resp, "stale write must leave the stored config unchanged")
 }
 
 // TestChatAdvisorConfig_EnabledReflectsExperiment pins that the Enabled
@@ -17159,6 +17036,23 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, expectedStatus, sdkErr.StatusCode())
 	return sdkErr
+}
+
+// findChatModelOverride locates the override entry for one context in the
+// organization model overrides list response.
+func findChatModelOverride(
+	t *testing.T,
+	resp codersdk.ChatModelOverridesResponse,
+	overrideContext codersdk.ChatModelOverrideContext,
+) codersdk.ChatModelOverrideResponse {
+	t.Helper()
+	for _, override := range resp.Overrides {
+		if override.Context == overrideContext {
+			return override
+		}
+	}
+	t.Fatalf("override context %q not present in list response", overrideContext)
+	return codersdk.ChatModelOverrideResponse{}
 }
 
 func TestChatReadOnlySharedWriteHandlers(t *testing.T) {

@@ -3090,13 +3090,25 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 		require.GreaterOrEqual(t, last, target, "migration %d must be applied", target)
 	}
 
-	// Migrate fully up first (the Stepper cannot stop mid-way), seed the
-	// pre-566 shape, then rewind the version row so only 566's up
-	// re-applies against the seeded data.
+	// Migrate fully up first: this proves the up applies cleanly on a fresh
+	// database. Then run the down file to return to the pre-566 shape, seed
+	// fixtures, and exercise up/down/re-up by executing the migration files
+	// directly (the Stepper brackets each Steps call in one transaction and
+	// cannot re-apply DDL that already ran; see TestMigration000546 for the
+	// established pattern).
 	stepperUpToLatest(migrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	upSQL, err := fs.ReadFile(migrations.MigrationFS(), "000566_chat_model_override_org_scope.up.sql")
+	require.NoError(t, err)
+	downSQL, err := fs.ReadFile(migrations.MigrationFS(), "000566_chat_model_override_org_scope.down.sql")
+	require.NoError(t, err)
+
+	// Return to the pre-566 shape.
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err, "down on a fresh database must not abort")
 
 	providerID := uuid.New()
 	user1ID := uuid.New()
@@ -3190,15 +3202,12 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 			row.userID, row.key, row.value)
 	}
 
-	// Rewind the version row to 566's predecessor so the stepper re-applies
-	// only 566's up. The predecessor is 564: 565 is allocated to a sibling
-	// unit and absent here, and golang-migrate's readUp requires the
-	// current version to exist in the source (the repo's Stepper swallows
-	// the not-exist error as a silent no-op).
-	_, err := sqlDB.ExecContext(ctx,
-		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (564, false)")
-	require.NoError(t, err)
-	stepperUpToLatest(migrationVersion)
+	// Apply the up directly over the seeded pre-566 shape. The Stepper
+	// already proved the up applies on a fresh database above; from here the
+	// migration files are executed by hand because the Stepper cannot
+	// re-apply DDL that already ran.
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err, "up must apply over the seeded pre-566 state")
 
 	getSiteValue := func(key string) (string, bool) {
 		t.Helper()
@@ -3222,22 +3231,84 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 		require.NoError(t, err)
 		return value, true
 	}
-	orgSuffix := ":" + defaultOrgID.String()
+	// Typed readers over the new tables.
+	type orgOverride struct {
+		modelConfigID   uuid.UUID
+		reasoningEffort *string
+	}
+	getOrgOverride := func(overrideContext string) (orgOverride, bool) {
+		t.Helper()
+		var o orgOverride
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT model_config_id, reasoning_effort FROM chat_organization_model_overrides
+			WHERE organization_id = $1 AND context = $2`, defaultOrgID, overrideContext).
+			Scan(&o.modelConfigID, &o.reasoningEffort)
+		if err == sql.ErrNoRows {
+			return orgOverride{}, false
+		}
+		require.NoError(t, err)
+		return o, true
+	}
+	type userOverride struct {
+		mode            string
+		modelConfigID   *uuid.UUID
+		reasoningEffort *string
+	}
+	getUserOverride := func(userID uuid.UUID, overrideContext string) (userOverride, bool) {
+		t.Helper()
+		var u userOverride
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT mode, model_config_id, reasoning_effort FROM chat_user_model_overrides
+			WHERE user_id = $1 AND organization_id = $2 AND context = $3`, userID, defaultOrgID, overrideContext).
+			Scan(&u.mode, &u.modelConfigID, &u.reasoningEffort)
+		if err == sql.ErrNoRows {
+			return userOverride{}, false
+		}
+		require.NoError(t, err)
+		return u, true
+	}
+
+	// --- Up assertions: schema objects exist with the contract this unit
+	// ships. Composite FK violation must fire on a cross-org pin. ---
+	var constraintCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_constraint WHERE conname IN (
+			'chat_model_configs_organization_id_id_key',
+			'chat_organization_model_overrides_organization_model_config_fkey',
+			'chat_user_model_overrides_organization_model_config_fkey',
+			'chat_user_model_overrides_model_requires_config_check',
+			'chat_organization_model_overrides_context_check',
+			'chat_user_model_overrides_context_check',
+			'chat_user_model_overrides_mode_check')`).Scan(&constraintCount))
+	require.Equal(t, 7, constraintCount, "all override constraints exist")
 
 	// --- Up assertions: admin overrides ---
-	value, ok := getSiteValue("agents_chat_general_model_override" + orgSuffix)
+	o, ok := getOrgOverride("general")
 	require.True(t, ok, "default org general override seeded")
-	require.Equal(t, c1ID.String()+":high", value, "identity re-key preserves the effort suffix")
+	require.Equal(t, c1ID, o.modelConfigID, "identity re-key")
+	require.NotNil(t, o.reasoningEffort)
+	require.Equal(t, "high", *o.reasoningEffort, "effort suffix moves to the typed column")
 
-	_, ok = getSiteValue("agents_chat_explore_model_override" + orgSuffix)
+	_, ok = getOrgOverride("explore")
 	require.False(t, ok, "empty global value is skipped, not seeded")
+	_, ok = getOrgOverride("title_generation")
+	require.False(t, ok, "soft-deleted target is dropped, not seeded")
+	_, ok = getOrgOverride("compaction")
+	require.False(t, ok, "dangling target is dropped")
 
-	_, ok = getSiteValue("agents_chat_title_generation_model_override" + orgSuffix)
-	require.False(t, ok, "soft-deleted target is dropped, not re-keyed")
+	o, ok = getOrgOverride("advisor")
+	require.True(t, ok, "advisor seeded from the JSON blob")
+	require.Equal(t, c1ID, o.modelConfigID)
+	require.NotNil(t, o.reasoningEffort)
+	require.Equal(t, "low", *o.reasoningEffort)
 
-	_, ok = getSiteValue("agents_chat_compaction_model_override" + orgSuffix)
-	require.False(t, ok, "dangling target is skipped")
+	// Non-default orgs receive no rows: only the default org was seeded.
+	var nonDefaultRows int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM chat_organization_model_overrides WHERE organization_id != $1`, defaultOrgID).Scan(&nonDefaultRows))
+	require.Zero(t, nonDefaultRows, "only the default org receives override rows")
 
+	// Old site-config storage of the moved values is gone.
 	for _, base := range []string{
 		"agents_chat_general_model_override",
 		"agents_chat_explore_model_override",
@@ -3247,24 +3318,15 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 		_, ok = getSiteValue(base)
 		require.False(t, ok, "old deployment-level key %s deleted", base)
 	}
-
-	// Non-default orgs receive no keys: the seed above has none, so every
-	// uuid-suffixed key in the table must carry the default org's suffix.
-	// Hostile keys without a uuid suffix are excluded from the count.
-	var nonDefaultKeys int
+	var advisorSuffixed int
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM site_configs
-		WHERE key LIKE 'agents\_chat\_%\_model\_override:%'
-		  AND key ~ '[0-9a-fA-F-]{36}$'
-		  AND key NOT LIKE '%:' || $1::text`, defaultOrgID.String()).Scan(&nonDefaultKeys))
-	require.Zero(t, nonDefaultKeys, "only the default org receives override keys")
+		WHERE key LIKE 'agents\_advisor\_model\_override:%'
+		  AND key ~ '^agents_advisor_model_override:[0-9a-fA-F-]{36}$'`).Scan(&advisorSuffixed))
+	require.Zero(t, advisorSuffixed, "org-suffixed advisor keys folded and deleted (hostile non-uuid suffixes survive)")
 
-	// --- Up assertions: advisor split ---
-	value, ok = getSiteValue("agents_advisor_model_override" + orgSuffix)
-	require.True(t, ok, "default org advisor override seeded")
-	require.Equal(t, c1ID.String()+":low", value, "advisor model and effort move to the org key")
-
-	value, ok = getSiteValue("agents_advisor_config")
+	// Advisor blob keeps runtime fields only.
+	value, ok := getSiteValue("agents_advisor_config")
 	require.True(t, ok, "advisor config blob kept")
 	require.JSONEq(t,
 		`{"enabled": true, "max_uses_per_run": 5, "max_output_tokens": 1024}`,
@@ -3281,26 +3343,36 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 	_, ok = getSiteValue("agents_chat_general_model_override:")
 	require.True(t, ok, "empty-suffix hostile key untouched by the up")
 
+	// The deployment toggle is untouched by contract.
+	_, ok = getSiteValue("agents_chat_personal_model_overrides_enabled")
+	require.False(t, ok, "toggle not seeded by fixtures and untouched by the up")
+
 	// --- Up assertions: personal overrides ---
-	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":root")
+	u, ok := getUserOverride(user1ID, "root")
 	require.True(t, ok, "root model-mode value fanned to the default org")
-	require.Equal(t, "model:"+c1ID.String()+":max", value, "effort suffix preserved")
+	require.Equal(t, "model", u.mode)
+	require.NotNil(t, u.modelConfigID)
+	require.Equal(t, c1ID, *u.modelConfigID)
+	require.NotNil(t, u.reasoningEffort)
+	require.Equal(t, "max", *u.reasoningEffort, "effort suffix moves to the typed column")
 
-	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":general")
-	require.True(t, ok, "sentinel passes through")
-	require.Equal(t, "deployment_default", value)
+	u, ok = getUserOverride(user1ID, "general")
+	require.True(t, ok, "sentinel passes through as a real row")
+	require.Equal(t, "deployment_default", u.mode)
+	require.Nil(t, u.modelConfigID)
+	require.Nil(t, u.reasoningEffort)
 
-	_, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":explore")
+	_, ok = getUserOverride(user1ID, "explore")
 	require.False(t, ok, "deleted-target personal value dropped")
 
-	value, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":root")
+	u, ok = getUserOverride(user2ID, "root")
 	require.True(t, ok)
-	require.Equal(t, "chat_default", value)
+	require.Equal(t, "chat_default", u.mode)
+	require.Nil(t, u.modelConfigID)
 
-	_, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":general")
+	_, ok = getUserOverride(user2ID, "general")
 	require.False(t, ok, "dangling personal value dropped")
-
-	_, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":explore")
+	_, ok = getUserOverride(user2ID, "explore")
 	require.False(t, ok, "malformed personal value dropped")
 
 	// Old keys in the three fanned contexts are gone; unknown-context and
@@ -3324,10 +3396,66 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "dark", value)
 
-	// --- Down: executed directly (the Stepper cannot commit after one
-	// down step), asserting restoration and non-abort on hostile keys ---
-	downSQL, err := fs.ReadFile(migrations.MigrationFS(), "000566_chat_model_override_org_scope.down.sql")
-	require.NoError(t, err)
+	// --- Hostile writes against the new tables: the constraints must reject
+	// what the deleted runtime guards used to reject at read time. These are
+	// the mutation proofs for the guard deletions. ---
+	// A second org with a live config: a pin naming that config from the
+	// default org must violate the composite FK.
+	otherOrgID := uuid.New()
+	execFixture(
+		`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, is_default, default_org_member_roles)
+		VALUES ($1, 'm5-other-org', 'm5-other-org', '', $2, $2, false, '{}')`,
+		otherOrgID, now,
+	)
+	otherCfgID := uuid.New()
+	execFixture(
+		`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, deleted,
+			context_limit, compression_threshold, ai_provider_id, organization_id, group_acl, created_at, updated_at)
+		VALUES ($1, 'gpt-5.2-566-other', 'gpt-5.2-566-other', true, false, false,
+			200000, 70, $2, $3, '{}'::jsonb, $4, $4)`,
+		otherCfgID, providerID, otherOrgID, now,
+	)
+	_, fkErr := sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id)
+		VALUES ($1, 'explore', $2)`, defaultOrgID, otherCfgID)
+	require.Error(t, fkErr, "cross-org pin must violate the composite FK")
+	require.True(t, database.IsForeignKeyViolation(fkErr), "violation must classify as FK, got: %v", fkErr)
+
+	_, fkErr = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_user_model_overrides (user_id, organization_id, context, mode, model_config_id)
+		VALUES ($1, $2, 'explore', 'model', $3)`, user1ID, defaultOrgID, otherCfgID)
+	require.Error(t, fkErr, "cross-org personal pin must violate the composite FK")
+	require.True(t, database.IsForeignKeyViolation(fkErr), "violation must classify as FK, got: %v", fkErr)
+
+	_, fkErr = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id)
+		VALUES ($1, 'nonsense', $2)`, defaultOrgID, c1ID)
+	require.Error(t, fkErr, "unknown org context must violate the CHECK")
+	require.True(t, database.IsCheckViolation(fkErr), "violation must classify as CHECK, got: %v", fkErr)
+
+	_, fkErr = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_user_model_overrides (user_id, organization_id, context, mode, model_config_id)
+		VALUES ($1, $2, 'general', 'model', NULL)`, user1ID, defaultOrgID)
+	require.Error(t, fkErr, "model mode without a config must violate the CHECK")
+	require.True(t, database.IsCheckViolation(fkErr), "violation must classify as CHECK, got: %v", fkErr)
+
+	_, fkErr = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_user_model_overrides (user_id, organization_id, context, mode, model_config_id)
+		VALUES ($1, $2, 'general', 'chat_default', $3)`, user1ID, defaultOrgID, c1ID)
+	require.Error(t, fkErr, "sentinel mode with a config must violate the CHECK")
+	require.True(t, database.IsCheckViolation(fkErr), "violation must classify as CHECK, got: %v", fkErr)
+
+	// gen_random_uuid() default exercised: a row inserted without id gets one.
+	var generatedID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id)
+		VALUES ($1, 'explore', $2) RETURNING id`, defaultOrgID, c1ID).Scan(&generatedID))
+	require.NotEqual(t, uuid.Nil, generatedID, "gen_random_uuid() default fires")
+	_, delErr := sqlDB.ExecContext(ctx,
+		`DELETE FROM chat_organization_model_overrides WHERE id = $1`, generatedID)
+	require.NoError(t, delErr)
+
+	// --- Down over the up's output ---
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err, "down must not abort on hostile keys")
 
@@ -3336,17 +3464,14 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 	require.Equal(t, c1ID.String()+":high", value)
 
 	// The empty/deleted/dangling pre-up values resolve to unset at read
-	// time. The down does not distinguish them from never-set (the up
-	// deleted their rows), so the base key is either absent or ''. Any
-	// other restored value is a down bug: fail on it.
+	// time. Absence maps to absence: the down emits no key for them.
 	for _, base := range []string{
 		"agents_chat_explore_model_override",
 		"agents_chat_title_generation_model_override",
 		"agents_chat_compaction_model_override",
 	} {
-		value, ok = getSiteValue(base)
-		require.True(t, !ok || value == "",
-			"down restores %s as effectively unset (absent or empty); got ok=%v value=%q", base, ok, value)
+		_, ok = getSiteValue(base)
+		require.False(t, ok, "down restores %s as absent (unset)", base)
 	}
 
 	value, ok = getSiteValue("agents_advisor_model_override")
@@ -3361,12 +3486,15 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 		"down does not re-create model fields in the advisor blob",
 	)
 
-	var suffixedSite int
+	// Tables and supporting constraint are gone.
+	var tableCount int
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM site_configs
-		WHERE (key LIKE 'agents\_chat\_%\_model\_override:%' OR key LIKE 'agents\_advisor\_model\_override:%')
-		  AND key ~ '[0-9a-fA-F-]{36}$'`).Scan(&suffixedSite))
-	require.Zero(t, suffixedSite, "down removes all uuid-suffixed override keys")
+		`SELECT COUNT(*) FROM information_schema.tables
+		WHERE table_name IN ('chat_organization_model_overrides', 'chat_user_model_overrides')`).Scan(&tableCount))
+	require.Zero(t, tableCount, "down drops both override tables")
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pg_constraint WHERE conname = 'chat_model_configs_organization_id_id_key'`).Scan(&constraintCount))
+	require.Zero(t, constraintCount, "down drops the supporting unique constraint")
 
 	// Hostile keys survive the down too.
 	_, ok = getSiteValue("agents_chat_malformed_model_override:not-a-uuid")
@@ -3385,28 +3513,21 @@ func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "chat_default", value)
 
-	var suffixedPersonal int
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM user_configs
-		WHERE key ~ '^chat_personal_model_override:[0-9a-fA-F-]{36}:(root|general|explore)$'`).Scan(&suffixedPersonal))
-	require.Zero(t, suffixedPersonal, "down removes all org-suffixed personal keys")
-
 	// Unknown-context rows are untouched in both directions.
 	value, ok = getUserValue(user1ID, "chat_personal_model_override:evil")
 	require.True(t, ok)
 	require.Equal(t, "chat_default", value)
 
-	// --- Re-up: rewind (to the existing predecessor, as above) and confirm
-	// the up re-applies cleanly over the down's restored state ---
-	_, err = sqlDB.ExecContext(ctx,
-		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (564, false)")
-	require.NoError(t, err)
-	stepperUpToLatest(migrationVersion)
+	// --- Re-up over the down's restored state ---
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err, "re-up must apply over the down's restored state")
 
-	value, ok = getSiteValue("agents_chat_general_model_override" + orgSuffix)
+	o, ok = getOrgOverride("general")
 	require.True(t, ok, "re-up re-seeds the default org override")
-	require.Equal(t, c1ID.String()+":high", value)
-	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":root")
+	require.Equal(t, c1ID, o.modelConfigID)
+	u, ok = getUserOverride(user1ID, "root")
 	require.True(t, ok, "re-up re-seeds the personal override")
-	require.Equal(t, "model:"+c1ID.String()+":max", value)
+	require.Equal(t, "model", u.mode)
+	require.NotNil(t, u.modelConfigID)
+	require.Equal(t, c1ID, *u.modelConfigID)
 }

@@ -5745,11 +5745,10 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		compactionOverrideKey, err := chatd.ChatModelOverrideSiteConfigKey(codersdk.ChatModelOverrideContextCompaction, orgID)
-		require.NoError(t, err)
-		require.NoError(t, db.UpsertChatModelOverrideByOrganization(ctx, database.UpsertChatModelOverrideByOrganizationParams{
-			Key:   compactionOverrideKey,
-			Value: overrideModel.ID.String(),
+		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: orgID,
+			Context:        string(codersdk.ChatModelOverrideContextCompaction),
+			ModelConfigID:  overrideModel.ID,
 		}))
 		return overrideModel
 	}

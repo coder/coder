@@ -260,8 +260,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: "";
 	})();
 	const isUsableRootPersonalOverride =
-		resolvedRootPersonalModelOverride?.is_set === true &&
-		!resolvedRootPersonalModelOverride.is_malformed;
+		resolvedRootPersonalModelOverride?.is_set === true;
 	const rootOverrideModelID =
 		isUsableRootPersonalOverride &&
 		resolvedRootPersonalModelOverride.mode === "model" &&

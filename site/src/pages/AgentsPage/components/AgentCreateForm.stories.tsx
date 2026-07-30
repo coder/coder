@@ -131,7 +131,6 @@ const buildRootPersonalModelOverride = (
 	mode: "chat_default",
 	model_config_id: "",
 	is_set: true,
-	is_malformed: false,
 	...overrides,
 });
 
@@ -145,25 +144,21 @@ const buildPersonalOverridesResponse = (
 		mode: "deployment_default",
 		model_config_id: "",
 		is_set: false,
-		is_malformed: false,
 	},
 	explore: {
 		context: "explore",
 		mode: "deployment_default",
 		model_config_id: "",
 		is_set: false,
-		is_malformed: false,
 	},
 	deployment_defaults: {
 		general: {
 			context: "general",
 			model_config_id: "",
-			is_malformed: false,
 		},
 		explore: {
 			context: "explore",
 			model_config_id: "",
-			is_malformed: false,
 		},
 	},
 });
@@ -310,7 +305,6 @@ export const RootOverrideMissingFromCatalog: Story = {
 				mode: "model",
 				model_config_id: "model-does-not-exist",
 				is_set: true,
-				is_malformed: false,
 			}),
 		}),
 	},
@@ -337,7 +331,6 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 			rootOverride: buildRootPersonalModelOverride({
 				mode: "model",
 				model_config_id: claudeModelConfigID,
-				is_malformed: true,
 			}),
 		}),
 	},

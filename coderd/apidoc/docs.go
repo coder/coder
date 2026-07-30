@@ -1276,6 +1276,103 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/organizations/{organization}/ai/model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat model overrides in an organization",
+                "operationId": "list-chat-model-overrides-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/ai/model-overrides/{context}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat model override in an organization",
+                "operationId": "update-chat-model-override-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "general",
+                            "explore",
+                            "title_generation",
+                            "compaction",
+                            "advisor"
+                        ],
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chat-model-configs": {
             "get": {
                 "produces": [
@@ -1351,115 +1448,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatModelConfig"
                         }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/config/model-override/{context}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat model override in an organization",
-                "operationId": "get-chat-model-override-by-organization",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "general",
-                            "explore",
-                            "title_generation",
-                            "compaction",
-                            "advisor"
-                        ],
-                        "type": "string",
-                        "description": "Override context",
-                        "name": "context",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat model override in an organization",
-                "operationId": "update-chat-model-override-by-organization",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "general",
-                            "explore",
-                            "title_generation",
-                            "compaction",
-                            "advisor"
-                        ],
-                        "type": "string",
-                        "description": "Override context",
-                        "name": "context",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Model override",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -18886,14 +18874,22 @@ const docTemplate = `{
                 "context": {
                     "$ref": "#/definitions/codersdk.ChatModelOverrideContext"
                 },
-                "is_malformed": {
-                    "type": "boolean"
-                },
                 "model_config_id": {
                     "type": "string"
                 },
                 "reasoning_effort": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOverridesResponse": {
+            "type": "object",
+            "properties": {
+                "overrides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                    }
                 }
             }
         },

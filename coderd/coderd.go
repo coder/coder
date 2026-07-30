@@ -1346,15 +1346,27 @@ func New(options *Options) *API {
 			r.Get("/", api.listChatModelConfigsByOrganization)
 			r.Post("/", api.createChatModelConfig)
 		})
-		// Org-scoped chat model overrides. The values live in per-org
-		// site_configs keys; the org dimension comes from the route.
-		r.Route("/organizations/{organization}/chats/config/model-override", func(r chi.Router) {
+		// Org-scoped chat model overrides, stored as typed rows in
+		// chat_organization_model_overrides; the org dimension comes from
+		// the route.
+		r.Route("/organizations/{organization}/ai/model-overrides", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/{context}", api.getOrganizationChatModelOverride)
+			r.Get("/", api.getOrganizationChatModelOverrides)
 			r.Put("/{context}", api.putOrganizationChatModelOverride)
+		})
+		// Per-member personal model overrides, following the organization
+		// member subtree (organizations/{organization}/members/{user}/...).
+		r.Route("/organizations/{organization}/members/{user}/ai/model-overrides", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+				httpmw.ExtractOrganizationMemberParam(options.Database),
+			)
+			r.Get("/", api.getUserChatPersonalModelOverrides)
+			r.Put("/{context}", api.putUserChatPersonalModelOverride)
 		})
 		// Item-level chat model config routes resolve the org from the row.
 		r.Route("/chat-model-configs", func(r chi.Router) {
@@ -1403,8 +1415,6 @@ func New(options *Options) *API {
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
 				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
-				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
-				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)

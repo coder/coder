@@ -3962,7 +3962,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "context": "general",
-  "is_malformed": true,
   "model_config_id": "string",
   "reasoning_effort": "string"
 }
@@ -3973,9 +3972,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name               | Type                                                                   | Required | Restrictions | Description |
 |--------------------|------------------------------------------------------------------------|----------|--------------|-------------|
 | `context`          | [codersdk.ChatModelOverrideContext](#codersdkchatmodeloverridecontext) | false    |              |             |
-| `is_malformed`     | boolean                                                                | false    |              |             |
 | `model_config_id`  | string                                                                 | false    |              |             |
 | `reasoning_effort` | string                                                                 | false    |              |             |
+
+## codersdk.ChatModelOverridesResponse
+
+```json
+{
+  "overrides": [
+    {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                                              | Required | Restrictions | Description |
+|-------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `overrides` | array of [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
 
 ## codersdk.ChatModelProvider
 

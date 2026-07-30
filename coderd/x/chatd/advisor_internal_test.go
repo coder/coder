@@ -30,26 +30,26 @@ import (
 // GetEnabledChatModelConfigByID so the query joins ai_providers and
 // filters both enabled flags atomically. Tests simulate that by returning
 // configs the stub treats as enabled. The per-org override read goes
-// through GetChatAdvisorModelOverride.
+// through GetChatOrganizationModelOverride with the advisor context.
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getChatAdvisorModelOverride    func(context.Context, string) (string, error)
-	getEnabledChatModelConfigByID  func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getAIProviderByID              func(context.Context, uuid.UUID) (database.AIProvider, error)
-	getAIProviders                 func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
-	getAIProviderKeysByProviderID  func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
-	getAIProviderKeysByProviderIDs func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
+	getChatOrganizationModelOverride func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error)
+	getEnabledChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getAIProviderByID                func(context.Context, uuid.UUID) (database.AIProvider, error)
+	getAIProviders                   func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
+	getAIProviderKeysByProviderID    func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
+	getAIProviderKeysByProviderIDs   func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
 }
 
-func (s *advisorOverrideStubStore) GetChatAdvisorModelOverride(
+func (s *advisorOverrideStubStore) GetChatOrganizationModelOverride(
 	ctx context.Context,
-	organizationID string,
-) (string, error) {
-	if s.getChatAdvisorModelOverride == nil {
-		return "", xerrors.New("unexpected GetChatAdvisorModelOverride call")
+	params database.GetChatOrganizationModelOverrideParams,
+) (database.ChatOrganizationModelOverride, error) {
+	if s.getChatOrganizationModelOverride == nil {
+		return database.ChatOrganizationModelOverride{}, xerrors.New("unexpected GetChatOrganizationModelOverride call")
 	}
-	return s.getChatAdvisorModelOverride(ctx, organizationID)
+	return s.getChatOrganizationModelOverride(ctx, params)
 }
 
 func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
@@ -177,8 +177,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return "", nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{}, sql.ErrNoRows
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
@@ -200,8 +200,11 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		overrideID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return overrideID.String(), nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID: overrideID,
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{}, xerrors.New("lookup failed")
@@ -232,8 +235,11 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		overrideID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return overrideID.String(), nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID: overrideID,
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{}, sql.ErrNoRows
@@ -258,8 +264,11 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return configID.String(), nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID: configID,
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
@@ -293,8 +302,11 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		configID := uuid.New()
 		providerID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return configID.String(), nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID: configID,
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
@@ -345,8 +357,12 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		})
 		require.NoError(t, err)
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return configID.String() + ":" + codersdk.ChatModelReasoningEffortHigh, nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:         string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID:   configID,
+					ReasoningEffort: sql.NullString{String: codersdk.ChatModelReasoningEffortHigh, Valid: true},
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
@@ -397,8 +413,11 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		configID := uuid.New()
 		providerID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-				return configID.String(), nil
+			getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+				return database.ChatOrganizationModelOverride{
+					Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+					ModelConfigID: configID,
+				}, nil
 			},
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
@@ -449,8 +468,11 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	configID := uuid.New()
 	providerID := uuid.New()
 	store := &advisorOverrideStubStore{
-		getChatAdvisorModelOverride: func(context.Context, string) (string, error) {
-			return configID.String(), nil
+		getChatOrganizationModelOverride: func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+			return database.ChatOrganizationModelOverride{
+				Context:       string(codersdk.ChatModelOverrideContextAdvisor),
+				ModelConfigID: configID,
+			}, nil
 		},
 		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{

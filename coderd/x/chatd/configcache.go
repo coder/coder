@@ -39,9 +39,9 @@ type cachedAdvisorConfig struct {
 	expiresAt time.Time
 }
 
-// cachedAdvisorModelOverride holds one organization's parsed advisor model
-// override. modelConfigID is uuid.Nil when the org has no usable override
-// (unset or malformed), so callers fall back to the chat model without a
+// cachedAdvisorModelOverride holds one organization's advisor model
+// override. modelConfigID is uuid.Nil when the org has no override row
+// (absence is unset), so callers fall back to the chat model without a
 // re-read.
 type cachedAdvisorModelOverride struct {
 	modelConfigID   uuid.UUID
@@ -553,9 +553,9 @@ func (c *chatConfigCache) InvalidateAdvisorModelOverride(orgID uuid.UUID) {
 	c.mu.Unlock()
 }
 
-// AdvisorModelOverride returns the parsed advisor model override for the
-// given organization. Unset and malformed values cache as uuid.Nil so the
-// caller falls back to the chat model without a per-turn DB round trip.
+// AdvisorModelOverride returns the advisor model override for the given
+// organization. Absence of a row caches as uuid.Nil so the caller falls
+// back to the chat model without a per-turn DB round trip.
 func (c *chatConfigCache) AdvisorModelOverride(ctx context.Context, orgID uuid.UUID) (uuid.UUID, *string, error) {
 	if override, ok := c.cachedAdvisorModelOverride(orgID); ok {
 		return override.modelConfigID, override.reasoningEffort, nil
@@ -571,15 +571,17 @@ func (c *chatConfigCache) AdvisorModelOverride(ctx context.Context, orgID uuid.U
 				return cached, nil
 			}
 
-			raw, err := c.db.GetChatAdvisorModelOverride(c.ctx, orgID.String())
-			if err != nil {
+			override, err := c.db.GetChatOrganizationModelOverride(c.ctx, database.GetChatOrganizationModelOverrideParams{
+				OrganizationID: orgID,
+				Context:        string(codersdk.ChatModelOverrideContextAdvisor),
+			})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return cachedAdvisorModelOverride{}, err
 			}
-			parsed, ok := parseModelOverride(raw)
 			parsedOverride := cachedAdvisorModelOverride{}
-			if ok {
-				parsedOverride.modelConfigID = parsed.modelConfigID
-				parsedOverride.reasoningEffort = parsed.reasoningEffort
+			if err == nil {
+				parsedOverride.modelConfigID = override.ModelConfigID
+				parsedOverride.reasoningEffort = nullStringPtr(override.ReasoningEffort)
 			}
 			c.storeAdvisorModelOverride(generation, orgID, parsedOverride)
 			return parsedOverride, nil

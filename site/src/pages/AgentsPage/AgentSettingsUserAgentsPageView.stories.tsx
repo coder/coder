@@ -12,8 +12,6 @@ import {
 } from "./AgentSettingsUserAgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 
-const MALFORMED_WARNING =
-	"The saved override is malformed. Choose a valid value and save to replace it.";
 const UNAVAILABLE_WARNING =
 	"The saved model is unavailable and will be ignored until you choose a valid model override.";
 
@@ -38,7 +36,6 @@ const buildOverride = (
 	mode: context === "root" ? "chat_default" : "deployment_default",
 	model_config_id: "",
 	is_set: false,
-	is_malformed: false,
 	...overrides,
 });
 
@@ -48,7 +45,6 @@ const buildDeploymentDefault = (
 ): TypesGen.ChatModelOverrideResponse => ({
 	context,
 	model_config_id: "",
-	is_malformed: false,
 	...overrides,
 });
 
@@ -428,111 +424,6 @@ export const SavedLowReasoningEffort: Story = {
 		expect(slider).toHaveAttribute("aria-valuenow", "2");
 		await waitFor(() => {
 			expect(body.getByText("Low")).toBeVisible();
-		});
-	},
-};
-
-export const MalformedSavedValues: Story = {
-	args: buildArgs({
-		overridesData: buildOverridesResponse({
-			root: buildOverride("root", { is_malformed: true }),
-			general: buildOverride("general", { is_malformed: true }),
-			explore: buildOverride("explore", { is_malformed: true }),
-		}),
-	}),
-	play: async ({ canvasElement, args }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-
-		for (const section of [rootSection, generalSection, exploreSection]) {
-			expect(within(section).getByText(MALFORMED_WARNING)).toBeInTheDocument();
-			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeEnabled();
-		}
-
-		await userEvent.click(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const MalformedEmptyModelSavedValues: Story = {
-	args: buildArgs({
-		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-				is_malformed: true,
-			}),
-			general: buildOverride("general", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-				is_malformed: true,
-			}),
-			explore: buildOverride("explore", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-				is_malformed: true,
-			}),
-		}),
-	}),
-	play: async ({ canvasElement, args }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-
-		expect(rootSection).toHaveTextContent("Chat default");
-		expect(generalSection).toHaveTextContent("Deployment default");
-		expect(exploreSection).toHaveTextContent("Deployment default");
-
-		for (const section of [rootSection, generalSection, exploreSection]) {
-			expect(within(section).getByText(MALFORMED_WARNING)).toBeInTheDocument();
-			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeEnabled();
-		}
-
-		await userEvent.click(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
-				expect.anything(),
-			);
-		});
-
-		await userEvent.click(
-			within(generalSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
-				{ mode: "deployment_default", model_config_id: "" },
-				expect.anything(),
-			);
 		});
 	},
 };

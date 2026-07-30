@@ -78,7 +78,6 @@ const buildOverrideResponse = (
 ): TypesGen.ChatModelOverrideResponse => ({
 	context,
 	model_config_id: "",
-	is_malformed: false,
 	...overrides,
 });
 
@@ -239,29 +238,6 @@ export const WithSavedValues: Story = {
 				name: /claude sonnet 4/i,
 			}),
 		).toBeInTheDocument();
-	},
-};
-
-export const MalformedOverride: Story = {
-	parameters: {
-		queries: buildOverrideQueries({
-			explore: buildOverrideResponse("explore", { is_malformed: true }),
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-		await within(exploreSection).findByText(
-			"The saved override is malformed and is being treated as unset. Click Save to clear it.",
-		);
-		const saveButton = within(exploreSection).getByRole("button", {
-			name: "Save",
-		});
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
 	},
 };
 

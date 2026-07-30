@@ -57,7 +57,7 @@ const toFormValues = (
 	overrideData: PersonalOverride | undefined,
 	context: PersonalOverrideContext,
 ): PersonalOverrideFormValues => {
-	if (!overrideData || overrideData.is_malformed) {
+	if (!overrideData) {
 		return {
 			mode: getDefaultMode(context),
 			model_config_id: "",
@@ -143,9 +143,6 @@ const getDeploymentDefaultDescription = (
 	if (!deploymentDefault) {
 		return "Loading deployment default";
 	}
-	if (deploymentDefault.is_malformed) {
-		return "Invalid deployment default";
-	}
 	const modelConfigID = deploymentDefault.model_config_id.trim();
 	if (modelConfigID === "") {
 		return "Chat default fallback";
@@ -179,7 +176,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	disabled,
 }) => {
 	const hasLoadedOverride = overrideData !== undefined;
-	const isMalformedOverride = overrideData?.is_malformed ?? false;
 	const form = useFormik<PersonalOverrideFormValues>({
 		enableReinitialize: true,
 		initialValues: toFormValues(overrideData, context),
@@ -191,8 +187,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	});
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedOverride;
-	const canSave =
-		hasLoadedOverride && !disabled && (form.dirty || isMalformedOverride);
+	const canSave = hasLoadedOverride && !disabled && form.dirty;
 	const defaultModeOptions = getDefaultModeOptions(context).map((mode) => {
 		const label =
 			mode === "deployment_default" ? "Deployment default" : "Chat default";
@@ -301,8 +296,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
-					isMalformedOverride={isMalformedOverride}
-					malformedMessage="The saved override is malformed. Choose a valid value and save to replace it."
 					modelConfigsError={modelConfigsError}
 				>
 					{isInvalidRootDeploymentDefault && (
