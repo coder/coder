@@ -299,6 +299,74 @@ func (s *failNextUpdateChatModelConfigStore) GetChatModelConfigByID(
 	return s.Store.GetChatModelConfigByID(ctx, id)
 }
 
+// blockAfterFirstConfigReadStore blocks the first armed successful
+// GetChatModelConfigByID call (the delete handler's prefetch) until released,
+// letting a test mutate state in the window between the handler's prefetch and
+// its write transaction. The mutation runs in the test goroutine between
+// waitBlocked and unblock, so no hook runs while the handler is blocked.
+type blockAfterFirstConfigReadStore struct {
+	database.Store
+
+	armed   *atomic.Bool
+	blocked chan struct{}
+	release chan struct{}
+}
+
+func newBlockAfterFirstConfigReadStore(store database.Store) *blockAfterFirstConfigReadStore {
+	return &blockAfterFirstConfigReadStore{
+		Store:   store,
+		armed:   &atomic.Bool{},
+		blocked: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *blockAfterFirstConfigReadStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	// Share the arming flag across the InTx wrapper; the arming flag is already
+	// consumed by the prefetch before any in-transaction read, so only the
+	// outer read ever blocks.
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&blockAfterFirstConfigReadStore{
+			Store:   tx,
+			armed:   s.armed,
+			blocked: s.blocked,
+			release: s.release,
+		})
+	}, txOpts)
+}
+
+func (s *blockAfterFirstConfigReadStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	config, err := s.Store.GetChatModelConfigByID(ctx, id)
+	if err != nil {
+		return config, err
+	}
+	if s.armed.CompareAndSwap(true, false) {
+		close(s.blocked)
+		<-s.release
+	}
+	return config, nil
+}
+
+// waitBlocked blocks the test until the handler's prefetch has run.
+func (s *blockAfterFirstConfigReadStore) waitBlocked(ctx context.Context, t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.blocked:
+	case <-ctx.Done():
+		t.Fatal("handler prefetch did not block in time")
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("handler prefetch did not block in time")
+	}
+}
+
+// unblock releases the handler into its write transaction.
+func (s *blockAfterFirstConfigReadStore) unblock() {
+	close(s.release)
+}
+
 func enableDailyChatUsageLimit(
 	ctx context.Context,
 	t *testing.T,
@@ -5742,30 +5810,47 @@ func TestChatModelConfigAudit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newBlockAfterFirstConfigReadStore(rawDB)
 		client := newChatClient(t, func(opts *coderdtest.Options) {
 			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		incumbent := createChatModelConfig(t, client)
 		require.True(t, incumbent.IsDefault)
 		target := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-target")
 
-		// Promote the target, then delete it: the deleted row was the default
-		// at delete time, so the incumbent must be re-elected and recorded.
+		// Block the delete after its prefetch, promote the target in the
+		// window, then release: the deleted row is the default at delete time,
+		// not the non-default shape the prefetch holds.
+		mAudit.ResetLogs()
+		store.armed.Store(true)
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- client.DeleteChatModelConfig(ctx, target.ID)
+		}()
+		store.waitBlocked(ctx, t)
 		_, err := client.UpdateChatModelConfig(ctx, target.ID, codersdk.UpdateChatModelConfigRequest{
 			IsDefault: ptr.Ref(true),
 		})
 		require.NoError(t, err)
+		store.unblock()
+		require.NoError(t, <-deleteErr)
 
-		mAudit.ResetLogs()
-		err = client.DeleteChatModelConfig(ctx, target.ID)
-		require.NoError(t, err)
-
-		logs := mAudit.AuditLogs()
+		// The windowed promote emits its own pair of entries; isolate the
+		// delete request's entries by its 204 status. The Delete entry
+		// describes the row as it was at delete time (the default); with the
+		// stale prefetch fallback restored, the incumbent's promotion entry is
+		// skipped and only the Delete entry remains.
+		var logs []database.AuditLog
+		for _, l := range mAudit.AuditLogs() {
+			if l.StatusCode == http.StatusNoContent {
+				logs = append(logs, l)
+			}
+		}
 		require.Len(t, logs, 2)
-		// The Delete entry describes the row as it was at delete time (the
-		// default), not the non-default prefetch shape; the in-tx row is
-		// authoritative regardless of interleaving.
 		require.True(t, mAudit.Contains(t, database.AuditLog{
 			Action:         database.AuditActionDelete,
 			ResourceType:   database.ResourceTypeChatModelConfig,
@@ -5774,7 +5859,8 @@ func TestChatModelConfigAudit(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			StatusCode:     http.StatusNoContent,
 		}))
-		// The incumbent's re-election is recorded as a sibling entry.
+		// The incumbent's re-election is recorded as a sibling entry under the
+		// delete's request ID.
 		require.True(t, mAudit.Contains(t, database.AuditLog{
 			Action:         database.AuditActionWrite,
 			ResourceType:   database.ResourceTypeChatModelConfig,
@@ -5792,23 +5878,30 @@ func TestChatModelConfigAudit(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
 		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newBlockAfterFirstConfigReadStore(rawDB)
 		client := newChatClient(t, func(opts *coderdtest.Options) {
 			opts.Auditor = mAudit
-			opts.Database = rawDB
+			opts.Database = store
 			opts.Pubsub = pubsub
 		})
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// Hard-delete the row behind the handler's back so the prefetch
-		// succeeds and the row vanishes before the write transaction: base
+		// Block the delete after a successful prefetch, soft-delete the row in
+		// the window before the write transaction, then release: base
 		// (99741cb23a) surfaces this as a 404 via dbauthz's concealed
 		// fetch-then-authorize miss, and no audit entry may be emitted.
+		mAudit.ResetLogs()
+		store.armed.Store(true)
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- client.DeleteChatModelConfig(ctx, modelConfig.ID)
+		}()
+		store.waitBlocked(ctx, t)
 		err := rawDB.DeleteChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-
-		mAudit.ResetLogs()
-		requireSDKError(t, client.DeleteChatModelConfig(ctx, modelConfig.ID), http.StatusNotFound)
+		store.unblock()
+		requireSDKError(t, <-deleteErr, http.StatusNotFound)
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
