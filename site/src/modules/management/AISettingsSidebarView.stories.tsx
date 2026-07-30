@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
 import AISettingsSidebarView from "./AISettingsSidebarView";
@@ -66,6 +67,24 @@ export const ProvidersActive: Story = {
 			location: { path: "/ai/settings/providers" },
 			routing: [{ path: "/ai/settings/providers", useStoryElement: true }],
 		}),
+	},
+};
+
+export const ModelsWithoutDeploymentConfig: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Models" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
 	},
 };
 

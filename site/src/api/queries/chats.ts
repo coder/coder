@@ -1804,7 +1804,7 @@ export const chatModels = () => ({
 		API.experimental.getChatModels(),
 });
 
-const chatProviderConfigsKey = ["chat-provider-configs"] as const;
+export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 const toChatProviderConfig = (
 	provider: TypesGen.AIProvider,
@@ -1838,6 +1838,24 @@ export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
 		API.experimental.getChatModelConfigs(),
+});
+
+export const chatModelConfigsByOrganizationKey = (organizationId: string) =>
+	[...chatModelConfigsKey, organizationId] as const;
+
+export const chatModelConfigsByOrganization = (organizationId: string) => ({
+	queryKey: chatModelConfigsByOrganizationKey(organizationId),
+	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
+		API.experimental.getChatModelConfigsByOrganization(organizationId),
+	enabled: organizationId !== "",
+});
+
+const chatAIProviderCatalogKey = ["chat-ai-provider-catalog"] as const;
+
+export const chatAIProviderCatalog = () => ({
+	queryKey: chatAIProviderCatalogKey,
+	queryFn: (): Promise<TypesGen.ChatAIProviderCatalogEntry[]> =>
+		API.experimental.getChatAIProviderCatalog(),
 });
 
 export const userChatProviderConfigsKey = [
@@ -1895,8 +1913,10 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
+		// Invalidates both the union key and every org-keyed entry.
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		queryClient.invalidateQueries({ queryKey: chatAIProviderCatalogKey }),
 	]);
 };
 
@@ -1911,8 +1931,13 @@ export const invalidateChatProviderDependentQueries = async (
 };
 
 export const createChatModelConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
-		API.experimental.createChatModelConfig(req),
+	mutationFn: ({
+		organizationId,
+		req,
+	}: {
+		organizationId: string;
+		req: TypesGen.CreateChatModelConfigRequest;
+	}) => API.experimental.createChatModelConfig(organizationId, req),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},

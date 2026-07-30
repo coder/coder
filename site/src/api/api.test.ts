@@ -441,7 +441,7 @@ describe("api.ts", () => {
 				},
 			],
 			[
-				"/api/experimental/chats/model-configs",
+				"/api/experimental/chat-model-configs",
 				() => API.experimental.getChatModelConfigs(),
 				[],
 			],
@@ -462,7 +462,7 @@ describe("api.ts", () => {
 				() => API.experimental.getChatModels(),
 			],
 			[
-				"/api/experimental/chats/model-configs",
+				"/api/experimental/chat-model-configs",
 				() => API.experimental.getChatModelConfigs(),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {

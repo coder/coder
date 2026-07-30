@@ -3,6 +3,12 @@ import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import {
+	chatModelConfigsByOrganization,
+	chatModels,
+	chatProviderConfigs,
+	userChatProviderConfigs,
+} from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -15,10 +21,12 @@ import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
-	hasConfiguredModelsInCatalog,
+	getUnsupportedProviderNames,
 	hasUserFixableProviders,
+	resolveModelSelector,
 } from "../utils/modelOptions";
 import {
 	getReasoningEffortForModel,
@@ -31,7 +39,6 @@ import {
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
-import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
@@ -44,8 +51,6 @@ import { getModelSelectorHelp } from "./ModelSelectorHelp";
 export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
-type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
 	message: string;
@@ -129,16 +134,8 @@ interface AgentCreateFormProps {
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	modelOptions: readonly ChatModelOption[];
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	isModelCatalogLoading: boolean;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -155,16 +152,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isCreating,
 	createError,
 	canCreateChat,
-	modelCatalog,
-	modelOptions,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
-	modelConfigs,
-	isModelCatalogLoading,
-	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
 	mcpServers,
@@ -185,6 +174,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
+	const initialOrg =
+		organizations.find((o) => o.is_default) ?? organizations[0];
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		initialOrg ?? null,
+	);
+	const organizationId = selectedOrg?.id ?? "";
+	const chatModelsQuery = useQuery(chatModels());
+	const chatModelConfigsQuery = useQuery(
+		chatModelConfigsByOrganization(organizationId),
+	);
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canConfigureAgentSetup,
+	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(
+		chatModelConfigsQuery,
+		chatModelsQuery,
+		userProviderConfigsQuery,
+	);
+	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	/*
 	 * Model precedence: user click > root override (specific model) > root
 	 * override (chat_default, resolved) > last-used > default > first available.
@@ -271,8 +286,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedModelOption.reasoningEffortDefault,
 			)
 		: undefined;
-	const initialOrg =
-		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
@@ -303,15 +316,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return stored;
 		},
 	);
-	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		initialOrg ?? null,
-	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
-	const organizationId = selectedOrg?.id ?? "";
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
@@ -325,23 +333,34 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
+	const providerCount =
+		canConfigureAgentSetup &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
+			: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? modelOptions.length
+			: undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		chatModelsQuery.data,
+	);
 	useEffect(() => {
 		if (!initialLastModelConfigID) {
 			return;
 		}
-		if (isModelCatalogLoading || isModelConfigsLoading) {
+		if (isModelCatalogLoading) {
 			return;
 		}
 		if (lastUsedModelID) {
 			return;
 		}
 		localStorage.removeItem(lastModelConfigIDStorageKey);
-	}, [
-		initialLastModelConfigID,
-		isModelCatalogLoading,
-		isModelConfigsLoading,
-		lastUsedModelID,
-	]);
+	}, [initialLastModelConfigID, isModelCatalogLoading, lastUsedModelID]);
 
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
@@ -371,14 +390,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const handleReasoningEffortChange = (value: string) => {
-		setSelectedReasoningEfforts((current) => ({
-			...current,
-			[selectedModel]: value,
-		}));
-		saveReasoningEffortForModel(selectedModel, value);
-	};
-
 	const isForbidden = !canCreateChat;
 
 	// Filter workspaces by the selected organization. We use
@@ -401,26 +412,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedWorkspaceId
 			: null;
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: effectiveWorkspaceId ?? undefined,
-			model: submittedModel,
-			reasoningEffort: effectiveReasoningEffort,
-			organizationId,
-			mcpServerIds:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
-			planMode: planModeEnabled ? "plan" : undefined,
-		}).catch((err) => {
-			resetDraft();
-			throw err;
-		});
-	};
-
 	const {
 		attachments,
 		textContents,
@@ -433,33 +424,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		persist: true,
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
-
-	const handleSendWithAttachments = async (message: string) => {
-		const fileIds: string[] = [];
-		let skippedErrors = 0;
-		for (const file of attachments) {
-			const state = uploadStates.get(file);
-			if (state?.status === "error") {
-				skippedErrors++;
-				continue;
-			}
-			if (state?.status === "uploaded" && state.fileId) {
-				fileIds.push(state.fileId);
-			}
-		}
-		if (skippedErrors > 0) {
-			toast.warning(
-				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-			);
-		}
-		const fileArg = fileIds.length > 0 ? fileIds : undefined;
-		try {
-			await handleSend(message, fileArg);
-			resetAttachments();
-		} catch {
-			// Attachments preserved for retry on failure.
-		}
-	};
 
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
@@ -504,6 +468,61 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			onOrgAdjusted();
 		}
 	}, [orgWasAdjusted]);
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
+
+	const handleSendWithAttachments = async (message: string) => {
+		const fileIds: string[] = [];
+		let skippedErrors = 0;
+		for (const file of attachments) {
+			const state = uploadStates.get(file);
+			if (state?.status === "error") {
+				skippedErrors++;
+				continue;
+			}
+			if (state?.status === "uploaded" && state.fileId) {
+				fileIds.push(state.fileId);
+			}
+		}
+		if (skippedErrors > 0) {
+			toast.warning(
+				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+			);
+		}
+		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		try {
+			await handleSend(message, fileArg);
+			resetAttachments();
+		} catch {
+			// Attachments preserved for retry on failure.
+		}
+	};
 
 	return (
 		<>

@@ -504,12 +504,12 @@ func (*ModelCatalog) ListConfiguredModels(
 	configuredModels []ConfiguredModel,
 	availabilityByProvider map[string]ProviderAvailability,
 	enabledProviders map[string]struct{},
-) (codersdk.ChatModelsResponse, bool) {
+) (codersdk.ChatModelAvailabilityResponse, bool) {
 	if len(configuredModels) == 0 {
-		return codersdk.ChatModelsResponse{}, false
+		return codersdk.ChatModelAvailabilityResponse{}, false
 	}
 
-	modelsByProvider := make(map[string][]codersdk.ChatModel)
+	modelsByProvider := make(map[string][]codersdk.MinimalChatModel)
 	seenByProvider := make(map[string]map[string]struct{})
 	providerSet := make(map[string]struct{})
 
@@ -544,10 +544,10 @@ func (*ModelCatalog) ListConfiguredModels(
 
 	providers := orderProviders(providerSet)
 	if len(providers) == 0 {
-		return codersdk.ChatModelsResponse{}, false
+		return codersdk.ChatModelAvailabilityResponse{}, false
 	}
 
-	response := codersdk.ChatModelsResponse{
+	response := codersdk.ChatModelAvailabilityResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
 	for _, provider := range providers {
@@ -583,8 +583,8 @@ func (*ModelCatalog) ListConfiguredModels(
 func (*ModelCatalog) ListConfiguredProviderAvailability(
 	availabilityByProvider map[string]ProviderAvailability,
 	enabledProviders map[string]struct{},
-) codersdk.ChatModelsResponse {
-	response := codersdk.ChatModelsResponse{
+) codersdk.ChatModelAvailabilityResponse {
+	response := codersdk.ChatModelAvailabilityResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
@@ -595,7 +595,7 @@ func (*ModelCatalog) ListConfiguredProviderAvailability(
 
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
-			Models:   []codersdk.ChatModel{},
+			Models:   []codersdk.MinimalChatModel{},
 		}
 		if avail, ok := availabilityByProvider[provider]; ok {
 			result.Available = avail.Available
@@ -645,13 +645,13 @@ func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[strin
 	}
 }
 
-func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
+func newChatModel(provider, modelID, displayName string) codersdk.MinimalChatModel {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
 		name = modelID
 	}
 
-	return codersdk.ChatModel{
+	return codersdk.MinimalChatModel{
 		ID:          canonicalModelID(provider, modelID),
 		Provider:    provider,
 		Model:       modelID,
@@ -659,8 +659,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 	}
 }
 
-func sortChatModels(models []codersdk.ChatModel) {
-	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+func sortChatModels(models []codersdk.MinimalChatModel) {
+	slices.SortFunc(models, func(a, b codersdk.MinimalChatModel) int {
 		return strings.Compare(a.Model, b.Model)
 	})
 }

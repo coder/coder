@@ -56,7 +56,7 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		},
 	})
 
-	contains := func(configs []codersdk.ChatModelConfig, id uuid.UUID) bool {
+	contains := func(configs []codersdk.ChatModel, id uuid.UUID) bool {
 		for _, c := range configs {
 			if c.ID == id {
 				return true
@@ -71,10 +71,10 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID, rbac.ScopedRoleOrgAdmin(defaultOrg.ID))
 		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
-		configs, err := orgAdminClient.ListChatModelConfigs(ctx)
+		configs, err := orgAdminClient.ChatModels(ctx, defaultOrg.ID)
 		require.NoError(t, err)
-		require.True(t, contains(configs, ownDisabled.ID), "org admin must see own disabled config")
-		require.False(t, contains(configs, otherEnabled.ID), "org admin must not see other org's config")
+		require.True(t, contains(configs.Models, ownDisabled.ID), "org admin must see own disabled config")
+		require.False(t, contains(configs.Models, otherEnabled.ID), "org admin must not see other org's config")
 	})
 
 	t.Run("OrgAuditorSeesOwnDisabledNotCrossOrg", func(t *testing.T) {
@@ -83,10 +83,10 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		orgAuditorClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID, rbac.ScopedRoleOrgAuditor(defaultOrg.ID))
 		orgAuditorClient := codersdk.NewExperimentalClient(orgAuditorClientRaw)
-		configs, err := orgAuditorClient.ListChatModelConfigs(ctx)
+		configs, err := orgAuditorClient.ChatModels(ctx, defaultOrg.ID)
 		require.NoError(t, err)
-		require.True(t, contains(configs, ownDisabled.ID), "org auditor must see own disabled config")
-		require.False(t, contains(configs, otherEnabled.ID), "org auditor must not see other org's config")
+		require.True(t, contains(configs.Models, ownDisabled.ID), "org auditor must see own disabled config")
+		require.False(t, contains(configs.Models, otherEnabled.ID), "org auditor must not see other org's config")
 	})
 
 	t.Run("CustomSiteReadRoleSeesAuthorizedRows", func(t *testing.T) {
@@ -119,11 +119,10 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		require.NoError(t, err)
 		readerClient := codersdk.NewExperimentalClient(readerClientRaw)
 
-		configs, err := readerClient.ListChatModelConfigs(ctx)
+		configs, err := readerClient.ChatModels(ctx, defaultOrg.ID)
 		require.NoError(t, err, "chat_model_config:read site role must not 500")
-		// A site-scoped read grant is deployment-wide, so the authorized
-		// filter admits both orgs' rows; the probe's contract is that the
-		// request uses the authorized list (no 500, own disabled visible).
-		require.True(t, contains(configs, ownDisabled.ID), "site reader must see own disabled config")
+		// The list is org-scoped; the probe's contract is that the request
+		// uses the authorized list (no 500, own disabled visible).
+		require.True(t, contains(configs.Models, ownDisabled.ID), "site reader must see own disabled config")
 	})
 }

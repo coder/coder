@@ -1815,7 +1815,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.Contains(t, fetched.MCPServerIDs, mcpConfigB.ID)
 }
 
-func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModel {
 	t.Helper()
 	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
 }

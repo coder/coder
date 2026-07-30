@@ -38,6 +38,7 @@ import type {
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
+import { useOrganizationModelsPath } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
 const CollapsibleSection: FC<{
@@ -134,6 +135,7 @@ export const ModelFormFields: FC<{
 	showAdvanced,
 	setShowAdvanced,
 }) => {
+	const modelsPath = useOrganizationModelsPath();
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
@@ -344,7 +346,7 @@ export const ModelFormFields: FC<{
 				</div>
 
 				<div className="flex items-center justify-end gap-3">
-					<Link to="/ai/settings/models">
+					<Link to={modelsPath}>
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

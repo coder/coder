@@ -54,7 +54,7 @@ func CreateOpenAICompatChatModelConfig(
 	t testing.TB,
 	client *codersdk.ExperimentalClient,
 	baseURL string,
-) codersdk.ChatModelConfig {
+) codersdk.ChatModel {
 	t.Helper()
 
 	if baseURL == "" {
@@ -70,9 +70,11 @@ func CreateOpenAICompatChatModelConfig(
 		APIKeys: []string{TestChatProviderAPIKey},
 	})
 	require.NoError(t, err)
+	defaultOrg, err := client.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	require.NoError(t, err)
 	contextLimit := int64(4096)
 	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	modelConfig, err := client.CreateChatModel(ctx, defaultOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID: &provider.ID,
 		Model:        TestChatModelOpenAICompat,
 		ContextLimit: &contextLimit,

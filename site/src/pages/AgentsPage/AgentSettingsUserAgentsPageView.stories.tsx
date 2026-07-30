@@ -698,6 +698,26 @@ export const SaveErrorState: Story = {
 	},
 };
 
+export const NoDefaultOrgModels: Story = {
+	args: buildArgs({
+		hasNoDefaultOrgModels: true,
+		modelOptions: [],
+		modelConfigs: [],
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				/Personal model overrides are managed per organization/i,
+			),
+		).toBeInTheDocument();
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		expect(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
+	},
+};
+
 export const AdminDisabledReadOnly: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({

@@ -794,7 +794,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.GetEnabledChatModelConfigsRow{
+		configs := []database.GetEnabledChatModelConfigsByOrganizationRow{
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
@@ -808,7 +808,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{{
 			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
 			Provider:        "openai",
 		}})
@@ -816,10 +816,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		require.Equal(t, database.ChatModelConfig{}, got)
 	})
 
-	// The production caller lists per org, which generates a distinct
-	// row type; both branches of the selector's field extraction must
-	// behave identically.
-	t.Run("per-org row type selects identically", func(t *testing.T) {
+	t.Run("second preferred provider wins over lower priority", func(t *testing.T) {
 		t.Parallel()
 
 		configs := []database.GetEnabledChatModelConfigsByOrganizationRow{

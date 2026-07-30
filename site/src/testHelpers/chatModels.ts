@@ -4,9 +4,11 @@ import type {
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
+import { MockDefaultOrganization } from "./entities";
 
 export const MockChatModelConfig: ChatModelConfig = {
 	id: "model-1",
+	organization_id: MockDefaultOrganization.id,
 	ai_provider_id: "provider-1",
 	model: "gpt-5",
 	display_name: "gpt-5",
