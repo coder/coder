@@ -1,12 +1,13 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModelConfigs,
+	chatModelConfigsByOrganization,
 	chatModels,
 	updateUserChatPersonalModelOverride,
 	userChatPersonalModelOverrides,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
@@ -15,9 +16,34 @@ import { resolveModelSelector } from "./utils/modelOptions";
 const AgentSettingsUserAgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const { organizations } = useDashboard();
-	const overridesQuery = useQuery(userChatPersonalModelOverrides());
+	const permittedOrgsQuery = useQuery(
+		permittedOrganizations({
+			object: { resource_type: "chat" },
+			action: "create",
+		}),
+	);
+	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		null,
+	);
+	// Personal overrides are keyed per organization; until the user picks
+	// one explicitly, track the default org (today's implicit scope).
+	const activeOrg =
+		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				null);
+	const organizationId = activeOrg?.id ?? "";
+
+	const overridesQuery = useQuery({
+		...userChatPersonalModelOverrides(organizationId),
+		enabled: organizationId !== "",
+	});
 	const chatModelsQuery = useQuery(chatModels());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelConfigsQuery = useQuery(
+		chatModelConfigsByOrganization(organizationId),
+	);
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const saveRootModelOverrideMutation = useMutation(
 		updateUserChatPersonalModelOverride(queryClient),
@@ -29,22 +55,9 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		updateUserChatPersonalModelOverride(queryClient),
 	);
 
-	// Personal overrides still write global override keys, so only the
-	// default-org model rows are valid targets. Non-default-org copies
-	// must not be offered here.
-	const defaultOrganizationId = organizations.find((org) => org.is_default)?.id;
-	const defaultOrgModelConfigs = (modelConfigsQuery.data ?? []).filter(
-		(config) => config.organization_id === defaultOrganizationId,
-	);
-	const hasDefaultOrgModels =
-		defaultOrganizationId !== undefined && defaultOrgModelConfigs.length > 0;
-
-	const filteredModelConfigsQuery = {
-		data: defaultOrgModelConfigs,
-		isLoading: modelConfigsQuery.isLoading,
-	};
+	const orgModelConfigs = modelConfigsQuery.data ?? [];
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
-		filteredModelConfigsQuery,
+		modelConfigsQuery,
 		chatModelsQuery,
 		providerConfigsQuery,
 	);
@@ -58,12 +71,15 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 			options?: { onSuccess?: () => void; onError?: () => void },
 		) => {
-			mutation.mutate({ context, req }, options);
+			mutation.mutate({ organizationId, context, req }, options);
 		};
 	};
 
 	return (
 		<AgentSettingsUserAgentsPageView
+			organizations={permittedOrgs}
+			selectedOrganization={activeOrg}
+			onOrganizationChange={setSelectedOrg}
 			overridesData={overridesQuery.data}
 			overridesError={overridesQuery.error}
 			onRetryOverrides={() => {
@@ -72,11 +88,13 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			isRetryingOverrides={overridesQuery.isFetching}
 			isLoadingOverrides={overridesQuery.isLoading}
 			modelOptions={modelOptions}
-			modelConfigs={defaultOrgModelConfigs}
+			modelConfigs={orgModelConfigs}
 			modelConfigsError={modelConfigsError}
 			isLoadingModels={isModelCatalogLoading}
-			hasNoDefaultOrgModels={
-				!modelConfigsQuery.isLoading && !hasDefaultOrgModels
+			hasNoOrgModels={
+				organizationId !== "" &&
+				!modelConfigsQuery.isLoading &&
+				orgModelConfigs.length === 0
 			}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",

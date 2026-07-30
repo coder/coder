@@ -32,6 +32,15 @@ import (
 	"github.com/coder/quartz"
 )
 
+// overrideKeyForChat builds the per-org site_configs key the resolver under
+// test reads for the given context, so mocks match the prod call exactly.
+func overrideKeyForChat(t *testing.T, overrideContext codersdk.ChatModelOverrideContext, chat database.Chat) string {
+	t.Helper()
+	key, err := ChatModelOverrideSiteConfigKey(overrideContext, chat.OrganizationID)
+	require.NoError(t, err)
+	return key
+}
+
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +64,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			},
 		}
 
-		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+		db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: wantTitle,
@@ -105,7 +114,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 		},
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", sql.ErrConnDone)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
@@ -154,7 +163,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 		},
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("not-a-uuid", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("not-a-uuid", nil)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
@@ -234,7 +243,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		},
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String()+":xhigh", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String()+":xhigh", nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -288,7 +297,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 		},
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
@@ -341,7 +350,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		},
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -388,7 +397,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		Enabled:      true,
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
@@ -417,7 +426,7 @@ func TestResolveManualTitleModel_CrossOrgConfigsAreInvisible(t *testing.T) {
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	chat.OrganizationID = uuid.New() // non-default org, no configs of its own
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 	// Strict org scoping reads only the chat org's configs; configs in
 	// the default org are invisible here, so selection falls back to the
 	// chat model.
@@ -466,7 +475,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 		BaseUrl: serverURL,
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
 	}, nil)
@@ -504,7 +513,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		Enabled:      true,
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", sql.ErrConnDone)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
@@ -535,7 +544,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -572,7 +581,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 		Enabled: true,
 	}
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).AnyTimes()
@@ -606,6 +615,9 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	chat.OrganizationID = uuid.New()
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	// The override resolution treats a config outside the chat's org as
+	// unavailable; the fixture config must live in the chat's org.
+	overrideConfig.OrganizationID = chat.OrganizationID
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 	provider := database.AIProvider{
@@ -648,7 +660,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 		UserID:    chat.OwnerID,
 		ExpiresAt: time.Now().Add(48 * time.Hour),
 	}, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -675,7 +687,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
 
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	// A disabled override config soft-fails the override; manual
 	// selection lists the chat org's configs (none) and falls back to the

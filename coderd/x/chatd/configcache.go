@@ -39,6 +39,16 @@ type cachedAdvisorConfig struct {
 	expiresAt time.Time
 }
 
+// cachedAdvisorModelOverride holds one organization's parsed advisor model
+// override. modelConfigID is uuid.Nil when the org has no usable override
+// (unset or malformed), so callers fall back to the chat model without a
+// re-read.
+type cachedAdvisorModelOverride struct {
+	modelConfigID   uuid.UUID
+	reasoningEffort *string
+	expiresAt       time.Time
+}
+
 type cachedModelConfig struct {
 	config    database.ChatModelConfig
 	expiresAt time.Time
@@ -95,15 +105,21 @@ type chatConfigCache struct {
 	advisorConfig           *cachedAdvisorConfig
 	advisorConfigGeneration uint64
 	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
+
+	// Advisor model overrides (keyed by organization ID).
+	advisorModelOverrides          map[uuid.UUID]cachedAdvisorModelOverride
+	advisorModelOverrideGeneration uint64
+	advisorModelOverrideFetches    singleflight.Group[string, cachedAdvisorModelOverride]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
 	return &chatConfigCache{
-		db:                  db,
-		clock:               clock,
-		ctx:                 ctx,
-		modelConfigs:        make(map[uuid.UUID]cachedModelConfig),
-		defaultModelConfigs: make(map[uuid.UUID]cachedModelConfig),
+		db:                    db,
+		clock:                 clock,
+		ctx:                   ctx,
+		modelConfigs:          make(map[uuid.UUID]cachedModelConfig),
+		defaultModelConfigs:   make(map[uuid.UUID]cachedModelConfig),
+		advisorModelOverrides: make(map[uuid.UUID]cachedAdvisorModelOverride),
 		userPrompts: tlru.New[uuid.UUID](
 			tlru.ConstantCost[string],
 			chatConfigUserPromptEntryLimit,
@@ -522,5 +538,97 @@ func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.
 	c.advisorConfig = &cachedAdvisorConfig{
 		config:    config,
 		expiresAt: c.clock.Now().Add(chatConfigAdvisorConfigTTL),
+	}
+}
+
+// InvalidateAdvisorModelOverride drops one organization's cached advisor
+// model override so the next AdvisorModelOverride call re-fetches. Called
+// from the ChatConfigEvent subscriber after an admin writes the org's
+// advisor override; the generation bump discards any in-flight fill
+// started before the invalidation.
+func (c *chatConfigCache) InvalidateAdvisorModelOverride(orgID uuid.UUID) {
+	c.mu.Lock()
+	delete(c.advisorModelOverrides, orgID)
+	c.advisorModelOverrideGeneration++
+	c.mu.Unlock()
+}
+
+// AdvisorModelOverride returns the parsed advisor model override for the
+// given organization. Unset and malformed values cache as uuid.Nil so the
+// caller falls back to the chat model without a per-turn DB round trip.
+func (c *chatConfigCache) AdvisorModelOverride(ctx context.Context, orgID uuid.UUID) (uuid.UUID, *string, error) {
+	if override, ok := c.cachedAdvisorModelOverride(orgID); ok {
+		return override.modelConfigID, override.reasoningEffort, nil
+	}
+
+	generation := c.advisorModelOverrideGenerationSnapshot()
+	override, err := singleflightDoChan(
+		ctx,
+		&c.advisorModelOverrideFetches,
+		fmt.Sprintf("%d:advisor-override:%s", generation, orgID),
+		func() (cachedAdvisorModelOverride, error) {
+			if cached, ok := c.cachedAdvisorModelOverride(orgID); ok {
+				return cached, nil
+			}
+
+			raw, err := c.db.GetChatAdvisorModelOverride(c.ctx, orgID.String())
+			if err != nil {
+				return cachedAdvisorModelOverride{}, err
+			}
+			parsed, ok := parseModelOverride(raw)
+			parsedOverride := cachedAdvisorModelOverride{}
+			if ok {
+				parsedOverride.modelConfigID = parsed.modelConfigID
+				parsedOverride.reasoningEffort = parsed.reasoningEffort
+			}
+			c.storeAdvisorModelOverride(generation, orgID, parsedOverride)
+			return parsedOverride, nil
+		},
+	)
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	return override.modelConfigID, override.reasoningEffort, nil
+}
+
+func (c *chatConfigCache) cachedAdvisorModelOverride(orgID uuid.UUID) (cachedAdvisorModelOverride, bool) {
+	c.mu.RLock()
+	entry, ok := c.advisorModelOverrides[orgID]
+	c.mu.RUnlock()
+	if !ok {
+		return cachedAdvisorModelOverride{}, false
+	}
+	if c.clock.Now().Before(entry.expiresAt) {
+		return entry, true
+	}
+
+	c.mu.Lock()
+	if current, ok := c.advisorModelOverrides[orgID]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.advisorModelOverrides, orgID)
+	}
+	c.mu.Unlock()
+
+	return cachedAdvisorModelOverride{}, false
+}
+
+func (c *chatConfigCache) advisorModelOverrideGenerationSnapshot() uint64 {
+	c.mu.RLock()
+	generation := c.advisorModelOverrideGeneration
+	c.mu.RUnlock()
+	return generation
+}
+
+func (c *chatConfigCache) storeAdvisorModelOverride(generation uint64, orgID uuid.UUID, override cachedAdvisorModelOverride) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.advisorModelOverrideGeneration != generation {
+		return
+	}
+
+	c.advisorModelOverrides[orgID] = cachedAdvisorModelOverride{
+		modelConfigID:   override.modelConfigID,
+		reasoningEffort: override.reasoningEffort,
+		expiresAt:       c.clock.Now().Add(chatConfigAdvisorConfigTTL),
 	}
 }

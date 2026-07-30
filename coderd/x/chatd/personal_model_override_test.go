@@ -14,10 +14,11 @@ import (
 func TestChatPersonalModelOverrideKey(t *testing.T) {
 	t.Parallel()
 
+	orgID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	require.Equal(
 		t,
-		"chat_personal_model_override:root",
-		chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
+		"chat_personal_model_override:22222222-2222-2222-2222-222222222222:root",
+		chatd.ChatPersonalModelOverrideKey(orgID, codersdk.ChatPersonalModelOverrideContextRoot),
 	)
 }
 

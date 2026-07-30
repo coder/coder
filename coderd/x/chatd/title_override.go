@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const titleGenerationOverrideContext = "title_generation"
@@ -40,10 +41,18 @@ func parseModelOverride(raw string) (parsedModelOverride, bool) {
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
+	orgID uuid.UUID,
 ) (string, error) {
+	key, err := ChatModelOverrideSiteConfigKey(
+		codersdk.ChatModelOverrideContextTitleGeneration,
+		orgID,
+	)
+	if err != nil {
+		return "", err
+	}
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
+	raw, err := db.GetChatModelOverrideByOrganization(chatdCtx, key)
 	if err != nil {
 		return "", xerrors.Errorf(
 			"get chat title generation model override: %w",
@@ -53,8 +62,8 @@ func readTitleGenerationModelOverride(
 	return raw, nil
 }
 
-// resolveTitleGenerationModelOverride resolves the deployment-wide title
-// generation model override. overrideSet is true when an override was
+// resolveTitleGenerationModelOverride resolves the chat organization's
+// title generation model override. overrideSet is true when an override was
 // configured and resolved; a configured override that does not resolve
 // (unknown, disabled, or cross-org config) is ignored, and model
 // construction failures after a successful resolution stay hard failures.
@@ -65,7 +74,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (database.ChatModelConfig, fantasy.LanguageModel, aiGatewayModelRoute, bool, error) {
-	raw, err := readTitleGenerationModelOverride(ctx, p.db)
+	raw, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
@@ -77,6 +86,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
 		raw,
+		chat.OrganizationID,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {

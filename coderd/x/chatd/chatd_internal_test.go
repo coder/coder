@@ -1128,7 +1128,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 	// An empty org list falls through to the chat's fallback model;
 	// strict org scoping reads no other org's configs.
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -1275,7 +1275,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextTitleGeneration, chat)).Return("", nil)
 	// An empty org list falls through to the chat's fallback model;
 	// strict org scoping reads no other org's configs.
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)

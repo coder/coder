@@ -277,13 +277,22 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
-	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, codersdk.ChatModelCallConfig, error) {
-	if advisorCfg.ModelConfigID == uuid.Nil {
+	modelConfigID, reasoningEffort, err := p.configCache.AdvisorModelOverride(ctx, chat.OrganizationID)
+	if err != nil {
+		logger.Warn(
+			ctx,
+			"failed to load advisor model override, continuing with chat model",
+			slog.F("organization_id", chat.OrganizationID),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackCallConfig, nil
+	}
+	if modelConfigID == uuid.Nil {
 		return fallbackModel, fallbackCallConfig, nil
 	}
 
@@ -291,22 +300,34 @@ func (p *Server) resolveAdvisorModelOverride(
 	// or providers stop routing advisor prompts immediately.
 	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(
 		ctx,
-		advisorCfg.ModelConfigID,
+		modelConfigID,
 	)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			logger.Warn(
 				ctx,
 				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", advisorCfg.ModelConfigID),
+				slog.F("model_config_id", modelConfigID),
 			)
 			return fallbackModel, fallbackCallConfig, nil
 		}
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", modelConfigID),
 			slog.Error(err),
+		)
+		return fallbackModel, fallbackCallConfig, nil
+	}
+	if overrideConfig.OrganizationID != chat.OrganizationID {
+		// The override targets a config outside the chat's org (stale after
+		// config moves, or written pre-cutover). Cross-org model use is
+		// never silent: fall back to the chat model.
+		logger.Warn(
+			ctx,
+			"advisor model config belongs to another organization, continuing with chat model",
+			slog.F("model_config_id", modelConfigID),
+			slog.F("organization_id", chat.OrganizationID),
 		)
 		return fallbackModel, fallbackCallConfig, nil
 	}
@@ -317,7 +338,7 @@ func (p *Server) resolveAdvisorModelOverride(
 			logger.Warn(
 				ctx,
 				"failed to parse advisor model config, continuing with chat model",
-				slog.F("model_config_id", advisorCfg.ModelConfigID),
+				slog.F("model_config_id", modelConfigID),
 				slog.Error(err),
 			)
 			return fallbackModel, fallbackCallConfig, nil
@@ -336,7 +357,7 @@ func (p *Server) resolveAdvisorModelOverride(
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor override route, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", modelConfigID),
 			slog.Error(err),
 		)
 		return fallbackModel, fallbackCallConfig, nil
@@ -355,15 +376,15 @@ func (p *Server) resolveAdvisorModelOverride(
 		logger.Warn(
 			ctx,
 			"failed to create advisor override model, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", modelConfigID),
 			slog.Error(err),
 		)
 		return fallbackModel, fallbackCallConfig, nil
 	}
 
-	if advisorCfg.ReasoningEffort != nil {
+	if reasoningEffort != nil {
 		resolvedEffort := chatprovider.ResolveReasoningEffort(
-			advisorCfg.ReasoningEffort,
+			reasoningEffort,
 			overrideCallConfig.ReasoningEffort,
 		)
 		if resolvedEffort != nil {
@@ -389,7 +410,6 @@ func (p *Server) newAdvisorRuntime(
 	advisorModel, advisorCallConfig, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
-		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
 		modelOpts,
@@ -3268,6 +3288,12 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 				p.configCache.InvalidateUserPrompt(ev.EntityID)
 			case coderdpubsub.ChatConfigEventAdvisorConfig:
 				p.configCache.InvalidateAdvisorConfig()
+			case coderdpubsub.ChatConfigEventModelOverride:
+				// Org-scoped override keys are not cached today (reads are
+				// cheap point gets); the event exists so a future cache
+				// invalidates precisely. Nothing to drop.
+			case coderdpubsub.ChatConfigEventAdvisorModelOverride:
+				p.configCache.InvalidateAdvisorModelOverride(ev.EntityID)
 			}
 		}),
 	)

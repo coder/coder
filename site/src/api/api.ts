@@ -3546,21 +3546,23 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatModelOverride = async (
+	getOrganizationChatModelOverride = async (
+		organization: string,
 		context: TypesGen.ChatModelOverrideContext,
 	): Promise<TypesGen.ChatModelOverrideResponse> => {
 		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/chats/config/model-override/${encodeURIComponent(context)}`,
 		);
 		return response.data;
 	};
 
-	updateChatModelOverride = async (
+	updateOrganizationChatModelOverride = async (
+		organization: string,
 		context: TypesGen.ChatModelOverrideContext,
 		req: TypesGen.UpdateChatModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/chats/config/model-override/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3616,21 +3618,29 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getUserChatPersonalModelOverrides =
-		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
-			const response =
-				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+	getUserChatPersonalModelOverrides = async (
+		organization?: string,
+	): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+		const response =
+			await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+				getURLWithSearchParams(
 					"/api/experimental/chats/config/user-personal-model-overrides",
-				);
-			return response.data;
-		};
+					{ organization },
+				),
+			);
+		return response.data;
+	};
 
 	updateUserChatPersonalModelOverride = async (
+		organization: string,
 		context: TypesGen.ChatPersonalModelOverrideContext,
 		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+			getURLWithSearchParams(
+				`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+				{ organization },
+			),
 			req,
 		);
 	};

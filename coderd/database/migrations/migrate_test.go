@@ -2997,11 +2997,23 @@ func TestMigration000564ChatModelConfigOrgExplosion(t *testing.T) {
 			user1ID, key).Scan(&exists))
 		require.True(t, exists, "original threshold key survives")
 	}
+	// The seeded sentinel row is re-keyed by 000566 (org-scoped personal
+	// overrides), which runs after this migration in the stack: the
+	// deployment-level key is fanned to the default org's suffixed key and
+	// the original is deleted. Assert the post-stack shape here so this
+	// test stays green on merge refs that include the child migration.
 	var overrideValue string
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		"SELECT value FROM user_configs WHERE user_id = $1 AND key = 'chat_personal_model_override:root'",
+		`SELECT value FROM user_configs uc
+		JOIN organizations o ON o.is_default
+		WHERE uc.user_id = $1 AND uc.key = 'chat_personal_model_override:' || o.id::text || ':root'`,
 		user1ID).Scan(&overrideValue))
-	require.Equal(t, "chat_default", overrideValue, "non-threshold keys are untouched")
+	require.Equal(t, "chat_default", overrideValue, "sentinel re-keyed to the default org by 000566")
+	var legacyOverride bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM user_configs WHERE user_id = $1 AND key = 'chat_personal_model_override:root')",
+		user1ID).Scan(&legacyOverride))
+	require.False(t, legacyOverride, "000566 deleted the deployment-level key")
 
 	// --- Down round-trip on the exploded state. The framework's Stepper
 	// cannot commit after exactly one down step (its driver commits only
@@ -3049,4 +3061,352 @@ func TestMigration000564ChatModelConfigOrgExplosion(t *testing.T) {
 	assertCount(orgBID, 5, "re-up: orgB copies recreated")
 	assertCount(orgCID, 4, "re-up: orgC copies recreated")
 	assertChatPinned(chatDID, c1ID, "re-up: orgD still untouched")
+}
+
+func TestMigration000566ChatModelOverrideOrgScope(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 566
+
+	sqlDB := testSQLDB(t)
+
+	// stepperUpToLatest runs the stepper to completion and asserts the
+	// target was APPLIED, never that it is the latest: stacked PRs add
+	// later migrations and a latest-equality assertion reddens every
+	// child merge ref.
+	stepperUpToLatest := func(target uint) {
+		t.Helper()
+		next, err := migrations.Stepper(sqlDB)
+		require.NoError(t, err)
+		last := uint(0)
+		for {
+			version, more, err := next()
+			require.NoError(t, err)
+			if !more {
+				break
+			}
+			last = version
+		}
+		require.GreaterOrEqual(t, last, target, "migration %d must be applied", target)
+	}
+
+	// Migrate fully up first (the Stepper cannot stop mid-way), seed the
+	// pre-566 shape, then rewind the version row so only 566's up
+	// re-applies against the seeded data.
+	stepperUpToLatest(migrationVersion)
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	providerID := uuid.New()
+	user1ID := uuid.New()
+	user2ID := uuid.New()
+	c1ID := uuid.New() // live default-org config
+	c3ID := uuid.New() // soft-deleted default-org config
+
+	execFixture := func(query string, args ...any) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, query, args...)
+		require.NoError(t, err)
+	}
+
+	execFixture(
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'm5user1', 'm5user1@coder.com', $2, $3, $3, 'active', '{}', 'password')`,
+		user1ID, []byte{}, now,
+	)
+	execFixture(
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'm5user2', 'm5user2@coder.com', $2, $3, $3, 'active', '{}', 'password')`,
+		user2ID, []byte{}, now,
+	)
+	execFixture(
+		`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai', 'openai-566', true, 'https://api.openai.com/v1', $2, $2)`,
+		providerID, now,
+	)
+
+	var defaultOrgID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT id FROM organizations WHERE is_default = true").Scan(&defaultOrgID))
+
+	insertConfig := func(id uuid.UUID, model string, deleted bool) {
+		t.Helper()
+		execFixture(
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, deleted, deleted_at,
+				context_limit, compression_threshold, ai_provider_id, organization_id, group_acl, created_at, updated_at)
+			VALUES ($1, $2, $2, true, false, $3, (CASE WHEN $3 THEN $4::timestamptz ELSE NULL END),
+				200000, 70, $5, $6, '{}'::jsonb, $4, $4)`,
+			id, model, deleted, now, providerID, defaultOrgID,
+		)
+	}
+	insertConfig(c1ID, "gpt-5.2-566", false)
+	insertConfig(c3ID, "gpt-5.2-566-deleted", true)
+
+	// site_configs seed: one value per required case.
+	siteSeed := []struct{ key, value string }{
+		// Identity re-key with effort suffix preserved.
+		{"agents_chat_general_model_override", c1ID.String() + ":high"},
+		// Empty global value: skipped, not seeded (the dogfood case).
+		{"agents_chat_explore_model_override", ""},
+		// Soft-deleted target: dropped, not re-keyed.
+		{"agents_chat_title_generation_model_override", c3ID.String()},
+		// Dangling target: skipped.
+		{"agents_chat_compaction_model_override", uuid.New().String()},
+		// Advisor blob with model fields plus runtime fields.
+		{"agents_advisor_config", `{"enabled": true, "max_uses_per_run": 5, "max_output_tokens": 1024, "model_config_id": "` + c1ID.String() + `", "reasoning_effort": "low"}`},
+		// Unrelated key survives untouched.
+		{"agents_chat_system_prompt", "keep me"},
+		// Hostile keys the re-key and delete must skip and the down must
+		// not abort on.
+		{"agents_chat_malformed_model_override:not-a-uuid", "junk"},
+		{"agents_chat_general_model_override:", "junk2"},
+		{"agents_advisor_model_override:not-a-uuid", "junk3"},
+	}
+	for _, row := range siteSeed {
+		execFixture(`INSERT INTO site_configs (key, value) VALUES ($1, $2)`, row.key, row.value)
+	}
+
+	// user_configs seed: sentinels pass through, model-mode with effort
+	// passes, deleted/dangling/malformed drop, unknown contexts untouched.
+	userSeed := []struct {
+		userID uuid.UUID
+		key    string
+		value  string
+	}{
+		{user1ID, "chat_personal_model_override:root", "model:" + c1ID.String() + ":max"},
+		{user1ID, "chat_personal_model_override:general", "deployment_default"},
+		{user1ID, "chat_personal_model_override:explore", "model:" + c3ID.String()},
+		{user1ID, "chat_personal_model_override:evil", "chat_default"},
+		{user1ID, "chat_personal_model_override:", "chat_default"},
+		{user1ID, "theme_preference", "dark"},
+		{user2ID, "chat_personal_model_override:root", "chat_default"},
+		{user2ID, "chat_personal_model_override:general", "model:" + uuid.New().String()},
+		{user2ID, "chat_personal_model_override:explore", "garbage-value"},
+		{user2ID, "chat_personal_model_override:root:extra", "model:" + c1ID.String()},
+	}
+	for _, row := range userSeed {
+		execFixture(`INSERT INTO user_configs (user_id, key, value) VALUES ($1, $2, $3)`,
+			row.userID, row.key, row.value)
+	}
+
+	// Rewind the version row to 566's predecessor so the stepper re-applies
+	// only 566's up. The predecessor is 564: 565 is allocated to a sibling
+	// unit and absent here, and golang-migrate's readUp requires the
+	// current version to exist in the source (the repo's Stepper swallows
+	// the not-exist error as a silent no-op).
+	_, err := sqlDB.ExecContext(ctx,
+		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (564, false)")
+	require.NoError(t, err)
+	stepperUpToLatest(migrationVersion)
+
+	getSiteValue := func(key string) (string, bool) {
+		t.Helper()
+		var value string
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT value FROM site_configs WHERE key = $1", key).Scan(&value)
+		if err == sql.ErrNoRows {
+			return "", false
+		}
+		require.NoError(t, err)
+		return value, true
+	}
+	getUserValue := func(userID uuid.UUID, key string) (string, bool) {
+		t.Helper()
+		var value string
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT value FROM user_configs WHERE user_id = $1 AND key = $2", userID, key).Scan(&value)
+		if err == sql.ErrNoRows {
+			return "", false
+		}
+		require.NoError(t, err)
+		return value, true
+	}
+	orgSuffix := ":" + defaultOrgID.String()
+
+	// --- Up assertions: admin overrides ---
+	value, ok := getSiteValue("agents_chat_general_model_override" + orgSuffix)
+	require.True(t, ok, "default org general override seeded")
+	require.Equal(t, c1ID.String()+":high", value, "identity re-key preserves the effort suffix")
+
+	_, ok = getSiteValue("agents_chat_explore_model_override" + orgSuffix)
+	require.False(t, ok, "empty global value is skipped, not seeded")
+
+	_, ok = getSiteValue("agents_chat_title_generation_model_override" + orgSuffix)
+	require.False(t, ok, "soft-deleted target is dropped, not re-keyed")
+
+	_, ok = getSiteValue("agents_chat_compaction_model_override" + orgSuffix)
+	require.False(t, ok, "dangling target is skipped")
+
+	for _, base := range []string{
+		"agents_chat_general_model_override",
+		"agents_chat_explore_model_override",
+		"agents_chat_title_generation_model_override",
+		"agents_chat_compaction_model_override",
+	} {
+		_, ok = getSiteValue(base)
+		require.False(t, ok, "old deployment-level key %s deleted", base)
+	}
+
+	// Non-default orgs receive no keys: the seed above has none, so every
+	// uuid-suffixed key in the table must carry the default org's suffix.
+	// Hostile keys without a uuid suffix are excluded from the count.
+	var nonDefaultKeys int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM site_configs
+		WHERE key LIKE 'agents\_chat\_%\_model\_override:%'
+		  AND key ~ '[0-9a-fA-F-]{36}$'
+		  AND key NOT LIKE '%:' || $1::text`, defaultOrgID.String()).Scan(&nonDefaultKeys))
+	require.Zero(t, nonDefaultKeys, "only the default org receives override keys")
+
+	// --- Up assertions: advisor split ---
+	value, ok = getSiteValue("agents_advisor_model_override" + orgSuffix)
+	require.True(t, ok, "default org advisor override seeded")
+	require.Equal(t, c1ID.String()+":low", value, "advisor model and effort move to the org key")
+
+	value, ok = getSiteValue("agents_advisor_config")
+	require.True(t, ok, "advisor config blob kept")
+	require.JSONEq(t,
+		`{"enabled": true, "max_uses_per_run": 5, "max_output_tokens": 1024}`,
+		value,
+		"advisor blob drops model fields and keeps runtime fields",
+	)
+
+	// Unrelated and hostile keys survive.
+	value, ok = getSiteValue("agents_chat_system_prompt")
+	require.True(t, ok)
+	require.Equal(t, "keep me", value)
+	_, ok = getSiteValue("agents_chat_malformed_model_override:not-a-uuid")
+	require.True(t, ok, "hostile key untouched by the up")
+	_, ok = getSiteValue("agents_chat_general_model_override:")
+	require.True(t, ok, "empty-suffix hostile key untouched by the up")
+
+	// --- Up assertions: personal overrides ---
+	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":root")
+	require.True(t, ok, "root model-mode value fanned to the default org")
+	require.Equal(t, "model:"+c1ID.String()+":max", value, "effort suffix preserved")
+
+	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":general")
+	require.True(t, ok, "sentinel passes through")
+	require.Equal(t, "deployment_default", value)
+
+	_, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":explore")
+	require.False(t, ok, "deleted-target personal value dropped")
+
+	value, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":root")
+	require.True(t, ok)
+	require.Equal(t, "chat_default", value)
+
+	_, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":general")
+	require.False(t, ok, "dangling personal value dropped")
+
+	_, ok = getUserValue(user2ID, "chat_personal_model_override"+orgSuffix+":explore")
+	require.False(t, ok, "malformed personal value dropped")
+
+	// Old keys in the three fanned contexts are gone; unknown-context and
+	// unrelated rows survive.
+	var legacyPersonal int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_configs
+		WHERE key IN ('chat_personal_model_override:root', 'chat_personal_model_override:general', 'chat_personal_model_override:explore')`).Scan(&legacyPersonal))
+	require.Zero(t, legacyPersonal, "old personal override keys deleted")
+
+	value, ok = getUserValue(user1ID, "chat_personal_model_override:evil")
+	require.True(t, ok, "unknown-context key untouched by the up")
+	require.Equal(t, "chat_default", value)
+	value, ok = getUserValue(user1ID, "chat_personal_model_override:")
+	require.True(t, ok, "empty-context hostile key untouched by the up")
+	require.Equal(t, "chat_default", value)
+	value, ok = getUserValue(user2ID, "chat_personal_model_override:root:extra")
+	require.True(t, ok, "two-segment-context hostile key untouched by the up")
+	require.Equal(t, "model:"+c1ID.String(), value)
+	value, ok = getUserValue(user1ID, "theme_preference")
+	require.True(t, ok)
+	require.Equal(t, "dark", value)
+
+	// --- Down: executed directly (the Stepper cannot commit after one
+	// down step), asserting restoration and non-abort on hostile keys ---
+	downSQL, err := fs.ReadFile(migrations.MigrationFS(), "000566_chat_model_override_org_scope.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err, "down must not abort on hostile keys")
+
+	value, ok = getSiteValue("agents_chat_general_model_override")
+	require.True(t, ok, "down restores the general base key")
+	require.Equal(t, c1ID.String()+":high", value)
+
+	// The empty/deleted/dangling pre-up values resolve to unset at read
+	// time. The down does not distinguish them from never-set (the up
+	// deleted their rows), so the base key is either absent or ''. Any
+	// other restored value is a down bug: fail on it.
+	for _, base := range []string{
+		"agents_chat_explore_model_override",
+		"agents_chat_title_generation_model_override",
+		"agents_chat_compaction_model_override",
+	} {
+		value, ok = getSiteValue(base)
+		require.True(t, !ok || value == "",
+			"down restores %s as effectively unset (absent or empty); got ok=%v value=%q", base, ok, value)
+	}
+
+	value, ok = getSiteValue("agents_advisor_model_override")
+	require.True(t, ok, "down restores the advisor override for downgrades")
+	require.Equal(t, c1ID.String()+":low", value)
+
+	value, ok = getSiteValue("agents_advisor_config")
+	require.True(t, ok)
+	require.JSONEq(t,
+		`{"enabled": true, "max_uses_per_run": 5, "max_output_tokens": 1024}`,
+		value,
+		"down does not re-create model fields in the advisor blob",
+	)
+
+	var suffixedSite int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM site_configs
+		WHERE (key LIKE 'agents\_chat\_%\_model\_override:%' OR key LIKE 'agents\_advisor\_model\_override:%')
+		  AND key ~ '[0-9a-fA-F-]{36}$'`).Scan(&suffixedSite))
+	require.Zero(t, suffixedSite, "down removes all uuid-suffixed override keys")
+
+	// Hostile keys survive the down too.
+	_, ok = getSiteValue("agents_chat_malformed_model_override:not-a-uuid")
+	require.True(t, ok, "hostile key survives the down")
+	_, ok = getSiteValue("agents_advisor_model_override:not-a-uuid")
+	require.True(t, ok, "hostile advisor key survives the down")
+
+	// Personal fold-back.
+	value, ok = getUserValue(user1ID, "chat_personal_model_override:root")
+	require.True(t, ok, "down restores root personal override")
+	require.Equal(t, "model:"+c1ID.String()+":max", value)
+	value, ok = getUserValue(user1ID, "chat_personal_model_override:general")
+	require.True(t, ok)
+	require.Equal(t, "deployment_default", value)
+	value, ok = getUserValue(user2ID, "chat_personal_model_override:root")
+	require.True(t, ok)
+	require.Equal(t, "chat_default", value)
+
+	var suffixedPersonal int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_configs
+		WHERE key ~ '^chat_personal_model_override:[0-9a-fA-F-]{36}:(root|general|explore)$'`).Scan(&suffixedPersonal))
+	require.Zero(t, suffixedPersonal, "down removes all org-suffixed personal keys")
+
+	// Unknown-context rows are untouched in both directions.
+	value, ok = getUserValue(user1ID, "chat_personal_model_override:evil")
+	require.True(t, ok)
+	require.Equal(t, "chat_default", value)
+
+	// --- Re-up: rewind (to the existing predecessor, as above) and confirm
+	// the up re-applies cleanly over the down's restored state ---
+	_, err = sqlDB.ExecContext(ctx,
+		"TRUNCATE schema_migrations; INSERT INTO schema_migrations (version, dirty) VALUES (564, false)")
+	require.NoError(t, err)
+	stepperUpToLatest(migrationVersion)
+
+	value, ok = getSiteValue("agents_chat_general_model_override" + orgSuffix)
+	require.True(t, ok, "re-up re-seeds the default org override")
+	require.Equal(t, c1ID.String()+":high", value)
+	value, ok = getUserValue(user1ID, "chat_personal_model_override"+orgSuffix+":root")
+	require.True(t, ok, "re-up re-seeds the personal override")
+	require.Equal(t, "model:"+c1ID.String()+":max", value)
 }

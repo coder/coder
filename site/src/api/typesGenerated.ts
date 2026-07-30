@@ -1107,7 +1107,9 @@ export const Addons: Addon[] = ["ai_governance"];
 // From codersdk/chats.go
 /**
  * AdvisorConfig is the deployment-wide runtime configuration for the
- * experimental chat advisor.
+ * experimental chat advisor. Model selection is per-organization and lives
+ * on the org-scoped model override endpoints (context "advisor"); it is
+ * deliberately absent from this wire shape.
  *
  * EXPERIMENTAL: this type is experimental and is subject to change.
  */
@@ -1128,19 +1130,6 @@ export interface AdvisorConfig {
 	 * use the runtime default.
 	 */
 	readonly max_output_tokens: number;
-	/**
-	 * ModelConfigID selects a specific chat model config to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
-	 */
-	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -3021,12 +3010,14 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "advisor"
 	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"advisor",
 	"compaction",
 	"explore",
 	"general",
@@ -9565,37 +9556,23 @@ export interface UpdateActiveTemplateVersion {
 // From codersdk/chats.go
 /**
  * UpdateAdvisorConfigRequest is the request body for updating advisor
- * runtime configuration. It is a type alias for AdvisorConfig because
- * the request and response shapes are currently identical.
+ * runtime configuration. Model selection moved to the org-scoped model
+ * override endpoints (context "advisor"): the deprecated fields below
+ * exist solely to detect stale clients, because the JSON decoder ignores
+ * unknown fields. A request carrying either field is rejected so a stale
+ * client cannot believe it set a model.
  */
 export interface UpdateAdvisorConfigRequest {
-	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
-	 */
-	readonly enabled: boolean;
-	/**
-	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
-	 */
 	readonly max_uses_per_run: number;
-	/**
-	 * MaxOutputTokens caps the advisor model response tokens. 0 means
-	 * use the runtime default.
-	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific chat model config to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
+	 * DeprecatedModelConfigID rejects stale writes. See
+	 * ChatModelOverrideContextAdvisor for the replacement.
 	 */
-	readonly model_config_id: string;
+	readonly model_config_id?: string;
 	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
+	 * DeprecatedReasoningEffort rejects stale writes alongside
+	 * DeprecatedModelConfigID.
 	 */
 	readonly reasoning_effort?: string;
 }

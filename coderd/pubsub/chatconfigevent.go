@@ -41,6 +41,7 @@ type ChatConfigEvent struct {
 	//   - For model configs: the specific config ID.
 	//   - For user prompts: the user ID.
 	//   - For advisor config: uuid.Nil (singleton site-config row).
+	//   - For org-scoped model overrides: the organization ID.
 	EntityID uuid.UUID `json:"entity_id"`
 }
 
@@ -50,4 +51,10 @@ const (
 	ChatConfigEventModelConfig   ChatConfigEventKind = "model_config"
 	ChatConfigEventUserPrompt    ChatConfigEventKind = "user_prompt"
 	ChatConfigEventAdvisorConfig ChatConfigEventKind = "advisor_config"
+	// ChatConfigEventModelOverride covers the four shared per-org override
+	// contexts (general, explore, title generation, compaction).
+	ChatConfigEventModelOverride ChatConfigEventKind = "model_override"
+	// ChatConfigEventAdvisorModelOverride covers the per-org advisor model
+	// override.
+	ChatConfigEventAdvisorModelOverride ChatConfigEventKind = "advisor_model_override"
 )

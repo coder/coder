@@ -7,6 +7,7 @@ import {
 	chatModelConfigsByOrganization,
 	chatModels,
 	chatProviderConfigs,
+	userChatPersonalModelOverrides,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
@@ -136,8 +137,6 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
-	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
-	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
@@ -154,8 +153,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
-	rootPersonalModelOverride,
-	isPersonalModelOverridesLoading = false,
 	mcpServers,
 	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
@@ -216,6 +213,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const chatModelConfigsQuery = useQuery(
 		chatModelConfigsByOrganization(organizationId),
 	);
+	// Personal overrides are org-scoped; the root override that preselects
+	// the model must come from the organization the chat will be created in.
+	const personalModelOverridesQuery = useQuery({
+		...userChatPersonalModelOverrides(organizationId),
+		enabled: organizationId !== "",
+	});
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: canConfigureAgentSetup,
@@ -232,6 +235,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		userProviderConfigsQuery,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const resolvedRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
 	/*
 	 * Model precedence: user click > root override (specific model) > root
 	 * override (chat_default, resolved) > last-used > default > first available.
@@ -253,19 +260,20 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: "";
 	})();
 	const isUsableRootPersonalOverride =
-		rootPersonalModelOverride?.is_set === true &&
-		!rootPersonalModelOverride.is_malformed;
+		resolvedRootPersonalModelOverride?.is_set === true &&
+		!resolvedRootPersonalModelOverride.is_malformed;
 	const rootOverrideModelID =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "model" &&
+		resolvedRootPersonalModelOverride.mode === "model" &&
 		modelOptions.some(
-			(option) => option.id === rootPersonalModelOverride.model_config_id,
+			(option) =>
+				option.id === resolvedRootPersonalModelOverride.model_config_id,
 		)
-			? rootPersonalModelOverride.model_config_id
+			? resolvedRootPersonalModelOverride.model_config_id
 			: "";
 	const isRootOverrideChatDefault =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "chat_default";
+		resolvedRootPersonalModelOverride.mode === "chat_default";
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
@@ -302,7 +310,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// override applies to its own model even after a manual re-select.
 	const rootOverrideReasoningEffort =
 		selectedModel === rootOverrideModelID
-			? rootPersonalModelOverride?.reasoning_effort
+			? resolvedRootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
 		const stored = getReasoningEffortForModel(selectedModel);
@@ -578,7 +586,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isDisabled={
 							isCreating ||
 							isForbidden ||
-							isPersonalModelOverridesLoading ||
+							personalModelOverridesQuery.isLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}

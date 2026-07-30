@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -33,6 +33,13 @@ export const OrganizationModelsSwitcher: FC<
 > = ({ activeOrganization, organizations }) => {
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
+	const location = useLocation();
+	// The switcher serves every subpage under the organization route; keep
+	// the current subpage when swapping the organization segment.
+	const subpagePath = location.pathname.replace(
+		/^\/ai\/settings\/organizations\/[^/]+/,
+		"",
+	);
 
 	const sortedOrganizations = [...organizations].sort((a, b) => {
 		if (a.id === activeOrganization.id) return -1;
@@ -75,7 +82,7 @@ export const OrganizationModelsSwitcher: FC<
 										onSelect={() => {
 											setIsPopoverOpen(false);
 											navigate(
-												`/ai/settings/organizations/${organization.name}/models`,
+												`/ai/settings/organizations/${organization.name}${subpagePath}`,
 											);
 										}}
 										// There is currently an issue with the cmdk component for keyboard navigation

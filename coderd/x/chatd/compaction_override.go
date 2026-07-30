@@ -19,10 +19,18 @@ const compactionOverrideContext = "compaction"
 func readCompactionModelOverride(
 	ctx context.Context,
 	db database.Store,
+	orgID uuid.UUID,
 ) (string, error) {
+	key, err := ChatModelOverrideSiteConfigKey(
+		codersdk.ChatModelOverrideContextCompaction,
+		orgID,
+	)
+	if err != nil {
+		return "", err
+	}
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatCompactionModelOverride(chatdCtx)
+	raw, err := db.GetChatModelOverrideByOrganization(chatdCtx, key)
 	if err != nil {
 		return "", xerrors.Errorf(
 			"get chat compaction model override: %w",
@@ -58,16 +66,17 @@ type resolvedCompactionOverride struct {
 	ResolvedModel    string
 }
 
-// resolveCompactionOverrideConfig resolves the stored deployment-wide
-// compaction model override. Unset, malformed, stale, and credential-less
-// overrides fall back to the chat model (nil override). This runs on every
-// generation prepare because the override's context limit feeds the
-// compaction trigger; the model client is built only when compaction runs.
+// resolveCompactionOverrideConfig resolves the stored compaction model
+// override for the chat's organization. Unset, malformed, stale, and
+// credential-less overrides fall back to the chat model (nil override).
+// This runs on every generation prepare because the override's context
+// limit feeds the compaction trigger; the model client is built only when
+// compaction runs.
 func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (*resolvedCompactionOverride, error) {
-	raw, err := readCompactionModelOverride(ctx, p.db)
+	raw, err := readCompactionModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
 		return nil, xerrors.Errorf(
 			"read compaction model override: %w",
@@ -79,6 +88,7 @@ func (p *Server) resolveCompactionOverrideConfig(
 		ctx,
 		compactionOverrideContext,
 		raw,
+		chat.OrganizationID,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {

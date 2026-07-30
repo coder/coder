@@ -64,7 +64,7 @@ func TestResolveCompactionOverrideConfig_Unset(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return("", nil)
 
 	server := titleOverrideTestServer(db, logger)
 	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
@@ -81,7 +81,7 @@ func TestResolveCompactionOverrideConfig_ReadDBError(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return("", sql.ErrConnDone)
 
 	server := titleOverrideTestServer(db, logger)
 	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
@@ -99,7 +99,7 @@ func TestResolveCompactionOverrideConfig_MalformedFallsBack(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return("not-a-uuid", nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return("not-a-uuid", nil)
 
 	server := titleOverrideTestServer(db, logger)
 	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
@@ -117,7 +117,7 @@ func TestResolveCompactionOverrideConfig_DeletedConfigFallsBack(t *testing.T) {
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	missingID := uuid.New()
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(missingID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return(missingID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), missingID).Return(database.ChatModelConfig{}, sql.ErrNoRows)
 
 	server := titleOverrideTestServer(db, logger)
@@ -136,7 +136,7 @@ func TestResolveCompactionOverrideConfig_DisabledConfigFallsBack(t *testing.T) {
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
@@ -157,7 +157,7 @@ func TestResolveCompactionOverrideConfig_MissingCredentialsFallsBack(t *testing.
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
@@ -184,7 +184,7 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelOverrideByOrganization(gomock.Any(), overrideKeyForChat(t, codersdk.ChatModelOverrideContextCompaction, chat)).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{

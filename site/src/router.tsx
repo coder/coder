@@ -450,6 +450,9 @@ const AISettingsModelsPage = lazy(
 const AISettingsOrganizationModelsLayout = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/OrganizationModelsLayout"),
 );
+const AISettingsDefaultsPage = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/DefaultsPage"),
+);
 const AISettingsInstructionsPage = lazy(
 	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
 );
@@ -844,6 +847,7 @@ export const router = createBrowserRouter(
 							element={<AISettingsOrganizationModelsLayout />}
 						>
 							<Route path="models" element={<AISettingsModelsPage />} />
+							<Route path="defaults" element={<AISettingsDefaultsPage />} />
 							<Route path="models/add" element={<AISettingsAddModelPage />} />
 							<Route
 								path="models/:modelId"

@@ -25322,6 +25322,21 @@ func (q *sqlQuerier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
 	return advisor_config, err
 }
 
+const getChatAdvisorModelOverride = `-- name: GetChatAdvisorModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_model_override:' || $1::text), '') :: text AS model_override
+`
+
+// GetChatAdvisorModelOverride returns the per-organization advisor model
+// override for the given organization, or ” when unset. The value format
+// matches the other model override contexts: '<model-config-id>[:<effort>]'.
+func (q *sqlQuerier) GetChatAdvisorModelOverride(ctx context.Context, organizationID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatAdvisorModelOverride, organizationID)
+	var model_override string
+	err := row.Scan(&model_override)
+	return model_override, err
+}
+
 const getChatAutoArchiveDays = `-- name: GetChatAutoArchiveDays :one
 SELECT COALESCE(
     (SELECT value::integer FROM site_configs
@@ -25336,18 +25351,6 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	var auto_archive_days int32
 	err := row.Scan(&auto_archive_days)
 	return auto_archive_days, err
-}
-
-const getChatCompactionModelOverride = `-- name: GetChatCompactionModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
 }
 
 const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
@@ -25405,30 +25408,6 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
-const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
-const getChatGeneralModelOverride = `-- name: GetChatGeneralModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -25451,6 +25430,56 @@ func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (boo
 	var include_default_system_prompt bool
 	err := row.Scan(&include_default_system_prompt)
 	return include_default_system_prompt, err
+}
+
+const getChatModelOverrideByOrganization = `-- name: GetChatModelOverrideByOrganization :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = $1::text), '') :: text AS model_override
+`
+
+// GetChatModelOverrideByOrganization returns one per-organization chat
+// model override value, or ” when unset. The @key argument is the full
+// key, built in Go from the fixed agents_chat_<context>_model_override
+// family plus the organization UUID; the SQL layer does not accept a
+// free-form prefix. The value format is '<model-config-id>[:<effort>]'.
+func (q *sqlQuerier) GetChatModelOverrideByOrganization(ctx context.Context, key string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelOverrideByOrganization, key)
+	var model_override string
+	err := row.Scan(&model_override)
+	return model_override, err
+}
+
+const getChatModelOverridesByOrganization = `-- name: GetChatModelOverridesByOrganization :many
+SELECT key, value FROM site_configs
+WHERE key LIKE 'agents\_chat\_%\_model\_override:' || $1::text
+   OR key = 'agents_advisor_model_override:' || $1::text
+ORDER BY key
+`
+
+// GetChatModelOverridesByOrganization returns every per-organization chat
+// model override value for the given organization, keyed by site_configs key.
+// Resolution and advisor telemetry read through this single query.
+func (q *sqlQuerier) GetChatModelOverridesByOrganization(ctx context.Context, organizationID string) ([]SiteConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelOverridesByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SiteConfig
+	for rows.Next() {
+		var i SiteConfig
+		if err := rows.Scan(&i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatPersonalModelOverridesEnabled = `-- name: GetChatPersonalModelOverridesEnabled :one
@@ -25553,18 +25582,6 @@ func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, erro
 	var template_allowlist string
 	err := row.Scan(&template_allowlist)
 	return template_allowlist, err
-}
-
-const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
 }
 
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
@@ -25793,6 +25810,24 @@ func (q *sqlQuerier) UpsertChatAdvisorConfig(ctx context.Context, value string) 
 	return err
 }
 
+const upsertChatAdvisorModelOverride = `-- name: UpsertChatAdvisorModelOverride :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_advisor_model_override:' || $1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
+`
+
+type UpsertChatAdvisorModelOverrideParams struct {
+	OrganizationID string `db:"organization_id" json:"organization_id"`
+	Value          string `db:"value" json:"value"`
+}
+
+// UpsertChatAdvisorModelOverride stores the per-organization advisor model
+// override for the given organization.
+func (q *sqlQuerier) UpsertChatAdvisorModelOverride(ctx context.Context, arg UpsertChatAdvisorModelOverrideParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatAdvisorModelOverride, arg.OrganizationID, arg.Value)
+	return err
+}
+
 const upsertChatAutoArchiveDays = `-- name: UpsertChatAutoArchiveDays :exec
 INSERT INTO site_configs (key, value)
 VALUES ('agents_chat_auto_archive_days', CAST($1 AS integer)::text)
@@ -25802,16 +25837,6 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
-	return err
-}
-
-const upsertChatCompactionModelOverride = `-- name: UpsertChatCompactionModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverride, value)
 	return err
 }
 
@@ -25883,26 +25908,6 @@ func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop
 	return err
 }
 
-const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
-	return err
-}
-
-const upsertChatGeneralModelOverride = `-- name: UpsertChatGeneralModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
-	return err
-}
-
 const upsertChatIncludeDefaultSystemPrompt = `-- name: UpsertChatIncludeDefaultSystemPrompt :exec
 INSERT INTO site_configs (key, value)
 VALUES (
@@ -25922,6 +25927,25 @@ WHERE site_configs.key = 'agents_chat_include_default_system_prompt'
 
 func (q *sqlQuerier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatIncludeDefaultSystemPrompt, includeDefaultSystemPrompt)
+	return err
+}
+
+const upsertChatModelOverrideByOrganization = `-- name: UpsertChatModelOverrideByOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ($1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
+`
+
+type UpsertChatModelOverrideByOrganizationParams struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
+// UpsertChatModelOverrideByOrganization stores one per-organization chat
+// model override value under the given full key (fixed family, built in
+// Go with the organization UUID suffix).
+func (q *sqlQuerier) UpsertChatModelOverrideByOrganization(ctx context.Context, arg UpsertChatModelOverrideByOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatModelOverrideByOrganization, arg.Key, arg.Value)
 	return err
 }
 
@@ -25988,16 +26012,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_temp
 
 func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
-	return err
-}
-
-const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
 	return err
 }
 
@@ -31578,17 +31592,24 @@ func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userI
 const listUserChatPersonalModelOverrides = `-- name: ListUserChatPersonalModelOverrides :many
 SELECT key, value FROM user_configs
 WHERE user_id = $1
-	AND key LIKE 'chat\_personal\_model\_override:%'
+	AND key LIKE 'chat\_personal\_model\_override:' || $2::text || ':%'
 ORDER BY key
 `
+
+type ListUserChatPersonalModelOverridesParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID string    `db:"organization_id" json:"organization_id"`
+}
 
 type ListUserChatPersonalModelOverridesRow struct {
 	Key   string `db:"key" json:"key"`
 	Value string `db:"value" json:"value"`
 }
 
-func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, userID)
+// Returns the caller's personal model override rows for one organization.
+// Keys carry the organization UUID: chat_personal_model_override:<org-uuid>:{context}.
+func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, arg ListUserChatPersonalModelOverridesParams) ([]ListUserChatPersonalModelOverridesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, arg.UserID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}

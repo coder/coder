@@ -151,7 +151,6 @@ describe("advisor config query factories", () => {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
 		};
 		vi.mocked(API.experimental.getChatAdvisorConfig).mockResolvedValue(
 			advisorConfig,
@@ -174,10 +173,8 @@ describe("advisor config query factories", () => {
 		} as TypesGen.AdvisorConfig);
 
 		const req: TypesGen.UpdateAdvisorConfigRequest = {
-			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
 		};
 		vi.mocked(API.experimental.updateChatAdvisorConfig).mockResolvedValue();
 

@@ -5731,12 +5731,13 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		thresholdPercent  = int32(70)
 	)
 
-	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, modelName, effort string, contextLimit int64) database.ChatModelConfig {
+	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, orgID uuid.UUID, chatModel database.ChatModelConfig, modelName, effort string, contextLimit int64) database.ChatModelConfig {
 		t.Helper()
 		overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        modelName,
-			AIProviderID: chatModel.AIProviderID,
-			ContextLimit: contextLimit,
+			Model:          modelName,
+			AIProviderID:   chatModel.AIProviderID,
+			ContextLimit:   contextLimit,
+			OrganizationID: orgID,
 		})
 		overrideModel = updateChatModelCallConfig(t, db, overrideModel, codersdk.ChatModelCallConfig{
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
@@ -5744,7 +5745,12 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		compactionOverrideKey, err := chatd.ChatModelOverrideSiteConfigKey(codersdk.ChatModelOverrideContextCompaction, orgID)
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertChatModelOverrideByOrganization(ctx, database.UpsertChatModelOverrideByOrganizationParams{
+			Key:   compactionOverrideKey,
+			Value: overrideModel.ID.String(),
+		}))
 		return overrideModel
 	}
 
@@ -5823,7 +5829,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			})
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
-			overrideModel := seedOverrideModel(ctx, t, db, model, tc.overrideModel, tc.effort, 1_000_000)
+			overrideModel := seedOverrideModel(ctx, t, db, org.ID, model, tc.overrideModel, tc.effort, 1_000_000)
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 			ctrl := gomock.NewController(t)
@@ -5930,7 +5936,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		// limit makes the effective threshold 70 tokens, so compaction
 		// must trigger.
 		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
-		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		seedOverrideModel(ctx, t, db, org.ID, model, overrideModelName, "high", 100)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 		ctrl := gomock.NewController(t)

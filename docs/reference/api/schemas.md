@@ -3943,6 +3943,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)     | false    |              |             |
 | `user`                | string                                                                       | false    |              |             |
 
+## codersdk.ChatModelOverrideContext
+
+```json
+"general"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                          |
+|-------------------------------------------------------------------|
+| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+
+## codersdk.ChatModelOverrideResponse
+
+```json
+{
+  "context": "general",
+  "is_malformed": true,
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                   | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`          | [codersdk.ChatModelOverrideContext](#codersdkchatmodeloverridecontext) | false    |              |             |
+| `is_malformed`     | boolean                                                                | false    |              |             |
+| `model_config_id`  | string                                                                 | false    |              |             |
+| `reasoning_effort` | string                                                                 | false    |              |             |
+
 ## codersdk.ChatModelProvider
 
 ```json
@@ -15093,6 +15127,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `is_default`            | boolean                                                      | false    |              |             |
 | `model`                 | string                                                       | false    |              |             |
 | `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+
+## codersdk.UpdateChatModelOverrideRequest
+
+```json
+{
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `model_config_id`  | string | false    |              |             |
+| `reasoning_effort` | string | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 

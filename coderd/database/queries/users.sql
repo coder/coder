@@ -285,9 +285,11 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
 -- name: ListUserChatPersonalModelOverrides :many
+-- Returns the caller's personal model override rows for one organization.
+-- Keys carry the organization UUID: chat_personal_model_override:<org-uuid>:{context}.
 SELECT key, value FROM user_configs
 WHERE user_id = @user_id
-	AND key LIKE 'chat\_personal\_model\_override:%'
+	AND key LIKE 'chat\_personal\_model\_override:' || @organization_id::text || ':%'
 ORDER BY key;
 
 -- name: GetUserChatPersonalModelOverride :one

@@ -9,17 +9,22 @@ import (
 )
 
 // ChatPersonalModelOverrideKeyPrefix is the user config key prefix for
-// chat personal model overrides. Values under this prefix should be parsed
-// with ParseChatPersonalModelOverride so malformed values use one fallback.
+// chat personal model overrides. Keys carry the organization UUID between
+// the prefix and the context:
+// chat_personal_model_override:<org-uuid>:{context}. Values under this
+// prefix should be parsed with ParseChatPersonalModelOverride so malformed
+// values use one fallback.
 const ChatPersonalModelOverrideKeyPrefix = "chat_personal_model_override:"
 
 // ChatPersonalModelOverrideKey returns the user config key for a chat
-// personal model override context. Values stored at the returned key should
-// use ParseChatPersonalModelOverride so malformed values fall back safely.
+// personal model override context in the given organization. Values stored
+// at the returned key should use ParseChatPersonalModelOverride so
+// malformed values fall back safely.
 func ChatPersonalModelOverrideKey(
+	orgID uuid.UUID,
 	overrideContext codersdk.ChatPersonalModelOverrideContext,
 ) string {
-	return ChatPersonalModelOverrideKeyPrefix + string(overrideContext)
+	return ChatPersonalModelOverrideKeyPrefix + orgID.String() + ":" + string(overrideContext)
 }
 
 // ParsedChatPersonalModelOverride is a parsed personal model override value.

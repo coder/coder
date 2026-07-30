@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router";
+import { NavLink, Outlet, useParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -66,6 +66,28 @@ const OrganizationModelsLayout: FC = () => {
 						organizations={manageableOrganizations}
 					/>
 				</div>
+				<nav aria-label="Organization model settings" className="flex gap-4">
+					<NavLink
+						to="models"
+						className={({ isActive }) =>
+							isActive
+								? "text-sm font-medium text-content-primary"
+								: "text-sm text-content-secondary hover:text-content-primary"
+						}
+					>
+						Models
+					</NavLink>
+					<NavLink
+						to="defaults"
+						className={({ isActive }) =>
+							isActive
+								? "text-sm font-medium text-content-primary"
+								: "text-sm text-content-secondary hover:text-content-primary"
+						}
+					>
+						Defaults &amp; overrides
+					</NavLink>
+				</nav>
 				<Outlet />
 			</div>
 		</OrganizationModelsContext.Provider>

@@ -3,7 +3,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import {
+	CompactOrgSelector,
+	type ModelSelectorOption,
+} from "./components/ChatElements";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,
@@ -11,6 +14,9 @@ import {
 import { SectionHeader } from "./components/SectionHeader";
 
 export interface AgentSettingsUserAgentsPageViewProps {
+	organizations: readonly TypesGen.Organization[];
+	selectedOrganization: TypesGen.Organization | null;
+	onOrganizationChange: (organization: TypesGen.Organization) => void;
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;
 	overridesError: unknown;
 	onRetryOverrides?: () => void;
@@ -20,7 +26,7 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsError: unknown;
 	isLoadingModels: boolean;
-	hasNoDefaultOrgModels?: boolean;
+	hasNoOrgModels?: boolean;
 	onSaveRootModelOverride: SavePersonalOverride;
 	isSavingRootModelOverride: boolean;
 	isSaveRootModelOverrideError: boolean;
@@ -35,6 +41,9 @@ export interface AgentSettingsUserAgentsPageViewProps {
 export const AgentSettingsUserAgentsPageView: FC<
 	AgentSettingsUserAgentsPageViewProps
 > = ({
+	organizations,
+	selectedOrganization,
+	onOrganizationChange,
 	overridesData,
 	overridesError,
 	onRetryOverrides,
@@ -44,7 +53,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 	modelConfigs,
 	modelConfigsError,
 	isLoadingModels,
-	hasNoDefaultOrgModels = false,
+	hasNoOrgModels = false,
 	onSaveRootModelOverride,
 	isSavingRootModelOverride,
 	isSaveRootModelOverrideError,
@@ -57,8 +66,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 }) => {
 	const personalOverridesEnabled = overridesData?.enabled ?? true;
 	const isLoading = isLoadingOverrides || isLoadingModels;
-	const isDisabled =
-		isLoading || !personalOverridesEnabled || hasNoDefaultOrgModels;
+	const isDisabled = isLoading || !personalOverridesEnabled || hasNoOrgModels;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -66,6 +74,16 @@ export const AgentSettingsUserAgentsPageView: FC<
 				label="Agents"
 				description="Choose personal model defaults for root agents and delegated agents."
 			/>
+			{organizations.length > 1 && (
+				<div className="flex flex-col gap-2">
+					<span className="text-sm text-content-secondary">Organization</span>
+					<CompactOrgSelector
+						value={selectedOrganization}
+						options={organizations}
+						onChange={onOrganizationChange}
+					/>
+				</div>
+			)}
 			{overridesError ? (
 				<div className="flex flex-col gap-2">
 					<ErrorAlert error={overridesError} />
@@ -90,12 +108,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 					</AlertDescription>
 				</Alert>
 			)}
-			{hasNoDefaultOrgModels && (
+			{hasNoOrgModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						Personal model overrides are managed per organization in a later
-						release. None of your organizations have models in the default
-						organization yet, so there are no models to override.
+						The selected organization has no models configured yet, so there are
+						no models to override.
 					</AlertDescription>
 				</Alert>
 			)}

@@ -1346,6 +1346,16 @@ func New(options *Options) *API {
 			r.Get("/", api.listChatModelConfigsByOrganization)
 			r.Post("/", api.createChatModelConfig)
 		})
+		// Org-scoped chat model overrides. The values live in per-org
+		// site_configs keys; the org dimension comes from the route.
+		r.Route("/organizations/{organization}/chats/config/model-override", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/{context}", api.getOrganizationChatModelOverride)
+			r.Put("/{context}", api.putOrganizationChatModelOverride)
+		})
 		// Item-level chat model config routes resolve the org from the row.
 		r.Route("/chat-model-configs", func(r chi.Router) {
 			r.Use(
@@ -1391,8 +1401,6 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/model-override/{context}", api.getChatModelOverride)
-				r.Put("/model-override/{context}", api.putChatModelOverride)
 				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
 				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)

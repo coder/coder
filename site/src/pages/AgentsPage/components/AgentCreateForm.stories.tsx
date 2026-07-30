@@ -13,6 +13,7 @@ import {
 	chatModelConfigsByOrganizationKey,
 	chatModelsKey,
 	chatProviderConfigsKey,
+	userChatPersonalModelOverridesKey,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -104,10 +105,12 @@ const modelQueries = ({
 	configs = defaultModelConfigs,
 	catalog = defaultModelCatalog,
 	userProviderConfigs = defaultUserProviderConfigs,
+	rootOverride,
 }: {
 	configs?: TypesGen.ChatModelConfig[];
 	catalog?: TypesGen.ChatModelsResponse;
 	userProviderConfigs?: TypesGen.UserChatProviderConfig[];
+	rootOverride?: TypesGen.ChatPersonalModelOverride;
 } = {}) => [
 	{
 		key: chatModelConfigsByOrganizationKey(MockDefaultOrganization.id),
@@ -115,6 +118,10 @@ const modelQueries = ({
 	},
 	{ key: chatModelsKey, data: catalog },
 	{ key: userChatProviderConfigsKey, data: userProviderConfigs },
+	{
+		key: userChatPersonalModelOverridesKey(MockDefaultOrganization.id),
+		data: buildPersonalOverridesResponse(rootOverride),
+	},
 ];
 
 const buildRootPersonalModelOverride = (
@@ -126,6 +133,39 @@ const buildRootPersonalModelOverride = (
 	is_set: true,
 	is_malformed: false,
 	...overrides,
+});
+
+const buildPersonalOverridesResponse = (
+	rootOverride?: TypesGen.ChatPersonalModelOverride,
+): TypesGen.UserChatPersonalModelOverridesResponse => ({
+	enabled: true,
+	root: rootOverride ?? buildRootPersonalModelOverride({ is_set: false }),
+	general: {
+		context: "general",
+		mode: "deployment_default",
+		model_config_id: "",
+		is_set: false,
+		is_malformed: false,
+	},
+	explore: {
+		context: "explore",
+		mode: "deployment_default",
+		model_config_id: "",
+		is_set: false,
+		is_malformed: false,
+	},
+	deployment_defaults: {
+		general: {
+			context: "general",
+			model_config_id: "",
+			is_malformed: false,
+		},
+		explore: {
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		},
+	},
 });
 
 const mock403Error = Object.assign(
@@ -211,9 +251,13 @@ export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: claudeModelConfigID,
+	},
+	parameters: {
+		queries: modelQueries({
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: claudeModelConfigID,
+			}),
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -233,9 +277,13 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "chat_default",
-			model_config_id: "",
+	},
+	parameters: {
+		queries: modelQueries({
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "chat_default",
+				model_config_id: "",
+			}),
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -255,11 +303,15 @@ export const RootOverrideMissingFromCatalog: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: "model-does-not-exist",
-			is_set: true,
-			is_malformed: false,
+	},
+	parameters: {
+		queries: modelQueries({
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: "model-does-not-exist",
+				is_set: true,
+				is_malformed: false,
+			}),
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -279,10 +331,14 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: claudeModelConfigID,
-			is_malformed: true,
+	},
+	parameters: {
+		queries: modelQueries({
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: claudeModelConfigID,
+				is_malformed: true,
+			}),
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -327,9 +383,13 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "chat_default",
-			model_config_id: "",
+	},
+	parameters: {
+		queries: modelQueries({
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "chat_default",
+				model_config_id: "",
+			}),
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -425,14 +485,16 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "high",
-		}),
 	},
 	parameters: {
-		queries: modelQueries({ configs: effortModelConfigs }),
+		queries: modelQueries({
+			configs: effortModelConfigs,
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: modelConfigID,
+				reasoning_effort: "high",
+			}),
+		}),
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -461,14 +523,16 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 export const ManualReselectKeepsRootOverrideEffort: Story = {
 	args: {
 		...defaultArgs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "high",
-		}),
 	},
 	parameters: {
-		queries: modelQueries({ configs: effortModelConfigs }),
+		queries: modelQueries({
+			configs: effortModelConfigs,
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: modelConfigID,
+				reasoning_effort: "high",
+			}),
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -490,11 +554,6 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "medium",
-		}),
 	},
 	parameters: {
 		queries: modelQueries({
@@ -505,6 +564,11 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 					reasoning_efforts: ["low", "medium"],
 				}),
 			],
+			rootOverride: buildRootPersonalModelOverride({
+				mode: "model",
+				model_config_id: modelConfigID,
+				reasoning_effort: "medium",
+			}),
 		}),
 	},
 	beforeEach: () => {
@@ -712,9 +776,22 @@ export const LoadingModelCatalog: Story = {
 };
 
 export const LoadingPersonalModelOverrides: Story = {
+	// Leave the personal overrides query unseeded so it stays pending.
+	parameters: {
+		queries: [
+			{
+				key: chatModelConfigsByOrganizationKey(MockDefaultOrganization.id),
+				data: defaultModelConfigs,
+			},
+			{ key: chatModelsKey, data: defaultModelCatalog },
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
 	args: {
 		...defaultArgs,
-		isPersonalModelOverridesLoading: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1112,5 +1189,88 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+const org2ClaudeModelConfigID = "model-config-org2-claude";
+const org2ModelConfigs: TypesGen.ChatModelConfig[] = [
+	buildModelConfig({
+		id: "model-config-org2-gemini",
+		organization_id: MockOrganization2.id,
+		model: "gemini-2.5-pro",
+		display_name: "Gemini 2.5 Pro",
+		is_default: true,
+	}),
+	buildModelConfig({
+		id: org2ClaudeModelConfigID,
+		organization_id: MockOrganization2.id,
+		ai_provider_id: "provider-anthropic",
+		model: "claude-opus-4",
+		display_name: "Claude Opus 4",
+		context_limit: 200_000,
+	}),
+];
+
+export const RootOverrideFollowsSelectedOrganization: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...modelQueries({
+				rootOverride: buildRootPersonalModelOverride({
+					mode: "chat_default",
+					model_config_id: "",
+				}),
+			}),
+			{
+				key: chatModelConfigsByOrganizationKey(MockOrganization2.id),
+				data: org2ModelConfigs,
+			},
+			{
+				key: userChatPersonalModelOverridesKey(MockOrganization2.id),
+				data: buildPersonalOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: org2ClaudeModelConfigID,
+					}),
+				),
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The default org's chat-default override preselects its default model.
+		await canvas.findByRole("combobox", { name: "GPT-4o" });
+
+		// Switching orgs swaps the available models and the root override.
+		await userEvent.click(await canvas.findByTestId("compact-org-selector"));
+		await userEvent.click(
+			await body.findByRole("option", { name: /My Organization 2/i }),
+		);
+		await canvas.findByRole("combobox", { name: "Claude Opus 4" });
+		expect(
+			canvas.queryByRole("combobox", { name: "GPT-4o" }),
+		).not.toBeInTheDocument();
+
+		await submitMessage(canvasElement, "create in second org");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { organizationId: string; model?: string } | undefined;
+		expect(options?.organizationId).toBe(MockOrganization2.id);
+		expect(options?.model).toBe(org2ClaudeModelConfigID);
 	},
 };

@@ -3,6 +3,10 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
+import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
@@ -151,6 +155,9 @@ const buildOverridesResponse = (
 const buildArgs = (
 	overrides: Partial<AgentSettingsUserAgentsPageViewProps> = {},
 ): AgentSettingsUserAgentsPageViewProps => ({
+	organizations: [MockDefaultOrganization],
+	selectedOrganization: MockDefaultOrganization,
+	onOrganizationChange: fn(),
 	overridesData: buildOverridesResponse(),
 	overridesError: undefined,
 	onRetryOverrides: fn(),
@@ -214,6 +221,10 @@ type Story = StoryObj<typeof AgentSettingsUserAgentsPageView>;
 export const EnabledWithNoSavedValues: Story = {
 	args: buildArgs(),
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /organization:/i }),
+		).not.toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		const generalSection = await getSection(
 			canvasElement,
@@ -698,9 +709,9 @@ export const SaveErrorState: Story = {
 	},
 };
 
-export const NoDefaultOrgModels: Story = {
+export const NoOrgModels: Story = {
 	args: buildArgs({
-		hasNoDefaultOrgModels: true,
+		hasNoOrgModels: true,
 		modelOptions: [],
 		modelConfigs: [],
 	}),
@@ -708,13 +719,34 @@ export const NoDefaultOrgModels: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByText(
-				/Personal model overrides are managed per organization/i,
+				/The selected organization has no models configured yet/i,
 			),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
 			within(rootSection).getByRole("button", { name: "Save" }),
 		).toBeDisabled();
+	},
+};
+
+export const SwitchOrganization: Story = {
+	args: buildArgs({
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	}),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /organization: my organization/i }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("option", { name: /My Organization 2/i }),
+		);
+		await waitFor(() => {
+			expect(args.onOrganizationChange).toHaveBeenCalledWith(
+				expect.objectContaining({ id: MockOrganization2.id }),
+			);
+		});
 	},
 };
 

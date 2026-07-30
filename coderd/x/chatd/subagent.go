@@ -130,22 +130,51 @@ func subagentModelOverrideLogLabel(
 	}
 }
 
+// ChatModelOverrideSiteConfigKey returns the per-organization site_configs
+// key carrying the given chat model override context's value for orgID.
+// The key family is fixed; the organization is always the UUID suffix,
+// never the mutable organization name. The advisor context lives in its
+// own key family.
+func ChatModelOverrideSiteConfigKey(
+	overrideContext codersdk.ChatModelOverrideContext,
+	orgID uuid.UUID,
+) (string, error) {
+	switch overrideContext {
+	case codersdk.ChatModelOverrideContextGeneral,
+		codersdk.ChatModelOverrideContextExplore,
+		codersdk.ChatModelOverrideContextTitleGeneration,
+		codersdk.ChatModelOverrideContextCompaction:
+		return "agents_chat_" + string(overrideContext) + "_model_override:" + orgID.String(), nil
+	case codersdk.ChatModelOverrideContextAdvisor:
+		return "agents_advisor_model_override:" + orgID.String(), nil
+	default:
+		return "", xerrors.Errorf(
+			"unsupported chat model override context %q",
+			overrideContext,
+		)
+	}
+}
+
 func readSubagentModelOverride(
 	ctx context.Context,
 	db database.Store,
+	orgID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (string, error) {
 	switch overrideContext {
-	case codersdk.ChatModelOverrideContextGeneral:
-		return db.GetChatGeneralModelOverride(ctx)
-	case codersdk.ChatModelOverrideContextExplore:
-		return db.GetChatExploreModelOverride(ctx)
+	case codersdk.ChatModelOverrideContextGeneral,
+		codersdk.ChatModelOverrideContextExplore:
 	default:
 		return "", xerrors.Errorf(
 			"unsupported subagent model override context %q",
 			overrideContext,
 		)
 	}
+	key, err := ChatModelOverrideSiteConfigKey(overrideContext, orgID)
+	if err != nil {
+		return "", err
+	}
+	return db.GetChatModelOverrideByOrganization(ctx, key)
 }
 
 func personalModelOverrideContextForSubagent(
@@ -187,11 +216,15 @@ func modelOverrideErrorLabel(overrideContext string) string {
 // resolveConfiguredModelOverride returns ok when a usable override is
 // resolved. In hard failure mode, ok is also true for configured but unusable
 // overrides so callers can distinguish them from unset or malformed values.
-// The normalized provider name is only meaningful for a usable override.
+// The normalized provider name is only meaningful for a usable override. A
+// resolved config outside orgID is treated as unavailable: cross-org model
+// use is never silent, and a stored override naming another org's config
+// behaves exactly like one naming a missing row.
 func (p *Server) resolveConfiguredModelOverride(
 	ctx context.Context,
 	overrideContext string,
 	raw string,
+	orgID uuid.UUID,
 	ownerID uuid.UUID,
 	resolveModelConfig modelOverrideConfigResolver,
 	resolveProviderKeys modelOverrideProviderKeysResolver,
@@ -214,6 +247,9 @@ func (p *Server) resolveConfiguredModelOverride(
 		ctx,
 		parsed.modelConfigID,
 	)
+	if err == nil && modelConfig.OrganizationID != orgID {
+		err = sql.ErrNoRows
+	}
 	if err != nil {
 		if failureMode == modelOverrideFailureModeHard {
 			label := modelOverrideErrorLabel(overrideContext)
@@ -295,6 +331,7 @@ func (p *Server) resolveConfiguredModelOverride(
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
 	ctx context.Context,
+	orgID uuid.UUID,
 	ownerID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, bool, error) {
@@ -306,7 +343,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 		ctx,
 		database.GetUserChatPersonalModelOverrideParams{
 			UserID: ownerID,
-			Key:    ChatPersonalModelOverrideKey(personalContext),
+			Key:    ChatPersonalModelOverrideKey(orgID, personalContext),
 		},
 	)
 	if err != nil {
@@ -340,6 +377,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 		modelConfig, ok, err := p.resolvePersonalModelOverride(
 			ctx,
 			overrideContext,
+			orgID,
 			ownerID,
 			parsed.ModelConfigID,
 		)
@@ -364,6 +402,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 func (p *Server) resolvePersonalModelOverride(
 	ctx context.Context,
 	overrideContext codersdk.ChatModelOverrideContext,
+	orgID uuid.UUID,
 	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, bool, error) {
@@ -371,6 +410,11 @@ func (p *Server) resolvePersonalModelOverride(
 		ctx,
 		modelConfigID,
 	)
+	// Personal overrides are per-(user, org): a config outside the override's
+	// org resolves exactly like an unavailable one.
+	if err == nil && modelConfig.OrganizationID != orgID {
+		err = sql.ErrNoRows
+	}
 	if err != nil {
 		switch {
 		case xerrors.Is(err, sql.ErrNoRows):
@@ -453,6 +497,7 @@ func withResolvedReasoningEffort(
 
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
+	orgID uuid.UUID,
 	ownerID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, error) {
@@ -468,6 +513,7 @@ func (p *Server) resolveSubagentModelConfigID(
 	if personalOverridesEnabled {
 		modelConfigID, reasoningEffort, resolved, err := p.resolvePersonalSubagentModelConfigID(
 			chatdCtx,
+			orgID,
 			ownerID,
 			overrideContext,
 		)
@@ -479,7 +525,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		}
 	}
 
-	raw, err := readSubagentModelOverride(chatdCtx, p.db, overrideContext)
+	raw, err := readSubagentModelOverride(chatdCtx, p.db, orgID, overrideContext)
 	if err != nil {
 		return uuid.Nil, nil, xerrors.Errorf(
 			"get %s model override: %w",
@@ -491,6 +537,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		chatdCtx,
 		string(overrideContext),
 		raw,
+		orgID,
 		ownerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		p.resolveUserProviderAPIKeys,

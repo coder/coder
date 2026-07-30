@@ -1738,6 +1738,34 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// chatModelOverrideOrgFromKey extracts the organization UUID from a
+// per-organization chat model override site_configs key. Keys are built
+// from the fixed families declared by chatd.ChatModelOverrideSiteConfigKey
+// (agents_chat_<context>_model_override:<org-uuid> for the four shared
+// contexts, agents_advisor_model_override:<org-uuid> for the advisor);
+// anything outside those families is rejected so the authorized org always
+// matches the queried key's family.
+func chatModelOverrideOrgFromKey(key string) (uuid.UUID, error) {
+	family, suffix, found := strings.Cut(key, ":")
+	if !found {
+		return uuid.Nil, xerrors.Errorf("chat model override key %q has no organization suffix", key)
+	}
+	switch family {
+	case "agents_chat_general_model_override",
+		"agents_chat_explore_model_override",
+		"agents_chat_title_generation_model_override",
+		"agents_chat_compaction_model_override",
+		"agents_advisor_model_override":
+	default:
+		return uuid.Nil, xerrors.Errorf("chat model override key %q is outside the fixed override key family", key)
+	}
+	orgID, err := uuid.Parse(suffix)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("chat model override key %q has invalid organization suffix: %w", key, err)
+	}
+	return orgID, nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -3095,6 +3123,20 @@ func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
 	return q.db.GetChatAdvisorConfig(ctx)
 }
 
+func (q *querier) GetChatAdvisorModelOverride(ctx context.Context, organizationID string) (string, error) {
+	// Override values live in site_configs, not in a model config row, so
+	// authorization is an authorizeContext against the org's
+	// ResourceChatModelConfig object, not a fetch-then-authorize.
+	orgID, err := uuid.Parse(organizationID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(orgID)); err != nil {
+		return "", err
+	}
+	return q.db.GetChatAdvisorModelOverride(ctx, organizationID)
+}
+
 func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	// Chat auto-archive is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context. The HTTP GET handler
@@ -3116,13 +3158,6 @@ func (q *querier) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (databa
 
 func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
-}
-
-func (q *querier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatCompactionModelOverride(ctx)
 }
 
 func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
@@ -3285,13 +3320,6 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 }
 
-func (q *querier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatExploreModelOverride(ctx)
-}
-
 func (q *querier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	// This is a read-only query: it returns the chat IDs that belong
 	// to a family. Authorize as Read against the root chat. The
@@ -3393,13 +3421,6 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 
 func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
-}
-
-func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatGeneralModelOverride(ctx)
 }
 
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
@@ -3507,6 +3528,34 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
 }
 
+func (q *querier) GetChatModelOverrideByOrganization(ctx context.Context, key string) (string, error) {
+	// The organization is encoded in the site_configs key suffix. Parse it
+	// rather than accepting a separate org argument so the authorized org
+	// always matches the queried key. Override values live in site_configs,
+	// not in a model config row, so authorization is an authorizeContext
+	// against the org's ResourceChatModelConfig object, not a
+	// fetch-then-authorize.
+	orgID, err := chatModelOverrideOrgFromKey(key)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(orgID)); err != nil {
+		return "", err
+	}
+	return q.db.GetChatModelOverrideByOrganization(ctx, key)
+}
+
+func (q *querier) GetChatModelOverridesByOrganization(ctx context.Context, organizationID string) ([]database.SiteConfig, error) {
+	orgID, err := uuid.Parse(organizationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(orgID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatModelOverridesByOrganization(ctx, organizationID)
+}
+
 func (q *querier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatModelUsageCostByChatIDRow, error) {
 	if _, err := q.GetChatByID(ctx, chatID); err != nil {
 		return database.GetChatModelUsageCostByChatIDRow{}, err
@@ -3612,13 +3661,6 @@ func (q *querier) GetChatTemplateAllowlist(ctx context.Context) (string, error) 
 		return "", err
 	}
 	return q.db.GetChatTemplateAllowlist(ctx)
-}
-
-func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatTitleGenerationModelOverride(ctx)
 }
 
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
@@ -6909,15 +6951,15 @@ func (q *querier) ListUserChatCompactionThresholds(ctx context.Context, userID u
 	return q.db.ListUserChatCompactionThresholds(ctx, userID)
 }
 
-func (q *querier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]database.ListUserChatPersonalModelOverridesRow, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
+func (q *querier) ListUserChatPersonalModelOverrides(ctx context.Context, arg database.ListUserChatPersonalModelOverridesParams) ([]database.ListUserChatPersonalModelOverridesRow, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
 		return nil, err
 	}
-	return q.db.ListUserChatPersonalModelOverrides(ctx, userID)
+	return q.db.ListUserChatPersonalModelOverrides(ctx, arg)
 }
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
@@ -8866,18 +8908,24 @@ func (q *querier) UpsertChatAdvisorConfig(ctx context.Context, value string) err
 	return q.db.UpsertChatAdvisorConfig(ctx, value)
 }
 
+func (q *querier) UpsertChatAdvisorModelOverride(ctx context.Context, arg database.UpsertChatAdvisorModelOverrideParams) error {
+	// See GetChatAdvisorModelOverride for why this is an authorizeContext
+	// rather than a fetch-then-authorize.
+	orgID, err := uuid.Parse(arg.OrganizationID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(orgID)); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAdvisorModelOverride(ctx, arg)
+}
+
 func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
-}
-
-func (q *querier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatCompactionModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
@@ -8932,20 +8980,6 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
 }
 
-func (q *querier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatExploreModelOverride(ctx, value)
-}
-
-func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatGeneralModelOverride(ctx, value)
-}
-
 func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -8963,6 +8997,19 @@ func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, incl
 		return err
 	}
 	return q.db.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
+}
+
+func (q *querier) UpsertChatModelOverrideByOrganization(ctx context.Context, arg database.UpsertChatModelOverrideByOrganizationParams) error {
+	// See GetChatModelOverrideByOrganization for how the org is derived
+	// from the key and why this is an authorizeContext.
+	orgID, err := chatModelOverrideOrgFromKey(arg.Key)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(orgID)); err != nil {
+		return err
+	}
+	return q.db.UpsertChatModelOverrideByOrganization(ctx, arg)
 }
 
 func (q *querier) UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error {
@@ -8998,13 +9045,6 @@ func (q *querier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllow
 		return err
 	}
 	return q.db.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
-}
-
-func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatTitleGenerationModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {

@@ -392,12 +392,15 @@ type sqlcQuerier interface {
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 	// values apply by default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
+	// GetChatAdvisorModelOverride returns the per-organization advisor model
+	// override for the given organization, or '' when unset. The value format
+	// matches the other model override contexts: '<model-config-id>[:<effort>]'.
+	GetChatAdvisorModelOverride(ctx context.Context, organizationID string) (string, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
-	GetChatCompactionModelOverride(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.
@@ -433,7 +436,6 @@ type sqlcQuerier interface {
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
-	GetChatExploreModelOverride(ctx context.Context) (string, error)
 	// Returns the chat IDs of every chat in a family (root + all children)
 	// in deterministic order. The id parameter must be the root id; the
 	// query does not walk up from a child.
@@ -449,7 +451,6 @@ type sqlcQuerier interface {
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
-	GetChatGeneralModelOverride(ctx context.Context) (string, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
@@ -477,6 +478,16 @@ type sqlcQuerier interface {
 	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
+	// GetChatModelOverrideByOrganization returns one per-organization chat
+	// model override value, or '' when unset. The @key argument is the full
+	// key, built in Go from the fixed agents_chat_<context>_model_override
+	// family plus the organization UUID; the SQL layer does not accept a
+	// free-form prefix. The value format is '<model-config-id>[:<effort>]'.
+	GetChatModelOverrideByOrganization(ctx context.Context, key string) (string, error)
+	// GetChatModelOverridesByOrganization returns every per-organization chat
+	// model override value for the given organization, keyed by site_configs key.
+	// Resolution and advisor telemetry read through this single query.
+	GetChatModelOverridesByOrganization(ctx context.Context, organizationID string) ([]SiteConfig, error)
 	// Assistant-message cost rolled up over the requested chat's subtree: the
 	// chat itself plus every descendant reachable through parent_chat_id. A
 	// root chat therefore reports its whole tree, while a subagent chat
@@ -508,7 +519,6 @@ type sqlcQuerier interface {
 	// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
-	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -1259,7 +1269,9 @@ type sqlcQuerier interface {
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
-	ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error)
+	// Returns the caller's personal model override rows for one organization.
+	// Keys carry the organization UUID: chat_personal_model_override:<org-uuid>:{context}.
+	ListUserChatPersonalModelOverrides(ctx context.Context, arg ListUserChatPersonalModelOverridesParams) ([]ListUserChatPersonalModelOverridesRow, error)
 	// Returns metadata only (no value or value_key_id) for the
 	// REST API list and get endpoints.
 	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]ListUserSecretsRow, error)
@@ -1621,8 +1633,10 @@ type sqlcQuerier interface {
 	// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
 	// to JSON before invoking this query.
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
+	// UpsertChatAdvisorModelOverride stores the per-organization advisor model
+	// override for the given organization.
+	UpsertChatAdvisorModelOverride(ctx context.Context, arg UpsertChatAdvisorModelOverrideParams) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
-	UpsertChatCompactionModelOverride(ctx context.Context, value string) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
@@ -1631,12 +1645,14 @@ type sqlcQuerier interface {
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
-	UpsertChatExploreModelOverride(ctx context.Context, value string) error
-	UpsertChatGeneralModelOverride(ctx context.Context, value string) error
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	// UpsertChatModelOverrideByOrganization stores one per-organization chat
+	// model override value under the given full key (fixed family, built in
+	// Go with the organization UUID suffix).
+	UpsertChatModelOverrideByOrganization(ctx context.Context, arg UpsertChatModelOverrideByOrganizationParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
@@ -1644,7 +1660,6 @@ type sqlcQuerier interface {
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
-	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)
 	UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error)
 	UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error)

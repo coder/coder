@@ -154,30 +154,6 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		exploreModelOverrideData={{
-			context: "explore",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		titleGenerationModelOverrideData={{
-			context: "title_generation",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		modelConfigsData={[]}
-		providerInfoByID={new Map()}
-		modelConfigsError={undefined}
-		isLoadingModelConfigs={false}
-		isFetchingModelConfigs={false}
-		onSaveTitleGenerationModel={fn()}
-		isSavingTitleGenerationModel={false}
-		isSaveTitleGenerationModelError={false}
-		onSaveCompactionModel={fn()}
-		isSavingCompactionModel={false}
-		isSaveCompactionModelError={false}
-		onSaveExploreModelOverride={fn()}
-		isSavingExploreModelOverride={false}
-		isSaveExploreModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
