@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { MockSession } from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
@@ -68,6 +68,24 @@ export const NetworkDisabled: Story = {
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
 		await expect(canvas.queryByText("Blocked network requests")).toBeNull();
 		await expect(canvas.queryByText("Top domains")).toBeNull();
+	},
+};
+
+// Tabbing to the disabled indicator's info button and pressing Enter reveals
+// the reason without a mouse.
+export const NetworkDisabledKeyboard: Story = {
+	args: {
+		...Default.args,
+		networkCalls: undefined,
+	},
+	play: async () => {
+		await userEvent.tab();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() =>
+			expect(screen.getByRole("dialog")).toHaveTextContent(
+				"Network request monitoring was not active for this session.",
+			),
+		);
 	},
 };
 

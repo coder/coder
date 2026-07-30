@@ -7,10 +7,13 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
-import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
+import {
+	NetworkMonitoringDisabled,
+	NetworkNoActivity,
+} from "../NetworkRequestStates";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
 
@@ -62,18 +65,9 @@ export const SessionSummaryTable = ({
 
 	let networkCallsValue: ReactNode;
 	if (networkCalls === undefined) {
-		networkCallsValue = (
-			<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
-				Disabled
-				<InfoTooltip message="Network call monitoring was not active for this session." />
-			</span>
-		);
+		networkCallsValue = <NetworkMonitoringDisabled />;
 	} else if (networkCalls.total === 0) {
-		networkCallsValue = (
-			<span className="whitespace-nowrap text-content-secondary">
-				No activity
-			</span>
-		);
+		networkCallsValue = <NetworkNoActivity />;
 	} else {
 		networkCallsValue = (
 			<Badge>{networkCalls.total.toLocaleString("en-US")}</Badge>
