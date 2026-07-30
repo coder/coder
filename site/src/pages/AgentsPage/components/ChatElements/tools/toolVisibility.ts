@@ -59,10 +59,6 @@ export const getExecuteRenderData = (
 	};
 };
 
-const shouldRenderExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length > 0;
-};
-
 const shouldRenderSubagentLifecycleTool = ({
 	name,
 	status,
@@ -109,7 +105,7 @@ export const shouldRenderTool = ({
 	result?: unknown;
 }): boolean => {
 	if (name === "execute") {
-		return shouldRenderExecuteTool(getExecuteRenderData(args, result));
+		return getExecuteRenderData(args, result).command.trim().length > 0;
 	}
 
 	return shouldRenderSubagentLifecycleTool({ name, status, args, result });

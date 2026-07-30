@@ -222,7 +222,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-
 	return (
 		<ExecuteToolComponent
 			command={data.command}
