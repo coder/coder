@@ -5510,8 +5510,14 @@ func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 // failure here is a real database failure and the request fails exactly as
 // main's write would. Old and New are populated only when the stored text
 // actually changed; a value-identical PUT cancels the entry entirely.
-func (api *API) auditedChatOperationalSettingWrite(ctx context.Context, aReq *audit.Request[database.ChatOperationalSettings], commitAudit func(bool), setting chatOperationalSetting, write func(tx database.Store) error) error {
-	return api.Database.InTx(func(tx database.Store) error {
+// upsertErr records the write callback's own error so callers can render
+// the same response body main produced before this transaction existed. It
+// is nil unless the write itself failed; txErr is the InTx result, non-nil
+// for any transaction failure (begin, lock, a capture read, commit,
+// rollback, or the write). Callers report upsertErr for a write failure and
+// txErr otherwise.
+func (api *API) auditedChatOperationalSettingWrite(ctx context.Context, aReq *audit.Request[database.ChatOperationalSettings], commitAudit func(bool), setting chatOperationalSetting, write func(tx database.Store) error) (upsertErr, txErr error) {
+	txErr = api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, setting.lockID); err != nil {
 			return xerrors.Errorf("acquire chat operational setting write lock: %w", err)
 		}
@@ -5521,6 +5527,7 @@ func (api *API) auditedChatOperationalSettingWrite(ctx context.Context, aReq *au
 			return err
 		}
 		if err := write(tx); err != nil {
+			upsertErr = err
 			return err
 		}
 		// Re-read the stored text to build New: the write may normalize
@@ -5542,6 +5549,7 @@ func (api *API) auditedChatOperationalSettingWrite(ctx context.Context, aReq *au
 		aReq.New = setting.settings(newValue, uuid.New())
 		return nil
 	}, nil)
+	return upsertErr, txErr
 }
 
 // chatOperationalSetting describes one operational chat setting for audit:
@@ -5613,9 +5621,18 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingPersonalModelOverridesEnabled, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingPersonalModelOverridesEnabled, func(tx database.Store) error {
 		return tx.UpsertChatPersonalModelOverridesEnabled(ctx, req.AllowUsers)
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating personal model override setting.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating personal model override setting.",
@@ -5861,9 +5878,18 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingComputerUseProvider, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingComputerUseProvider, func(tx database.Store) error {
 		return tx.UpsertChatComputerUseProvider(ctx, string(req.Provider))
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating computer use provider.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating computer use provider.",
@@ -5922,9 +5948,18 @@ func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingDebugLoggingAllowUsers, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingDebugLoggingAllowUsers, func(tx database.Store) error {
 		return tx.UpsertChatDebugLoggingAllowUsers(ctx, req.AllowUsers)
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat debug logging setting.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat debug logging setting.",
@@ -6204,11 +6239,20 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the canonicalized duration string.
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingWorkspaceTTL, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingWorkspaceTTL, func(tx database.Store) error {
 		return tx.UpsertChatWorkspaceTTL(ctx, d.String())
 	})
-	if httpapi.Is404Error(err) {
+	if httpapi.Is404Error(upsertErr) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace TTL setting.",
+			Detail:  upsertErr.Error(),
+		})
 		return
 	}
 	if err != nil {
@@ -6284,9 +6328,18 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatRetentionDays, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatRetentionDays, func(tx database.Store) error {
 		return tx.UpsertChatRetentionDays(ctx, req.RetentionDays)
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat retention days.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat retention days.",
@@ -6347,9 +6400,18 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatDebugRetentionDays, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatDebugRetentionDays, func(tx database.Store) error {
 		return tx.UpsertChatDebugRetentionDays(ctx, req.DebugRetentionDays)
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat debug retention days.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat debug retention days.",
@@ -6411,9 +6473,18 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatAutoArchiveDays, func(tx database.Store) error {
+	upsertErr, err := api.auditedChatOperationalSettingWrite(ctx, aReq, commitAudit, chatOperationalSettingChatAutoArchiveDays, func(tx database.Store) error {
 		return tx.UpsertChatAutoArchiveDays(ctx, req.AutoArchiveDays)
 	})
+	if upsertErr != nil {
+		// The write failed exactly as it would have without the audit
+		// transaction: report the original error, not the InTx wrapper.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat auto-archive days.",
+			Detail:  upsertErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat auto-archive days.",
