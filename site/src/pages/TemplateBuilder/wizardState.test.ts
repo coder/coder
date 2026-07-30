@@ -334,6 +334,76 @@ describe("wizardReducer", () => {
 		});
 	});
 
+	describe("SET_MODULE_AGENT", () => {
+		const multiAgentBase = {
+			id: "docker-multi-agent",
+			name: "Docker (Multiple Agents)",
+			hasParameters: false,
+			hasPrerequisites: false,
+			agents: [
+				{ name: "main", displayName: "Primary", default: true },
+				{ name: "dev", displayName: "Dev", default: false },
+			],
+			hasMultipleAgents: true,
+		};
+		const meta = (id: string) => ({
+			id,
+			name: id,
+			iconUrl: "/icon.svg",
+			hasConfigurableVars: false,
+		});
+
+		it("seeds newly added modules with the base default agent", () => {
+			const state = reduce([
+				{ type: "SET_BASE", base: multiAgentBase },
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }],
+					meta: [meta("code-server")],
+				},
+			]);
+			expect(state.modules[0].agent_name).toBe("main");
+		});
+
+		it("updates a module's agent and preserves it across re-selection", () => {
+			const state = reduce([
+				{ type: "SET_BASE", base: multiAgentBase },
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }],
+					meta: [meta("code-server")],
+				},
+				{
+					type: "SET_MODULE_AGENT",
+					moduleId: "code-server",
+					agentName: "dev",
+				},
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }, { id: "git-clone" }],
+					meta: [meta("code-server"), meta("git-clone")],
+				},
+			]);
+			expect(
+				state.modules.find((m) => m.id === "code-server")?.agent_name,
+			).toBe("dev");
+			expect(state.modules.find((m) => m.id === "git-clone")?.agent_name).toBe(
+				"main",
+			);
+		});
+
+		it("does not seed an agent for single-agent bases", () => {
+			const state = reduce([
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }],
+					meta: [meta("code-server")],
+				},
+			]);
+			expect(state.modules[0].agent_name).toBeUndefined();
+		});
+	});
+
 	describe("SET_CUSTOMIZATION", () => {
 		it("updates individual customization fields", () => {
 			const state = reduce([
@@ -576,6 +646,30 @@ describe("toSelectedBaseMeta", () => {
 		expect(meta.name).toBe("Docker Containers");
 		expect(meta.id).toBe("docker");
 	});
+
+	it("maps agents and flags multiple agents", () => {
+		const meta = toSelectedBaseMeta(
+			makeBase({
+				agents: [
+					{ name: "main", display_name: "Primary", default: true },
+					{ name: "dev", display_name: "", default: false },
+				],
+			}),
+		);
+		expect(meta.hasMultipleAgents).toBe(true);
+		expect(meta.agents).toEqual([
+			{ name: "main", displayName: "Primary", default: true },
+			// Falls back to the resource name when display_name is empty.
+			{ name: "dev", displayName: "dev", default: false },
+		]);
+	});
+
+	it("is not multi-agent for a single declared agent", () => {
+		const meta = toSelectedBaseMeta(
+			makeBase({ agents: [{ name: "main", display_name: "", default: true }] }),
+		);
+		expect(meta.hasMultipleAgents).toBe(false);
+	});
 });
 
 describe("baseCustomizationDefaults", () => {
@@ -587,6 +681,8 @@ describe("baseCustomizationDefaults", () => {
 			iconUrl: "/icon/aws.svg",
 			hasParameters: false,
 			hasPrerequisites: false,
+			agents: [],
+			hasMultipleAgents: false,
 		};
 		expect(baseCustomizationDefaults(base)).toEqual({
 			name: "aws-linux",
@@ -602,6 +698,8 @@ describe("baseCustomizationDefaults", () => {
 			name: "Scratch",
 			hasParameters: false,
 			hasPrerequisites: false,
+			agents: [],
+			hasMultipleAgents: false,
 		};
 		expect(baseCustomizationDefaults(base)).toEqual({
 			name: "scratch",
@@ -633,6 +731,8 @@ describe("initWizardState", () => {
 				iconUrl: "/icon/docker.png",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
+				hasMultipleAgents: false,
 			},
 		});
 		expect(state.baseTemplateId).toBe("docker");

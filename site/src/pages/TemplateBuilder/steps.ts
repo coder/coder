@@ -16,12 +16,16 @@ type WizardStep = {
 };
 
 /**
- * Returns true when at least one selected module exposes variables that
- * need user configuration (non-sensitive).
+ * Returns true when the module settings step should be shown: either a
+ * selected module exposes configurable variables, or the base declares
+ * multiple agents (so each selected module needs an agent choice).
  */
 export const stepModuleSettingsRequired = (
 	state: TemplateBuilderWizardState,
 ): boolean => {
+	if (state.selectedBase?.hasMultipleAgents && state.modules.length > 0) {
+		return true;
+	}
 	return state.selectedModules.some((m) => m.hasConfigurableVars);
 };
 
