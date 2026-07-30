@@ -1,12 +1,6 @@
-import {
-	CircleAlertIcon,
-	ExternalLinkIcon,
-	LayersIcon,
-	OctagonXIcon,
-} from "lucide-react";
+import { LayersIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
@@ -218,66 +212,5 @@ const ShellTranscriptBody: React.FC<{
 				))}
 			</div>
 		</ScrollArea>
-	);
-};
-
-export const ExecuteAuthRequiredTool: React.FC<{
-	command: string;
-	output: string;
-	authenticateURL: string;
-	providerLabel: string;
-}> = ({ command, output, authenticateURL, providerLabel }) => {
-	const hasCommand = command.trim().length > 0;
-	const hasOutput = output.trim().length > 0;
-
-	return (
-		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
-			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
-				<CircleAlertIcon className="size-4 shrink-0 text-content-warning" />
-				<span className="text-[13px] text-content-primary">
-					Authenticate with {providerLabel} to continue this command.
-				</span>
-			</div>
-			<div className="flex flex-wrap items-center gap-2 px-3 pb-2">
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() =>
-						window.open(authenticateURL, "_blank", "width=900,height=600")
-					}
-					className="inline-flex cursor-pointer items-center gap-1 text-xs"
-				>
-					<ExternalLinkIcon className="size-3.5 shrink-0" />
-					Authenticate with {providerLabel}
-				</Button>
-				<a
-					href={authenticateURL}
-					target="_blank"
-					rel="noreferrer"
-					className="inline-flex items-center gap-1 text-xs text-content-link no-underline hover:underline"
-				>
-					<ExternalLinkIcon className="size-3.5 shrink-0" />
-					Open authentication link
-				</a>
-			</div>
-			{hasCommand && (
-				<div className="px-3 pb-1">
-					<code className="font-mono text-xs text-content-secondary">
-						$ {command}
-					</code>
-				</div>
-			)}
-			{hasOutput && (
-				<ScrollArea
-					className="rounded-b-md border-t border-solid border-border-default text-2xs"
-					viewportClassName="max-h-48"
-					scrollBarClassName="w-1.5"
-				>
-					<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-3 py-2 font-mono text-xs text-content-secondary">
-						{output}
-					</pre>
-				</ScrollArea>
-			)}
-		</div>
 	);
 };

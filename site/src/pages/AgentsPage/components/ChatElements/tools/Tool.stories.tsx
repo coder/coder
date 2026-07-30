@@ -1,13 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -562,37 +554,6 @@ export const ProcessOutputStringError: Story = {
 		expect(
 			canvas.getByRole("img", { name: "Failed to read process output" }),
 		).toBeVisible();
-	},
-};
-
-export const ExecuteAuthRequired: Story = {
-	args: {
-		result: {
-			auth_required: true,
-			provider_display_name: "GitHub",
-			authenticate_url: "https://coder.example.com/external-auth/github",
-			output:
-				"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", {
-			name: "Authenticate with GitHub",
-		});
-		expect(button).toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "Open authentication link" }),
-		).toHaveAttribute("href", "https://coder.example.com/external-auth/github");
-
-		const openSpy = spyOn(window, "open").mockImplementation(() => null);
-		await userEvent.click(button);
-		expect(openSpy).toHaveBeenCalledWith(
-			"https://coder.example.com/external-auth/github",
-			"_blank",
-			"width=900,height=600",
-		);
-		openSpy.mockRestore();
 	},
 };
 
