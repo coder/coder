@@ -508,6 +508,16 @@ func LicensesEntitlements(
 				continue
 			}
 
+			// Agent runtime hours are encoded as up to three claims and are
+			// decoded together after this loop, see
+			// decodeAgentRuntimeHours. The feature name itself is never a
+			// valid claim. The allocation must come from the dedicated claim
+			// so it is validated against the soft and hard limits.
+			if featureName == codersdk.FeatureAgentRuntimeHours ||
+				isAgentRuntimeHoursClaim(featureName) {
+				continue
+			}
+
 			if featureValue < 0 {
 				// We currently don't use negative values for features.
 				continue
@@ -565,6 +575,16 @@ func LicensesEntitlements(
 					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
 				}
 			}
+		}
+
+		// The loop above skips Agent runtime hours because the
+		// three claims that encode them decode into a single feature.
+		if feature, ok := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
+			IssuedAt: claims.IssuedAt.Time,
+			Start:    usagePeriodStart,
+			End:      usagePeriodEnd,
+		}); ok {
+			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, feature)
 		}
 
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
@@ -790,6 +810,11 @@ func LicensesEntitlements(
 			if featureName == codersdk.FeatureManagedAgentLimit {
 				continue
 			}
+			// Agent runtime hours is a usage period feature and does not
+			// generate generic entitlement warnings.
+			if featureName == codersdk.FeatureAgentRuntimeHours {
+				continue
+			}
 
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
@@ -860,6 +885,26 @@ const (
 	VersionClaim          = "version"
 )
 
+// Agent runtime hour license claims. These are the canonical claim names
+// minted by github.com/coder/license. All three claims map to the single
+// codersdk.FeatureAgentRuntimeHours feature and are validated together when
+// the license is parsed, see validateClaims.
+//
+// The unit for all three claims is hours.
+const (
+	// ClaimAgentRuntimeHoursAllocation is the purchased runtime-hour
+	// allocation for the license term. It becomes the feature's Limit.
+	ClaimAgentRuntimeHoursAllocation = "agent_runtime_hours_allocation"
+	// ClaimAgentRuntimeHoursLimitSoft is the advisory warning threshold. It
+	// must satisfy 0 <= soft < allocation, so it may only be set when the
+	// allocation is greater than 0. It becomes the feature's SoftLimit.
+	ClaimAgentRuntimeHoursLimitSoft = "agent_runtime_hours_limit_soft"
+	// ClaimAgentRuntimeHoursLimitHard is the enforcement ceiling. It must be
+	// absent or >= allocation, and may only be set when the allocation is
+	// greater than 0. It becomes the feature's HardLimit.
+	ClaimAgentRuntimeHoursLimitHard = "agent_runtime_hours_limit_hard"
+)
+
 var (
 	ValidMethods = []string{"EdDSA"}
 
@@ -872,9 +917,87 @@ var (
 	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
 	ErrMissingAccountType    = xerrors.New("license must contain valid account type")
 	ErrMissingAccountID      = xerrors.New("license must contain valid account ID")
+
+	ErrMissingAgentRuntimeHoursAllocation        = xerrors.Errorf("license has agent runtime hours soft or hard limit claims but is missing the %s claim", ClaimAgentRuntimeHoursAllocation)
+	ErrInvalidAgentRuntimeHoursAllocation        = xerrors.Errorf("license has an invalid %s claim; it must not be negative", ClaimAgentRuntimeHoursAllocation)
+	ErrInvalidAgentRuntimeHoursSoftLimit         = xerrors.Errorf("license has an invalid %s claim; it must be at least 0 and less than %s", ClaimAgentRuntimeHoursLimitSoft, ClaimAgentRuntimeHoursAllocation)
+	ErrInvalidAgentRuntimeHoursHardLimit         = xerrors.Errorf("license has an invalid %s claim; it must be greater than or equal to %s", ClaimAgentRuntimeHoursLimitHard, ClaimAgentRuntimeHoursAllocation)
+	ErrAgentRuntimeHoursLimitsWithZeroAllocation = xerrors.Errorf("license has agent runtime hours soft or hard limit claims but the %s claim is 0", ClaimAgentRuntimeHoursAllocation)
 )
 
 type Features map[codersdk.FeatureName]int64
+
+// isAgentRuntimeHoursClaim reports whether the claim name is one of the three
+// claims that encode the codersdk.FeatureAgentRuntimeHours feature. These
+// claims are decoded together, see decodeAgentRuntimeHours.
+func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
+	switch name {
+	case ClaimAgentRuntimeHoursAllocation,
+		ClaimAgentRuntimeHoursLimitSoft,
+		ClaimAgentRuntimeHoursLimitHard:
+		return true
+	default:
+		return false
+	}
+}
+
+// decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours feature
+// from the claims that encode it. It reports false when the license carries no
+// allocation claim, in which case the license does not grant the feature.
+//
+// The claim combination is validated when the license is parsed, see
+// Features.validateAgentRuntimeHours. The allocation is never negative here
+// and the soft and hard limits are only present alongside a positive
+// allocation.
+func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (codersdk.Feature, bool) {
+	allocation, ok := features[ClaimAgentRuntimeHoursAllocation]
+	if !ok {
+		return codersdk.Feature{}, false
+	}
+
+	feature := codersdk.Feature{
+		Enabled:     allocation > 0,
+		Entitlement: entitlement,
+		Limit:       &allocation,
+		UsagePeriod: &usagePeriod,
+	}
+	if soft, ok := features[ClaimAgentRuntimeHoursLimitSoft]; ok {
+		feature.SoftLimit = &soft
+	}
+	if hard, ok := features[ClaimAgentRuntimeHoursLimitHard]; ok {
+		feature.HardLimit = &hard
+	}
+	return feature, true
+}
+
+// validateAgentRuntimeHours validates the relationship between the agent
+// runtime hour claims. Invalid combinations reject the entire license.
+func (f Features) validateAgentRuntimeHours() error {
+	allocation, hasAllocation := f[ClaimAgentRuntimeHoursAllocation]
+	soft, hasSoft := f[ClaimAgentRuntimeHoursLimitSoft]
+	hard, hasHard := f[ClaimAgentRuntimeHoursLimitHard]
+	if !hasAllocation {
+		if hasSoft || hasHard {
+			return ErrMissingAgentRuntimeHoursAllocation
+		}
+		return nil
+	}
+	if allocation < 0 {
+		return ErrInvalidAgentRuntimeHoursAllocation
+	}
+	// A zero allocation disables the feature.
+	// A zero hard limit is not permitted.
+	if allocation == 0 && (hasSoft || hasHard) {
+		return ErrAgentRuntimeHoursLimitsWithZeroAllocation
+	}
+	if hasSoft && (soft < 0 || soft >= allocation) {
+		return ErrInvalidAgentRuntimeHoursSoftLimit
+	}
+	if hasHard && hard < allocation {
+		return ErrInvalidAgentRuntimeHoursHardLimit
+	}
+	return nil
+}
 
 // Claims is the full set of claims in a license.
 type Claims struct {
@@ -965,6 +1088,9 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		}
 		if claims.AccountID == "" {
 			return nil, ErrMissingAccountID
+		}
+		if err := claims.Features.validateAgentRuntimeHours(); err != nil {
+			return nil, err
 		}
 		return claims, nil
 	}
