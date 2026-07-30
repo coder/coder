@@ -1,3 +1,5 @@
+import type { QueryKey } from "react-query";
+import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";
 import type {
 	DeploymentValues,
 	Experiments,
@@ -7,8 +9,6 @@ import type {
 	User,
 } from "#/api/typesGenerated";
 import type { Permissions } from "#/modules/permissions";
-import type { QueryKey } from "react-query";
-import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";
 
 declare module "@storybook/react-vite" {
 	type WebSocketEvent =

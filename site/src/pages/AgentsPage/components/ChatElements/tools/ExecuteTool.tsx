@@ -55,7 +55,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		hasTranscriptBlocks ||
 		status === "running" ||
 		isBackgrounded ||
-		!!killedBySignal
+		killedBySignal
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";

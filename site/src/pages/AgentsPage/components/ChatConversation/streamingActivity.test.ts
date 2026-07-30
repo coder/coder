@@ -116,18 +116,16 @@ describe("shouldShowGenericThinking", () => {
 		).toBe(false);
 	});
 
-	it.each([
-		"idle",
-		"retrying",
-		"reconnecting",
-		"failed",
-	] as const)("hides for %s", (phase) => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus(phase),
-				streamState: null,
-				streamTools: [],
-			}),
-		).toBe(false);
-	});
+	it.each(["idle", "retrying", "reconnecting", "failed"] as const)(
+		"hides for %s",
+		(phase) => {
+			expect(
+				shouldShowGenericThinking({
+					liveStatus: liveStatus(phase),
+					streamState: null,
+					streamTools: [],
+				}),
+			).toBe(false);
+		},
+	);
 });

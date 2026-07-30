@@ -701,20 +701,18 @@ describe("shouldNavigateAfterArchive", () => {
 			activeRootChatId: undefined,
 			expected: false,
 		},
-	])("$name → $expected", ({
-		activeChatId,
-		archivedChatId,
-		activeRootChatId,
-		expected,
-	}) => {
-		expect(
-			shouldNavigateAfterArchive(
-				activeChatId,
-				archivedChatId,
-				activeRootChatId,
-			),
-		).toBe(expected);
-	});
+	])(
+		"$name → $expected",
+		({ activeChatId, archivedChatId, activeRootChatId, expected }) => {
+			expect(
+				shouldNavigateAfterArchive(
+					activeChatId,
+					archivedChatId,
+					activeRootChatId,
+				),
+			).toBe(expected);
+		},
+	);
 });
 
 const makeWorkspace = (overrides: Partial<Workspace> = {}): Workspace =>
