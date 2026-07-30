@@ -87,6 +87,7 @@ export const OrganizationSettingsPageView: FC<
 	const descriptionField = getFieldHelpers("description");
 	const descriptionErrorId = `${descriptionField.id}-error`;
 	const iconField = getFieldHelpers("icon");
+	const iconErrorId = `${iconField.id}-error`;
 
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [pendingSharingChange, setPendingSharingChange] =
@@ -162,9 +163,14 @@ export const OrganizationSettingsPageView: FC<
 										void form.setFieldValue("icon", value.trim());
 										void form.setFieldTouched("icon", true);
 									}}
+									aria-invalid={iconField.error}
+									aria-describedby={iconField.error ? iconErrorId : undefined}
 								/>
 								{iconField.error && (
-									<span className="text-xs text-content-destructive">
+									<span
+										id={iconErrorId}
+										className="text-xs text-content-destructive"
+									>
 										{iconField.helperText}
 									</span>
 								)}

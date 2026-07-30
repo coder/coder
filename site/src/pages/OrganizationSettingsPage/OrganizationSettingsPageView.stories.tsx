@@ -5,6 +5,7 @@ import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
@@ -38,6 +39,35 @@ export const EditInfoFields: Story = {
 		await user.type(slug, " invalid!");
 		await user.tab();
 		await expect(slug).toHaveAttribute("aria-invalid", "true");
+	},
+};
+
+export const FieldValidationErrors: Story = {
+	args: {
+		error: mockApiError({
+			message: "Validation failed",
+			validations: [
+				{ field: "description", detail: "description error" },
+				{ field: "icon", detail: "icon error" },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		for (const [name, detail] of [
+			["Description", "description error"],
+			["Icon", "icon error"],
+		] as const) {
+			const field = canvas.getByRole("textbox", { name });
+			await user.type(field, "x");
+			await user.tab();
+			await expect(field).toHaveAttribute("aria-invalid", "true");
+			const errorId = field.getAttribute("aria-describedby");
+			await expect(errorId).not.toBeNull();
+			await expect(canvas.getByText(detail)).toHaveAttribute("id", errorId);
+		}
 	},
 };
 

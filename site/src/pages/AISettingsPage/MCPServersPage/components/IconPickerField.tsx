@@ -22,6 +22,8 @@ interface IconPickerFieldProps {
 	placeholder?: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
+	"aria-invalid"?: boolean;
+	"aria-describedby"?: string;
 }
 
 export const IconPickerField: FC<IconPickerFieldProps> = ({
@@ -30,6 +32,8 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 	placeholder,
 	disabled,
 	onChange,
+	"aria-invalid": ariaInvalid,
+	"aria-describedby": ariaDescribedBy,
 }) => {
 	const [open, setOpen] = useState(false);
 	const hasIcon = value !== "";
@@ -42,6 +46,8 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 				onChange={(event) => onChange(event.target.value)}
 				placeholder={placeholder}
 				disabled={disabled}
+				aria-invalid={ariaInvalid}
+				aria-describedby={ariaDescribedBy}
 				className="min-w-0 placeholder:text-content-disabled"
 				spellCheck={false}
 			/>
