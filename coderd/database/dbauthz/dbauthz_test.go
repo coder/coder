@@ -1069,6 +1069,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesByChatID(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetAIBridgeChatCost", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		row := database.GetAIBridgeChatCostRow{TotalCostMicros: 1000, RequestCount: 2}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatModelUsageCostByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		row := database.GetChatModelUsageCostByChatIDRow{ChatID: chat.ID, TotalCostMicros: 1000, PricedMessageCount: 2}
@@ -6717,6 +6724,27 @@ func (s *MethodTestSuite) TestUsageEvents() {
 			EndDate:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
+
+	s.Run("ListUsageEventCreatedAtsByTypeSince", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListUsageEventCreatedAtsByTypeSinceParams{
+			EventType: "hb_agent_runtime_v1",
+			Since:     dbtime.Now(),
+		}
+		db.EXPECT().ListUsageEventCreatedAtsByTypeSince(gomock.Any(), params).Return([]time.Time{}, nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
+	// GetTotalChatMessageRuntimeMsInRange exists solely to compute usage
+	// event payloads, so it asserts usage event creation rather than chat
+	// read permissions.
+	s.Run("GetTotalChatMessageRuntimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetTotalChatMessageRuntimeMsInRangeParams{
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
+		}
+		db.EXPECT().GetTotalChatMessageRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
 }
 
 // Ensures that the prebuilds actor may never insert an api key.
@@ -6733,6 +6761,41 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	faker := gofakeit.New(0)
 	_, err := dbz.InsertAPIKey(ctx, testutil.Fake(t, faker, database.InsertAPIKeyParams{}))
 	require.True(t, dbauthz.IsNotAuthorizedError(err))
+}
+
+// TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied mechanically
+// checks the invariant the query's authz gate relies on: it exposes a
+// deployment-wide aggregate behind usage_event create at site scope, which no
+// human-assignable role holds. Owner is excluded from usage_event via
+// allPermsExcept in roles.go; org roles such as org-admin do carry
+// usage_event permissions, but only at org scope, which cannot satisfy a
+// site-scoped check. If either of those ever changes, this test fails.
+func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	var roles []rbac.RoleIdentifier
+	for _, role := range rbac.SiteBuiltInRoles() {
+		roles = append(roles, role.Identifier)
+	}
+	for _, role := range rbac.OrganizationRoles(orgID) {
+		roles = append(roles, role.Identifier)
+	}
+	require.NotEmpty(t, roles)
+
+	for _, role := range roles {
+		subj := rbac.Subject{
+			ID:    uuid.NewString(),
+			Roles: rbac.RoleIdentifiers{role},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), subj)
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+		dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		_, err := dbz.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{})
+		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
+	}
 }
 
 func (s *MethodTestSuite) TestAIBridge() {
@@ -6904,6 +6967,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().CountAuthorizedAIBridgeSessions(gomock.Any(), params, gomock.Any()).Return(int64(0), nil).AnyTimes()
 		// No asserts here because SQLFilter.
 		check.Args(params, emptyPreparedAuthorized{}).Asserts()
+	}))
+
+	s.Run("GetAIBridgeSessionTopDomains", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetAIBridgeSessionTopDomainsParams{SessionID: "sess", Limit: 5}
+		db.EXPECT().GetAIBridgeSessionTopDomains(gomock.Any(), params).Return([]database.GetAIBridgeSessionTopDomainsRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.GetAIBridgeSessionTopDomainsRow{})
 	}))
 
 	s.Run("ListAIBridgeTokenUsagesByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

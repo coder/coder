@@ -71,7 +71,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		// Model not in the price table: record tokens but leave cost NULL.
-		s.logger.Debug(ctx, "no price found for model, recording token usage with NULL cost",
+		s.logger.Warn(ctx, "no price found for model, recording token usage with NULL cost",
 			slog.F("provider", intc.Provider), slog.F("model", intc.Model))
 		if s.metrics != nil {
 			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.Provider, intc.Model).Inc()
