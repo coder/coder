@@ -1495,6 +1495,37 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	_ = testutil.TryReceive(ctx, t, called)
 }
 
+func TestModelFromConfig_PortkeyOpenAIModelUsesResponsesAPI(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	const modelID = "@openai/gpt-5.6-sol"
+	called := make(chan struct{})
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		require.Equal(t, "/responses", req.URL.Path)
+		require.Equal(t, modelID, req.Model)
+		close(called)
+		return chattest.OpenAINonStreamingResponse("hello")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"openai": "test-key"},
+		BaseURLByProvider: map[string]string{"openai": serverURL},
+	}
+
+	model, err := chatprovider.ModelFromConfig("openai", modelID, keys, chatprovider.UserAgent(), nil, nil)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
 func TestModelFromConfig_HTTPClient(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

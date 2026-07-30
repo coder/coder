@@ -973,6 +973,9 @@ func ModelFromConfig(
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
+			fantasyopenai.WithResponsesAPIFunc(func(modelID string) bool {
+				return fantasyopenai.IsResponsesModel(strings.TrimPrefix(modelID, "@openai/"))
+			}),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
 		if len(extraHeaders) > 0 {
