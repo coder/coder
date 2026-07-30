@@ -1,11 +1,8 @@
 package chatopenai_test
 
 import (
-	"context"
 	"testing"
 
-	"charm.land/fantasy"
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
@@ -44,9 +41,8 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 	}
 
 	got := chatopenai.ProviderOptionsFromChatConfig(
-		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
+		chatopenai.TransportChatCompletions,
 		options,
-		nil,
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ProviderOptions)
@@ -97,9 +93,8 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 	}
 
 	got := chatopenai.ProviderOptionsFromChatConfig(
-		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
+		chatopenai.TransportResponses,
 		options,
-		nil,
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ResponsesProviderOptions)
@@ -237,75 +232,6 @@ func TestEnsureResponseIncludes(t *testing.T) {
 			t.Parallel()
 
 			got := chatopenai.EnsureResponseIncludes(tt.values)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestUsesResponsesOptions(t *testing.T) {
-	t.Parallel()
-
-	forceResponses := true
-	forceCompletions := false
-
-	tests := []struct {
-		name     string
-		model    fantasy.LanguageModel
-		override *bool
-		want     bool
-	}{
-		{name: "Nil"},
-		{
-			name:  "OpenAIResponsesModel",
-			model: fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
-			want:  true,
-		},
-		{
-			name:  "AzureResponsesModel",
-			model: fakeLanguageModel{provider: fantasyazure.Name, model: "gpt-4.1"},
-			want:  true,
-		},
-		{
-			name:  "OpenAINonResponsesModel",
-			model: fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
-		},
-		{
-			name:  "NonOpenAIProvider",
-			model: fakeLanguageModel{provider: "other", model: "gpt-4.1"},
-		},
-		{
-			name:     "NilModelIgnoresOverride",
-			override: &forceResponses,
-		},
-		{
-			name:     "OverrideForcesResponsesForUnknownModel",
-			model:    fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-9-brand-new"},
-			override: &forceResponses,
-			want:     true,
-		},
-		{
-			name:     "OverrideForcesCompletionsForResponsesModel",
-			model:    fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
-			override: &forceCompletions,
-		},
-		{
-			name:     "AzureIgnoresOverride",
-			model:    fakeLanguageModel{provider: fantasyazure.Name, model: "gpt-4.1"},
-			override: &forceCompletions,
-			want:     true,
-		},
-		{
-			name:     "NonOpenAIProviderIgnoresOverride",
-			model:    fakeLanguageModel{provider: "other", model: "gpt-4.1"},
-			override: &forceResponses,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := chatopenai.UsesResponsesOptions(tt.model, tt.override)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -455,33 +381,4 @@ func requireTextVerbosityPointerValue(
 
 func ptr[T any](value T) *T {
 	return &value
-}
-
-type fakeLanguageModel struct {
-	provider string
-	model    string
-}
-
-func (fakeLanguageModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-	panic("not implemented")
-}
-
-func (f fakeLanguageModel) Provider() string {
-	return f.provider
-}
-
-func (f fakeLanguageModel) Model() string {
-	return f.model
 }

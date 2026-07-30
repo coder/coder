@@ -12,7 +12,6 @@ import (
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -89,12 +88,11 @@ func SelectableReasoningEfforts(
 }
 
 func ApplyReasoningEffort(
-	model fantasy.LanguageModel,
+	model Model,
 	options fantasy.ProviderOptions,
 	effort *string,
-	openAIResponsesOverride *bool,
 ) fantasy.ProviderOptions {
-	if effort == nil || model == nil {
+	if effort == nil || !model.Valid() {
 		return options
 	}
 	if options == nil {
@@ -110,7 +108,7 @@ func ApplyReasoningEffort(
 		case *fantasyopenai.ProviderOptions:
 			opts.ReasoningEffort = &providerEffort
 		default:
-			if chatopenai.UsesResponsesOptions(model, openAIResponsesOverride) {
+			if model.transport.UsesResponses() {
 				options[fantasyopenai.Name] = &fantasyopenai.ResponsesProviderOptions{
 					ReasoningEffort: &providerEffort,
 				}

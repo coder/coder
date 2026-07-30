@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type modelClientRequest struct {
@@ -45,7 +46,7 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIResponsesOverride *bool,
+	openAIConfig *codersdk.ChatModelOpenAIConfig,
 ) (chatprovider.Model, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
@@ -54,7 +55,7 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
-		openAIResponsesOverride,
+		openAIConfig,
 	)
 	if err != nil {
 		return chatprovider.Model{}, err

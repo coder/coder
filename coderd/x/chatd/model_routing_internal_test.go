@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -656,6 +657,45 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	require.Equal(t, modelName, resolvedModel)
 	require.Equal(t, "primary-openai", factory.providerName)
 	require.Equal(t, aibridge.SourceAgents, factory.source)
+}
+
+// The computer-use model is a hardcoded default with no config of its own, so
+// its transport must come from its own client rather than inheriting the chat
+// model's openai_config. Request preparation reads the same value back.
+func TestResolveComputerUseModel_TransportIndependentOfChatConfig(t *testing.T) {
+	t.Parallel()
+
+	providerID := uuid.New()
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("computer use model construction must not send a request")
+		return nil, xerrors.New("unreachable")
+	})}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+	provider := codersdk.ChatComputerUseProviderOpenAI
+	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
+	require.True(t, ok)
+
+	//nolint:dogsled // Only the built model matters for the transport assertion.
+	model, _, _, _, err := server.resolveComputerUseModel(
+		t.Context(),
+		chat,
+		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
+		provider,
+		modelProvider,
+		modelName,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+
+	wantTransport := chatopenai.TransportFor(modelProvider, modelName, nil)
+	require.Equal(t, wantTransport, model.Transport())
+
+	// The assertion above only has teeth if an override could have changed the
+	// result for this model.
+	opposite := !wantTransport.UsesResponses()
+	require.NotEqual(t, wantTransport, chatopenai.TransportFor(modelProvider, modelName, &opposite))
 }
 
 func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {

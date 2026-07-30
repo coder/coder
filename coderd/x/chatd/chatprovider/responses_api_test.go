@@ -61,7 +61,7 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 				chatprovider.UserAgent(),
 				nil,
 				nil,
-				tc.override,
+				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
 			)
 			require.NoError(t, err)
 
@@ -80,36 +80,14 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 	}
 }
 
-func TestOpenAIResponsesAPIOverride(t *testing.T) {
+// The wire path the client actually uses, the provider option struct type, and
+// file-part acceptance must all agree, because a mismatch is silent: the SDK
+// type-asserts the concrete option struct, and Responses accepts only images
+// and PDFs natively.
+func TestModelTransportConsumersAgree(t *testing.T) {
 	t.Parallel()
 
-	useResponsesAPI := true
-
-	t.Run("NilConfig", func(t *testing.T) {
-		t.Parallel()
-		require.Nil(t, chatprovider.OpenAIResponsesAPIOverride(nil))
-	})
-
-	t.Run("Unset", func(t *testing.T) {
-		t.Parallel()
-		require.Nil(t, chatprovider.OpenAIResponsesAPIOverride(&codersdk.ChatModelOpenAIConfig{}))
-	})
-
-	t.Run("Set", func(t *testing.T) {
-		t.Parallel()
-		got := chatprovider.OpenAIResponsesAPIOverride(&codersdk.ChatModelOpenAIConfig{
-			UseResponsesAPI: &useResponsesAPI,
-		})
-		require.NotNil(t, got)
-		require.True(t, *got)
-	})
-}
-
-// When other OpenAI options exist, the override must select the struct type
-// the chosen API reads.
-func TestProviderOptionsFromChatModelConfig_ResponsesAPIOverride(t *testing.T) {
-	t.Parallel()
-
+	// Taken from opposite sides of the provider SDK's known-model list.
 	const responsesModel = "gpt-4o"
 	const nonResponsesModel = "babbage-002"
 
@@ -117,58 +95,90 @@ func TestProviderOptionsFromChatModelConfig_ResponsesAPIOverride(t *testing.T) {
 	forceCompletions := false
 	serviceTier := "auto"
 
-	t.Run("ForceResponsesUsesResponsesOptions", func(t *testing.T) {
-		t.Parallel()
-		got := chatprovider.ProviderOptionsFromChatModelConfig(
-			&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: nonResponsesModel},
-			&codersdk.ChatModelProviderOptions{
+	cases := []struct {
+		name           string
+		modelID        string
+		override       *bool
+		wantPath       string
+		wantOptions    fantasy.ProviderOptionsData
+		wantAcceptText bool
+	}{
+		{
+			name:        "ForceResponsesOnUnknownModel",
+			modelID:     nonResponsesModel,
+			override:    &forceResponses,
+			wantPath:    "/responses",
+			wantOptions: &fantasyopenai.ResponsesProviderOptions{},
+		},
+		{
+			name:           "ForceCompletionsOnKnownModel",
+			modelID:        responsesModel,
+			override:       &forceCompletions,
+			wantPath:       "/chat/completions",
+			wantOptions:    &fantasyopenai.ProviderOptions{},
+			wantAcceptText: true,
+		},
+		{
+			name:        "UnsetFollowsKnownModelList",
+			modelID:     responsesModel,
+			wantPath:    "/responses",
+			wantOptions: &fantasyopenai.ResponsesProviderOptions{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var mu sync.Mutex
+			var gotPath string
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				mu.Lock()
+				gotPath = req.Request.URL.Path
+				mu.Unlock()
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+
+			model, err := chatprovider.ModelFromConfig(
+				fantasyopenai.Name,
+				tc.modelID,
+				chatprovider.ProviderAPIKeys{
+					ByProvider:        map[string]string{fantasyopenai.Name: "test-key"},
+					BaseURLByProvider: map[string]string{fantasyopenai.Name: serverURL},
+				},
+				chatprovider.UserAgent(),
+				nil,
+				nil,
+				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+			)
+			require.NoError(t, err)
+
+			_, err = model.LanguageModel().Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Test message"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			mu.Lock()
+			require.Equal(t, tc.wantPath, gotPath)
+			mu.Unlock()
+
+			options := chatprovider.ProviderOptionsFromChatModelConfig(model, &codersdk.ChatModelProviderOptions{
 				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ServiceTier: &serviceTier},
-			},
-			&forceResponses,
-		)
-		require.IsType(t, &fantasyopenai.ResponsesProviderOptions{}, got[fantasyopenai.Name])
-	})
+			})
+			require.IsType(t, tc.wantOptions, options[fantasyopenai.Name])
 
-	t.Run("ForceCompletionsUsesCompletionsOptions", func(t *testing.T) {
-		t.Parallel()
-		got := chatprovider.ProviderOptionsFromChatModelConfig(
-			&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: responsesModel},
-			&codersdk.ChatModelProviderOptions{
-				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ServiceTier: &serviceTier},
-			},
-			&forceCompletions,
-		)
-		require.IsType(t, &fantasyopenai.ProviderOptions{}, got[fantasyopenai.Name])
-	})
-}
+			effortOptions := chatprovider.ApplyReasoningEffort(
+				model,
+				nil,
+				new(codersdk.ChatModelReasoningEffortHigh),
+			)
+			require.IsType(t, tc.wantOptions, effortOptions[fantasyopenai.Name])
 
-// When the override is the only OpenAI option, ApplyReasoningEffort creates
-// the provider options itself and must match the chosen API.
-func TestApplyReasoningEffort_ResponsesAPIOverride(t *testing.T) {
-	t.Parallel()
-
-	forceResponses := true
-	forceCompletions := false
-
-	t.Run("ForceResponsesOnUnknownModel", func(t *testing.T) {
-		t.Parallel()
-		got := chatprovider.ApplyReasoningEffort(
-			&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "babbage-002"},
-			nil,
-			new(codersdk.ChatModelReasoningEffortHigh),
-			&forceResponses,
-		)
-		require.IsType(t, &fantasyopenai.ResponsesProviderOptions{}, got[fantasyopenai.Name])
-	})
-
-	t.Run("ForceCompletionsOnKnownModel", func(t *testing.T) {
-		t.Parallel()
-		got := chatprovider.ApplyReasoningEffort(
-			&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4o"},
-			nil,
-			new(codersdk.ChatModelReasoningEffortHigh),
-			&forceCompletions,
-		)
-		require.IsType(t, &fantasyopenai.ProviderOptions{}, got[fantasyopenai.Name])
-	})
+			require.Equal(t, tc.wantAcceptText, model.AcceptsFilePartMediaType("text/plain"))
+			require.True(t, model.AcceptsFilePartMediaType("image/png"))
+		})
+	}
 }

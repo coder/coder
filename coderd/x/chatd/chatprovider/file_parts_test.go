@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAcceptsFilePartMediaType(t *testing.T) {
@@ -98,7 +100,15 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprovider.AcceptsFilePartMediaType(tc.provider, tc.modelID, tc.mediaType, tc.override)
+			var openAIConfig *codersdk.ChatModelOpenAIConfig
+			if tc.override != nil {
+				openAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}
+			}
+			model := chatprovider.NewModel(
+				&chattest.FakeModel{ProviderName: tc.provider, ModelName: tc.modelID},
+				openAIConfig,
+			)
+			got := model.AcceptsFilePartMediaType(tc.mediaType)
 			if got != tc.want {
 				t.Fatalf("AcceptsFilePartMediaType(%q, %q, %q, %v) = %v, want %v",
 					tc.provider, tc.modelID, tc.mediaType, tc.override, got, tc.want)

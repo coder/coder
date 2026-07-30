@@ -428,17 +428,14 @@ func (p *Server) newAdvisorRuntime(
 		nil,
 		advisorCallConfig.ReasoningEffort,
 	)
-	advisorResponsesOverride := chatprovider.OpenAIResponsesAPIOverride(advisorCallConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		advisorModel.LanguageModel(),
+		advisorModel,
 		advisorCallConfig.ProviderOptions,
-		advisorResponsesOverride,
 	)
 	providerOptions = chatprovider.ApplyReasoningEffort(
-		advisorModel.LanguageModel(),
+		advisorModel,
 		providerOptions,
 		advisorReasoningEffort,
-		advisorResponsesOverride,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{

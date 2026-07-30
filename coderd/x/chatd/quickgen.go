@@ -425,17 +425,14 @@ func (p *Server) titleGenerationProviderOptions(
 			)
 		}
 	}
-	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model.LanguageModel(),
+		model,
 		callConfig.ProviderOptions,
-		responsesOverride,
 	)
 	return chatprovider.ApplyReasoningEffort(
-		model.LanguageModel(),
+		model,
 		providerOptions,
 		chatprovider.ResolveReasoningEffort(nil, callConfig.ReasoningEffort),
-		responsesOverride,
 	)
 }
 

@@ -178,7 +178,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig),
+		callConfig.OpenAIConfig,
 	)
 }
 

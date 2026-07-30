@@ -4,6 +4,7 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Model pairs a language model client with the facts resolved when it was
@@ -16,10 +17,10 @@ type Model struct {
 }
 
 // NewModel pairs an already-built client with the transport resolved from that
-// client's own identity. ModelFromConfig is the only production caller;
-// callers must pass the same override the client was built with, which is the
-// one degree of freedom Model cannot police.
-func NewModel(lm fantasy.LanguageModel, openAIResponsesOverride *bool) Model {
+// client's own identity. Callers must pass the config the client was built
+// with, the one degree of freedom Model cannot police. ModelFromConfig is the
+// only production caller.
+func NewModel(lm fantasy.LanguageModel, openAIConfig *codersdk.ChatModelOpenAIConfig) Model {
 	if lm == nil {
 		// The invalid zero value lets callers report a nil client as an
 		// error instead of dereferencing it here.
@@ -27,7 +28,7 @@ func NewModel(lm fantasy.LanguageModel, openAIResponsesOverride *bool) Model {
 	}
 	return Model{
 		lm:        lm,
-		transport: chatopenai.TransportFor(lm.Provider(), lm.Model(), openAIResponsesOverride),
+		transport: chatopenai.TransportFor(lm.Provider(), lm.Model(), openAIResponsesAPIOverride(openAIConfig)),
 	}
 }
 
