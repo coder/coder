@@ -302,6 +302,21 @@ type sqlcQuerier interface {
 	// the root), we return its own ID as the root.
 	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)
+	// Returns the most contacted destination hosts for an AI session, ordered by
+	// call count descending and limited to the top @limit_ rows. total_domains is
+	// the number of distinct domains across the whole session, used to render a
+	// "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+	// dns/git/fs boundary logs do not carry a domain in the same shape.
+	//
+	// Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+	// each interception's boundary logs fall in the open interval (this seq, next
+	// interception's seq) within the same firewall session. The exclusive lower
+	// bound drops the interception's own LLM-provider call. next_seq considers all
+	// interceptions in the firewall session so windows never bleed across AI
+	// sessions that share one firewall session, and falls back to the maximum
+	// sequence_number for the last interception so the window stays an
+	// index-satisfiable range.
+	GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAIBridgeSessionTopDomainsParams) ([]GetAIBridgeSessionTopDomainsRow, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
@@ -1228,6 +1243,12 @@ type sqlcQuerier interface {
 	// Pagination-first strategy: identify the page of sessions cheaply via a
 	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 	// first-interception metadata) only for the ~page-size result set.
+	// The last interception in a session has no next row, so next_seq uses
+	// the largest sequence_number instead of NULL. The lookup stays a plain
+	// range, so the (session_id, sequence_number) index answers it alone.
+	// With NULL and an OR check, the index cannot bound the range: each
+	// interception reads every log to the end of the session and throws
+	// most of them away.
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)

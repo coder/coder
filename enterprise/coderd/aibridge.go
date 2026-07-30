@@ -369,6 +369,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		toolUsages    []database.AIBridgeToolUsage
 		userPrompts   []database.AIBridgeUserPrompt
 		modelThoughts []database.AIBridgeModelThought
+		topDomains    []database.GetAIBridgeSessionTopDomainsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		// Validate cursor IDs before querying threads. The SQL
@@ -435,6 +436,18 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 			return xerrors.Errorf("list model thoughts: %w", err)
 		}
 
+		// Aggregate the session's top network destination. Scoped by session
+		// ID (not the page) so the summary reflects the whole session. The
+		// summary card renders only the single most-contacted domain plus a
+		// "+N more" count derived from NetworkDomainCount, so we fetch one row.
+		topDomains, err = db.GetAIBridgeSessionTopDomains(ctx, database.GetAIBridgeSessionTopDomainsParams{
+			SessionID: sessionIDParam,
+			Limit:     1,
+		})
+		if err != nil {
+			return xerrors.Errorf("get session top domains: %w", err)
+		}
+
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead,
@@ -456,7 +469,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts)
+	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts, topDomains)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

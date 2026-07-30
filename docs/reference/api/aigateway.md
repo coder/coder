@@ -195,6 +195,17 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "models": [
     "string"
   ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
+  "network_domain_count": 0,
+  "network_top_domains": [
+    {
+      "count": 0,
+      "domain": "string"
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
