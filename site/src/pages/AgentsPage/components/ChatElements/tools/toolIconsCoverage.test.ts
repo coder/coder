@@ -11,7 +11,7 @@ describe("toolIcons coverage", () => {
 	// WrenchIcon, unless its renderer passes an aliased fixed iconName.
 	it("resolves an icon for every registered renderer", () => {
 		const missing = Object.keys(toolRenderers).filter(
-			(name) => !aliasedIconNames.has(name) && !(name in toolIcons),
+			(name) => !aliasedIconNames.has(name) && toolIcons[name] === undefined,
 		);
 		expect(missing).toEqual([]);
 	});
