@@ -381,7 +381,7 @@ func TestChatOperationalSettingPanicsOnUnknownKey(t *testing.T) {
 	require.PanicsWithValue(t,
 		`unknown chat operational setting key "not_a_real_key"`,
 		func() {
-			chatOperationalSetting{"not_a_real_key", "Unused"}.settings("1", uuid.Nil)
+			chatOperationalSetting{"not_a_real_key", "Unused", 0}.settings("1", uuid.Nil)
 		})
 
 	// Every supported descriptor populates its own field and the target
