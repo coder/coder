@@ -4524,6 +4524,13 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	return id, nil
 }
 
+// SetChatSystemPromptAuditDiffOverrideForTesting sets the audit diff override
+// used by the chat system instructions PUT handlers. Tests use it to pin the
+// captured Old/New pair; production wiring leaves it nil.
+func (api *API) SetChatSystemPromptAuditDiffOverrideForTesting(fn func(old, newVal any) audit.Map) {
+	api.chatSystemPromptAuditDiffOverride = fn
+}
+
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4554,10 +4561,11 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
-		Audit:   *api.Auditor.Load(),
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionWrite,
+		Audit:        *api.Auditor.Load(),
+		Log:          api.Logger,
+		Request:      r,
+		Action:       database.AuditActionWrite,
+		DiffOverride: api.chatSystemPromptAuditDiffOverride,
 	})
 	defer commitAudit()
 
@@ -4578,14 +4586,29 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The advisory lock serializes the audit change-detection with the
+	// write: two concurrent identical PUTs both still succeed, but the
+	// second transaction's comparison sees the first's committed state
+	// and suppresses its duplicate audit entry. The lock is part of the
+	// write path, so a failure to acquire it fails the request.
 	err := api.Database.InTx(func(tx database.Store) error {
-		oldConfig, err := tx.GetChatSystemPromptConfig(ctx)
-		if err != nil {
-			return err
+		if err := tx.AcquireLock(ctx, database.LockIDChatSettingsWrites); err != nil {
+			return xerrors.Errorf("acquire chat settings write lock: %w", err)
 		}
-		aReq.Old = database.ChatSystemPromptSettings{
-			SystemPrompt:               oldConfig.ChatSystemPrompt,
-			IncludeDefaultSystemPrompt: oldConfig.IncludeDefaultSystemPrompt,
+
+		// Audit capture only: a failed read must not change the outcome
+		// of the request, so it degrades to an unaudited write rather
+		// than aborting.
+		oldConfig, oldErr := tx.GetChatSystemPromptConfig(ctx)
+		oldCaptured := oldErr == nil
+		if !oldCaptured {
+			api.Logger.Warn(ctx, "audit old capture failed, writing chat system prompt without an audit entry",
+				slog.Error(oldErr))
+		} else {
+			aReq.Old = database.ChatSystemPromptSettings{
+				SystemPrompt:               oldConfig.ChatSystemPrompt,
+				IncludeDefaultSystemPrompt: oldConfig.IncludeDefaultSystemPrompt,
+			}
 		}
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
@@ -4600,13 +4623,20 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
+		if !oldCaptured {
+			// Without a baseline there is no meaningful change detection.
+			return nil
+		}
 		// Re-read the pair to build New: the effective include-default flag
 		// is computed from the toggle row AND the current prompt, so a
 		// prompt-only write can flip it without the request carrying the
-		// flag.
-		newConfig, err := tx.GetChatSystemPromptConfig(ctx)
-		if err != nil {
-			return err
+		// flag. Same best-effort rule as the Old capture: a failed re-read
+		// must not roll back the completed upserts.
+		newConfig, newErr := tx.GetChatSystemPromptConfig(ctx)
+		if newErr != nil {
+			api.Logger.Warn(ctx, "audit new capture failed, writing chat system prompt without an audit entry",
+				slog.Error(newErr))
+			return nil
 		}
 		if newConfig.ChatSystemPrompt == oldConfig.ChatSystemPrompt &&
 			newConfig.IncludeDefaultSystemPrompt == oldConfig.IncludeDefaultSystemPrompt {
@@ -4667,10 +4697,11 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatSystemPromptSettings](rw, &audit.RequestParams{
-		Audit:   *api.Auditor.Load(),
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionWrite,
+		Audit:        *api.Auditor.Load(),
+		Log:          api.Logger,
+		Request:      r,
+		Action:       database.AuditActionWrite,
+		DiffOverride: api.chatSystemPromptAuditDiffOverride,
 	})
 	defer commitAudit()
 
@@ -4692,21 +4723,34 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// The advisory lock serializes the audit change-detection with the
+	// write; see putChatSystemPrompt for the rationale. The lock is part
+	// of the write path, so a failure to acquire it fails the request.
 	// The read and write share one transaction so the audited old value is
 	// exactly the value this request replaced.
 	err := api.Database.InTx(func(tx database.Store) error {
-		oldInstructions, err := tx.GetChatPlanModeInstructions(ctx)
-		if err != nil {
-			return err
+		if err := tx.AcquireLock(ctx, database.LockIDChatSettingsWrites); err != nil {
+			return xerrors.Errorf("acquire chat settings write lock: %w", err)
 		}
-		aReq.Old = database.ChatSystemPromptSettings{
-			PlanModeInstructions: oldInstructions,
+
+		// Audit capture only: a failed read must not change the outcome
+		// of the request, so it degrades to an unaudited write rather
+		// than aborting.
+		oldInstructions, oldErr := tx.GetChatPlanModeInstructions(ctx)
+		if oldErr != nil {
+			api.Logger.Warn(ctx, "audit old capture failed, writing plan mode instructions without an audit entry",
+				slog.Error(oldErr))
+		} else {
+			aReq.Old = database.ChatSystemPromptSettings{
+				PlanModeInstructions: oldInstructions,
+			}
 		}
 		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
 			return err
 		}
-		if sanitizedInstructions == oldInstructions {
-			// Value-identical PUT: leave both audit sides without a
+		if oldErr != nil || sanitizedInstructions == oldInstructions {
+			// Without a baseline there is no meaningful change detection.
+			// A value-identical PUT leaves both audit sides without a
 			// resource ID, which suppresses the audit entry entirely.
 			// The upsert above still runs either way.
 			return nil

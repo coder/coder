@@ -18,6 +18,7 @@ const (
 	LockIDAIProvidersEnvSeed
 	LockIDChatModelConfigWrites
 	LockIDChatCapacityAdmission
+	LockIDChatSettingsWrites
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

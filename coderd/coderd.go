@@ -2325,8 +2325,12 @@ type API struct {
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a
 	// specific replica.
-	ID                                uuid.UUID
-	Auditor                           atomic.Pointer[audit.Auditor]
+	ID      uuid.UUID
+	Auditor atomic.Pointer[audit.Auditor]
+	// chatSystemPromptAuditDiffOverride overrides the audit diff on the
+	// chat system instructions PUT handlers. Tests set it to pin the
+	// captured Old/New pair; it is nil in production.
+	chatSystemPromptAuditDiffOverride func(old, newVal any) audit.Map
 	ConnectionLogger                  atomic.Pointer[connectionlog.ConnectionLogger]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
