@@ -95,7 +95,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 			BaseURL:     "https://api.anthropic.com/",
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-east-1",
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
 				},
 			},
 		}
@@ -140,8 +142,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Enabled:     &disabled,
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-west-2",
-					Model:  "anthropic.claude-3-5-sonnet",
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
 				},
 			},
 		})
@@ -583,7 +586,11 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+				},
 			},
 		})
 		require.Error(t, err)
@@ -611,6 +618,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-supersecret"),
 				},
@@ -881,6 +889,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
@@ -909,6 +918,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
@@ -1381,6 +1391,7 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1391,8 +1402,9 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-west-2",
-					Model:  "anthropic.claude-3-5-haiku",
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-3-5-haiku",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
 				},
 			},
 		})
@@ -1432,6 +1444,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1443,6 +1457,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref(""),
 					AccessKeySecret: ptr.Ref(""),
 				},
@@ -1477,6 +1493,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1488,6 +1506,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-new"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-new"),
 				},
@@ -1524,6 +1544,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1535,6 +1557,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-sonnet-4-6",
+					SmallFastModel:  "anthropic.claude-haiku-4-5-20251001-v1:0",
 					AccessKey:       ptr.Ref(""),
 					AccessKeySecret: ptr.Ref(""),
 					RoleARN:         "arn:aws:iam::123456789012:role/target",
@@ -1574,6 +1598,15 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 	createBedrock := func(t *testing.T, client *codersdk.Client, name string, b codersdk.AIProviderBedrockSettings) (codersdk.AIProvider, error) {
 		t.Helper()
+		// Default-fill the invoke-model required fields so callers that
+		// only care about external-ID/role behavior don't each have to
+		// repeat them.
+		if b.Model == "" {
+			b.Model = "anthropic.claude-sonnet-4-6"
+		}
+		if b.SmallFastModel == "" {
+			b.SmallFastModel = "anthropic.claude-haiku-4-5-20251001-v1:0"
+		}
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		return client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1649,7 +1682,12 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleARN,
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -1676,7 +1714,11 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// Removing the role retains the external ID.
 		cleared, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -1687,7 +1729,12 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// regenerating it, so a trust policy referencing it keeps working.
 		readded, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleB},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleB,
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -1713,7 +1760,13 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// external ID. Echoing the same value is allowed.
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN, ExternalID: original},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleARN,
+					ExternalID:     original,
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -1736,7 +1789,13 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-tries-to-change-it"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleARN,
+					ExternalID:     "client-tries-to-change-it",
+				},
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -1755,7 +1814,12 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleARN,
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -1775,7 +1839,13 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// No value is stored yet, so any client value is a change and is rejected.
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-supplied-value"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					RoleARN:        roleARN,
+					ExternalID:     "client-supplied-value",
+				},
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
