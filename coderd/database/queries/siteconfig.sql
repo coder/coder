@@ -420,7 +420,8 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days';
 -- site_configs key, or an empty string when the key has no row. Unlike
 -- the typed per-key getters it performs no cast, so it cannot fail on
 -- malformed stored text; audit change-detection uses it to capture the
--- exact stored value a write replaced.
+-- exact stored value a write replaced. It only reads keys in the agents_
+-- namespace so it cannot be used to read unrelated site_configs secrets.
 -- name: GetChatSiteConfigValue :one
 SELECT
-    COALESCE((SELECT value FROM site_configs WHERE key = sqlc.arg(config_key)), '') :: text AS value;
+    COALESCE((SELECT value FROM site_configs WHERE key = sqlc.arg(config_key) AND key LIKE 'agents\_%'), '') :: text AS value;

@@ -501,7 +501,8 @@ type sqlcQuerier interface {
 	// site_configs key, or an empty string when the key has no row. Unlike
 	// the typed per-key getters it performs no cast, so it cannot fail on
 	// malformed stored text; audit change-detection uses it to capture the
-	// exact stored value a write replaced.
+	// exact stored value a write replaced. It only reads keys in the agents_
+	// namespace so it cannot be used to read unrelated site_configs secrets.
 	GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)

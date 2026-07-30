@@ -17559,6 +17559,36 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
 	})
+
+	// The raw read query is restricted to the agents_ namespace: a
+	// site_configs key outside it reads as empty, so the query cannot be
+	// used to read unrelated deployment secrets (review round 2).
+	t.Run("NonAgentsKeyReadsEmpty", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, store := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		// A populated key outside the agents_ namespace.
+		const meshKey = "derp_mesh_key"
+		require.NoError(t, store.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   meshKey,
+			Value: "test-mesh-key-value",
+		}))
+
+		v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), meshKey)
+		require.NoError(t, err)
+		require.Equal(t, "", v)
+
+		// The agents_ namespace still reads normally.
+		require.NoError(t, store.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   "agents_chat_retention_days",
+			Value: "42",
+		}))
+		v, err = store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "42", v)
+	})
 }
 
 // recordingSink captures slog entries so tests can assert on messages the

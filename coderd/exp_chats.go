@@ -5584,6 +5584,8 @@ func operationalSettingsForKey(key, value string, id uuid.UUID) database.AgentsO
 		s.DebugLoggingAllowUsers = value
 	case "agents_chat_personal_model_overrides_enabled":
 		s.PersonalModelOverridesEnabled = value
+	default:
+		panic(fmt.Sprintf("unknown chat operational setting key %q", key))
 	}
 	return s
 }
