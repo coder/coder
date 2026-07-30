@@ -152,9 +152,12 @@ request:
 - Spend below the budget: the request proceeds.
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` with a
   message that describes the issue.
+- Budget check fails: AI Gateway returns a `500` error instead of forwarding the
+  request upstream.
 
-Access resumes when the budget period resets, when an administrator raises the
-budget, or when an override is added.
+Users without a budget have **unlimited spend**, so their requests proceed
+without enforcement. A blocked user's access resumes when the budget period
+resets, when an administrator raises the budget, or when an override is added.
 
 > [!NOTE]
 > Enforcement is approximate. A request's cost is known only after the provider
