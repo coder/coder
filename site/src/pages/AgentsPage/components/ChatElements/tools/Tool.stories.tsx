@@ -586,6 +586,28 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 	},
 };
 
+/**
+ * A persisted spawn whose result never arrived reads as done rather than still
+ * running: the transcript cannot tell whether it finished, and the row it had
+ * before the status could say so was the completed one.
+ */
+export const SubagentSpawnWithNoResult: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "unknown",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+	},
+};
+
 const mockChatModelConfig = {
 	...MockChatModelConfig,
 	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",

@@ -1,5 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
+import type { ToolStatus } from "../ChatElements/tools/utils";
 
 export type ParsedToolCall = {
 	id: string;
@@ -23,7 +24,7 @@ export type MergedTool = {
 	args?: unknown;
 	result?: unknown;
 	isError: boolean;
-	status: "completed" | "error" | "running";
+	status: ToolStatus;
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];

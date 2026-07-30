@@ -301,7 +301,9 @@ const parsePartialJSONObject = (
 	}
 
 	let index = 1;
-	const parsed: Record<string, unknown> = {};
+	// Provider-chosen keys can include `__proto__`, which must not reach the
+	// prototype setter.
+	const parsed: Record<string, unknown> = Object.create(null);
 	let hasFields = false;
 
 	while (index < trimmed.length) {
@@ -337,6 +339,12 @@ const parsePartialJSONObject = (
 			break;
 		}
 		index += 1;
+
+		// extractIncompleteStringContent below reads from this index, so
+		// whitespace must not reach it.
+		while (index < trimmed.length && /\s/.test(trimmed[index])) {
+			index += 1;
+		}
 
 		const nextValue = parsePartialJSONValue(trimmed, index);
 		if (nextValue.status === "incomplete") {

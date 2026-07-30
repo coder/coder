@@ -18,9 +18,7 @@ const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 
 export const ReadFilesTool: FC<{
 	tools: readonly [MergedTool, ...MergedTool[]];
-	expanded?: boolean;
-	onExpandedChange?: (expanded: boolean) => void;
-}> = ({ tools, expanded, onExpandedChange }) => {
+}> = ({ tools }) => {
 	const [expandedFileIndexes, setExpandedFileIndexes] = useState<
 		ReadonlySet<number>
 	>(new Set());
@@ -39,8 +37,6 @@ export const ReadFilesTool: FC<{
 				status={isRunning ? "running" : isError ? "error" : "completed"}
 				isError={isError}
 				errorMessage={errorMessage || "Failed to read one or more files"}
-				expanded={expanded}
-				onExpandedChange={onExpandedChange}
 			>
 				<ToolCall.Header iconName="read_file" label={label} />
 				<ToolCall.Content>

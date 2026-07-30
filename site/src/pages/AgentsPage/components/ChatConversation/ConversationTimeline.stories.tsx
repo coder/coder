@@ -2584,7 +2584,9 @@ const SURVIVING_ROW_COUNT = 5;
 
 const expectRowsSurviveCollapse: Story["play"] = async ({ canvasElement }) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByText("Thinking"));
+	const thinkingButton = canvas.getByRole("button", { name: "Thinking" });
+	await userEvent.click(thinkingButton);
+	expect(thinkingButton).toHaveAttribute("aria-expanded", "true");
 	// Rows are captured by position, so a response still revealing its streamed
 	// text cannot decide the outcome.
 	const rowsBelowRun = [...canvas.getByTestId("timeline-rows").children].slice(
@@ -2620,6 +2622,24 @@ export const ReadFileRunCollapseKeepsRowsMounted: Story = {
 export const ReadFileRunCollapseKeepsRowsMountedWhileStreaming: Story = {
 	render: () => <ReadFileRunCollapseHarness isStreaming />,
 	play: expectRowsSurviveCollapse,
+};
+
+/** A lone read and a file-list group are different disclosures. */
+export const ReadFileRunGrowthDoesNotCarryExpansion: Story = {
+	render: () => <ReadFileRunCollapseHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const singleRead = canvas.getByRole("button", { name: /read a\.ts/i });
+		await userEvent.click(singleRead);
+		expect(singleRead).toHaveAttribute("aria-expanded", "true");
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Resolve second read" }),
+		);
+
+		const group = await canvas.findByRole("button", { name: /read 2 files/i });
+		expect(group).toHaveAttribute("aria-expanded", "false");
+	},
 };
 
 export const SequentialReadFilesEmptyAndErrorStates: Story = {

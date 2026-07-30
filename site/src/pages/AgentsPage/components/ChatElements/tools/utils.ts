@@ -4,7 +4,12 @@ import * as Diff from "diff";
 import * as Yup from "yup";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
-export type ToolStatus = "completed" | "error" | "running";
+/** `unknown`: a call exists, no result arrived, nothing is left to produce one. */
+export type ToolStatus = "completed" | "error" | "running" | "unknown";
+
+/** A call with no result is as settled as a completed one: nothing more is coming. */
+export const isSettledToolStatus = (status: ToolStatus): boolean =>
+	status === "completed" || status === "unknown";
 
 export interface EditFilesFileEntry {
 	path: string;
@@ -168,7 +173,7 @@ export const mapSubagentStatusToToolStatus = (
 		// override to "running". The spawn/await tool is done;
 		// the sub-agent may still be working in the background
 		// but that doesn't mean the tool call is still running.
-		return fallback === "completed" ? "completed" : "running";
+		return fallback === "error" ? "running" : fallback;
 	}
 	switch (normalized) {
 		case "waiting":

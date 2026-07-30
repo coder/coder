@@ -15,6 +15,28 @@ describe("parseStreamingJSON", () => {
 		});
 	});
 
+	// Pretty-printed payloads put whitespace between the colon and the value.
+	it.each([
+		['{"command": "git che', { command: "git che" }],
+		['{\n  "command": "git che', { command: "git che" }],
+		[
+			'{"model_intent": "Checking state", "command": "git che',
+			{ model_intent: "Checking state", command: "git che" },
+		],
+	] satisfies Array<
+		[string, Record<string, unknown>]
+	>)("recovers a partial string value after whitespace in %s", (input, expected) => {
+		expect(parseStreamingJSON(input)).toEqual(expected);
+	});
+
+	it("keeps a __proto__ key as an own field", () => {
+		expect(
+			parseStreamingJSON('{"__proto__":{"command":"rm -rf /"},"command":"ls"'),
+		).toEqual(
+			JSON.parse('{"__proto__":{"command":"rm -rf /"},"command":"ls"}'),
+		);
+	});
+
 	it("returns parsed fields for partial objects with trailing incomplete field", () => {
 		expect(parseStreamingJSON('{"a":1,"b":')).toEqual({ a: 1 });
 	});

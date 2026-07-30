@@ -43,13 +43,9 @@ type TimelineBlock =
 	| { type: "read-files"; tools: readonly [MergedTool, ...MergedTool[]] };
 
 /**
- * Pairs each tool block with its tool in order and collapses adjacent read_file
- * tools into one `read-files` block, including a run of one, so the renderer
- * switches on shape instead of looking tools up. A block with no tool, or whose
- * arguments have not streamed far enough to render, becomes `unresolved-tool`,
- * which is also where it stays if the tool never arrives. A tool that is
- * deliberately hidden becomes `suppressed-tool`. Those two are the only
- * variants that can render nothing.
+ * Pairs each tool block with the next unconsumed tool and collapses adjacent
+ * read_file tools into one `read-files` block, including a run of one, so the
+ * renderer switches on shape instead of looking tools up.
  *
  * Non-tool blocks carry their index in `blocks`, which never moves, so
  * collapsing a read-file run cannot renumber the keys of later blocks.
@@ -79,7 +75,7 @@ export const toTimelineBlocks = (
 			continue;
 		}
 
-		const candidate = tools[cursor];
+		const candidate = tools.at(cursor);
 		const tool = candidate?.id === block.id ? candidate : undefined;
 		if (tool) {
 			cursor++;

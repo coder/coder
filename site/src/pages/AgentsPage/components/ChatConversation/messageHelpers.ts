@@ -146,7 +146,6 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 		return false;
 	}
 	if (
-		entry.parsed.blocks.length === 0 ||
 		entry.parsed.markdown.trim() ||
 		entry.parsed.reasoning.trim() ||
 		entry.parsed.sources.length > 0
@@ -154,11 +153,8 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 		return false;
 	}
 
-	const toolByID = new Map(entry.parsed.tools.map((tool) => [tool.id, tool]));
-	return entry.parsed.blocks.every(
-		(block) =>
-			block.type === "tool" && toolByID.get(block.id)?.name === "read_file",
-	);
+	const timeline = toTimelineBlocks(entry.parsed.blocks, entry.parsed.tools);
+	return timeline.length === 1 && timeline[0].type === "read-files";
 };
 
 const mergeReadFileMessageGroup = (

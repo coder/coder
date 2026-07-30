@@ -172,7 +172,7 @@ export const mergeTools = (
 				: "completed"
 			: options.pendingToolCallIDs?.has(block.id)
 				? "running"
-				: "completed";
+				: "unknown";
 		merged.push({
 			id: block.id,
 			name: source.name,

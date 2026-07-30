@@ -532,14 +532,14 @@ describe("mergeTools", () => {
 		expect(merged[0].status).toBe("error");
 	});
 
-	it("returns completed for calls without results", () => {
+	it("returns unknown for calls without results", () => {
 		const merged = mergeTools(
 			[{ type: "tool", id: "1" }],
 			[{ id: "1", name: "bash" }],
 			[],
 		);
 		expect(merged).toHaveLength(1);
-		expect(merged[0].status).toBe("completed");
+		expect(merged[0].status).toBe("unknown");
 	});
 
 	it("marks unresolved pending calls as running", () => {
@@ -602,7 +602,7 @@ describe("pending durable tool parsing", () => {
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("running");
 	});
 
-	it("keeps unresolved historical tool calls completed in an inactive chat", () => {
+	it("leaves an unresolved historical tool call unknown in an inactive chat", () => {
 		const messages = [
 			msg(1, "user", [{ type: "text", text: "create a workspace" }]),
 			msg(2, "assistant", [toolCall("call-inactive")]),
@@ -612,7 +612,7 @@ describe("pending durable tool parsing", () => {
 			pendingToolCallIDs: getPendingToolCallIDs(messages, "waiting"),
 		});
 
-		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
+		expect(parsed[1]?.parsed.tools[0]?.status).toBe("unknown");
 	});
 
 	it("uses completed or error status once a matching result exists", () => {
@@ -650,7 +650,7 @@ describe("pending durable tool parsing", () => {
 			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
 		});
 
-		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
+		expect(parsed[1]?.parsed.tools[0]?.status).toBe("unknown");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
 	});
 });

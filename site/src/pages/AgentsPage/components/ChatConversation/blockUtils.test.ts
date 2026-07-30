@@ -265,8 +265,6 @@ describe("toTimelineBlocks", () => {
 		).toEqual([{ type: "suppressed-tool", id: "wait-1" }]);
 	});
 
-	// A settled execute with no command carries the error explaining why, so it
-	// must reach <Tool> rather than sit behind a placeholder forever.
 	it("keeps an execute whose result explains its missing command", () => {
 		expect(
 			toTimelineBlocks(

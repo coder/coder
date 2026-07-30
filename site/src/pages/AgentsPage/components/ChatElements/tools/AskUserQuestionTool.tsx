@@ -10,7 +10,7 @@ import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
 import { ToolCall } from "./ToolCall";
-import type { ToolStatus } from "./utils";
+import { isSettledToolStatus, type ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
 	header: string;
@@ -400,10 +400,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		},
 	});
 	const isRunning = status === "running";
+	const isSettled = isSettledToolStatus(status);
 	const displayedSubmittedResponseText =
 		previousResponseText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
-	const showAnsweredState = status === "completed" && hasSubmittedResponse;
+	const showAnsweredState = isSettled && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
 	const activeQuestionIndex = Math.min(
 		currentQuestionIndex,
@@ -412,7 +413,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	const currentAnswer = answers[activeQuestionIndex];
 	const isInteractive =
 		isChatCompleted &&
-		status === "completed" &&
+		isSettled &&
 		isLatestAskUserQuestion &&
 		!hasSubmittedResponse &&
 		Boolean(onSubmitAnswer);

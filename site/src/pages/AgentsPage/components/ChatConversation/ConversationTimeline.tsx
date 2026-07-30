@@ -213,30 +213,18 @@ const SmoothedResponse = memo<{
 const ReadFileTimelineBlock = memo<{
 	tools: readonly [MergedTool, ...MergedTool[]];
 }>(({ tools }) => {
-	const [expanded, setExpanded] = useState(false);
 	const [firstTool] = tools;
 
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
 			<div data-transcript-row="">
-				<ReadFileTool
-					{...readFile}
-					status={firstTool.status}
-					expanded={expanded}
-					onExpandedChange={setExpanded}
-				/>
+				<ReadFileTool {...readFile} status={firstTool.status} />
 			</div>
 		);
 	}
 
-	return (
-		<ReadFilesTool
-			tools={tools}
-			expanded={expanded}
-			onExpandedChange={setExpanded}
-		/>
-	);
+	return <ReadFilesTool tools={tools} />;
 });
 
 // Shared block renderer used by both ChatMessageItem (historical

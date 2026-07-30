@@ -12,7 +12,7 @@ export const asString = (value: unknown): string =>
 
 /**
  * Record lookup that ignores `Object.prototype` members, for keys chosen
- * outside our control such as provider tool names and tool call ids.
+ * outside our control.
  */
 export const ownValue = <T>(
 	record: Record<string, T>,

@@ -23,7 +23,11 @@ import {
 } from "./spawnModelDisplay";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
-import { isSubagentSuccessStatus, type ToolStatus } from "./utils";
+import {
+	isSettledToolStatus,
+	isSubagentSuccessStatus,
+	type ToolStatus,
+} from "./utils";
 
 const SUBAGENT_VERBS: Record<
 	SubagentAction,
@@ -73,7 +77,7 @@ function getSubagentLabel(
 	if (
 		descriptor.variant === "computer_use" &&
 		descriptor.action === "wait" &&
-		toolStatus === "completed"
+		isSettledToolStatus(toolStatus)
 	) {
 		return (
 			<>
@@ -83,7 +87,7 @@ function getSubagentLabel(
 	}
 	const phase = isTimeout
 		? "timeout"
-		: toolStatus === "completed"
+		: isSettledToolStatus(toolStatus)
 			? "completed"
 			: toolStatus === "error"
 				? "error"

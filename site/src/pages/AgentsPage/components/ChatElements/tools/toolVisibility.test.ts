@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
+import {
+	getExecuteRenderData,
+	isExecutePendingCommand,
+	shouldRenderTool,
+} from "./toolVisibility";
+import type { ToolStatus } from "./utils";
 
 const stoppedWorkspaceError =
 	"workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it";
@@ -59,41 +64,29 @@ describe("toolVisibility", () => {
 				).transcriptBlocks,
 			).toEqual([{ kind: "error", text: "auth required" }]);
 		});
+
+		it("treats a whitespace-only command as no command", () => {
+			expect(getExecuteRenderData({ command: "   " }, {}).command).toBe("");
+		});
+	});
+
+	describe("isExecutePendingCommand", () => {
+		// Status and result vary independently, so each row pins one of them
+		// rather than moving both at once.
+		it.each<[unknown, ToolStatus, unknown, boolean]>([
+			[{}, "running", undefined, true],
+			[{}, "unknown", undefined, true],
+			[{}, "completed", { output: "" }, false],
+			[{}, "error", undefined, false],
+			[{ command: "git status" }, "running", undefined, false],
+		])("args %o status %s result %o is pending: %s", (args, status, result, expected) => {
+			expect(
+				isExecutePendingCommand({ name: "execute", status, args, result }),
+			).toBe(expected);
+		});
 	});
 
 	describe("shouldRenderTool", () => {
-		it("hides execute rows with no command and no result", () => {
-			expect(
-				shouldRenderTool({
-					name: "execute",
-					status: "completed",
-					args: {},
-				}),
-			).toBe(false);
-		});
-
-		it("renders a command-less execute row that failed with a result", () => {
-			expect(
-				shouldRenderTool({
-					name: "execute",
-					status: "error",
-					args: {},
-					result: { error: "command is required" },
-				}),
-			).toBe(true);
-		});
-
-		it("renders execute rows that have a command", () => {
-			expect(
-				shouldRenderTool({
-					name: "execute",
-					status: "completed",
-					args: { command: "git status" },
-					result: { output: "clean" },
-				}),
-			).toBe(true);
-		});
-
 		it("hides running wait_agent rows until chat_id is available", () => {
 			expect(
 				shouldRenderTool({
