@@ -17,7 +17,6 @@ import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
 	ExecuteTool as ExecuteToolComponent,
-	WaitForExternalAuthTool,
 } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
@@ -59,7 +58,6 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 import { WriteFileTool } from "./WriteFileTool";
@@ -281,33 +279,6 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
-		/>
-	);
-};
-
-const WaitForExternalAuthRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
-	const rec = asRecord(result);
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-	const authenticated = rec ? Boolean(rec.authenticated) : false;
-	const timedOut = rec ? Boolean(rec.timed_out) : false;
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	return (
-		<WaitForExternalAuthTool
-			providerLabel={providerLabel}
-			status={status}
-			authenticated={authenticated}
-			timedOut={timedOut}
-			isError={isError}
-			errorMessage={errorMessage || undefined}
 		/>
 	);
 };
@@ -1066,7 +1037,6 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
-	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
