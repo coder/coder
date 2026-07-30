@@ -2476,6 +2476,12 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Description Cost covers the whole chat tree: the root chat plus every
 // @Description subagent chat beneath it. Requesting cost for a subagent chat
 // @Description returns that same total.
+// @Description
+// @Description Cost is derived from AI Gateway data, which is subject to its
+// @Description own retention period, 60 days by default, configured
+// @Description independently of chat retention. Spend for requests older than
+// @Description that period is no longer reported, so a chat whose requests
+// @Description have all been purged reports zero cost.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {

@@ -75,8 +75,9 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
 	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), rootID).Return(
 		database.GetAIBridgeChatCostRow{
-			TotalCostMicros: 250,
-			RequestCount:    1,
+			TotalCostMicros:      250,
+			RequestCount:         2,
+			UnpricedRequestCount: 1,
 		},
 		nil,
 	)
@@ -96,7 +97,8 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
 	require.Equal(t, child.ID, cost.ChatID)
 	require.Equal(t, int64(250), cost.TotalCostMicros)
-	require.Equal(t, int64(1), cost.RequestCount)
+	require.Equal(t, int64(2), cost.RequestCount)
+	require.Equal(t, int64(1), cost.UnpricedRequestCount)
 }
 
 func TestEnrichMissingChatAgentIDs(t *testing.T) {

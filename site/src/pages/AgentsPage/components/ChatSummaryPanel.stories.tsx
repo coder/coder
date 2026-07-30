@@ -16,10 +16,6 @@ const mockCost: TypesGen.ChatCost = {
 	unpriced_request_count: 0,
 };
 
-const aiCostControl: { features: TypesGen.FeatureName[] } = {
-	features: ["aibridge"],
-};
-
 type MockRequestOptions = {
 	cost?: TypesGen.ChatCost;
 	summary?: string | null;
@@ -62,7 +58,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	title: "pages/AgentsPage/ChatSummaryPanel",
 	component: ChatSummaryPanel,
 	decorators: [PanelFrame, withDashboardProvider],
-	parameters: aiCostControl,
+	parameters: { features: ["aibridge"] satisfies TypesGen.FeatureName[] },
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,

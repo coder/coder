@@ -1302,6 +1302,12 @@ Cost covers the whole chat tree: the root chat plus every
 subagent chat beneath it. Requesting cost for a subagent chat
 returns that same total.
 
+Cost is derived from AI Gateway data, which is subject to its
+own retention period, 60 days by default, configured
+independently of chat retention. Spend for requests older than
+that period is no longer reported, so a chat whose requests
+have all been purged reports zero cost.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
