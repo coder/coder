@@ -19,7 +19,10 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
-	const rootChatId = chatData?.root_chat_id ?? chatId;
+	// Mirrors the server's COALESCE(root_chat_id, parent_chat_id) resolution so
+	// the cost cache key matches the tree the server aggregates.
+	const rootChatId =
+		chatData?.root_chat_id ?? chatData?.parent_chat_id ?? chatId;
 	const costQuery = useQuery({
 		...chatCost(rootChatId),
 		enabled: isVisible && showCost && chatData !== undefined,

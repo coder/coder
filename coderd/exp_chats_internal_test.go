@@ -101,6 +101,41 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 	require.Equal(t, int64(1), cost.UnpricedRequestCount)
 }
 
+func TestGetChatCostFallsBackToParentChat(t *testing.T) {
+	t.Parallel()
+
+	dbm := dbmock.NewMockStore(gomock.NewController(t))
+	parentID := uuid.New()
+	// chats.parent_chat_id and chats.root_chat_id are both ON DELETE SET NULL,
+	// so deleting a root leaves descendants with only a parent.
+	child := database.Chat{
+		ID:           uuid.New(),
+		OwnerID:      uuid.New(),
+		ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), parentID).Return(
+		database.GetAIBridgeChatCostRow{TotalCostMicros: 125, RequestCount: 1},
+		nil,
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+child.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var cost codersdk.ChatCost
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
+	require.Equal(t, int64(125), cost.TotalCostMicros)
+}
+
 func TestEnrichMissingChatAgentIDs(t *testing.T) {
 	t.Parallel()
 	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {

@@ -2490,10 +2490,17 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 
 	// AI Gateway attributes a subagent's requests to the chat that spawned
 	// it, so cost is only meaningful for a whole chat tree. Resolve the root
-	// chat and report the tree total, including for subagent chats.
+	// chat and report the tree total, including for subagent chats. Fall back
+	// to the parent when root_chat_id is NULL, matching the
+	// COALESCE(root_chat_id, parent_chat_id) resolution the chat queries use:
+	// both columns are ON DELETE SET NULL, so deleting a root leaves
+	// descendants with only a parent.
 	rootChatID := chat.ID
-	if chat.RootChatID.Valid {
+	switch {
+	case chat.RootChatID.Valid:
 		rootChatID = chat.RootChatID.UUID
+	case chat.ParentChatID.Valid:
+		rootChatID = chat.ParentChatID.UUID
 	}
 
 	row, err := api.Database.GetAIBridgeChatCost(ctx, rootChatID)
