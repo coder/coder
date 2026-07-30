@@ -1258,6 +1258,12 @@ type sqlcQuerier interface {
 	// Pagination-first strategy: identify the page of sessions cheaply via a
 	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 	// first-interception metadata) only for the ~page-size result set.
+	// The last interception in a session has no next row, so next_seq uses
+	// the largest sequence_number instead of NULL. The lookup stays a plain
+	// range, so the (session_id, sequence_number) index answers it alone.
+	// With NULL and an OR check, the index cannot bound the range: each
+	// interception reads every log to the end of the session and throws
+	// most of them away.
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)

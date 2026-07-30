@@ -2260,12 +2260,6 @@ LEFT JOIN LATERAL (
 	-- egress. next_seq considers all interceptions in the firewall session so
 	-- windows never bleed across AI sessions that share one firewall session.
 	--
-	-- The last interception in a firewall session has no successor, so next_seq
-	-- falls back to the maximum sequence_number instead of NULL. That keeps the
-	-- window a plain range that the (session_id, sequence_number) index can
-	-- satisfy end to end: an OR'd NULL check cannot be an index bound, which
-	-- made every interception scan the firewall session's logs from its own
-	-- sequence number to the end and discard the overshoot.
 	SELECT
 		COUNT(*)::bigint AS total,
 		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
@@ -2334,6 +2328,12 @@ type ListAIBridgeSessionsRow struct {
 // Pagination-first strategy: identify the page of sessions cheaply via a
 // single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 // first-interception metadata) only for the ~page-size result set.
+// The last interception in a session has no next row, so next_seq uses
+// the largest sequence_number instead of NULL. The lookup stays a plain
+// range, so the (session_id, sequence_number) index answers it alone.
+// With NULL and an OR check, the index cannot bound the range: each
+// interception reads every log to the end of the session and throws
+// most of them away.
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
