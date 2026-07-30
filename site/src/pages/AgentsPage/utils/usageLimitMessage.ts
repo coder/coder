@@ -81,6 +81,28 @@ export function isChatUsageLimitExceededResponse(
 	);
 }
 
+export function isChatHookDispatchFailedResponse(
+	value: unknown,
+): value is TypesGen.ChatHookDispatchFailedResponse {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"kind" in value &&
+		value.kind === "hook_dispatch_failed"
+	);
+}
+
+export function isChatHookDeniedResponse(
+	value: unknown,
+): value is TypesGen.ChatHookDeniedResponse {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"kind" in value &&
+		value.kind === "hook_denied"
+	);
+}
+
 /**
  * Build a user-friendly usage-limit message from structured 409
  * response data. Falls back to a generic message if structured

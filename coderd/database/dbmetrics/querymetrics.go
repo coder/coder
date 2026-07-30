@@ -4169,7 +4169,7 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatMessages(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatMessages").Observe(time.Since(start).Seconds())

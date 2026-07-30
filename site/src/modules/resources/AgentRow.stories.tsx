@@ -4,7 +4,6 @@ import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
-import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
 import {
 	withDashboardProvider,
@@ -135,7 +134,6 @@ const meta: Meta<typeof AgentRow> = {
 	},
 	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
 	parameters: {
-		chromatic,
 		queries: [
 			{
 				key: ["portForward", M.MockWorkspaceAgent.id],

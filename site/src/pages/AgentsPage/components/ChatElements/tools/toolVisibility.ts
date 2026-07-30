@@ -16,6 +16,7 @@ export type ExecuteTranscriptBlock = {
 type ExecuteRenderData = {
 	command: string;
 	transcriptBlocks: ExecuteTranscriptBlock[];
+	errorText: string;
 	durationMs?: number;
 	isBackgrounded: boolean;
 	authenticateURL: string;
@@ -63,6 +64,7 @@ export const getExecuteRenderData = (
 	return {
 		command,
 		transcriptBlocks,
+		errorText,
 		durationMs,
 		isBackgrounded,
 		authenticateURL,

@@ -95,6 +95,17 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 	return params
 }
 
+// fromInsertedRows converts the rows returned by `InsertChatMessages`, which
+// sqlc types separately because the query wraps the insert in a CTE. The
+// conversion stops compiling if the row ever stops matching ChatMessage.
+func fromInsertedRows(rows []database.InsertChatMessagesRow) []database.ChatMessage {
+	messages := make([]database.ChatMessage, len(rows))
+	for i, row := range rows {
+		messages[i] = database.ChatMessage(row)
+	}
+	return messages
+}
+
 func nullUUIDOrNil(u uuid.NullUUID) uuid.UUID {
 	if u.Valid {
 		return u.UUID

@@ -47,9 +47,11 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -108,6 +110,39 @@ func writeChatUsageLimitExceeded(
 		LimitMicros: limitErr.LimitMicros,
 		ResetsAt:    limitErr.PeriodEnd,
 	})
+}
+
+// Avoid returning raw dispatch errors, which may expose deployment internals.
+func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, hookErr *dispatch.Error) {
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.ChatHookDispatchFailedResponse{
+		Response: codersdk.Response{
+			Message: "Chat lifecycle hook dispatch failed.",
+			Detail:  fmt.Sprintf("Lifecycle hook dispatch %s failed (%s).", hookErr.DispatchID, hookErr.Class),
+		},
+		Kind: codersdk.ChatErrorKindHookDispatchFailed,
+	})
+}
+
+// writeChatHookErr writes the response for lifecycle hook denials and
+// dispatch failures, reporting whether it handled the error. The fallback
+// message is used when the hook denies without a user message.
+func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, deniedFallback string) bool {
+	if denied, ok := errors.AsType[*chathooks.UserPromptDeniedError](err); ok {
+		message := denied.UserMessage
+		if message == "" {
+			message = deniedFallback
+		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.ChatHookDeniedResponse{
+			Response: codersdk.Response{Message: message},
+			Kind:     codersdk.ChatErrorKindHookDenied,
+		})
+		return true
+	}
+	if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {
+		writeChatHookDispatchFailed(ctx, rw, hookErr)
+		return true
+	}
+	return false
 }
 
 func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
@@ -1227,8 +1262,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cap the raw request body to prevent excessive memory use
-	// from large dynamic tool schemas.
+	// Limit memory used to decode dynamic tool schemas.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 
 	var req codersdk.CreateChatRequest
@@ -1424,23 +1458,27 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     req.OrganizationID,
-		OwnerID:            apiKey.UserID,
-		WorkspaceID:        workspaceSelection.WorkspaceID,
-		Title:              title,
-		ModelConfigID:      modelConfigID,
-		ReasoningEffort:    reasoningEffort,
-		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
-		ClientType:         clientType,
-		SystemPrompt:       req.SystemPrompt,
-		InitialUserContent: contentBlocks,
-		MCPServerIDs:       mcpServerIDs,
-		Labels:             labels,
-		DynamicTools:       dynamicToolsJSON,
+		OrganizationID:          req.OrganizationID,
+		OwnerID:                 apiKey.UserID,
+		WorkspaceID:             workspaceSelection.WorkspaceID,
+		Title:                   title,
+		TitleDerivedFromContent: true,
+		ModelConfigID:           modelConfigID,
+		ReasoningEffort:         reasoningEffort,
+		PlanMode:                planModeToNullChatPlanMode(req.PlanMode),
+		ClientType:              clientType,
+		SystemPrompt:            req.SystemPrompt,
+		InitialUserContent:      contentBlocks,
+		MCPServerIDs:            mcpServerIDs,
+		Labels:                  labels,
+		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
+		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
@@ -1483,10 +1521,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in the initial
-	// message to this newly created chat (best-effort; cap
-	// enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	linkFileIDs := fileIDs
+	if len(fileIDs) > 0 {
+		initialUser, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleUser,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "load initial message for file linking",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			linkFileIDs = api.linkedFileIDsFromContent(ctx, initialUser, fileIDs)
+		}
+	}
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, linkFileIDs)
 
 	// Re-read the chat so the response reflects the authoritative
 	// database state (file links are deduped in the join table).
@@ -3422,6 +3472,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
+		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
 			return
 		}
@@ -3476,9 +3529,19 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in this message
-	// to the chat (best-effort; cap enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, fileIDs)
+	linkFileIDs := fileIDs
+	if sendResult.Queued {
+		if sendResult.QueuedMessage != nil {
+			linkFileIDs = api.linkedFileIDsFromContent(ctx, database.ChatMessage{
+				Role:           database.ChatMessageRoleUser,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				Content:        pqtype.NullRawMessage{RawMessage: sendResult.QueuedMessage.Content, Valid: true},
+			}, fileIDs)
+		}
+	} else {
+		linkFileIDs = api.linkedFileIDsFromContent(ctx, sendResult.Message, fileIDs)
+	}
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, linkFileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -3487,6 +3550,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message
+	}
+	// Return the full user-visible inserted batch. A queued send on an errored
+	// chat can promote the previous queue head, which clients must cache.
+	for _, inserted := range sendResult.InsertedMessages {
+		if inserted.Visibility == database.ChatMessageVisibilityModel {
+			continue
+		}
+		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
 	if len(unlinked) > 0 {
 		if capExceeded {
@@ -3591,6 +3662,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: editReasoningEffort,
 	})
 	if editErr != nil {
+		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, editErr) {
 			return
 		}
@@ -3635,12 +3709,19 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in the edited
-	// message to the chat (best-effort; cap enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
-	response := codersdk.EditChatMessageResponse{
-		Message: convertChatMessage(editResult.Message),
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, api.linkedFileIDsFromContent(ctx, editResult.Message, fileIDs))
+	response := codersdk.EditChatMessageResponse{Message: convertChatMessage(editResult.Message)}
+	// Synthetic cancellations precede the replacement with lower IDs;
+	// clients that seed their transcript cache from this response need
+	// all user-visible inserted rows, or a stream reconnect with
+	// after_id set to the replacement would skip the earlier ones.
+	for _, inserted := range editResult.InsertedMessages {
+		if inserted.Visibility == database.ChatMessageVisibilityModel {
+			continue
+		}
+		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
+	response.DeletedMessageIDs = editResult.DeletedMessageIDs
 	if len(unlinked) > 0 {
 		if capExceeded {
 			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
@@ -6859,6 +6940,29 @@ func createChatInputFromParts(
 	return content, pasteData, fileIDs, nil
 }
 
+// A prompt override may remove file parts, so derive links from persisted
+// content. Fall back to request IDs if parsing fails.
+func (api *API) linkedFileIDsFromContent(ctx context.Context, msg database.ChatMessage, requestFileIDs []uuid.UUID) []uuid.UUID {
+	if len(requestFileIDs) == 0 {
+		return nil
+	}
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		api.Logger.Warn(ctx, "parse persisted message for file linking",
+			slog.F("message_id", msg.ID),
+			slog.Error(err),
+		)
+		return requestFileIDs
+	}
+	var ids []uuid.UUID
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+			ids = append(ids, part.FileID.UUID)
+		}
+	}
+	return ids
+}
+
 // linkFilesToChat inserts file-link rows into the chat_file_links
 // join table. Cap enforcement and dedup are handled atomically in
 // SQL. On success returns (nil, false). On failure returns the full
@@ -8196,6 +8300,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		DynamicTools:  dynamicTools,
 	})
 	if err != nil {
+		if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
+			return
+		}
 		var validationErr *chatd.ToolResultValidationError
 		var conflictErr *chatd.ToolResultStatusConflictError
 		switch {

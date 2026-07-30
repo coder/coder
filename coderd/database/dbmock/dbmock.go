@@ -7812,10 +7812,10 @@ func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
 }
 
 // InsertChatMessages mocks base method.
-func (m *MockStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+func (m *MockStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertChatMessages", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatMessage)
+	ret0, _ := ret[0].([]database.InsertChatMessagesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
