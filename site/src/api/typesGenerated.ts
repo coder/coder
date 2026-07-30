@@ -9062,6 +9062,22 @@ export interface TemplateBuilderBase {
 	readonly os: string;
 	readonly variables: readonly TemplateBuilderModuleVariable[];
 	readonly prerequisites: string;
+	/**
+	 * Agents lists the coder_agent resources the base declares.
+	 */
+	readonly agents: readonly TemplateBuilderBaseAgent[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBaseAgent describes a coder_agent resource declared by a
+ * base template. When a base declares more than one agent, callers choose
+ * which agent a module attaches to via TemplateBuilderComposeModule.AgentName.
+ */
+export interface TemplateBuilderBaseAgent {
+	readonly name: string;
+	readonly display_name?: string;
+	readonly default: boolean;
 }
 
 // From codersdk/templatebuilder.go
@@ -9080,6 +9096,11 @@ export interface TemplateBuilderBasesResponse {
 export interface TemplateBuilderComposeModule {
 	readonly id: string;
 	readonly variables?: Record<string, string>;
+	/**
+	 * AgentName is the coder_agent resource the module attaches to. When
+	 * empty, the base template's default agent is used.
+	 */
+	readonly agent_name?: string;
 }
 
 // From codersdk/templatebuilder.go

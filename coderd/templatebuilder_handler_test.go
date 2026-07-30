@@ -40,6 +40,7 @@ func TestTemplateBuilderBases(t *testing.T) {
 			expectedOS   string
 			expectedVars []string
 			hasVariables bool
+			defaultAgent string
 		}
 
 		specs := []baseSpec{
@@ -48,17 +49,20 @@ func TestTemplateBuilderBases(t *testing.T) {
 				expectedOS:   "linux",
 				hasVariables: true,
 				expectedVars: []string{"container_image"},
+				defaultAgent: "main",
 			},
 			{
 				id:           "kubernetes",
 				expectedOS:   "linux",
 				hasVariables: true,
 				expectedVars: []string{"container_image", "namespace", "use_kubeconfig"},
+				defaultAgent: "main",
 			},
 			{
 				id:           "aws-linux",
 				expectedOS:   "linux",
 				hasVariables: false,
+				defaultAgent: "dev",
 			},
 			{
 				id:           "aws-windows",
@@ -80,6 +84,18 @@ func TestTemplateBuilderBases(t *testing.T) {
 			require.NotEmpty(t, b.Icon, "base %q should have an icon", spec.id)
 			require.Equal(t, spec.expectedOS, b.OS, "base %q OS mismatch", spec.id)
 			require.NotNil(t, b.Variables, "base %q should have non-nil variables slice", spec.id)
+
+			if spec.defaultAgent != "" {
+				require.NotEmpty(t, b.Agents, "base %q should expose agents", spec.id)
+				var gotDefault string
+				for _, a := range b.Agents {
+					if a.Default {
+						gotDefault = a.Name
+					}
+				}
+				require.Equal(t, spec.defaultAgent, gotDefault,
+					"base %q default agent mismatch", spec.id)
+			}
 
 			if spec.hasVariables {
 				require.NotEmpty(t, b.Variables, "base %q should have variables", spec.id)

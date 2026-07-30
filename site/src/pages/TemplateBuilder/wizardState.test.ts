@@ -565,6 +565,7 @@ describe("toSelectedBaseMeta", () => {
 		os: "linux",
 		variables: [],
 		prerequisites: "",
+		agents: [],
 		...overrides,
 	});
 
