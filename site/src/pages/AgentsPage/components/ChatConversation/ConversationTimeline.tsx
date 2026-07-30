@@ -820,21 +820,6 @@ const ChatMessageItem = memo<{
 	},
 );
 
-// Each turn renders its prompt's sentinel as the first element of the turn
-// section, so the next prompt's sentinel is the first element of a following
-// section rather than a later sibling of this one.
-const findNextUserSentinel = (sentinel: Element): Element | null => {
-	let turn = sentinel.parentElement?.nextElementSibling ?? null;
-	while (turn) {
-		const candidate = turn.firstElementChild;
-		if (candidate?.hasAttribute("data-user-sentinel")) {
-			return candidate;
-		}
-		turn = turn.nextElementSibling;
-	}
-	return null;
-};
-
 const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
@@ -849,6 +834,7 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
+	getSentinel?: (messageId: number) => HTMLDivElement | null;
 	urlTransform?: UrlTransform;
 }>(
 	({
@@ -861,6 +847,7 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
+		getSentinel,
 		urlTransform,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
@@ -874,6 +861,18 @@ const StickyUserMessage = memo<{
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+
+		// The scroll handler below is installed once, so it resolves the
+		// neighbouring prompt's sentinel through a ref instead of the props it
+		// closed over at mount. Declared before that effect so the resolver is
+		// current whenever the handler runs.
+		const nextSentinelRef = useRef<() => HTMLDivElement | null>(() => null);
+		useLayoutEffect(() => {
+			nextSentinelRef.current = () =>
+				nextUserMessageId === undefined
+					? null
+					: (getSentinel?.(nextUserMessageId) ?? null);
+		}, [nextUserMessageId, getSentinel]);
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -963,7 +962,7 @@ const StickyUserMessage = memo<{
 				// approaches the bottom of this sticky container, shift
 				// this container upward so it slides out of view — the
 				// same visual as the old section-boundary behavior.
-				const nextSentinel = findNextUserSentinel(sentinel);
+				const nextSentinel = nextSentinelRef.current();
 				if (nextSentinel) {
 					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
 					container.style.top = `${Math.min(STICKY_TOP, nextY - visible + STICKY_TOP)}px`;
@@ -1280,6 +1279,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				block: "start",
 			});
 		};
+		const getSentinel = (messageId: number) =>
+			sentinelsRef.current.get(messageId) ?? null;
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
@@ -1307,19 +1308,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		// Ordered list of visible user message IDs, used to drive the
 		// per-bubble prev/next arrow buttons that jump the transcript
-		// to the neighbouring user prompt.
-		const visibleUserMessageIds: number[] = [];
-		for (const { message, parsed } of parsedMessages) {
-			if (message.role !== "user") continue;
-			const { shouldHide } = deriveMessageDisplayState({
-				message,
-				parsed,
-				hideActions: false,
-				hasActiveStream: false,
-				isAwaitingFirstStreamChunk: false,
-			});
-			if (!shouldHide) visibleUserMessageIds.push(message.id);
-		}
+		// to the neighbouring user prompt, and to resolve the next
+		// prompt's sentinel while a prompt is pinned. Turns already hold
+		// exactly the prompts that render, in order.
+		const visibleUserMessageIds = turns.flatMap((turn) =>
+			turn.prompt ? [turn.prompt.entry.message.id] : [],
+		);
 		const userNeighborsById = new Map<
 			number,
 			{ prevId?: number; nextId?: number }
@@ -1398,6 +1392,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
+									getSentinel={getSentinel}
 									urlTransform={urlTransform}
 								/>
 							)}
