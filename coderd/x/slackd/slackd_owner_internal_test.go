@@ -1,6 +1,7 @@
 package slackd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -95,10 +96,14 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	assert.Equal(t, linkedOrg.ID, create.OrganizationID)
 	assert.False(t, create.DedupAcrossOwners)
 	requireAPIKeyOwnedBy(t, db, create.APIKeyID, linked.ID)
-	// Linked senders get the individual-mode suffix scoped to their
+	// Linked senders get the authenticated suffix scoped to their
 	// Slack identity, including propose_mcp_server guidance. The shared
 	// label is omitted so chatd enables the propose tool.
 	assert.NotContains(t, create.Labels, LabelSlackShared)
+	normalizedPrompt := strings.Join(strings.Fields(create.SystemPrompt), " ")
+	assert.Contains(t, normalizedPrompt, "is authenticated with Coder")
+	assert.NotContains(t, create.SystemPrompt, "shared mode")
+	assert.NotContains(t, create.SystemPrompt, "individual mode")
 	assert.Contains(t, create.SystemPrompt, "ULINKED")
 	assert.Contains(t, create.SystemPrompt, "propose_mcp_server")
 	assert.Contains(t, create.SystemPrompt, "Always find a reliable source for its configuration")
@@ -108,7 +113,7 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	assert.Contains(t, create.SystemPrompt, "# Memory")
 	assert.Contains(t, create.SystemPrompt, "Daily notes: /daily/YYYY-MM-DD.md")
 	assert.Contains(t, create.SystemPrompt, "The user prefers concise Slack replies.")
-	assert.NotContains(t, create.SystemPrompt, "you're running in shared mode")
+	assert.NotContains(t, create.SystemPrompt, "capabilities are severely limited")
 }
 
 func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
@@ -131,7 +136,8 @@ func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
 	assert.Equal(t, org.ID, creates[0].OrganizationID)
 	requireAPIKeyOwnedBy(t, db, creates[0].APIKeyID, fallback.ID)
 	assert.Equal(t, "true", creates[0].Labels[LabelSlackShared])
-	assert.Contains(t, creates[0].SystemPrompt, "you are in shared mode")
+	normalizedPrompt := strings.Join(strings.Fields(creates[0].SystemPrompt), " ")
+	assert.Contains(t, normalizedPrompt, "is unauthenticated")
 	assert.Contains(t, creates[0].SystemPrompt, "https://coder.example.com/settings/external-auth")
 	assert.Contains(t, creates[0].SystemPrompt, "propose_mcp_server")
 	assert.NotContains(t, creates[0].SystemPrompt, "# Memory")
