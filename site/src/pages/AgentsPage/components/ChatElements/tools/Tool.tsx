@@ -14,10 +14,7 @@ import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
-import {
-	ExecuteAuthRequiredTool,
-	ExecuteTool as ExecuteToolComponent,
-} from "./ExecuteTool";
+import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
@@ -225,20 +222,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-	const outputBlock = data.transcriptBlocks.find(
-		(block) => block.kind === "output",
-	);
-
-	if (data.authenticateURL) {
-		return (
-			<ExecuteAuthRequiredTool
-				command={data.command}
-				output={outputBlock?.text ?? ""}
-				authenticateURL={data.authenticateURL}
-				providerLabel={data.providerLabel}
-			/>
-		);
-	}
 	return (
 		<ExecuteToolComponent
 			command={data.command}
