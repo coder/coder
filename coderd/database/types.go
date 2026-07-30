@@ -59,10 +59,15 @@ type ChatInstructionSettings struct {
 	ID uuid.UUID `db:"id" json:"id"`
 	// Name identifies which setting an audit row concerns (e.g. "System
 	// prompt"). It is ignored in diffs and set identically on Old and New.
-	Name                       string `db:"name" json:"name"`
-	SystemPrompt               string `db:"system_prompt" json:"system_prompt"`
-	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
-	PlanModeInstructions       string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
+	Name         string `db:"name" json:"name"`
+	SystemPrompt string `db:"system_prompt" json:"system_prompt"`
+	// IncludeDefaultSystemPromptSet records whether the override row
+	// exists, not only its effective value: writing explicit false over a
+	// legacy absent row does not move the effective value but changes
+	// future behavior, so presence must enter the diff.
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	PlanModeInstructions          string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
 }
 
 type Actions []policy.Action

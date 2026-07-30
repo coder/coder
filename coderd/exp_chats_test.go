@@ -13282,11 +13282,23 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
 		require.JSONEq(t, "{}", string(logs[0].Diff))
 
-		// The failed write rolled back, so the effective state is still
-		// the deployment default (empty prompt, include-default true).
-		// Writing exactly that state changes nothing and must stay
-		// suppressed: the stale Old from the failed request must not
-		// survive into this one.
+		// The failed write rolled back, so nothing was stored: the stale
+		// Old from the failed request must not survive into this one, or
+		// the entry below would diff against "First prompt.". Writing the
+		// deployment default materializes the override row (absent ->
+		// explicit true), which the presence field now audits.
+		mAudit.ResetLogs()
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		logs = mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+		// With the override row now stored, the identical PUT is a true
+		// no-op: nothing is audited.
 		mAudit.ResetLogs()
 		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",

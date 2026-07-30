@@ -286,11 +286,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dynamic_client_registration_enabled": ActionTrack,
 	},
 	&database.ChatInstructionSettings{}: {
-		"id":                            ActionIgnore,
-		"name":                          ActionIgnore,
-		"system_prompt":                 ActionTrack,
-		"include_default_system_prompt": ActionTrack,
-		"plan_mode_instructions":        ActionTrack,
+		"id":                                ActionIgnore,
+		"name":                              ActionIgnore,
+		"system_prompt":                     ActionTrack,
+		"include_default_system_prompt_set": ActionTrack,
+		"include_default_system_prompt":     ActionTrack,
+		"plan_mode_instructions":            ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

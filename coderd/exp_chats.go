@@ -4609,6 +4609,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			oldCaptured = true
 			aReq.Old.SystemPrompt = oldConfig.ChatSystemPrompt
+			aReq.Old.IncludeDefaultSystemPromptSet = oldConfig.IncludeDefaultSystemPromptSet
 			aReq.Old.IncludeDefaultSystemPrompt = oldConfig.IncludeDefaultSystemPrompt
 		}
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
@@ -4636,11 +4637,17 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// flag. Same best-effort rule as the Old capture.
 		newConfig, newErr := tx.GetChatSystemPromptConfig(ctx)
 		if newErr != nil {
+			// A failed audit read must yield an unknown value, never a
+			// zero value: leaving New at its zero payload would let the
+			// differ record Old-to-empty, fabricating a deletion that
+			// did not happen. Setting New = Old renders the diff empty.
 			api.Logger.Warn(ctx, "audit new capture failed, writing chat system prompt without a diff",
 				slog.Error(newErr))
+			aReq.New = aReq.Old
 			return nil
 		}
 		if newConfig.ChatSystemPrompt == oldConfig.ChatSystemPrompt &&
+			newConfig.IncludeDefaultSystemPromptSet == oldConfig.IncludeDefaultSystemPromptSet &&
 			newConfig.IncludeDefaultSystemPrompt == oldConfig.IncludeDefaultSystemPrompt {
 			// Value-identical PUT: cancel the entry entirely. The
 			// upserts above still run either way.
@@ -4648,6 +4655,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		aReq.New.SystemPrompt = newConfig.ChatSystemPrompt
+		aReq.New.IncludeDefaultSystemPromptSet = newConfig.IncludeDefaultSystemPromptSet
 		aReq.New.IncludeDefaultSystemPrompt = newConfig.IncludeDefaultSystemPrompt
 		return nil
 	}, nil)
@@ -4701,18 +4709,22 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// real old-to-new diff.
 		newConfig, newErr := api.Database.GetChatSystemPromptConfig(ctx)
 		if newErr != nil {
+			// Same rule: unknown, not zero. See the in-transaction branch.
 			api.Logger.Warn(ctx, "audit new capture failed after fallback, writing chat system prompt without a diff",
 				slog.Error(newErr))
+			aReq.New = aReq.Old
 			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if newConfig.ChatSystemPrompt == aReq.Old.SystemPrompt &&
+			newConfig.IncludeDefaultSystemPromptSet == aReq.Old.IncludeDefaultSystemPromptSet &&
 			newConfig.IncludeDefaultSystemPrompt == aReq.Old.IncludeDefaultSystemPrompt {
 			commitAudit(false)
 			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
 		aReq.New.SystemPrompt = newConfig.ChatSystemPrompt
+		aReq.New.IncludeDefaultSystemPromptSet = newConfig.IncludeDefaultSystemPromptSet
 		aReq.New.IncludeDefaultSystemPrompt = newConfig.IncludeDefaultSystemPrompt
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -4819,8 +4831,13 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		// capture.
 		newInstructions, newErr := tx.GetChatPlanModeInstructions(ctx)
 		if newErr != nil {
+			// A failed audit read must yield an unknown value, never a
+			// zero value: leaving New at its zero payload would let the
+			// differ record Old-to-empty, fabricating a deletion that
+			// did not happen. Setting New = Old renders the diff empty.
 			api.Logger.Warn(ctx, "audit new capture failed, writing plan mode instructions without a diff",
 				slog.Error(newErr))
+			aReq.New = aReq.Old
 			return nil
 		}
 		if newInstructions == oldInstructions {
@@ -4868,8 +4885,10 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		// can misreport) and emit the real old-to-new diff.
 		newInstructions, newErr := api.Database.GetChatPlanModeInstructions(ctx)
 		if newErr != nil {
+			// Same rule: unknown, not zero. See the in-transaction branch.
 			api.Logger.Warn(ctx, "audit new capture failed after fallback, writing plan mode instructions without a diff",
 				slog.Error(newErr))
+			aReq.New = aReq.Old
 			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
