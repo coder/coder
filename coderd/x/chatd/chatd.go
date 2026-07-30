@@ -1630,7 +1630,7 @@ func resolveSendMessageModelConfigID(
 	requested uuid.UUID,
 ) (uuid.UUID, error) {
 	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+		return resolveFallbackModelConfigID(ctx, store, chat.OrganizationID, chat.LastModelConfigID)
 	}
 
 	if err := requireEnabledChatModelConfig(ctx, store, requested); err != nil {
@@ -1681,6 +1681,7 @@ func validateCreateModelConfigID(ctx context.Context, store database.Store, mode
 func resolveFallbackModelConfigID(
 	ctx context.Context,
 	store database.Store,
+	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (uuid.UUID, error) {
 	chatdCtx := chatdModelConfigLookupContext(ctx)
@@ -1696,12 +1697,20 @@ func resolveFallbackModelConfigID(
 		}
 	}
 
-	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
+	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx, organizationID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, ErrNoDefaultChatModelConfig
+			// TODO(mafredri): remove after CODAGT-709 U2
+			// (org-scoping cutover); orgs without their own
+			// default error after the explosion migration.
+			defaultConfig, err = defaultOrgChatModelConfig(chatdCtx, store, organizationID)
 		}
-		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return uuid.Nil, ErrNoDefaultChatModelConfig
+			}
+			return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
+		}
 	}
 	// The default may itself be disabled or under a disabled provider.
 	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, defaultConfig.ID); err != nil {
@@ -1750,6 +1759,26 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 		return ErrEditedMessageNotUser
 	}
 	return nil
+}
+
+// defaultOrgChatModelConfig resolves the default org's default model
+// config for an org that has none of its own. The default org itself
+// never falls back: a miss there is a real absence.
+// TODO(mafredri): remove after CODAGT-709 U2 (org-scoping cutover);
+// per-org resolution becomes strict.
+func defaultOrgChatModelConfig(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+) (database.ChatModelConfig, error) {
+	defaultOrg, err := store.GetDefaultOrganization(ctx)
+	if err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	if defaultOrg.ID == organizationID {
+		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	return store.GetDefaultChatModelConfig(ctx, defaultOrg.ID)
 }
 
 // EditMessage replaces an earlier user message and discards the
@@ -1864,7 +1893,7 @@ func (p *Server) EditMessage(
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID
 			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, preserved)
+			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat.OrganizationID, preserved)
 			if err != nil {
 				return err
 			}
@@ -2847,7 +2876,10 @@ func (p *Server) resolveManualTitleModel(
 		return overrideModel, overrideConfig, nil
 	}
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)
+	if err == nil {
+		configs, err = enabledChatModelConfigsWithDefaultOrgFallback(ctx, store, chat.OrganizationID, configs)
+	}
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
@@ -4371,7 +4403,7 @@ func (p *Server) resolveModelConfig(
 		// Model config was deleted, fall through to default.
 	}
 
-	defaultConfig, err := p.configCache.DefaultModelConfig(ctx)
+	defaultConfig, err := p.configCache.DefaultModelConfig(ctx, chat.OrganizationID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, ErrNoDefaultChatModelConfig

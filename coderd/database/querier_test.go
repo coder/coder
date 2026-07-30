@@ -12155,32 +12155,44 @@ func insertChatModelConfigForTest(
 	params database.InsertChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
 	t.Helper()
-	if params.AIProviderID.Valid {
-		return store.InsertChatModelConfig(ctx, params)
-	}
-	providerName := providerType
-	if providerName == "" {
-		providerName = "openai"
-	}
-	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	var provider database.AIProvider
-	for _, candidate := range providers {
-		if candidate.Type != database.AIProviderType(providerName) {
-			continue
+	if !params.AIProviderID.Valid {
+		providerName := providerType
+		if providerName == "" {
+			providerName = "openai"
 		}
-		if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
-			provider = candidate
+		providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+		if err != nil {
+			return database.ChatModelConfig{}, err
 		}
+		var provider database.AIProvider
+		for _, candidate := range providers {
+			if candidate.Type != database.AIProviderType(providerName) {
+				continue
+			}
+			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+				provider = candidate
+			}
+		}
+		if provider.ID == uuid.Nil {
+			provider = dbgen.AIProvider(t, store, database.AIProvider{
+				Type: database.AIProviderType(providerName),
+			})
+		}
+		params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
-	if provider.ID == uuid.Nil {
-		provider = dbgen.AIProvider(t, store, database.AIProvider{
-			Type: database.AIProviderType(providerName),
-		})
+	if params.OrganizationID == uuid.Nil {
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		if err != nil {
+			return database.ChatModelConfig{}, err
+		}
+		params.OrganizationID = defaultOrg.ID
 	}
-	params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	if params.GroupACL == nil {
+		params.GroupACL = json.RawMessage(`{}`)
+	}
+	if params.UserACL == nil {
+		params.UserACL = json.RawMessage(`{}`)
+	}
 	return store.InsertChatModelConfig(ctx, params)
 }
 
@@ -17409,6 +17421,9 @@ func TestGetChatsFilter(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             json.RawMessage(`{}`),
+		UserACL:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
 
@@ -17702,6 +17717,9 @@ func TestGetChatsSearch(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             json.RawMessage(`{}`),
+		UserACL:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
 

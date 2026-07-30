@@ -1129,7 +1129,11 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		},
 	).Return(nil, nil)
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
+	// An empty org list triggers the pre-cutover fallback, which
+	// resolves the default org and finds no configs there either.
+	db.EXPECT().GetDefaultOrganization(gomock.Any()).Return(database.Organization{ID: uuid.New()}, nil)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 		func(fn func(database.Store) error, opts *database.TxOptions) error {
@@ -1274,7 +1278,11 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 		},
 	).Return(nil, nil)
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
+	// An empty org list triggers the pre-cutover fallback, which
+	// resolves the default org and finds no configs there either.
+	db.EXPECT().GetDefaultOrganization(gomock.Any()).Return(database.Organization{ID: uuid.New()}, nil)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
@@ -3735,10 +3743,17 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 			p.Enabled = enabled
 		})
 	}
-	newModelConfig := func(t *testing.T, db database.Store, providerID uuid.UUID, isDefault bool) database.ChatModelConfig {
+	// The configs under test live in an ad-hoc org so the per-org
+	// default lookup stays scoped to them, independent of any seeded
+	// default-org config.
+	newModelConfigOrg := func(t *testing.T, db database.Store) uuid.UUID {
+		return dbgen.Organization(t, db, database.Organization{}).ID
+	}
+	newModelConfig := func(t *testing.T, db database.Store, orgID, providerID uuid.UUID, isDefault bool) database.ChatModelConfig {
 		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-			IsDefault:    isDefault,
+			AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
+			IsDefault:      isDefault,
+			OrganizationID: orgID,
 		})
 	}
 
@@ -3747,10 +3762,11 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		provider := newProvider(t, db, true)
-		lastModel := newModelConfig(t, db, provider.ID, false)
+		lastModel := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
 		require.NoError(t, err)
 		require.Equal(t, lastModel.ID, resolved)
 	})
@@ -3760,12 +3776,13 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		disabledProvider := newProvider(t, db, false)
-		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
+		lastModel := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 		enabledProvider := newProvider(t, db, true)
-		defaultModel := newModelConfig(t, db, enabledProvider.ID, true)
+		defaultModel := newModelConfig(t, db, orgID, enabledProvider.ID, true)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
 		require.NoError(t, err)
 		require.Equal(t, defaultModel.ID, resolved)
 	})
@@ -3775,10 +3792,50 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		provider := newProvider(t, db, true)
-		defaultModel := newModelConfig(t, db, provider.ID, true)
+		defaultModel := newModelConfig(t, db, orgID, provider.ID, true)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, uuid.Nil)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("NonDefaultOrgFallsBackToDefaultOrgDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// The chat's org has no configs of its own; the deployment
+		// default lives in the default org. Until the org-scoping
+		// cutover the fallback must resolve it for chats in any org.
+		otherOrgID := newModelConfigOrg(t, db)
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		provider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, otherOrgID, uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("FallbackReadsDefaultOrgAsChatd", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// The pre-cutover fallback reads the default organization under
+		// the chatd subject, which must be authorized to read
+		// organizations or every fallback path fails closed.
+		otherOrgID := newModelConfigOrg(t, db)
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		provider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
+
+		chatdCtx := dbauthz.AsChatd(ctx)
+		resolved, err := resolveFallbackModelConfigID(chatdCtx, db, otherOrgID, uuid.Nil)
 		require.NoError(t, err)
 		require.Equal(t, defaultModel.ID, resolved)
 	})
@@ -3788,11 +3845,12 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		disabledProvider := newProvider(t, db, false)
-		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
-		newModelConfig(t, db, disabledProvider.ID, true)
+		lastModel := newModelConfig(t, db, orgID, disabledProvider.ID, false)
+		newModelConfig(t, db, orgID, disabledProvider.ID, true)
 
-		_, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		_, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
@@ -3801,8 +3859,9 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		provider := newProvider(t, db, true)
-		model := newModelConfig(t, db, provider.ID, false)
+		model := newModelConfig(t, db, orgID, provider.ID, false)
 
 		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
 		require.NoError(t, err)
@@ -3816,8 +3875,9 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		orgID := newModelConfigOrg(t, db)
 		disabledProvider := newProvider(t, db, false)
-		model := newModelConfig(t, db, disabledProvider.ID, false)
+		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 
 		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
@@ -3832,7 +3892,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 		owner := dbgen.User(t, db, database.User{})
 		disabledProvider := newProvider(t, db, false)
-		model := newModelConfig(t, db, disabledProvider.ID, false)
+		model := newModelConfig(t, db, newModelConfigOrg(t, db), disabledProvider.ID, false)
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 		_, err := server.CreateChat(ctx, CreateOptions{

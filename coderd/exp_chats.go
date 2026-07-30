@@ -5158,7 +5158,22 @@ func (api *API) resolveCreateChatModelConfigID(
 func (api *API) defaultCreateChatModelConfigID(
 	ctx context.Context,
 ) (uuid.UUID, int, *codersdk.Response) {
-	defaultModelConfig, err := api.Database.GetDefaultChatModelConfig(ctx)
+	// Chat model configs are org-scoped, but the pre-cutover request path
+	// carries no organization: every config lives in the default org, so
+	// resolve the default there. The default-org ID lookup is an internal
+	// resolution step, not user-readable data; a non-default-org member
+	// cannot read the organization object but must still resolve the
+	// deployment default.
+	// TODO(mafredri): resolve from the chat's organization after CODAGT-709 U2 (org-scoping cutover)
+	//nolint:gocritic // Internal default-org resolution, scoped to this call.
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to resolve chat model config.",
+			Detail:  err.Error(),
+		}
+	}
+	defaultModelConfig, err := api.Database.GetDefaultChatModelConfig(ctx, defaultOrg.ID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
@@ -7383,10 +7398,13 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Admin users can see all model configs (including disabled ones)
-	// for management purposes. Non-admin users see only enabled
-	// configs, which is sufficient for using the chat feature.
-	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+	// Users authorized to read chat model configs in any org see the configs
+	// their authorization filter admits (including disabled ones) for
+	// management purposes. Other users see only enabled configs, which is
+	// sufficient for using the chat feature. AnyOrganization routes
+	// org-scoped readers (org admin, org auditor) to the authorized list as
+	// well as site readers; the SQL filter then restricts them to their orgs.
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceChatModelConfig.AnyOrganization())
 
 	var configs []database.ChatModelConfig
 	var err error
@@ -7454,10 +7472,6 @@ func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx databas
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	var req codersdk.CreateChatModelConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -7539,6 +7553,32 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This route predates the org-scoped routes and carries no organization:
+	// configs created here belong to the default org. Seed the everyone-in-org
+	// read entry so the config stays visible to members; the Everyone group
+	// shares the organization's ID. The default-org lookup is an internal
+	// resolution step, not user-readable data, and a custom role holding only
+	// deployment-config permissions cannot read the organization object.
+	//nolint:gocritic // Internal default-org resolution, scoped to this call.
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve default organization.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	everyoneReadACL, err := json.Marshal(database.ChatACL{
+		defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to seed chat model config ACL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	insertParams := database.InsertChatModelConfigParams{
 		Model:                model,
 		DisplayName:          strings.TrimSpace(req.DisplayName),
@@ -7550,6 +7590,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		AIProviderID:         aiProviderID,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		OrganizationID:       defaultOrg.ID,
+		GroupACL:             everyoneReadACL,
+		UserACL:              json.RawMessage(`{}`),
 	}
 
 	var inserted database.ChatModelConfig
@@ -7571,7 +7614,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		insertAsDefault := isDefault
 		if !insertAsDefault {
-			_, err := tx.GetDefaultChatModelConfig(ctx)
+			_, err := tx.GetDefaultChatModelConfig(ctx, insertParams.OrganizationID)
 			switch {
 			case err == nil:
 				// A default already exists.
@@ -7583,7 +7626,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if insertAsDefault {
-			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+			if err := tx.UnsetDefaultChatModelConfigs(ctx, insertParams.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
 		}
@@ -7595,7 +7638,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		inserted = config
 
-		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+		if err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID); err != nil {
 			return err
 		}
 
@@ -7624,6 +7667,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
+		case dbauthz.IsNotAuthorizedError(err):
+			httpapi.Forbidden(rw)
+			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create chat model config.",
@@ -7641,10 +7687,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	modelConfigID, ok := parseChatModelConfigID(rw, r)
 	if !ok {
@@ -7653,6 +7695,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -7782,7 +7828,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
-			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+			if err := tx.UnsetDefaultChatModelConfigs(ctx, existing.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
 		}
@@ -7803,6 +7849,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := ensureDefaultChatModelConfig(
 			ctx,
 			tx,
+			existing.OrganizationID,
 			excludeConfigID,
 		); err != nil {
 			return err
@@ -7840,6 +7887,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(err, errChatModelConfigNotFound):
 			httpapi.ResourceNotFound(rw)
 			return
+		case dbauthz.IsNotAuthorizedError(err):
+			httpapi.Forbidden(rw)
+			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update chat model config.",
@@ -7856,17 +7906,18 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	modelConfigID, ok := parseChatModelConfigID(rw, r)
 	if !ok {
 		return
 	}
 
-	if _, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID); err != nil {
+	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -7882,8 +7933,12 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
 		}
-		return ensureDefaultChatModelConfig(ctx, tx)
+		return ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID)
 	}); err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat model config.",
 			Detail:  err.Error(),
@@ -7899,9 +7954,10 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 func ensureDefaultChatModelConfig(
 	ctx context.Context,
 	tx database.Store,
+	organizationID uuid.UUID,
 	excludedConfigIDs ...uuid.UUID,
 ) error {
-	_, err := tx.GetDefaultChatModelConfig(ctx)
+	_, err := tx.GetDefaultChatModelConfig(ctx, organizationID)
 	switch {
 	case err == nil:
 		return nil
@@ -7909,9 +7965,9 @@ func ensureDefaultChatModelConfig(
 		return xerrors.Errorf("get default model config: %w", err)
 	}
 
-	modelConfigs, err := tx.GetChatModelConfigs(ctx)
+	modelConfigs, err := tx.GetChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
-		return xerrors.Errorf("list chat model configs: %w", err)
+		return xerrors.Errorf("list default chat model config candidates: %w", err)
 	}
 	if len(modelConfigs) == 0 {
 		return nil
@@ -7922,7 +7978,7 @@ func ensureDefaultChatModelConfig(
 	// omitted-model chat creation. Fall back to any non-excluded config
 	// when no usable candidate exists.
 	//nolint:gocritic // Candidate usability depends on deployment-wide provider state, not the caller's permissions.
-	enabledRows, err := tx.GetEnabledChatModelConfigs(dbauthz.AsChatd(ctx))
+	enabledRows, err := tx.GetEnabledChatModelConfigsByOrganization(dbauthz.AsChatd(ctx), organizationID)
 	if err != nil {
 		return xerrors.Errorf("list enabled chat model configs: %w", err)
 	}
@@ -7958,7 +8014,7 @@ func ensureDefaultChatModelConfig(
 		candidateConfig = *selected
 	}
 
-	if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+	if err := tx.UnsetDefaultChatModelConfigs(ctx, organizationID); err != nil {
 		return xerrors.Errorf("unset default model configs: %w", err)
 	}
 

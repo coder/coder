@@ -382,8 +382,49 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
+		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
+	}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	model, gotConfig, err := server.resolveManualTitleModel(
+		ctx,
+		db,
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	require.Equal(t, preferredConfig, gotConfig)
+}
+
+func TestResolveManualTitleModel_NonDefaultOrgUsesDefaultOrgConfigs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	chat.OrganizationID = uuid.New() // non-default org, no configs of its own
+	defaultOrgID := uuid.New()
+	providerID := uuid.New()
+	preferredConfig := database.ChatModelConfig{
+		ID:             uuid.New(),
+		AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
+		Model:          preferredTitleModels[1].model,
+		Enabled:        true,
+		OrganizationID: defaultOrgID,
+	}
+
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	// The chat's org has no enabled configs; the selector must fall
+	// back to the default org's list until the org-scoping cutover.
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return(nil, nil)
+	db.EXPECT().GetDefaultOrganization(gomock.Any()).Return(database.Organization{ID: defaultOrgID}, nil)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), defaultOrgID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
 	}, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
@@ -428,7 +469,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
 	}, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil)
@@ -466,7 +507,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
 	}, nil)

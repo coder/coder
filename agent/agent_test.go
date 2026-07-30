@@ -54,10 +54,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -721,7 +721,6 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			logger := testutil.Logger(t)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -730,14 +729,16 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 			}
 			err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 			require.NoError(t, err)
-			stdout := expecter.NewAttachedToSSHSession(t, session)
-			stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
+			ptty := ptytest.New(t)
+			session.Stdout = ptty.Output()
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
 			err = session.Start(command)
 			require.NoError(t, err)
-			_ = stdout.Peek(ctx, 1) // wait for the prompt
-			stdin.WriteLine("echo test")
-			stdout.ExpectMatch(ctx, "test")
-			stdin.WriteLine("exit")
+			_ = ptty.Peek(ctx, 1) // wait for the prompt
+			ptty.WriteLine("echo test")
+			ptty.ExpectMatch(ctx, "test")
+			ptty.WriteLine("exit")
 			err = session.Wait()
 			require.NoError(t, err)
 		})
@@ -750,6 +751,10 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
+	ptty := ptytest.New(t)
+	session.Stdout = ptty.Output()
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
 	err = session.Start(command)
 	require.NoError(t, err)
 	err = session.Wait()
@@ -1030,8 +1035,9 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		stdout := testutil.NewWaitBuffer()
-
+		ptty := ptytest.New(t)
 		session.Stdout = stdout
+		session.Stderr = ptty.Output()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
 		require.NoError(t, session.Shell())
@@ -1070,6 +1076,8 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
+	ptty := ptytest.New(t)
+
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
 	//                 assuming bug is present. Limiting GOMAXPROCS further
@@ -1089,6 +1097,8 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
 			err = session.Start("echo wazzup")
 			require.NoError(t, err)
 
@@ -1116,6 +1126,8 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
+	ptty := ptytest.New(t)
+
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
 	//                 assuming bug is present.
@@ -1134,6 +1146,8 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
 			want := strings.Repeat("wazzup", 1024+1) // ~6KB, +1 because 1024 is a common buffer size.
 			err = session.Start("echo " + want)
 			require.NoError(t, err)
@@ -4206,18 +4220,19 @@ func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
 	t.Helper()
-	logger := testutil.Logger(t)
 
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
 
+	ptty := ptytest.New(t)
 	var stdout bytes.Buffer
 	session.Stdout = &stdout
-	stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
 	err = session.Shell()
 	require.NoError(t, err)
 
-	stdin.WriteLine("exit 0")
+	ptty.WriteLine("exit 0")
 
 	waitErr := make(chan error, 1)
 	go func() {

@@ -303,6 +303,34 @@ func insertAssistantCostMessage(
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 
+	t.Run("SuccessNonDefaultOrgUsesDeploymentDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// A member of a non-default org cannot read the default
+		// organization object, but omitting model_config_id must still
+		// resolve the deployment default while every config lives there.
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from a non-default org",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -4051,6 +4079,115 @@ func TestCreateChatModelConfig(t *testing.T) {
 			}
 		}
 		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
+	})
+
+	// Write access is scoped to the chat_model_config resource. A persisted
+	// custom role holding only deployment-config permissions (the pre-resource
+	// admission set) is denied across the full write lifecycle; an org admin
+	// of the config's org holds the new grants and can write.
+	t.Run("WriteAccessFollowsChatModelConfigResource", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// dbauthz rejects site-permission roles on the authorized querier;
+		// seed the role through the raw store, as persisted site custom
+		// roles exist in production deployments.
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
+		// A custom role holding only deployment-config read/update, granted
+		// in a non-default org so the implicit organization-member role on
+		// the default org cannot mask the missing chat_model_config grant.
+		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+		dbgen.Group(t, rawDB, database.Group{
+			ID:             nonDefaultOrg.ID,
+			Name:           database.EveryoneGroup,
+			OrganizationID: nonDefaultOrg.ID,
+		})
+		deploymentConfigRole, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			DisplayName:    "Deployment Config Admin",
+			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
+			SitePermissions: database.CustomRolePermissions{
+				{ResourceType: rbac.ResourceDeploymentConfig.Type, Action: policy.ActionRead},
+				{ResourceType: rbac.ResourceDeploymentConfig.Type, Action: policy.ActionUpdate},
+			},
+		})
+		require.NoError(t, err)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// Seed the default config as the site admin so the deployment has one.
+		defaultConfig := createChatModelConfig(t, client)
+
+		deploymentConfigClientRaw, deploymentConfigUser := coderdtest.CreateAnotherUser(
+			t,
+			client.Client,
+			nonDefaultOrg.ID,
+		)
+		_, err = client.Client.UpdateOrganizationMemberRoles(
+			ctx,
+			nonDefaultOrg.ID,
+			deploymentConfigUser.ID.String(),
+			codersdk.UpdateRoles{Roles: []string{deploymentConfigRole.Name}},
+		)
+		require.NoError(t, err)
+		deploymentConfigClient := codersdk.NewExperimentalClient(deploymentConfigClientRaw)
+
+		contextLimit := int64(4096)
+
+		t.Run("DeploymentConfigOnlyRoleDenied", func(t *testing.T) {
+			_, err := deploymentConfigClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+				AIProviderID: &aiProvider.ID,
+				Model:        "gpt-4o-mini",
+				ContextLimit: &contextLimit,
+			})
+			require.Error(t, err, "create must be denied for a deployment-config-only role")
+
+			_, err = deploymentConfigClient.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+				DisplayName: "Denied Write",
+			})
+			require.Error(t, err, "update must be denied for a deployment-config-only role")
+
+			err = deploymentConfigClient.DeleteChatModelConfig(ctx, defaultConfig.ID)
+			require.Error(t, err, "delete must be denied for a deployment-config-only role")
+
+			row, dbErr := rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
+			require.NoError(t, dbErr)
+			require.False(t, row.Deleted, "delete must not have committed")
+			require.True(t, row.IsDefault, "default must be untouched")
+		})
+
+		t.Run("OrgAdminWrites", func(t *testing.T) {
+			orgAdminRaw, _ := coderdtest.CreateAnotherUser(
+				t,
+				client.Client,
+				defaultOrg.ID,
+				rbac.ScopedRoleOrgAdmin(defaultOrg.ID),
+			)
+			orgAdminClient := codersdk.NewExperimentalClient(orgAdminRaw)
+
+			created, err := orgAdminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+				AIProviderID: &aiProvider.ID,
+				Model:        "gpt-4o-mini",
+				ContextLimit: &contextLimit,
+			})
+			require.NoError(t, err, "org admin of the config's org must be able to create")
+
+			updated, err := orgAdminClient.UpdateChatModelConfig(ctx, created.ID, codersdk.UpdateChatModelConfigRequest{
+				DisplayName: "Org Admin Write",
+			})
+			require.NoError(t, err, "org admin of the config's org must be able to update")
+			require.Equal(t, "Org Admin Write", updated.DisplayName)
+
+			require.NoError(t, orgAdminClient.DeleteChatModelConfig(ctx, created.ID),
+				"org admin of the config's org must be able to delete")
+		})
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
@@ -9603,7 +9740,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
+		chat := seedChatWithDeletedModelConfig(ctx, t, client, db, user)
 
 		_, err := client.RegenerateChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -9763,7 +9900,7 @@ func TestProposeChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
+		chat := seedChatWithDeletedModelConfig(ctx, t, client, db, user)
 
 		_, err := client.ProposeChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -12513,6 +12650,7 @@ func createTitleGenerationModelConfig(
 func seedChatWithDeletedModelConfig(
 	ctx context.Context,
 	t *testing.T,
+	client *codersdk.ExperimentalClient,
 	db database.Store,
 	user codersdk.CreateFirstUserResponse,
 ) database.Chat {
@@ -12526,10 +12664,7 @@ func seedChatWithDeletedModelConfig(
 		Title:             "chat without model config",
 	})
 	seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-	require.NoError(t, db.DeleteChatModelConfigByID(
-		dbauthz.AsSystemRestricted(ctx),
-		modelConfig.ID,
-	))
+	require.NoError(t, client.DeleteChatModelConfig(ctx, modelConfig.ID))
 	return chat
 }
 

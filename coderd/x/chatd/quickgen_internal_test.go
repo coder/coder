@@ -815,6 +815,23 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		require.False(t, ok)
 		require.Equal(t, database.ChatModelConfig{}, got)
 	})
+
+	// The production caller lists per org, which generates a distinct
+	// row type; both branches of the selector's field extraction must
+	// behave identically.
+	t.Run("per-org row type selects identically", func(t *testing.T) {
+		t.Parallel()
+
+		configs := []database.GetEnabledChatModelConfigsByOrganizationRow{
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
+		}
+
+		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+		require.True(t, ok)
+		require.Equal(t, preferredTitleModels[1].model, got.Model)
+	})
 }
 
 func TestNormalizeTurnStatusLabel(t *testing.T) {

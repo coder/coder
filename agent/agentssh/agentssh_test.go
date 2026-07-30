@@ -28,8 +28,8 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestMain(m *testing.M) {
@@ -182,8 +182,10 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				c := sshClient(t, ln.Addr().String())
 				sess, err := c.NewSession()
 				assert.NoError(t, err)
-				stdout := expecter.NewAttachedToSSHSession(t, sess)
-				stdout.Rename(fmt.Sprintf("sess%d", i))
+				pty := ptytest.New(t)
+				sess.Stdin = pty.Input()
+				sess.Stdout = pty.Output()
+				sess.Stderr = pty.Output()
 
 				// Every other session will request a PTY.
 				if i%2 == 0 {
@@ -201,7 +203,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Allow the session to settle (i.e. reach echo).
-				stdout.ExpectMatch(ctx, "started")
+				pty.ExpectMatch(ctx, "started")
 				// Sleep a bit to ensure the sleep has started.
 				time.Sleep(testutil.IntervalMedium)
 
@@ -351,10 +353,17 @@ func TestNewServer_Signal(t *testing.T) {
 
 		c := sshClient(t, ln.Addr().String())
 
+		pty := ptytest.New(t)
+
 		sess, err := c.NewSession()
 		require.NoError(t, err)
 		r, err := sess.StdoutPipe()
 		require.NoError(t, err)
+
+		// Note, we request pty but don't use ptytest here because we can't
+		// easily test for no text before EOF.
+		sess.Stdin = pty.Input()
+		sess.Stderr = pty.Output()
 
 		err = sess.RequestPty("xterm", 80, 80, nil)
 		require.NoError(t, err)

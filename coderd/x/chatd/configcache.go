@@ -81,8 +81,8 @@ type chatConfigCache struct {
 	modelConfigs       map[uuid.UUID]cachedModelConfig
 	modelConfigFetches singleflight.Group[string, database.ChatModelConfig]
 
-	// Default model config (singleton).
-	defaultModelConfig           *cachedModelConfig
+	// Default model configs (keyed by organization ID).
+	defaultModelConfigs          map[uuid.UUID]cachedModelConfig
 	defaultModelConfigGeneration uint64
 	defaultModelConfigFetches    singleflight.Group[string, database.ChatModelConfig]
 
@@ -99,10 +99,11 @@ type chatConfigCache struct {
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
 	return &chatConfigCache{
-		db:           db,
-		clock:        clock,
-		ctx:          ctx,
-		modelConfigs: make(map[uuid.UUID]cachedModelConfig),
+		db:                  db,
+		clock:               clock,
+		ctx:                 ctx,
+		modelConfigs:        make(map[uuid.UUID]cachedModelConfig),
+		defaultModelConfigs: make(map[uuid.UUID]cachedModelConfig),
 		userPrompts: tlru.New[uuid.UUID](
 			tlru.ConstantCost[string],
 			chatConfigUserPromptEntryLimit,
@@ -210,7 +211,7 @@ func (c *chatConfigCache) InvalidateProviders() {
 	// provider existence, so flush all model-config state.
 	clear(c.modelConfigs)
 	c.modelTopologyEpoch++
-	c.defaultModelConfig = nil
+	clear(c.defaultModelConfigs)
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
 }
@@ -281,22 +282,44 @@ func (c *chatConfigCache) storeModelConfig(snap modelConfigSnapshot, config data
 	}
 }
 
-func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	if config, ok := c.cachedDefaultModelConfig(); ok {
+// DefaultModelConfig returns the default model config for the given
+// organization. Until the org-scoping cutover, an org without its own
+// default falls back to the default org's config.
+// TODO(mafredri): remove after CODAGT-709 U2 (org-scoping cutover);
+// orgs resolve strictly within their own configs after the explosion
+// migration.
+func (c *chatConfigCache) DefaultModelConfig(ctx context.Context, orgID uuid.UUID) (database.ChatModelConfig, error) {
+	if config, ok := c.cachedDefaultModelConfig(orgID); ok {
 		return config, nil
 	}
 
 	snap := c.defaultModelConfigSnapshot()
-	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, fmt.Sprintf("%d:default", snap.epoch), func() (database.ChatModelConfig, error) {
-		if cached, ok := c.cachedDefaultModelConfig(); ok {
+	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, fmt.Sprintf("%d:default:%s", snap.epoch, orgID), func() (database.ChatModelConfig, error) {
+		if cached, ok := c.cachedDefaultModelConfig(orgID); ok {
 			return cached, nil
 		}
 
-		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx)
+		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx, orgID)
 		if err != nil {
-			return database.ChatModelConfig{}, err
+			if !errors.Is(err, sql.ErrNoRows) {
+				return database.ChatModelConfig{}, err
+			}
+			// TODO(mafredri): remove after CODAGT-709 U2
+			// (org-scoping cutover); orgs without their own
+			// default error after the explosion migration.
+			defaultOrg, err := c.db.GetDefaultOrganization(c.ctx)
+			if err != nil {
+				return database.ChatModelConfig{}, err
+			}
+			if defaultOrg.ID == orgID {
+				return database.ChatModelConfig{}, sql.ErrNoRows
+			}
+			fetched, err = c.db.GetDefaultChatModelConfig(c.ctx, defaultOrg.ID)
+			if err != nil {
+				return database.ChatModelConfig{}, err
+			}
 		}
-		c.storeDefaultModelConfig(snap, fetched)
+		c.storeDefaultModelConfig(snap, orgID, fetched)
 		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
@@ -306,11 +329,11 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 	return config, nil
 }
 
-func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, bool) {
+func (c *chatConfigCache) cachedDefaultModelConfig(orgID uuid.UUID) (database.ChatModelConfig, bool) {
 	c.mu.RLock()
-	entry := c.defaultModelConfig
+	entry, ok := c.defaultModelConfigs[orgID]
 	c.mu.RUnlock()
-	if entry == nil {
+	if !ok {
 		return database.ChatModelConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
@@ -318,8 +341,8 @@ func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, 
 	}
 
 	c.mu.Lock()
-	if current := c.defaultModelConfig; current != nil && !c.clock.Now().Before(current.expiresAt) {
-		c.defaultModelConfig = nil
+	if current, ok := c.defaultModelConfigs[orgID]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.defaultModelConfigs, orgID)
 	}
 	c.mu.Unlock()
 
@@ -336,7 +359,7 @@ func (c *chatConfigCache) defaultModelConfigSnapshot() modelConfigSnapshot {
 	return snap
 }
 
-func (c *chatConfigCache) storeDefaultModelConfig(snap modelConfigSnapshot, config database.ChatModelConfig) {
+func (c *chatConfigCache) storeDefaultModelConfig(snap modelConfigSnapshot, orgID uuid.UUID, config database.ChatModelConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -347,7 +370,7 @@ func (c *chatConfigCache) storeDefaultModelConfig(snap modelConfigSnapshot, conf
 		return
 	}
 
-	c.defaultModelConfig = &cachedModelConfig{
+	c.defaultModelConfigs[orgID] = cachedModelConfig{
 		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
@@ -412,7 +435,10 @@ func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 	c.mu.Lock()
 	delete(c.modelConfigs, id)
 	c.modelTopologyEpoch++
-	c.defaultModelConfig = nil
+	// Coarse invalidation: the event does not say whether the changed
+	// config was a default, nor which orgs resolve to it through the
+	// default-org fallback, so every per-org default is dropped.
+	clear(c.defaultModelConfigs)
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
 }
