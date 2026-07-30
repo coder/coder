@@ -101,11 +101,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { success: true },
 	},
 	{
-		name: "wait_for_external_auth",
-		args: { provider: "github" },
-		result: { provider_display_name: "GitHub", authenticated: true },
-	},
-	{
 		name: "read_file",
 		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
 		result: { content: "export const AgentChatPage = () => null;" },
@@ -598,68 +593,6 @@ export const ExecuteAuthRequired: Story = {
 			"width=900,height=600",
 		);
 		openSpy.mockRestore();
-	},
-};
-
-// ---------------------------------------------------------------------------
-// WaitForExternalAuth stories
-// ---------------------------------------------------------------------------
-
-export const WaitForExternalAuthRunning: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "running",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Waiting for GitHub authentication..."),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Authentication in progress" }),
-		).toBeVisible();
-	},
-};
-
-export const WaitForExternalAuthAuthenticated: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Authenticated with GitHub")).toBeInTheDocument();
-	},
-};
-
-export const WaitForExternalAuthTimedOut: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			timed_out: true,
-		},
-	},
-};
-
-export const WaitForExternalAuthError: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "error",
-		isError: true,
-		result: {
-			provider_display_name: "GitHub",
-			error: "Authentication failed: token exchange was rejected.",
-		},
 	},
 };
 
