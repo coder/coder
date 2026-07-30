@@ -59,6 +59,7 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
@@ -139,12 +140,12 @@ export const chatCostIdToInvalidate = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): string | undefined => {
 	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
-		return chat.root_chat_id ?? chat.id;
+		return getChatCostTreeID(chat);
 	}
 	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
 		return undefined;
 	}
-	return chat.root_chat_id ?? chat.id;
+	return getChatCostTreeID(chat);
 };
 
 const AgentsPageLayout: FC = () => {

@@ -969,6 +969,19 @@ describe(chatCostIdToInvalidate.name, () => {
 			expected: "root-1",
 		},
 		{
+			// Deleting a root nulls root_chat_id on descendants, leaving only
+			// parent_chat_id, so cost is keyed on the parent.
+			name: "falls back to the parent when the root chat is gone",
+			updatedChat: chatForFilterInvalidation({
+				id: "grandchild-1",
+				parent_chat_id: "child-1",
+				root_chat_id: undefined,
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: "child-1",
+		},
+		{
 			name: "waits while the chat is still active",
 			updatedChat: chatForFilterInvalidation({ status: "running" }),
 			eventKind: "status_change",

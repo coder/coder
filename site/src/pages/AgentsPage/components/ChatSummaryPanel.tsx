@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
@@ -19,10 +20,7 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
-	// Mirrors the server's COALESCE(root_chat_id, parent_chat_id) resolution so
-	// the cost cache key matches the tree the server aggregates.
-	const rootChatId =
-		chatData?.root_chat_id ?? chatData?.parent_chat_id ?? chatId;
+	const rootChatId = getChatCostTreeID(chatData) ?? chatId;
 	const costQuery = useQuery({
 		...chatCost(rootChatId),
 		enabled: isVisible && showCost && chatData !== undefined,
