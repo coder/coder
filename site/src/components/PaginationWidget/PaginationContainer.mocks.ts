@@ -2,8 +2,8 @@
  * @file Mock input props for use with PaginationContainer's tests and stories.
  *
  * Had to split this off into a separate file because housing these in the test
- * file and then importing them from the stories file was causing Chromatic's
- * Vite test environment to break
+ * file and then importing them from the stories file was breaking the visual
+ * testing environment's Vite build
  */
 import type { PaginationResult } from "./PaginationContainer";
 

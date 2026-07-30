@@ -28,7 +28,7 @@ const validationSchema = yup.object({
 
 type ChangePasswordChangeProps = {
 	// This is used to prevent redirection when testing the page in Storybook and
-	// capturing Chromatic snapshots.
+	// capturing visual snapshots.
 	redirect?: boolean;
 };
 
