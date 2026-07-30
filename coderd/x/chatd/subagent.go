@@ -1306,8 +1306,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 		if err != nil {
 			return database.Chat{}, err
 		}
-		// A spawn runs inside the parent's turn, and its dispatch failure
-		// fails that turn, so it draws from the generation share.
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,

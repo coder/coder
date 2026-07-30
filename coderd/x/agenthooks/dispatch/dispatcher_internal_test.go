@@ -801,7 +801,6 @@ func TestDispatcherAdmissionReserve(t *testing.T) {
 			testDeploymentID, testVersion, prometheus.NewRegistry(),
 		)
 		fill(t, dispatcher.admission, maxAdmissionDispatches)
-		// Leave only the reserve free, which an admission burst cannot reach.
 		fill(t, dispatcher.semaphore, maxAdmissionDispatches)
 
 		event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})

@@ -28,13 +28,7 @@ import (
 
 const (
 	maxConcurrentDispatches = 256
-	// maxAdmissionDispatches caps how much of maxConcurrentDispatches prompt
-	// admission can hold, leaving the remainder reachable only by dispatches
-	// for work a chat already admitted. Dispatches fail closed, so without
-	// that reserve a large enough burst of new submissions ends turns that
-	// had already executed tools. The split is a judgement call rather than a
-	// measured ceiling: nothing bounds how many turns generate at once, so a
-	// large enough generation load still exhausts what this leaves behind.
+	// Keep capacity reachable by work that a chat already admitted.
 	maxAdmissionDispatches = 192
 	maxResponseBodyBytes   = 1_048_576
 	maxModelContextBytes   = 16_384
@@ -43,22 +37,12 @@ const (
 	clockSkewLeeway        = 30 * time.Second
 )
 
-// CapacityClass selects which share of dispatch capacity an event draws
-// from. The caller decides, because the event type does not imply it: a
-// subagent spawn dispatches user_prompt_submit from inside a running turn,
-// and the edit path dispatches session_start at admission time.
+// CapacityClass selects which share of dispatch capacity an event draws from.
 type CapacityClass int
 
 const (
-	// CapacityClassUnset is invalid, so a new call site cannot silently
-	// inherit either share.
 	CapacityClassUnset CapacityClass = iota
-	// CapacityClassAdmission is for dispatches that decide whether to accept
-	// new work into a chat.
 	CapacityClassAdmission
-	// CapacityClassGeneration is for dispatches that belong to work a chat
-	// already admitted, so refusing one stalls or ends a turn in progress
-	// instead of declining new work.
 	CapacityClassGeneration
 )
 
@@ -245,11 +229,8 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	return outcome.response, dispatchID, nil
 }
 
-// acquireCapacity takes the pools a dispatch needs, and is the only path that
-// takes them, so the order below cannot be bypassed. Admission must hold its
-// own gate before the shared pool: taking a shared slot first would let
-// admission dispatches queued on the gate occupy the very capacity the
-// reserve protects, which is the starvation this split exists to prevent.
+// Admission acquires its gate before the shared pool so queued admission
+// dispatches cannot occupy the reserved capacity.
 func (d *Dispatcher) acquireCapacity(
 	ctx context.Context,
 	capacity CapacityClass,
@@ -273,11 +254,8 @@ func (d *Dispatcher) acquireCapacity(
 	return acquire(ctx, d.semaphore, deadline)
 }
 
-// acquire takes one slot from a capacity pool before deadline. Both pools of
-// an admission dispatch share one deadline, so waiting cannot spend the limit
-// twice. The deadline is checked before selecting because select picks a ready
-// case at random: a timer that already fired would otherwise lose the race
-// against a free slot, and the dispatch would start past its capacity wait.
+// Check the deadline before select because select randomly chooses among ready
+// cases, including a free slot and an expired timer.
 func acquire(
 	ctx context.Context,
 	pool chan struct{},
