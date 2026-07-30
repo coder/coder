@@ -4,6 +4,7 @@ import {
 	MockCanceledProvisionerJob,
 	MockCancelingProvisionerJob,
 	MockFailedProvisionerJob,
+	MockNoPermissions,
 	MockPendingProvisionerJob,
 	MockPermissions,
 	MockRunningProvisionerJob,
@@ -42,6 +43,13 @@ export const Example: Story = {
 			},
 			MockTemplateVersion,
 		],
+	},
+};
+
+export const NoUpdatePermission: Story = {
+	args: { ...Example.args },
+	parameters: {
+		permissions: MockNoPermissions,
 	},
 };
 
