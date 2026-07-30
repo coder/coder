@@ -24844,6 +24844,13 @@ const docTemplate = `{
         "codersdk.TemplateBuilderBase": {
             "type": "object",
             "properties": {
+                "agents": {
+                    "description": "Agents lists the coder_agent resources the base declares.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -24870,6 +24877,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderBaseAgent": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateBuilderBasesResponse": {
             "type": "object",
             "properties": {
@@ -24884,6 +24905,10 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
+                "agent_name": {
+                    "description": "AgentName is the coder_agent resource the module attaches to. When\nempty, the base template's default agent is used.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },

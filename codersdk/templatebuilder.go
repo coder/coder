@@ -49,6 +49,15 @@ type TemplateBuilderModulesResponse struct {
 	Modules []TemplateBuilderModule `json:"modules"`
 }
 
+// TemplateBuilderBaseAgent describes a coder_agent resource declared by a
+// base template. When a base declares more than one agent, callers choose
+// which agent a module attaches to via TemplateBuilderComposeModule.AgentName.
+type TemplateBuilderBaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	Default     bool   `json:"default"`
+}
+
 // TemplateBuilderBase is the API response type for a base template
 // returned by GET /api/v2/templatebuilder/bases.
 type TemplateBuilderBase struct {
@@ -59,6 +68,8 @@ type TemplateBuilderBase struct {
 	OS            string                          `json:"os"`
 	Variables     []TemplateBuilderModuleVariable `json:"variables"`
 	Prerequisites string                          `json:"prerequisites"`
+	// Agents lists the coder_agent resources the base declares.
+	Agents []TemplateBuilderBaseAgent `json:"agents"`
 }
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.
@@ -114,6 +125,9 @@ type TemplateBuilderComposeRequest struct {
 type TemplateBuilderComposeModule struct {
 	ID        string            `json:"id"`
 	Variables map[string]string `json:"variables,omitempty"`
+	// AgentName is the coder_agent resource the module attaches to. When
+	// empty, the base template's default agent is used.
+	AgentName string `json:"agent_name,omitempty"`
 }
 
 // TemplateBuilderCompose renders a base template with the selected

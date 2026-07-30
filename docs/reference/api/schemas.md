@@ -12560,6 +12560,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agents": [
+    {
+      "default": true,
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
   "description": "string",
   "icon": "string",
   "id": "string",
@@ -12583,15 +12590,34 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name            | Type                                                                                      | Required | Restrictions | Description |
-|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `description`   | string                                                                                    | false    |              |             |
-| `icon`          | string                                                                                    | false    |              |             |
-| `id`            | string                                                                                    | false    |              |             |
-| `name`          | string                                                                                    | false    |              |             |
-| `os`            | string                                                                                    | false    |              |             |
-| `prerequisites` | string                                                                                    | false    |              |             |
-| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| Name            | Type                                                                                      | Required | Restrictions | Description                                               |
+|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `agents`        | array of [codersdk.TemplateBuilderBaseAgent](#codersdktemplatebuilderbaseagent)           | false    |              | Agents lists the coder_agent resources the base declares. |
+| `description`   | string                                                                                    | false    |              |                                                           |
+| `icon`          | string                                                                                    | false    |              |                                                           |
+| `id`            | string                                                                                    | false    |              |                                                           |
+| `name`          | string                                                                                    | false    |              |                                                           |
+| `os`            | string                                                                                    | false    |              |                                                           |
+| `prerequisites` | string                                                                                    | false    |              |                                                           |
+| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |                                                           |
+
+## codersdk.TemplateBuilderBaseAgent
+
+```json
+{
+  "default": true,
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `default`      | boolean | false    |              |             |
+| `display_name` | string  | false    |              |             |
+| `name`         | string  | false    |              |             |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -12599,6 +12625,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "bases": [
     {
+      "agents": [
+        {
+          "default": true,
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
       "description": "string",
       "icon": "string",
       "id": "string",
@@ -12632,6 +12665,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agent_name": "string",
   "id": "string",
   "variables": {
     "property1": "string",
@@ -12642,11 +12676,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `id`               | string | false    |              |             |
-| `variables`        | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description                                                                                                           |
+|--------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `agent_name`       | string | false    |              | Agent name is the coder_agent resource the module attaches to. When empty, the base template's default agent is used. |
+| `id`               | string | false    |              |                                                                                                                       |
+| `variables`        | object | false    |              |                                                                                                                       |
+| » `[any property]` | string | false    |              |                                                                                                                       |
 
 ## codersdk.TemplateBuilderComposeRequest
 
@@ -12659,6 +12694,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -12708,6 +12744,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",

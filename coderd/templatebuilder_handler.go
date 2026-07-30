@@ -82,6 +82,7 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 			OS:            string(templatebuilder.BaseTemplateOS(id)),
 			Variables:     vars,
 			Prerequisites: templatebuilder.BasePrerequisites(id),
+			Agents:        baseAgentsToSDK(templatebuilder.BaseAgents(id)),
 		})
 	}
 
@@ -92,6 +93,19 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
 	})
+}
+
+// baseAgentsToSDK converts base template agents to the SDK type.
+func baseAgentsToSDK(agents []templatebuilder.BaseAgent) []codersdk.TemplateBuilderBaseAgent {
+	out := make([]codersdk.TemplateBuilderBaseAgent, 0, len(agents))
+	for _, a := range agents {
+		out = append(out, codersdk.TemplateBuilderBaseAgent{
+			Name:        a.Name,
+			DisplayName: a.DisplayName,
+			Default:     a.Default,
+		})
+	}
+	return out
 }
 
 // baseVariablesToSDK converts base template variables to the SDK type,
@@ -203,6 +217,7 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
 			Variables: m.Variables,
+			AgentName: m.AgentName,
 		})
 	}
 
@@ -313,6 +328,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
 			Variables: m.Variables,
+			AgentName: m.AgentName,
 		})
 	}
 
