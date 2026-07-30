@@ -56,9 +56,6 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
-	// A new session ID correlates this terminal's logs, requests, and telemetry.
-	// Generated once per mount via lazy state init (AgentsPage is React Compiler
-	// optimized, so useMemo is not used here).
 	const [sessionId] = useState(generateSessionId);
 	const [isWarm, setIsWarm] = useState(Boolean(isHot));
 	const [connectionStatus, setConnectionStatus] =

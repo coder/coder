@@ -2701,7 +2701,6 @@ class ApiMethods {
 		const response = await this.axios.post(
 			"/api/v2/applications/reconnecting-pty-signed-token",
 			params,
-			// Correlate this request with the terminal session via W3C baggage.
 			{ headers: { baggage: `session_id=${sessionId}` } },
 		);
 
