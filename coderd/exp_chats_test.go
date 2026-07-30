@@ -16989,27 +16989,37 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 type failNextChatSiteConfigValueStore struct {
 	database.Store
 
-	armedGetChatSiteConfigValueFailures *atomic.Int64
+	armedGetChatSiteConfigValueFailures      *atomic.Int64
+	getChatSiteConfigValueCallsBeforeFailure *atomic.Int64
 }
 
 func newFailNextChatSiteConfigValueStore(store database.Store) *failNextChatSiteConfigValueStore {
 	return &failNextChatSiteConfigValueStore{
-		Store:                               store,
-		armedGetChatSiteConfigValueFailures: &atomic.Int64{},
+		Store:                                    store,
+		armedGetChatSiteConfigValueFailures:      &atomic.Int64{},
+		getChatSiteConfigValueCallsBeforeFailure: &atomic.Int64{},
 	}
 }
 
 func (s *failNextChatSiteConfigValueStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
 		return function(&failNextChatSiteConfigValueStore{
-			Store:                               tx,
-			armedGetChatSiteConfigValueFailures: s.armedGetChatSiteConfigValueFailures,
+			Store:                                    tx,
+			armedGetChatSiteConfigValueFailures:      s.armedGetChatSiteConfigValueFailures,
+			getChatSiteConfigValueCallsBeforeFailure: s.getChatSiteConfigValueCallsBeforeFailure,
 		})
 	}, txOpts)
 }
 
 func (s *failNextChatSiteConfigValueStore) GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error) {
 	if s.armedGetChatSiteConfigValueFailures != nil && s.armedGetChatSiteConfigValueFailures.Load() > 0 {
+		// When a skip count is set, the first N reads succeed so failures
+		// can be aimed at a specific read, e.g. the New re-read after the
+		// Old capture.
+		if s.getChatSiteConfigValueCallsBeforeFailure != nil && s.getChatSiteConfigValueCallsBeforeFailure.Load() > 0 {
+			s.getChatSiteConfigValueCallsBeforeFailure.Add(-1)
+			return s.Store.GetChatSiteConfigValue(ctx, configKey)
+		}
 		s.armedGetChatSiteConfigValueFailures.Add(-1)
 		return "", stderrors.New("forced chat site config value read failure")
 	}
@@ -17324,7 +17334,20 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 	t.Run("MalformedSettingRepair", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		mAudit := audit.NewMock()
+		// The test-supplied diff pins the committed Old/New pair, which the
+		// default empty mock diff cannot express: replacing the captured
+		// malformed Old with "" would change the committed diff and fail.
+		// This runs on the HTTP handler goroutine (via the deferred
+		// commitAudit), so it must use assert, not require.
+		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldSettings, ok := old.(database.AgentsOperationalSettings)
+			assert.True(t, ok)
+			newSettings, ok := newVal.(database.AgentsOperationalSettings)
+			assert.True(t, ok)
+			return audit.Map{
+				"chat_retention_days": {Old: oldSettings.ChatRetentionDays, New: newSettings.ChatRetentionDays},
+			}
+		})
 		client, store := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
 			opts.Auditor = mAudit
 		})
@@ -17350,6 +17373,12 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+		// The malformed stored text is rendered honestly as the old value.
+		require.Equal(t, map[string]codersdk.AuditDiffField{
+			"chat_retention_days": {Old: "not-a-number", New: "60"},
+		}, diff)
 	})
 
 	// A failing audit old-capture read must not change the request
@@ -17380,6 +17409,46 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
 		require.Empty(t, mAudit.AuditLogs())
 		require.Contains(t, sink.messages(), "audit old capture failed, writing chat operational setting without an audit entry")
+
+		resp, err := client.GetChatRetentionDays(ctx)
+		require.NoError(t, err)
+		require.Equal(t, int32(90), resp.RetentionDays)
+	})
+
+	// Isolated New-branch proof: the Old capture succeeds, the upsert
+	// succeeds, and only the New re-read fails. The write still completes
+	// with 204, the entry is just skipped, and the warn names the New
+	// capture. The skip count aims the single armed failure at the New
+	// re-read: the Old capture is the first read, so skipping one read
+	// leaves the failure to fire on the re-read after the upsert.
+	t.Run("NewCaptureDegradesViaWarn", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSiteConfigValueStore(rawDB)
+		mAudit := audit.NewMock()
+		sink := &recordingSink{}
+		logger := slog.Make(sink)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+			Logger:           &logger,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// The Old capture of the PUT reads the (absent) stored value and
+		// succeeds; the armed failure then fires on the New re-read only.
+		store.armedGetChatSiteConfigValueFailures.Store(1)
+		store.getChatSiteConfigValueCallsBeforeFailure.Store(1)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		require.Empty(t, mAudit.AuditLogs())
+		require.Contains(t, sink.messages(), "audit new capture failed, writing chat operational setting without an audit entry")
 
 		resp, err := client.GetChatRetentionDays(ctx)
 		require.NoError(t, err)
@@ -17422,6 +17491,35 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		// failed request must not survive into this one.
 		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
 		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// The audit transaction must not change what a member sees on a write
+	// failure: the response Detail is the upsert's original error, not the
+	// InTx wrapper's "execute transaction: ..." form (review round 1).
+	t.Run("WriteFailureDetailMatchesMain", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpsertChatRetentionDaysStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextUpsertChatRetentionDays.Store(true)
+		err := client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7})
+		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+		// The store's forced failure text is exactly what main surfaced
+		// before the audit transaction existed.
+		require.Equal(t, "forced retention days upsert failure", sdkErr.Detail)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
