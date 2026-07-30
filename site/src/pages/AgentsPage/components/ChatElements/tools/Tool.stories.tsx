@@ -4,7 +4,9 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -3303,6 +3305,20 @@ export const AllToolIconsTranscript: Story = {
 const policyCaseLabel = (name: string, index: number) =>
 	`policy case ${name} ${index}`;
 
+// WorkspaceBuildLogSection falls back to the workspace's latest build when a
+// tool result carries no build_id, so both must resolve to the seeded logs.
+const showcaseBuildId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+const policyCaseWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-workspace-id",
+	latest_build: {
+		...MockWorkspaceBuild,
+		id: showcaseBuildId,
+		workspace_id: "test-workspace-id",
+	},
+};
+
 export const PolicyBadgeCoversEveryRenderer: Story = {
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
@@ -3341,14 +3357,10 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 		queries: [
 			{
 				key: workspaceByIdKey("test-workspace-id"),
-				data: {
-					id: "test-workspace-id",
-					latest_build: { id: "test-build-id", status: "running" },
-				},
+				data: policyCaseWorkspace,
 			},
 			{
-				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-					.queryKey,
+				key: workspaceBuildLogs(showcaseBuildId).queryKey,
 				data: [],
 			},
 		],
