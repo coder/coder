@@ -3352,7 +3352,11 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 				return;
 			}
 			rendered.add(tool.name);
-			if (!within(toolCase).queryByText("Modified by policy")) {
+			// checkVisibility, not presence: a badge hidden by the card's own
+			// layout still satisfies a text query.
+			if (
+				!within(toolCase).queryByText("Modified by policy")?.checkVisibility()
+			) {
 				missingBadge.push(tool.name);
 			}
 		});

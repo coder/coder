@@ -1038,8 +1038,8 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	computer: ComputerRenderer,
 };
 
-// Exported so tests can assert cross-cutting header affordances across every
-// dispatch target instead of a hand-picked subset.
+// Exported so tests can assert cross-cutting affordances across every
+// registered renderer instead of a hand-picked subset.
 export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 
 // ---------------------------------------------------------------------------
