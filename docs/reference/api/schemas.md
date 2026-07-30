@@ -655,6 +655,22 @@
 | `blocked` | integer | false    |              |             |
 | `total`   | integer | false    |              |             |
 
+## codersdk.AIBridgeSessionNetworkDomain
+
+```json
+{
+  "count": 0,
+  "domain": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `count`  | integer | false    |              |             |
+| `domain` | string  | false    |              |             |
+
 ## codersdk.AIBridgeSessionThreadsResponse
 
 ```json
@@ -674,6 +690,17 @@
   },
   "models": [
     "string"
+  ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
+  "network_domain_count": 0,
+  "network_top_domains": [
+    {
+      "count": 0,
+      "domain": "string"
+    }
   ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
@@ -758,21 +785,24 @@
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `client`              | string                                                                                 | false    |              |             |
-| `ended_at`            | string                                                                                 | false    |              |             |
-| `id`                  | string                                                                                 | false    |              |             |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
-| `metadata`            | object                                                                                 | false    |              |             |
-| » `[any property]`    | any                                                                                    | false    |              |             |
-| `models`              | array of string                                                                        | false    |              |             |
-| `page_ended_at`       | string                                                                                 | false    |              |             |
-| `page_started_at`     | string                                                                                 | false    |              |             |
-| `providers`           | array of string                                                                        | false    |              |             |
-| `started_at`          | string                                                                                 | false    |              |             |
-| `threads`             | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                            | false    |              |             |
-| `token_usage_summary` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
+| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
+| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
+| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.          |
+| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                       |
+| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                       |
 
 ## codersdk.AIBridgeSessionThreadsTokenUsage
 

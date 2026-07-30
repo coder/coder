@@ -528,12 +528,19 @@ LEFT JOIN LATERAL (
 	-- (logged at exactly its sequence number), leaving the agent's other
 	-- egress. next_seq considers all interceptions in the firewall session so
 	-- windows never bleed across AI sessions that share one firewall session.
+	--
+-- The last interception in a session has no next row, so next_seq uses
+-- the largest sequence_number instead of NULL. The lookup stays a plain
+-- range, so the (session_id, sequence_number) index answers it alone.
+-- With NULL and an OR check, the index cannot bound the range: each
+-- interception reads every log to the end of the session and throws
+-- most of them away.
 	SELECT
 		COUNT(*)::bigint AS total,
 		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
 	FROM aibridge_interceptions afi
 	LEFT JOIN LATERAL (
-		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
 		FROM aibridge_interceptions nxt
 		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
 			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
@@ -541,7 +548,7 @@ LEFT JOIN LATERAL (
 	JOIN boundary_logs bl
 		ON bl.session_id = afi.agent_firewall_session_id
 		AND bl.sequence_number > afi.agent_firewall_sequence_number
-		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+		AND bl.sequence_number < w.next_seq
 	WHERE afi.id = ANY(sr.interception_ids)
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
@@ -550,6 +557,66 @@ ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC
 ;
+
+-- name: GetAIBridgeSessionTopDomains :many
+-- Returns the most contacted destination hosts for an AI session, ordered by
+-- call count descending and limited to the top @limit_ rows. total_domains is
+-- the number of distinct domains across the whole session, used to render a
+-- "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+-- dns/git/fs boundary logs do not carry a domain in the same shape.
+--
+-- Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+-- each interception's boundary logs fall in the open interval (this seq, next
+-- interception's seq) within the same firewall session. The exclusive lower
+-- bound drops the interception's own LLM-provider call. next_seq considers all
+-- interceptions in the firewall session so windows never bleed across AI
+-- sessions that share one firewall session, and falls back to the maximum
+-- sequence_number for the last interception so the window stays an
+-- index-satisfiable range.
+WITH session_boundary_logs AS (
+	SELECT bl.detail
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND bl.sequence_number < w.next_seq
+	WHERE afi.session_id = @session_id::text
+		AND afi.ended_at IS NOT NULL
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+		AND bl.proto = 'http'
+),
+extracted AS (
+	-- Strip an optional scheme, then keep the host up to the first port, path,
+	-- query, or fragment delimiter. This assumes HTTP egress detail is a plain
+	-- scheme+host(+port) URL: it does not handle userinfo (user@host, which
+	-- would be captured into the host) or IPv6 literal hosts ([::1], where the
+	-- leading '[' is captured and the ':' terminates early). Boundary HTTP logs
+	-- do not currently emit those forms; revisit this extraction if they do.
+	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
+	FROM session_boundary_logs
+),
+domains AS (
+	SELECT domain, COUNT(*)::bigint AS count
+	FROM extracted
+	WHERE domain IS NOT NULL AND domain != ''
+	GROUP BY domain
+)
+SELECT
+	-- COALESCE keeps sqlc from typing the grouped column as nullable; the
+	-- domains CTE already filters out NULL/empty hosts.
+	COALESCE(domain, '')::text AS domain,
+	count,
+	COUNT(*) OVER ()::bigint AS total_domains
+FROM domains
+ORDER BY count DESC, domain ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 5);
 
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
