@@ -20,7 +20,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// Older migrations live in archive directories; see flatten.go. Both patterns
+// must keep matching, or migrations silently vanish from the binary.
+//
 //go:embed *.sql
+//go:embed [0-9]*-[0-9]*/*.sql
 var migrations embed.FS
 
 var (
