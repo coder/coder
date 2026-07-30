@@ -115,6 +115,7 @@ export const UserAIBudgetOverrideDialog: FC<
 		override: budgetOverrideQuery.data ?? null,
 		groupBudget: groupBudgetQuery.data ?? null,
 		userGroups: userGroupsQuery.data ?? [],
+		effectiveGroupId,
 	};
 
 	let body: ReactNode;
@@ -131,9 +132,6 @@ export const UserAIBudgetOverrideDialog: FC<
 		body = (
 			<OverrideForm
 				{...budget}
-				defaultGroupId={
-					effectiveGroupId === undefined ? currentGroup.id : effectiveGroupId
-				}
 				isSubmitting={isSubmitting}
 				onSave={saveMutation.mutateAsync}
 				onRemove={deleteMutation.mutateAsync}
@@ -183,6 +181,10 @@ interface BudgetProps {
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
+	// The group whose budget governs this user, which the backend resolves to
+	// the Everyone group when no group sets one. Null when it belongs to another
+	// organization, undefined when the caller has no spend data.
+	effectiveGroupId?: string | null;
 }
 
 /** The member's effective limit as a sentence, to place inside a paragraph. */
@@ -192,35 +194,47 @@ const BudgetSummary: FC<BudgetProps> = ({
 	override,
 	groupBudget,
 	userGroups,
+	effectiveGroupId,
 }) => {
 	if (!override) {
+		// The governing group is not necessarily the group being viewed.
+		const effectiveGroup =
+			effectiveGroupId === undefined
+				? currentGroup
+				: findGroup(currentGroup, userGroups, effectiveGroupId);
 		return (
 			<>
 				{user.username}'s monthly limit is{" "}
 				<Bold>
 					{groupBudget ? formatUSD(groupBudget.spend_limit_micros) : "uncapped"}
 				</Bold>
-				, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
+				, <ChargedTo group={effectiveGroup} />
 			</>
 		);
 	}
 
-	const overrideGroup = findGroup(currentGroup, userGroups, override.group_id);
 	return (
 		<>
 			{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
-			<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
-			{overrideGroup ? (
-				<>
-					<Bold>{groupDisplayName(overrideGroup)}</Bold> group.
-				</>
-			) : (
-				// The group is unresolvable here, so it can't be named.
-				<Bold>their group.</Bold>
-			)}
+			<Bold>{formatUSD(override.spend_limit_micros)}</Bold>,{" "}
+			<ChargedTo
+				group={findGroup(currentGroup, userGroups, override.group_id)}
+			/>
 		</>
 	);
 };
+
+const ChargedTo: FC<{ group: Group | undefined }> = ({ group }) =>
+	group ? (
+		<>
+			charged to <Bold>{groupDisplayName(group)}</Bold> group.
+		</>
+	) : (
+		// The group is unresolvable here, so it can't be named.
+		<>
+			charged to <Bold>their group.</Bold>
+		</>
+	);
 
 /**
  * The budget without any editing controls. Setting an override requires
@@ -235,8 +249,6 @@ const ReadOnlyBudget: FC<BudgetProps> = (props) => (
 );
 
 interface OverrideFormProps extends BudgetProps {
-	// Group marked "(default)" in the picker; null marks none.
-	defaultGroupId: string | null;
 	isSubmitting: boolean;
 	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
 	onRemove: () => Promise<unknown>;
@@ -247,15 +259,18 @@ interface OverrideFormProps extends BudgetProps {
 const OverrideForm: FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
-	defaultGroupId,
 	override,
 	groupBudget,
 	userGroups,
+	effectiveGroupId,
 	isSubmitting,
 	onSave,
 	onRemove,
 	onClose,
 }) => {
+	// Group marked "(default)" in the picker; null marks none.
+	const defaultGroupId =
+		effectiveGroupId === undefined ? currentGroup.id : effectiveGroupId;
 	const budgetId = useId();
 	const groupId = useId();
 	const overrideId = useId();
@@ -342,6 +357,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 					override={override}
 					groupBudget={groupBudget}
 					userGroups={userGroups}
+					effectiveGroupId={effectiveGroupId}
 				/>
 			</p>
 
@@ -493,8 +509,10 @@ const groupDisplayName = (group: Group): string =>
 const findGroup = (
 	currentGroup: Group,
 	userGroups: readonly Group[],
-	groupID: string,
+	groupID: string | null,
 ): Group | undefined =>
-	[currentGroup, ...userGroups].find((group) => group.id === groupID);
+	groupID === null
+		? undefined
+		: [currentGroup, ...userGroups].find((group) => group.id === groupID);
 
 const formatUSD = (micros: number): string => `${formatBudgetUSD(micros)} USD`;

@@ -5,7 +5,12 @@ import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
 import type { GroupAIBudget, UserAIBudgetOverride } from "#/api/typesGenerated";
 import { maxAIBudgetDollars } from "#/modules/groups";
-import { MockGroup, MockGroup2, MockUserMember } from "#/testHelpers/entities";
+import {
+	MockEveryoneGroup,
+	MockGroup,
+	MockGroup2,
+	MockUserMember,
+} from "#/testHelpers/entities";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 const mockOverride: UserAIBudgetOverride = {
@@ -119,6 +124,36 @@ export const ReadOnlyWithoutPermission: Story = {
 				body.queryByRole("button", { name }),
 			).not.toBeInTheDocument();
 		}
+	},
+};
+
+/**
+ * No group the member belongs to sets a budget, so the backend attributes their
+ * spend to the Everyone group rather than the group being viewed.
+ */
+export const UnbudgetedGroupFallsBackToEveryone: Story = {
+	args: { effectiveGroupId: MockEveryoneGroup.id },
+	parameters: {
+		queries: [
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserMember.id), data: null },
+			{
+				key: groupsForUser(MockUserMember.id, MockGroup.organization_id)
+					.queryKey,
+				data: [MockGroup, MockEveryoneGroup],
+			},
+			{ key: groupAIBudget(MockGroup.id).queryKey, data: null },
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		const summary = await body.findByText(/charged to/);
+		await expect(summary).toHaveTextContent(
+			"uncapped, charged to Everyone group.",
+		);
+		// The group being viewed must not be named as the charging group.
+		await expect(summary).not.toHaveTextContent(
+			MockGroup.display_name || MockGroup.name,
+		);
 	},
 };
 
