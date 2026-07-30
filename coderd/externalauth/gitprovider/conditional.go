@@ -1,6 +1,7 @@
 package gitprovider
 
 import (
+	"bytes"
 	"container/list"
 	"crypto/sha256"
 	"encoding/hex"
@@ -60,7 +61,8 @@ func newResponseCache(maxSize int) *responseCache {
 }
 
 // load returns the cached ETag and body for key, if present, and
-// marks the entry as most-recently-used.
+// marks the entry as most-recently-used. The returned body aliases
+// the cache's copy and must not be mutated.
 func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -85,18 +87,17 @@ func (c *responseCache) store(key, etag string, body []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Clone the body so we never retain a slice that the caller may
+	// later reuse or mutate.
+	stored := bytes.Clone(body)
+
 	if elem, found := c.entries[key]; found {
 		c.ll.MoveToFront(elem)
 		cr := elem.Value.(*cachedResponse)
 		cr.etag = etag
-		cr.body = body
+		cr.body = stored
 		return
 	}
-
-	// Copy the body so we never retain a slice that the caller may
-	// later reuse or mutate.
-	stored := make([]byte, len(body))
-	copy(stored, body)
 
 	elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
 	c.entries[key] = elem
