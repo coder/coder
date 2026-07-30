@@ -3279,6 +3279,9 @@ export const AllToolIconsTranscript: Story = {
 
 // The badge reaches tools implicitly through the shared header, so a renderer
 // that builds its own header rows drops it with no type or runtime error.
+const policyCaseTestId = (name: string, index: number) =>
+	`policy-case-${name}-${index}`;
+
 export const PolicyBadgeCoversEveryRenderer: Story = {
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
@@ -3287,7 +3290,10 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 			>
 				<div className="flex flex-col gap-2">
 					{allToolShowcaseItems.map((tool, index) => (
-						<div key={`${tool.name}-${index}`} data-policy-case={tool.name}>
+						<div
+							key={`${tool.name}-${index}`}
+							data-testid={policyCaseTestId(tool.name, index)}
+						>
 							<Tool
 								name={tool.name}
 								status={tool.status ?? "completed"}
@@ -3334,20 +3340,19 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 			toolRendererNames.filter((name) => !covered.has(name)),
 		).toStrictEqual([]);
 
+		const canvas = within(canvasElement);
 		const rendered = new Set<string>();
 		const missingBadge: string[] = [];
-		for (const toolCase of canvasElement.querySelectorAll(
-			"[data-policy-case]",
-		)) {
-			const name = toolCase.getAttribute("data-policy-case") ?? "";
+		allToolShowcaseItems.forEach((tool, index) => {
+			const toolCase = canvas.getByTestId(policyCaseTestId(tool.name, index));
 			if (toolCase.textContent?.trim() === "") {
-				continue;
+				return;
 			}
-			rendered.add(name);
-			if (!within(toolCase as HTMLElement).queryByText("Modified by policy")) {
-				missingBadge.push(name);
+			rendered.add(tool.name);
+			if (!within(toolCase).queryByText("Modified by policy")) {
+				missingBadge.push(tool.name);
 			}
-		}
+		});
 
 		expect(missingBadge).toStrictEqual([]);
 		expect(
