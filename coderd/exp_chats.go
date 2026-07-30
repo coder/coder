@@ -8304,23 +8304,21 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var siblingChanges []chatModelConfigChange
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		// Re-read the row inside the transaction so the audit entry
-		// describes the row being deleted, not the prefetch. Audit
-		// enrichment must never change the write outcome: a failed
-		// re-read falls back to the prefetch and a failed promotion
-		// probe only skips the sibling entry.
+		// Read the row being deleted inside the transaction, after the
+		// advisory lock, so the audit Old is the row as it is at delete
+		// time: the lock serializes against concurrent promotes, so this
+		// cannot see the stale non-default state the prefetch holds. This
+		// fetch is base-equivalent, not audit-only enrichment: dbauthz's
+		// delete performs the same fetch in the same transaction, so any
+		// failure here fails base's delete call too. ErrNoRows means the
+		// row vanished after the prefetch; return it as-is and the
+		// handler conceals it as a 404 exactly like base's delete, with
+		// no audit entry.
 		locked, err := tx.GetChatModelConfigByID(ctx, modelConfigID)
-		switch {
-		case err == nil:
-			aReq.Old = locked
-		case xerrors.Is(err, sql.ErrNoRows):
-			// The row vanished between prefetch and tx; the delete below
-			// is a no-op and the audit entry keeps the prefetched row.
-			aReq.Old = existing
-		default:
-			api.Logger.Warn(ctx, "chat model config audit: re-read before delete failed; using prefetched row", slog.Error(err))
-			aReq.Old = existing
+		if err != nil {
+			return xerrors.Errorf("re-read chat model config: %w", err)
 		}
+		aReq.Old = locked
 
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
@@ -8333,7 +8331,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// entry. Only deleting the default vacates it for the ensure
 		// call to refill; deleting a non-default row leaves any
 		// incumbent untouched.
-		if aReq.Old.IsDefault {
+		if locked.IsDefault {
 			promotedChange, ok := api.chatModelConfigDefaultPromotion(ctx, tx, existing.OrganizationID, modelConfigID)
 			if ok {
 				siblingChanges = append(siblingChanges, promotedChange)

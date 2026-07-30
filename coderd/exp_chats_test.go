@@ -5737,6 +5737,81 @@ func TestChatModelConfigAudit(t *testing.T) {
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
+	t.Run("DeletePromotedRowAuditsAuthoritativeDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		incumbent := createChatModelConfig(t, client)
+		require.True(t, incumbent.IsDefault)
+		target := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-target")
+
+		// Promote the target, then delete it: the deleted row was the default
+		// at delete time, so the incumbent must be re-elected and recorded.
+		_, err := client.UpdateChatModelConfig(ctx, target.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		mAudit.ResetLogs()
+		err = client.DeleteChatModelConfig(ctx, target.ID)
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 2)
+		// The Delete entry describes the row as it was at delete time (the
+		// default), not the non-default prefetch shape; the in-tx row is
+		// authoritative regardless of interleaving.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionDelete,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     target.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+		}))
+		// The incumbent's re-election is recorded as a sibling entry.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     incumbent.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+			RequestID:      logs[0].RequestID,
+		}))
+	})
+
+	t.Run("DeleteVanishedRowMatchesBase404EmitsNoLog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Hard-delete the row behind the handler's back so the prefetch
+		// succeeds and the row vanishes before the write transaction: base
+		// (99741cb23a) surfaces this as a 404 via dbauthz's concealed
+		// fetch-then-authorize miss, and no audit entry may be emitted.
+		err := rawDB.DeleteChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
+		require.NoError(t, err)
+
+		mAudit.ResetLogs()
+		requireSDKError(t, client.DeleteChatModelConfig(ctx, modelConfig.ID), http.StatusNotFound)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
 	t.Run("DeleteAlreadyDeletedEmitsNoLog", func(t *testing.T) {
 		t.Parallel()
 
@@ -6063,42 +6138,6 @@ func TestChatModelConfigAuditReadFailures(t *testing.T) {
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1, "sibling entry skipped; only the primary update entry")
 		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
-	})
-
-	t.Run("DeleteOldReReadFailureStillDeletes", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		mAudit := audit.NewMock()
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextUpdateChatModelConfigStore(rawDB)
-		client := newChatClient(t, func(opts *coderdtest.Options) {
-			opts.Auditor = mAudit
-			opts.Database = store
-			opts.Pubsub = pubsub
-		})
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		// Fail the in-tx re-read of the row being deleted. The handler's own
-		// prefetch runs GetChatModelConfigByID first; skip it so the forced
-		// failure lands on the in-tx re-read.
-		store.armReadFailures.Store(true)
-		store.skipConfigReads.Store(1)
-		store.failNextConfigRead.Store(true)
-		mAudit.ResetLogs()
-		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
-		require.NoError(t, err, "Old re-read failure must not change the delete outcome")
-
-		configs, err := client.ListChatModelConfigs(ctx)
-		require.NoError(t, err)
-		for _, c := range configs {
-			require.NotEqual(t, modelConfig.ID, c.ID)
-		}
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1, "delete entry with the prefetched row as Old")
-		require.Equal(t, database.AuditActionDelete, logs[0].Action)
-		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
 	})
 
 	t.Run("DeletePromoteProbeFailureStillPromotes", func(t *testing.T) {
