@@ -218,18 +218,28 @@ func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Co
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
 // wrappers so tests can force a specific in-transaction model-config update to
-// return sql.ErrNoRows.
+// return sql.ErrNoRows, or fail the next audit-only read.
 type failNextUpdateChatModelConfigStore struct {
 	database.Store
 
 	failNextUpdateChatModelConfig   *atomic.Bool
 	failNextUpdateChatModelConfigID uuid.UUID
+	failNextDefaultRead             *atomic.Bool
+	failNextConfigRead              *atomic.Bool
+	skipDefaultReads                *atomic.Int64
+	skipConfigReads                 *atomic.Int64
+	armReadFailures                 *atomic.Bool
 }
 
 func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
 	return &failNextUpdateChatModelConfigStore{
 		Store:                         store,
 		failNextUpdateChatModelConfig: &atomic.Bool{},
+		failNextDefaultRead:           &atomic.Bool{},
+		failNextConfigRead:            &atomic.Bool{},
+		skipDefaultReads:              &atomic.Int64{},
+		skipConfigReads:               &atomic.Int64{},
+		armReadFailures:               &atomic.Bool{},
 	}
 }
 
@@ -239,6 +249,11 @@ func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) 
 			Store:                           tx,
 			failNextUpdateChatModelConfig:   s.failNextUpdateChatModelConfig,
 			failNextUpdateChatModelConfigID: s.failNextUpdateChatModelConfigID,
+			failNextDefaultRead:             s.failNextDefaultRead,
+			failNextConfigRead:              s.failNextConfigRead,
+			skipDefaultReads:                s.skipDefaultReads,
+			skipConfigReads:                 s.skipConfigReads,
+			armReadFailures:                 s.armReadFailures,
 		})
 	}, txOpts)
 }
@@ -252,6 +267,104 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
+}
+
+func (s *failNextUpdateChatModelConfigStore) GetDefaultChatModelConfig(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.armReadFailures.Load() {
+		if s.skipDefaultReads.Add(-1) >= 0 {
+			return s.Store.GetDefaultChatModelConfig(ctx, organizationID)
+		}
+		if s.failNextDefaultRead.CompareAndSwap(true, false) {
+			return database.ChatModelConfig{}, stderrors.New("forced default read failure")
+		}
+	}
+	return s.Store.GetDefaultChatModelConfig(ctx, organizationID)
+}
+
+func (s *failNextUpdateChatModelConfigStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.armReadFailures.Load() {
+		if s.skipConfigReads.Add(-1) >= 0 {
+			return s.Store.GetChatModelConfigByID(ctx, id)
+		}
+		if s.failNextConfigRead.CompareAndSwap(true, false) {
+			return database.ChatModelConfig{}, stderrors.New("forced config read failure")
+		}
+	}
+	return s.Store.GetChatModelConfigByID(ctx, id)
+}
+
+// blockAfterFirstConfigReadStore blocks the first armed successful
+// GetChatModelConfigByID call (the delete handler's prefetch) until released,
+// letting a test mutate state in the window between the handler's prefetch and
+// its write transaction. The mutation runs in the test goroutine between
+// waitBlocked and unblock, so no hook runs while the handler is blocked.
+type blockAfterFirstConfigReadStore struct {
+	database.Store
+
+	armed   *atomic.Bool
+	blocked chan struct{}
+	release chan struct{}
+}
+
+func newBlockAfterFirstConfigReadStore(store database.Store) *blockAfterFirstConfigReadStore {
+	return &blockAfterFirstConfigReadStore{
+		Store:   store,
+		armed:   &atomic.Bool{},
+		blocked: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *blockAfterFirstConfigReadStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	// Share the arming flag across the InTx wrapper; the arming flag is already
+	// consumed by the prefetch before any in-transaction read, so only the
+	// outer read ever blocks.
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&blockAfterFirstConfigReadStore{
+			Store:   tx,
+			armed:   s.armed,
+			blocked: s.blocked,
+			release: s.release,
+		})
+	}, txOpts)
+}
+
+func (s *blockAfterFirstConfigReadStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	config, err := s.Store.GetChatModelConfigByID(ctx, id)
+	if err != nil {
+		return config, err
+	}
+	if s.armed.CompareAndSwap(true, false) {
+		close(s.blocked)
+		<-s.release
+	}
+	return config, nil
+}
+
+// waitBlocked blocks the test until the handler's prefetch has run.
+func (s *blockAfterFirstConfigReadStore) waitBlocked(ctx context.Context, t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.blocked:
+	case <-ctx.Done():
+		t.Fatal("handler prefetch did not block in time")
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("handler prefetch did not block in time")
+	}
+}
+
+// unblock releases the handler into its write transaction.
+func (s *blockAfterFirstConfigReadStore) unblock() {
+	close(s.release)
 }
 
 func enableDailyChatUsageLimit(
@@ -5432,6 +5545,729 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		// the transaction.
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Forbidden.", sdkErr.Message)
+	})
+}
+
+func TestChatModelConfigAudit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		mAudit.ResetLogs()
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			DisplayName:  "audit create",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionCreate, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+		require.Equal(t, "audit create", logs[0].ResourceTarget)
+		require.Equal(t, firstUser.UserID, logs[0].UserID)
+		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusCreated, logs[0].StatusCode)
+	})
+
+	t.Run("CreateDefaultDemotesSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		mAudit.ResetLogs()
+		contextLimit := int64(4096)
+		isDefault := true
+		promoted, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o",
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 2)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     promoted.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusCreated,
+		}))
+		// The demoted sibling is attributed to the same user and request.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     defaultConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusCreated,
+			RequestID:      logs[0].RequestID,
+		}))
+		require.Equal(t, logs[0].RequestID, logs[1].RequestID)
+	})
+
+	t.Run("CreateNonDefaultWithIncumbentDefaultEmitsNoSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// Seed an incumbent default directly: an API-created default
+		// records audit entries and any API create with is_default would
+		// demote it (a real sibling change).
+		incumbent := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "gpt-4o-incumbent",
+			IsDefault:      true,
+			AIProviderID:   uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.True(t, incumbent.IsDefault)
+
+		mAudit.ResetLogs()
+		contextLimit := int64(4096)
+		created, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.False(t, created.IsDefault)
+
+		// Only the create entry: the incumbent default did not change, so
+		// no sibling entry may be emitted for it.
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionCreate, logs[0].Action)
+		require.Equal(t, created.ID, logs[0].ResourceID)
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		mAudit.ResetLogs()
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "audit update",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "audit update", updated.DisplayName)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+		require.Equal(t, "audit update", logs[0].ResourceTarget)
+		require.Equal(t, firstUser.UserID, logs[0].UserID)
+		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusOK, logs[0].StatusCode)
+	})
+
+	t.Run("UpdatePromoteDemotesSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, otherConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 2)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     otherConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusOK,
+		}))
+		// The previously default config records its demotion.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     defaultConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusOK,
+			RequestID:      logs[0].RequestID,
+		}))
+	})
+
+	t.Run("UpdateDemotePromotesSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 2)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     defaultConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusOK,
+		}))
+		// The auto-promoted sibling records its election.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     otherConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusOK,
+			RequestID:      logs[0].RequestID,
+		}))
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionDelete, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+		require.Equal(t, firstUser.UserID, logs[0].UserID)
+		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+	})
+
+	t.Run("DeletePromotedRowAuditsAuthoritativeDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newBlockAfterFirstConfigReadStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		incumbent := createChatModelConfig(t, client)
+		require.True(t, incumbent.IsDefault)
+		target := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-target")
+
+		// Block the delete after its prefetch, promote the target in the
+		// window, then release: the deleted row is the default at delete time,
+		// not the non-default shape the prefetch holds.
+		mAudit.ResetLogs()
+		store.armed.Store(true)
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- client.DeleteChatModelConfig(ctx, target.ID)
+		}()
+		store.waitBlocked(ctx, t)
+		_, err := client.UpdateChatModelConfig(ctx, target.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		store.unblock()
+		require.NoError(t, <-deleteErr)
+
+		// The windowed promote emits its own pair of entries; isolate the
+		// delete request's entries by its 204 status. The Delete entry
+		// describes the row as it was at delete time (the default); with the
+		// stale prefetch fallback restored, the incumbent's promotion entry is
+		// skipped and only the Delete entry remains.
+		var logs []database.AuditLog
+		for _, l := range mAudit.AuditLogs() {
+			if l.StatusCode == http.StatusNoContent {
+				logs = append(logs, l)
+			}
+		}
+		require.Len(t, logs, 2)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionDelete,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     target.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+		}))
+		// The incumbent's re-election is recorded as a sibling entry under the
+		// delete's request ID.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     incumbent.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+			RequestID:      logs[0].RequestID,
+		}))
+	})
+
+	t.Run("DeleteVanishedRowMatchesBase404EmitsNoLog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newBlockAfterFirstConfigReadStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Block the delete after a successful prefetch, soft-delete the row in
+		// the window before the write transaction, then release: base
+		// (99741cb23a) surfaces this as a 404 via dbauthz's concealed
+		// fetch-then-authorize miss, and no audit entry may be emitted.
+		mAudit.ResetLogs()
+		store.armed.Store(true)
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- client.DeleteChatModelConfig(ctx, modelConfig.ID)
+		}()
+		store.waitBlocked(ctx, t)
+		err := rawDB.DeleteChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
+		require.NoError(t, err)
+		store.unblock()
+		requireSDKError(t, <-deleteErr, http.StatusNotFound)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	t.Run("DeleteAlreadyDeletedEmitsNoLog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		require.NoError(t, client.DeleteChatModelConfig(ctx, modelConfig.ID))
+
+		mAudit.ResetLogs()
+		// The row is already soft-deleted, so the second delete 404s at
+		// the prefetch and deletes nothing; no entry is emitted.
+		requireSDKError(t, client.DeleteChatModelConfig(ctx, modelConfig.ID), http.StatusNotFound)
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	t.Run("DeleteDefaultPromotesSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, defaultConfig.ID)
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 2)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionDelete,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     defaultConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+		}))
+		// The auto-promoted sibling records its election.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatModelConfig,
+			ResourceID:     otherConfig.ID,
+			UserID:         firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusNoContent,
+			RequestID:      logs[0].RequestID,
+		}))
+	})
+
+	t.Run("DeleteNonDefaultWithIncumbentDefaultEmitsNoSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// Seed an incumbent default directly: an API-created default
+		// records audit entries and any API create with is_default would
+		// demote it (a real sibling change).
+		incumbent := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "gpt-4o-incumbent",
+			IsDefault:      true,
+			AIProviderID:   uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.True(t, incumbent.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, otherConfig.ID)
+		require.NoError(t, err)
+
+		// Only the delete entry: the incumbent default did not change, so
+		// no sibling entry may be emitted for it.
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionDelete, logs[0].Action)
+		require.Equal(t, otherConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("DemoteOnlyConfigReelectsSelfEmitsNoSibling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		require.True(t, modelConfig.IsDefault)
+
+		mAudit.ResetLogs()
+		// The org holds a single config; the default-election fallback
+		// re-elects it despite the demote request. The update entry covers
+		// the row; no sibling entry may be emitted for it.
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.IsDefault)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("DeniedUpdateEmitsFailedAttempt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		mAudit.ResetLogs()
+		// A plain org member holds no chat model config update grant; the
+		// pre-authorize check rejects the write with 403 before the
+		// transaction. The denied attempt is still recorded against the
+		// target row with an empty diff (standard failed-request
+		// semantics).
+		_, err := memberClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "denied",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, modelConfig.ID, logs[0].ResourceID)
+		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
+		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+	})
+
+	t.Run("FailedTxEmitsNoSiblingLog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		mAudit.ResetLogs()
+		// Fail the auto-promotion update of the sibling row inside the
+		// transaction, after the demotion of the current default: the
+		// transaction rolls back and no entry may be emitted for either row.
+		store.failNextUpdateChatModelConfigID = otherConfig.ID
+		store.failNextUpdateChatModelConfig.Store(true)
+
+		_, err := client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		// The failed request records only its own unsuccessful-attempt
+		// entry (empty diff, standard semantics); the rolled-back sibling
+		// demotion and auto-promotion leave no entries.
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, database.ResourceTypeChatModelConfig, logs[0].ResourceType)
+		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+	})
+}
+
+// TestChatModelConfigAuditReadFailures proves audit enrichment reads never
+// change the write outcome: each audit-only read is failed once inside the
+// write transaction, and the response plus committed database state must match
+// the base handler's behavior.
+func TestChatModelConfigAuditReadFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateDemoteProbeFailureStillCreates", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		incumbent := createChatModelConfig(t, client)
+		require.True(t, incumbent.IsDefault)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		// Fail the audit demote-capture read: armed, the next
+		// GetDefaultChatModelConfig inside the write transaction is the
+		// capture probe.
+		store.armReadFailures.Store(true)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		contextLimit := int64(4096)
+		created, err := client.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o",
+			ContextLimit: &contextLimit,
+			IsDefault:    ptr.Ref(true),
+		})
+		require.NoError(t, err, "demote-capture failure must not change the create outcome")
+		require.True(t, created.IsDefault)
+
+		// Base behavior: the incumbent was demoted and the new row holds the
+		// default. The sibling entry is skipped, only the create entry remains.
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, c := range configs {
+			require.Equal(t, c.ID == created.ID, c.IsDefault, "config %s default", c.ID)
+		}
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionCreate, logs[0].Action)
+		require.Equal(t, created.ID, logs[0].ResourceID)
+	})
+
+	t.Run("UpdateDemoteProbeFailureStillPromotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		store.armReadFailures.Store(true)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, otherConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err, "demote-capture failure must not change the promote outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, c := range configs {
+			require.Equal(t, c.ID == otherConfig.ID, c.IsDefault, "config %s default", c.ID)
+		}
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the primary update entry")
+		require.Equal(t, otherConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("UpdatePromoteProbeFailureStillDemotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		// Fail the post-ensure audit promotion probe. The only base
+		// GetDefault read on the demote path is ensureDefaultChatModelConfig's
+		// internal probe (the prefetch runs before the store is armed); skip
+		// it so the forced failure lands on the audit probe.
+		store.armReadFailures.Store(true)
+		store.skipDefaultReads.Store(1)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		_, err := client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		require.NoError(t, err, "promotion-probe failure must not change the demote outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		defaults := 0
+		for _, c := range configs {
+			if c.IsDefault {
+				defaults++
+				require.Equal(t, otherConfig.ID, c.ID, "the sibling must be auto-promoted")
+			}
+		}
+		require.Equal(t, 1, defaults)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the primary update entry")
+		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
+	})
+
+	t.Run("DeletePromoteProbeFailureStillPromotes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		require.True(t, defaultConfig.IsDefault)
+		otherConfig := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-other")
+
+		// Fail the post-ensure audit promotion probe; skip
+		// ensureDefaultChatModelConfig's internal probe.
+		store.armReadFailures.Store(true)
+		store.skipDefaultReads.Store(1)
+		store.failNextDefaultRead.Store(true)
+		mAudit.ResetLogs()
+		err := client.DeleteChatModelConfig(ctx, defaultConfig.ID)
+		require.NoError(t, err, "promotion-probe failure must not change the delete outcome")
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, otherConfig.ID, configs[0].ID)
+		require.True(t, configs[0].IsDefault, "the sibling must be auto-promoted")
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1, "sibling entry skipped; only the delete entry")
+		require.Equal(t, database.AuditActionDelete, logs[0].Action)
+		require.Equal(t, defaultConfig.ID, logs[0].ResourceID)
 	})
 }
 

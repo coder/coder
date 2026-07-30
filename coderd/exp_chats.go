@@ -7723,6 +7723,15 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
 
 	// Authorize the write before any privileged lookup so unauthorized
 	// principals cannot probe provider state. The pre-check mirrors the
@@ -7844,6 +7853,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var inserted database.ChatModelConfig
+	var siblingChanges []chatModelConfigChange
+	vacatedDefault := false
 	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
@@ -7875,9 +7886,25 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if insertAsDefault {
+			// Capture the outgoing default for the sibling audit entry
+			// before unsetting it. Audit enrichment must never change the
+			// write outcome: a failed capture only skips the sibling entry.
+			//nolint:gocritic // Default-election probe must never misread a denial as absence; mutations stay under the caller's subject.
+			demoted, err := tx.GetDefaultChatModelConfig(dbauthz.AsChatd(ctx), insertParams.OrganizationID)
+			switch {
+			case err == nil:
+				demotedAfter := demoted
+				demotedAfter.IsDefault = false
+				siblingChanges = append(siblingChanges, chatModelConfigChange{Old: demoted, New: demotedAfter})
+			case xerrors.Is(err, sql.ErrNoRows):
+				// No default to demote.
+			default:
+				api.Logger.Warn(ctx, "chat model config audit: capture demoted default failed; skipping sibling entry", slog.Error(err))
+			}
 			if err := tx.UnsetDefaultChatModelConfigs(ctx, insertParams.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
+			vacatedDefault = true
 		}
 		insertParams.IsDefault = insertAsDefault
 
@@ -7889,6 +7916,17 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		if err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID); err != nil {
 			return err
+		}
+
+		// Collect the auto-promoted sibling, if any, for its audit
+		// entry. The ensure call only promotes when this transaction
+		// vacated the default, and the inserted row's own election
+		// (self-elect or requested) is covered by its create entry.
+		if vacatedDefault && !insertParams.IsDefault {
+			promotedChange, ok := api.chatModelConfigDefaultPromotion(ctx, tx, insertParams.OrganizationID, inserted.ID)
+			if ok {
+				siblingChanges = append(siblingChanges, promotedChange)
+			}
 		}
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, inserted.ID)
@@ -7925,9 +7963,15 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = inserted
+
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	if !writeChatModelConfigAuditResponse(rw, http.StatusCreated) {
+		return
+	}
+	api.auditChatModelConfigSiblingChanges(ctx, r, http.StatusCreated, siblingChanges)
 }
 
 // @Summary Update a chat model config
@@ -7944,6 +7988,14 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
 
 	modelConfigID, ok := parseChatModelConfigID(rw, r)
 	if !ok {
@@ -7962,6 +8014,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.Old = existing
+	aReq.UpdateOrganizationID(existing.OrganizationID)
 
 	// Authorize the write before any privileged lookup (see
 	// createChatModelConfig); mirrors the dbauthz object update check.
@@ -8068,6 +8122,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	// Re-derive the provider type under lock when the model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
+	var siblingChanges []chatModelConfigChange
 	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if revalidateProviderModel {
 			//nolint:gocritic // The route already authorized chat model config updates.
@@ -8088,6 +8143,23 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
+			// Capture the outgoing default for the sibling audit entry
+			// before unsetting it. Audit enrichment must never change the
+			// write outcome: a failed capture only skips the sibling entry.
+			//nolint:gocritic // Default-election probe must never misread a denial as absence; mutations stay under the caller's subject.
+			demoted, err := tx.GetDefaultChatModelConfig(dbauthz.AsChatd(ctx), existing.OrganizationID)
+			switch {
+			case err == nil:
+				if demoted.ID != existing.ID {
+					demotedAfter := demoted
+					demotedAfter.IsDefault = false
+					siblingChanges = append(siblingChanges, chatModelConfigChange{Old: demoted, New: demotedAfter})
+				}
+			case xerrors.Is(err, sql.ErrNoRows):
+				// No default to demote.
+			default:
+				api.Logger.Warn(ctx, "chat model config audit: capture demoted default failed; skipping sibling entry", slog.Error(err))
+			}
 			if err := tx.UnsetDefaultChatModelConfigs(ctx, existing.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
@@ -8113,6 +8185,18 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			excludeConfigID,
 		); err != nil {
 			return err
+		}
+
+		// Collect the auto-promoted sibling, if any, for its audit
+		// entry. Only an explicit demote of the current default vacates
+		// the default for the ensure call to refill, and the exclusion
+		// keeps the fallback's re-election of the target itself (single
+		// config org) from duplicating the primary entry.
+		if excludeConfigID != uuid.Nil {
+			promotedChange, ok := api.chatModelConfigDefaultPromotion(ctx, tx, existing.OrganizationID, existing.ID)
+			if ok {
+				siblingChanges = append(siblingChanges, promotedChange)
+			}
 		}
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
@@ -8161,9 +8245,15 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = updated
+
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	if !writeChatModelConfigAuditResponse(rw, http.StatusOK) {
+		return
+	}
+	api.auditChatModelConfigSiblingChanges(ctx, r, http.StatusOK, siblingChanges)
 }
 
 // @Summary Delete a chat model config
@@ -8176,6 +8266,14 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
+	})
+	defer commitAudit()
 
 	modelConfigID, ok := parseChatModelConfigID(rw, r)
 	if !ok {
@@ -8202,11 +8300,45 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.UpdateOrganizationID(existing.OrganizationID)
+
+	var siblingChanges []chatModelConfigChange
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
+		// Capture the row being deleted inside the transaction, after the
+		// advisory lock, so the audit Old is the row as it is at delete
+		// time: the lock serializes against concurrent promotes, so this
+		// cannot see the stale non-default state the prefetch holds. Like
+		// every audit-only read here, the capture is non-fatal: on any
+		// failure it logs and skips the Delete entry and the sibling
+		// gating, and the delete proceeds. Nothing gates on this read, so
+		// dbauthz's own delete fetch reproduces base behavior exactly in
+		// every case (vanished row = base's 404, real error = base's
+		// error) without the audit read adding a failure position.
+		locked, lockedErr := tx.GetChatModelConfigByID(ctx, modelConfigID)
+		if lockedErr != nil {
+			api.Logger.Warn(ctx, "chat model config audit: capture before delete failed; skipping delete entry", slog.Error(lockedErr))
+		} else {
+			aReq.Old = locked
+		}
+
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
 		}
-		return ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID)
+		if err := ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID); err != nil {
+			return err
+		}
+
+		// Collect the auto-promoted sibling, if any, for its audit
+		// entry. Only deleting the default vacates it for the ensure
+		// call to refill; deleting a non-default row leaves any
+		// incumbent untouched.
+		if lockedErr == nil && locked.IsDefault {
+			promotedChange, ok := api.chatModelConfigDefaultPromotion(ctx, tx, existing.OrganizationID, modelConfigID)
+			if ok {
+				siblingChanges = append(siblingChanges, promotedChange)
+			}
+		}
+		return nil
 	}); err != nil {
 		if httpapi.Is404Error(err) {
 			// dbauthz denials do not unwrap to sql.ErrNoRows; conceal the
@@ -8224,6 +8356,105 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
 
 	rw.WriteHeader(http.StatusNoContent)
+	api.auditChatModelConfigSiblingChanges(ctx, r, http.StatusNoContent, siblingChanges)
+}
+
+// chatModelConfigChange captures a sibling chat model config row mutated by
+// the default-election machinery so the handler can emit a sibling audit
+// entry after the write transaction commits.
+type chatModelConfigChange struct {
+	Old database.ChatModelConfig
+	New database.ChatModelConfig
+}
+
+// chatModelConfigDefaultPromotion reports the org's default after a preceding
+// ensureDefaultChatModelConfig call as a default-transition change, or false
+// when there is nothing to audit: no default exists (the ensure call promoted
+// nothing), or the default is excludedID, the request's own row (the primary
+// entry already covers its election, whether self-elected, already incumbent,
+// or re-elected by the ensure call's fallback). Any other row holding the
+// default after the call was promoted by it: the ensure call runs only when
+// the caller vacated the default. The re-probe is stable: model config writes
+// serialize on LockIDChatModelConfigWrites, and the promoted row's only net
+// change is the default flip (the ensure call unsets every default first).
+//
+// The probe is audit enrichment, so it is non-fatal: a failed read logs and
+// reports false rather than changing the write outcome.
+func (api *API) chatModelConfigDefaultPromotion(
+	ctx context.Context,
+	tx database.Store,
+	organizationID uuid.UUID,
+	excludedID uuid.UUID,
+) (chatModelConfigChange, bool) {
+	//nolint:gocritic // Default-election probe must never misread a denial as absence; mutations stay under the caller's subject.
+	promoted, err := tx.GetDefaultChatModelConfig(dbauthz.AsChatd(ctx), organizationID)
+	switch {
+	case err == nil && promoted.ID == excludedID:
+		return chatModelConfigChange{}, false
+	case err == nil:
+		before := promoted
+		before.IsDefault = false
+		return chatModelConfigChange{Old: before, New: promoted}, true
+	case xerrors.Is(err, sql.ErrNoRows):
+		return chatModelConfigChange{}, false
+	default:
+		api.Logger.Warn(ctx, "chat model config audit: default promotion probe failed; skipping sibling entry", slog.Error(err))
+		return chatModelConfigChange{}, false
+	}
+}
+
+// writeChatModelConfigAuditResponse reports whether the response committed
+// its header with the expected status. Sibling audit entries are emitted only
+// after the response succeeded, so a handler that never wrote its success
+// status leaves no audit records describing it.
+func writeChatModelConfigAuditResponse(rw http.ResponseWriter, status int) bool {
+	sw, ok := rw.(*tracing.StatusWriter)
+	// Status is zero until the response writes its header, so a match also
+	// proves the write happened.
+	return ok && sw.Status == status
+}
+
+// auditChatModelConfigSiblingChanges emits one audit entry per sibling chat
+// model config the write transaction changed through the default-election
+// machinery (demotions and auto-promotions), attributed to the actor on the
+// HTTP request. It runs only after the transaction committed and the response
+// completed, so rolled-back or unacknowledged writes leave no entries. It
+// emits nothing without an API key on the request (the routes always carry
+// one) and an export failure is logged, not retried, matching the audit
+// pipeline's behavior for request-scoped entries.
+func (api *API) auditChatModelConfigSiblingChanges(
+	ctx context.Context,
+	r *http.Request,
+	status int,
+	changes []chatModelConfigChange,
+) {
+	if len(changes) == 0 {
+		return
+	}
+	key, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		return
+	}
+	requestID, _ := httpmw.RequestIDOptional(r)
+	auditor := api.Auditor.Load()
+	// The request context may be canceled once the client disconnects;
+	// post-commit audit work must survive it.
+	auditCtx := context.WithoutCancel(ctx)
+	for _, change := range changes {
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.ChatModelConfig]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         key.UserID,
+			RequestID:      requestID,
+			Status:         status,
+			IP:             r.RemoteAddr,
+			UserAgent:      r.UserAgent(),
+			Action:         database.AuditActionWrite,
+			OrganizationID: change.New.OrganizationID,
+			Old:            change.Old,
+			New:            change.New,
+		})
+	}
 }
 
 func ensureDefaultChatModelConfig(

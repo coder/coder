@@ -2,6 +2,7 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -501,6 +503,97 @@ func Test_diff(t *testing.T) {
 				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
 				"provider_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
 				"api_key":     audit.OldNew{Old: "", New: "sk-a...wxyz"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.ChatModelConfig](),
+			right: database.ChatModelConfig{
+				ID:                   uuid.UUID{1},
+				Model:                "gpt-5.5",
+				DisplayName:          "Primary",
+				CreatedBy:            uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				Enabled:              true,
+				IsDefault:            true,
+				ContextLimit:         4096,
+				CompressionThreshold: 80,
+				Options:              json.RawMessage(`{"cost":{"input":"0.15"}}`),
+				AIProviderID:         uuid.NullUUID{UUID: uuid.UUID{3}, Valid: true},
+				OrganizationID:       uuid.UUID{4},
+				GroupACL:             database.ChatACL{uuid.UUID{5}.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+				UserACL:              database.ChatACL{},
+			},
+			exp: audit.Map{
+				"model":                 audit.OldNew{Old: "", New: "gpt-5.5"},
+				"display_name":          audit.OldNew{Old: "", New: "Primary"},
+				"created_by":            audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"updated_by":            audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"enabled":               audit.OldNew{Old: false, New: true},
+				"is_default":            audit.OldNew{Old: false, New: true},
+				"context_limit":         audit.OldNew{Old: int64(0), New: int64(4096)},
+				"compression_threshold": audit.OldNew{Old: int32(0), New: int32(80)},
+				"options":               audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
+				"ai_provider_id":        audit.OldNew{Old: "null", New: uuid.UUID{3}.String()},
+				"group_acl":             audit.OldNew{Old: database.ChatACL(nil), New: database.ChatACL{uuid.UUID{5}.String(): {Permissions: []policy.Action{policy.ActionRead}}}},
+				"user_acl":              audit.OldNew{Old: database.ChatACL(nil), New: database.ChatACL{}},
+			},
+		},
+		{
+			// Default transitions and ACL grants are the governance-relevant
+			// changes; both must render in the diff.
+			name: "DefaultAndACLChange",
+			left: database.ChatModelConfig{
+				ID:             uuid.UUID{1},
+				IsDefault:      false,
+				GroupACL:       database.ChatACL{},
+				UserACL:        database.ChatACL{},
+				OrganizationID: uuid.UUID{4},
+			},
+			right: database.ChatModelConfig{
+				ID:        uuid.UUID{1},
+				IsDefault: true,
+				GroupACL: database.ChatACL{
+					uuid.UUID{5}.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+				UserACL: database.ChatACL{
+					uuid.UUID{6}.String(): {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}},
+				},
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"is_default": audit.OldNew{Old: false, New: true},
+				"group_acl": audit.OldNew{
+					Old: database.ChatACL{},
+					New: database.ChatACL{uuid.UUID{5}.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+				},
+				"user_acl": audit.OldNew{
+					Old: database.ChatACL{},
+					New: database.ChatACL{uuid.UUID{6}.String(): {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}}},
+				},
+			},
+		},
+		{
+			// options carries free-form provider payload maps (OpenRouter and
+			// Vercel extra_body, OpenAI metadata) that can hold arbitrary
+			// plaintext, so the whole value must stay secret: a change
+			// renders redacted and the injected plaintext never appears.
+			name: "OptionsPlaintextRedacted",
+			left: database.ChatModelConfig{
+				ID:             uuid.UUID{1},
+				Options:        json.RawMessage(`{}`),
+				OrganizationID: uuid.UUID{4},
+			},
+			right: database.ChatModelConfig{
+				ID:             uuid.UUID{1},
+				Options:        json.RawMessage(`{"provider_options":{"openrouter":{"extra_body":{"api_key":"sk-c1-plaintext"}}}}`),
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"options": audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
 			},
 		},
 	})

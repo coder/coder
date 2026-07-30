@@ -24162,6 +24162,7 @@ const docTemplate = `{
                 "group_ai_budget",
                 "user_ai_budget_override",
                 "chat",
+                "chat_model_config",
                 "user_secret",
                 "user_skill"
             ],
@@ -24200,6 +24201,7 @@ const docTemplate = `{
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
+                "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill"
             ]
