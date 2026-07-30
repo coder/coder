@@ -9,6 +9,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -165,16 +166,21 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			require.Equal(t, tc.wantPath, gotPath)
 			mu.Unlock()
 
-			options := chatprovider.ProviderOptionsFromChatModelConfig(model, &codersdk.ChatModelProviderOptions{
-				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ServiceTier: &serviceTier},
-			})
+			options := chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ServiceTier: &serviceTier},
+				},
+			}, nil)
 			require.IsType(t, tc.wantOptions, options[fantasyopenai.Name])
 
-			effortOptions := chatprovider.ApplyReasoningEffort(
-				model,
-				nil,
-				new(codersdk.ChatModelReasoningEffortHigh),
-			)
+			// Reasoning effort creates the option struct when the config has no
+			// OpenAI options of its own.
+			effortOptions := chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+					Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+				},
+			}, nil)
 			require.IsType(t, tc.wantOptions, effortOptions[fantasyopenai.Name])
 
 			require.Equal(t, tc.wantAcceptText, model.AcceptsFilePartMediaType("text/plain"))

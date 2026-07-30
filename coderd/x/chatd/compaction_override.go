@@ -177,17 +177,5 @@ func compactionOverrideProviderOptions(
 			)
 		}
 	}
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
-		callConfig.ProviderOptions,
-	)
-	reasoningEffort := chatprovider.ResolveReasoningEffort(
-		nil,
-		callConfig.ReasoningEffort,
-	)
-	return chatprovider.ApplyReasoningEffort(
-		model,
-		providerOptions,
-		reasoningEffort,
-	), nil
+	return chatprovider.ProviderOptionsForCall(model, callConfig, nil), nil
 }

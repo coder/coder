@@ -87,7 +87,7 @@ func SelectableReasoningEfforts(
 	return values[:maxRank+1]
 }
 
-func ApplyReasoningEffort(
+func applyReasoningEffort(
 	model Model,
 	options fantasy.ProviderOptions,
 	effort *string,
