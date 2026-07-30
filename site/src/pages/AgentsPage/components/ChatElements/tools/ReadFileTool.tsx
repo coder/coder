@@ -67,7 +67,6 @@ export const ReadFileTool: React.FC<{
 	path: string;
 	content: string;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	expanded?: boolean;
@@ -76,7 +75,6 @@ export const ReadFileTool: React.FC<{
 	path,
 	content,
 	status,
-	hookRewritten,
 	isError,
 	errorMessage,
 	expanded,
@@ -89,12 +87,12 @@ export const ReadFileTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to read file"}
 			hasContent={hasContent}
+			ariaLabel={label}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
 		>

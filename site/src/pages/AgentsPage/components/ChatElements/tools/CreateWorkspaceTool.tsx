@@ -16,7 +16,6 @@ export const CreateWorkspaceTool: React.FC<{
 	workspaceName: string;
 	resultJson: string;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	buildId?: string;
@@ -26,7 +25,6 @@ export const CreateWorkspaceTool: React.FC<{
 	workspaceName,
 	resultJson,
 	status,
-	hookRewritten,
 	isError,
 	errorMessage,
 	buildId,
@@ -55,7 +53,6 @@ export const CreateWorkspaceTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

@@ -2673,18 +2673,14 @@ export const GroupedReadFilesRewrittenByHook: Story = {
 			await userEvent.click(
 				await canvas.findByRole("button", { name: /Read 2 files/ }),
 			);
-			const rewrittenRow = await canvas.findByRole("button", {
-				name: /Read b\.ts/,
-			});
 			expect(
-				within(rewrittenRow).getByText("Modified by policy"),
+				await canvas.findByRole("button", {
+					name: "Read b.ts, modified by policy",
+				}),
 			).toBeVisible();
-			const untouchedRow = await canvas.findByRole("button", {
-				name: /Read a\.ts/,
-			});
 			expect(
-				within(untouchedRow).queryByText("Modified by policy"),
-			).not.toBeInTheDocument();
+				await canvas.findByRole("button", { name: "Read a.ts" }),
+			).toBeVisible();
 			expect(canvas.getAllByText("Modified by policy")).toHaveLength(2);
 		});
 	},

@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
+import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
@@ -435,7 +437,7 @@ export const ExecuteRewrittenByHook: Story = {
 			name: /^(Expand|Collapse) command, modified by policy$/,
 		});
 		expect(within(header).getByText(/Ran echo/)).toBeVisible();
-		expect(within(header).getByText("Modified by policy")).toBeVisible();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
 	},
 };
 
@@ -489,10 +491,10 @@ export const SubagentRewrittenByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const header = canvas.getByRole("button", {
-			name: /Spawned Workspace diagnostics/,
-		});
-		expect(within(header).getByText("Modified by policy")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeVisible();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
 	},
 };
 
@@ -3277,10 +3279,11 @@ export const AllToolIconsTranscript: Story = {
 	},
 };
 
-// The badge reaches tools implicitly through the shared header, so a renderer
-// that builds its own header rows drops it with no type or runtime error.
-const policyCaseTestId = (name: string, index: number) =>
-	`policy-case-${name}-${index}`;
+// The badge reaches tools implicitly through the policy provider, so a
+// renderer reachable only through a branch that skips it would drop the
+// attribution with no type or runtime error.
+const policyCaseLabel = (name: string, index: number) =>
+	`policy case ${name} ${index}`;
 
 export const PolicyBadgeCoversEveryRenderer: Story = {
 	render: () => (
@@ -3292,7 +3295,8 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 					{allToolShowcaseItems.map((tool, index) => (
 						<div
 							key={`${tool.name}-${index}`}
-							data-testid={policyCaseTestId(tool.name, index)}
+							role="group"
+							aria-label={policyCaseLabel(tool.name, index)}
 						>
 							<Tool
 								name={tool.name}
@@ -3318,18 +3322,15 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["workspace", "test-workspace-id"],
+				key: workspaceByIdKey("test-workspace-id"),
 				data: {
 					id: "test-workspace-id",
 					latest_build: { id: "test-build-id", status: "running" },
 				},
 			},
 			{
-				key: [
-					"workspaceBuilds",
-					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-					"logs",
-				],
+				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+					.queryKey,
 				data: [],
 			},
 		],
@@ -3344,7 +3345,9 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 		const rendered = new Set<string>();
 		const missingBadge: string[] = [];
 		allToolShowcaseItems.forEach((tool, index) => {
-			const toolCase = canvas.getByTestId(policyCaseTestId(tool.name, index));
+			const toolCase = canvas.getByRole("group", {
+				name: policyCaseLabel(tool.name, index),
+			});
 			if (toolCase.textContent?.trim() === "") {
 				return;
 			}

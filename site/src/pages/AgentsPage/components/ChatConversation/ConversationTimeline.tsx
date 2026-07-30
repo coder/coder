@@ -225,15 +225,16 @@ const ReadFileTimelineBlock = memo<{
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			<div data-tool-call="">
-				<ReadFileTool
-					{...readFile}
-					status={firstTool.status}
-					hookRewritten={firstTool.hookRewritten}
-					expanded={expanded}
-					onExpandedChange={setExpanded}
-				/>
-			</div>
+			<ToolCall.PolicyProvider hookRewritten={firstTool.hookRewritten ?? false}>
+				<div data-tool-call="">
+					<ReadFileTool
+						{...readFile}
+						status={firstTool.status}
+						expanded={expanded}
+						onExpandedChange={setExpanded}
+					/>
+				</div>
+			</ToolCall.PolicyProvider>
 		);
 	}
 

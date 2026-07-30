@@ -25,19 +25,10 @@ export const WriteFileTool: React.FC<{
 	path: string;
 	diff: FileDiffMetadata | null;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}> = ({
-	path,
-	diff,
-	status,
-	hookRewritten,
-	isError,
-	errorMessage,
-	codeDiffDisplayMode,
-}) => {
+}> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const hasDiff = diff !== null;
@@ -61,7 +52,6 @@ export const WriteFileTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}

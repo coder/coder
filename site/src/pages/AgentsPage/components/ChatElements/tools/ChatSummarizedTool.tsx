@@ -13,18 +13,16 @@ import type { ToolStatus } from "./utils";
 export const ChatSummarizedTool: React.FC<{
 	summary: string;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	source?: string;
-}> = ({ summary, status, hookRewritten, isError, errorMessage, source }) => {
+}> = ({ summary, status, isError, errorMessage, source }) => {
 	const hasSummary = summary.trim().length > 0;
 	const isRunning = status === "running";
 	const isManual = source === "manual";
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

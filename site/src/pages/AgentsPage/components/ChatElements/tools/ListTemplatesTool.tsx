@@ -12,10 +12,9 @@ export const ListTemplatesTool: React.FC<{
 	templates: unknown[];
 	count: number;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ templates, count, status, hookRewritten, isError, errorMessage }) => {
+}> = ({ templates, count, status, isError, errorMessage }) => {
 	const hasContent = templates.length > 0;
 	const isRunning = status === "running";
 
@@ -28,7 +27,6 @@ export const ListTemplatesTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

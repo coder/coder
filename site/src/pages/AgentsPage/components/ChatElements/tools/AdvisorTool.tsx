@@ -12,7 +12,6 @@ export type AdvisorToolResultType = "advice" | "limit_reached" | "error";
 type AdvisorToolProps = {
 	question: string;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
@@ -31,7 +30,6 @@ const EMPTY_ADVICE_MESSAGE = "Advisor returned no guidance.";
 export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	question,
 	status,
-	hookRewritten,
 	isError,
 	resultType,
 	advice,
@@ -57,7 +55,6 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={showError}

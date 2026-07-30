@@ -10,6 +10,7 @@ import {
 	type FC,
 	type ReactNode,
 	useContext,
+	useId,
 	useState,
 } from "react";
 import {
@@ -42,13 +43,49 @@ type ToolCallContextValue = {
 	errorMessage?: string;
 	expanded: boolean;
 	failed: boolean;
-	hookRewritten: boolean;
 	onToggle: () => void;
 	status: ToolStatus;
 	view: ToolCallView;
 };
 
 const ToolCallContext = createContext<ToolCallContextValue | null>(null);
+
+const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
+	hookRewritten: false,
+});
+
+/**
+ * Renders the badge itself rather than delegating to the shared header,
+ * so a renderer branch that returns early without a `ToolCall.Header`
+ * keeps the attribution. Renderers never receive `hookRewritten`.
+ *
+ * The group labelled by the badge binds the notice to the card it
+ * describes, which is what lets a nested row be attributed on its own.
+ */
+const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
+	hookRewritten,
+	children,
+}) => {
+	const badgeId = useId();
+	return (
+		<ToolPolicyContext.Provider value={{ hookRewritten }}>
+			{hookRewritten ? (
+				<div role="group" aria-labelledby={badgeId}>
+					<span
+						id={badgeId}
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary"
+					>
+						<ShieldIcon aria-hidden className="size-3 shrink-0" />
+						Modified by policy
+					</span>
+					{children}
+				</div>
+			) : (
+				children
+			)}
+		</ToolPolicyContext.Provider>
+	);
+};
 
 const useToolCallContext = () => {
 	const context = useContext(ToolCallContext);
@@ -58,19 +95,6 @@ const useToolCallContext = () => {
 		);
 	}
 	return context;
-};
-
-const PolicyBadge: FC = () => {
-	const { hookRewritten } = useToolCallContext();
-	if (!hookRewritten) {
-		return null;
-	}
-	return (
-		<span className="flex shrink-0 items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary">
-			<ShieldIcon aria-hidden className="size-3 shrink-0" />
-			Modified by policy
-		</span>
-	);
 };
 
 /**
@@ -86,9 +110,6 @@ const PolicyBadge: FC = () => {
  *
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
- *
- * `hookRewritten` reaches descendants through context, so a
- * {@link ToolCall.PolicyBadge} anywhere under this root picks it up.
  */
 type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	children: ReactNode;
@@ -103,7 +124,6 @@ type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
 	view?: ToolCallView;
-	hookRewritten?: boolean;
 };
 
 /**
@@ -127,7 +147,6 @@ const Root: FC<ToolCallRootProps> = ({
 	ariaLabel,
 	className,
 	view: viewProp,
-	hookRewritten = false,
 	...divProps
 }) => {
 	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
@@ -163,7 +182,6 @@ const Root: FC<ToolCallRootProps> = ({
 				errorMessage,
 				expanded,
 				failed,
-				hookRewritten,
 				onToggle,
 				status,
 				view,
@@ -197,8 +215,8 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 	className,
 	alwaysButton = false,
 }) => {
-	const { ariaLabel, collapsible, expanded, hookRewritten, onToggle } =
-		useToolCallContext();
+	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
+	const { hookRewritten } = useContext(ToolPolicyContext);
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
@@ -207,10 +225,7 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 			: resolvedAriaLabel;
 	if (!collapsible && !alwaysButton) {
 		return (
-			<HeaderRow className={cn("min-w-0", className)}>
-				{children}
-				<PolicyBadge />
-			</HeaderRow>
+			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
 		);
 	}
 
@@ -230,7 +245,6 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 				onClick={collapsible ? onToggle : undefined}
 			>
 				{children}
-				<PolicyBadge />
 			</button>
 		</TranscriptRow>
 	);
@@ -441,7 +455,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 
 export const ToolCall = {
 	Root,
-	PolicyBadge,
+	PolicyProvider,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

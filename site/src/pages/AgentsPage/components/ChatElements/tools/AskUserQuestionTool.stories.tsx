@@ -493,6 +493,22 @@ export const CompletedNotRewrittenByHook: Story = {
 	},
 };
 
+export const CompletedEmptyPayloadRewrittenByHook: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify({ questions: [] }),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: false,
+		hookRewritten: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(await canvas.findByText("No questions available.")).toBeVisible();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
 export const ErrorState: Story = {
 	args: {
 		status: "completed",

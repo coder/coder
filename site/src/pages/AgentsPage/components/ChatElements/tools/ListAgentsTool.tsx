@@ -14,10 +14,9 @@ export const ListAgentsTool: React.FC<{
 	agents: unknown[];
 	total: number;
 	status: ToolStatus;
-	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ agents, total, status, hookRewritten, isError, errorMessage }) => {
+}> = ({ agents, total, status, isError, errorMessage }) => {
 	const location = useLocation();
 	const hasContent = agents.length > 0;
 	const isRunning = status === "running";
@@ -30,7 +29,6 @@ export const ListAgentsTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

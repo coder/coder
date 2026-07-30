@@ -174,7 +174,6 @@ export const SubagentTool: React.FC<{
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
 	thumbnailFileId?: string;
-	hookRewritten?: boolean;
 }> = ({
 	descriptor,
 	title,
@@ -189,7 +188,6 @@ export const SubagentTool: React.FC<{
 	showDesktopPreview,
 	recordingFileId,
 	thumbnailFileId,
-	hookRewritten,
 }) => {
 	const location = useLocation();
 	const [expanded, setExpanded] = useState(false);
@@ -217,7 +215,6 @@ export const SubagentTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={toolStatus}
-			hookRewritten={hookRewritten}
 			isError={isError}
 			hasContent={hasExpandableContent}
 			expanded={expanded}

@@ -26,7 +26,6 @@ type ProcessOutputToolProps = {
 	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
-	hookRewritten?: boolean;
 };
 
 type ProcessOutputToolInnerProps = ProcessOutputToolProps & {
@@ -60,7 +59,6 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	isError,
 	errorMessage,
 	killedBySignal,
-	hookRewritten,
 	defaultView,
 	outputInitiallyFullyExpanded,
 }) => {
@@ -88,7 +86,6 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			status={isRunning ? "running" : isError ? "error" : "completed"}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to read process output"}
-			hookRewritten={hookRewritten}
 			hasContent={hasOutput}
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>

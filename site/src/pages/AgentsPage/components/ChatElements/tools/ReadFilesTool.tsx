@@ -45,35 +45,41 @@ export const ReadFilesTool: FC<{
 				isError={isError}
 				errorMessage={errorMessage || "Failed to read one or more files"}
 				hasContent={hasContent}
-				hookRewritten={items.some((item) => item.hookRewritten)}
 				expanded={expanded}
 				onExpandedChange={onExpandedChange}
 			>
-				<ToolCall.Header iconName="read_file" label={label} />
+				<ToolCall.PolicyProvider
+					hookRewritten={items.some((item) => item.hookRewritten)}
+				>
+					<ToolCall.Header iconName="read_file" label={label} />
+				</ToolCall.PolicyProvider>
 				<ToolCall.Content>
 					<div className="space-y-1 py-0.5 pl-3">
 						{items.map((item) => (
-							<ReadFileTool
+							<ToolCall.PolicyProvider
 								key={item.id}
 								hookRewritten={item.hookRewritten}
-								path={item.path}
-								content={item.content}
-								status={item.status}
-								isError={item.isError}
-								errorMessage={item.errorMessage}
-								expanded={expandedFileIDs.has(item.id)}
-								onExpandedChange={(nextExpanded) => {
-									setExpandedFileIDs((previous) => {
-										const next = new Set(previous);
-										if (nextExpanded) {
-											next.add(item.id);
-										} else {
-											next.delete(item.id);
-										}
-										return next;
-									});
-								}}
-							/>
+							>
+								<ReadFileTool
+									path={item.path}
+									content={item.content}
+									status={item.status}
+									isError={item.isError}
+									errorMessage={item.errorMessage}
+									expanded={expandedFileIDs.has(item.id)}
+									onExpandedChange={(nextExpanded) => {
+										setExpandedFileIDs((previous) => {
+											const next = new Set(previous);
+											if (nextExpanded) {
+												next.add(item.id);
+											} else {
+												next.delete(item.id);
+											}
+											return next;
+										});
+									}}
+								/>
+							</ToolCall.PolicyProvider>
 						))}
 					</div>
 				</ToolCall.Content>
