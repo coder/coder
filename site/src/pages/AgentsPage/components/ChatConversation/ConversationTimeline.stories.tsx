@@ -2674,13 +2674,15 @@ export const GroupedReadFilesRewrittenByHook: Story = {
 				await canvas.findByRole("button", { name: /Read 2 files/ }),
 			);
 			expect(
-				await canvas.findByRole("button", {
-					name: "Read b.ts, modified by policy",
-				}),
+				await canvas.findByRole("button", { name: /Read b\.ts/ }),
 			).toBeVisible();
-			expect(
-				await canvas.findByRole("button", { name: "Read a.ts" }),
-			).toBeVisible();
+			// Each rewritten call owns a group labelled by its badge, so the
+			// per-file attribution is readable from the group it encloses.
+			const attributed = canvas
+				.getAllByRole("group", { name: "Modified by policy" })
+				.map((group) => group.textContent ?? "");
+			expect(attributed.some((text) => text.includes("b.ts"))).toBe(true);
+			expect(attributed.some((text) => text.includes("a.ts"))).toBe(false);
 			expect(canvas.getAllByText("Modified by policy")).toHaveLength(2);
 		});
 	},

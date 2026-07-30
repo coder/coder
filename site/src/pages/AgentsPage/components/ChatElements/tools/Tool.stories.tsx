@@ -2426,6 +2426,24 @@ export const ReadFileLongLine: Story = {
 	},
 };
 
+export const ReadFileFailed: Story = {
+	args: {
+		name: "read_file",
+		status: "error",
+		isError: true,
+		args: { path: "site/src/config.ts" },
+		result: { error: "permission denied" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// An explicit ariaLabel on the row would replace the computed name and
+		// drop the failure text the status icon contributes.
+		expect(
+			canvas.getByRole("button", { name: /permission denied/ }),
+		).toBeVisible();
+	},
+};
+
 export const ReadFileTallAndWide: Story = {
 	args: {
 		name: "read_file",

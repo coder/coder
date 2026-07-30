@@ -92,7 +92,6 @@ export const ReadFileTool: React.FC<{
 			isError={isError}
 			errorMessage={errorMessage || "Failed to read file"}
 			hasContent={hasContent}
-			ariaLabel={label}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
 		>
