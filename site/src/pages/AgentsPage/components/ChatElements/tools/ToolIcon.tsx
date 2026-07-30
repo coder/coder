@@ -5,7 +5,6 @@ import {
 	FilePenLineIcon,
 	FileTextIcon,
 	LightbulbIcon,
-	LogInIcon,
 	MonitorIcon,
 	PowerIcon,
 	RouteIcon,
@@ -80,8 +79,6 @@ export const ToolIcon: React.FC<{
 		case "process_list":
 		case "process_signal":
 			return <TerminalIcon className={base} />;
-		case "wait_for_external_auth":
-			return <LogInIcon className={base} />;
 		case "read_file":
 		case "read_skill":
 		case "read_skill_file":

@@ -14,11 +14,7 @@ import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
-import {
-	ExecuteAuthRequiredTool,
-	ExecuteTool as ExecuteToolComponent,
-	WaitForExternalAuthTool,
-} from "./ExecuteTool";
+import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
@@ -59,7 +55,6 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 import { WriteFileTool } from "./WriteFileTool";
@@ -227,20 +222,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-	const outputBlock = data.transcriptBlocks.find(
-		(block) => block.kind === "output",
-	);
-
-	if (data.authenticateURL) {
-		return (
-			<ExecuteAuthRequiredTool
-				command={data.command}
-				output={outputBlock?.text ?? ""}
-				authenticateURL={data.authenticateURL}
-				providerLabel={data.providerLabel}
-			/>
-		);
-	}
 	return (
 		<ExecuteToolComponent
 			command={data.command}
@@ -281,33 +262,6 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
-		/>
-	);
-};
-
-const WaitForExternalAuthRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
-	const rec = asRecord(result);
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-	const authenticated = rec ? Boolean(rec.authenticated) : false;
-	const timedOut = rec ? Boolean(rec.timed_out) : false;
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	return (
-		<WaitForExternalAuthTool
-			providerLabel={providerLabel}
-			status={status}
-			authenticated={authenticated}
-			timedOut={timedOut}
-			isError={isError}
-			errorMessage={errorMessage || undefined}
 		/>
 	);
 };
@@ -1066,7 +1020,6 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
-	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,

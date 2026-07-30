@@ -196,15 +196,11 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	// Summary is the default tab and reads chat + cost; mock both so the sidebar renders.
+	// Summary is the default tab and reads the chat, so mock it for the sidebar.
+	// Cost needs no mock: these stories leave the aibridge feature off, so the
+	// summary panel never requests it.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
-		spyOn(API.experimental, "getChatCost").mockResolvedValue({
-			chat_id: AGENT_ID,
-			total_cost_micros: 0,
-			priced_message_count: 0,
-			unpriced_messages_having_usage_count: 0,
-		});
 	},
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
