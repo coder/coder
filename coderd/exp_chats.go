@@ -8304,21 +8304,22 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var siblingChanges []chatModelConfigChange
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		// Read the row being deleted inside the transaction, after the
+		// Capture the row being deleted inside the transaction, after the
 		// advisory lock, so the audit Old is the row as it is at delete
 		// time: the lock serializes against concurrent promotes, so this
-		// cannot see the stale non-default state the prefetch holds. This
-		// fetch is base-equivalent, not audit-only enrichment: dbauthz's
-		// delete performs the same fetch in the same transaction, so any
-		// failure here fails base's delete call too. ErrNoRows means the
-		// row vanished after the prefetch; return it as-is and the
-		// handler conceals it as a 404 exactly like base's delete, with
-		// no audit entry.
-		locked, err := tx.GetChatModelConfigByID(ctx, modelConfigID)
-		if err != nil {
-			return xerrors.Errorf("re-read chat model config: %w", err)
+		// cannot see the stale non-default state the prefetch holds. Like
+		// every audit-only read here, the capture is non-fatal: on any
+		// failure it logs and skips the Delete entry and the sibling
+		// gating, and the delete proceeds. Nothing gates on this read, so
+		// dbauthz's own delete fetch reproduces base behavior exactly in
+		// every case (vanished row = base's 404, real error = base's
+		// error) without the audit read adding a failure position.
+		locked, lockedErr := tx.GetChatModelConfigByID(ctx, modelConfigID)
+		if lockedErr != nil {
+			api.Logger.Warn(ctx, "chat model config audit: capture before delete failed; skipping delete entry", slog.Error(lockedErr))
+		} else {
+			aReq.Old = locked
 		}
-		aReq.Old = locked
 
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
@@ -8331,7 +8332,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// entry. Only deleting the default vacates it for the ensure
 		// call to refill; deleting a non-default row leaves any
 		// incumbent untouched.
-		if locked.IsDefault {
+		if lockedErr == nil && locked.IsDefault {
 			promotedChange, ok := api.chatModelConfigDefaultPromotion(ctx, tx, existing.OrganizationID, modelConfigID)
 			if ok {
 				siblingChanges = append(siblingChanges, promotedChange)
