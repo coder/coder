@@ -216,157 +216,48 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 func TestAIProviderRequest_ValidateBedrockProtocol(t *testing.T) {
 	t.Parallel()
 
-	const (
-		region  = "us-east-1"
-		baseURL = "https://bedrock-runtime.us-east-1.amazonaws.com"
-		model   = "anthropic.claude-sonnet-4-6"
-		sfm     = "anthropic.claude-haiku-4-5-20251001-v1:0"
-	)
-
 	cases := []struct {
-		name          string
-		settings      codersdk.AIProviderBedrockSettings
-		baseURL       string
-		wantErrFields []string
+		name     string
+		protocol codersdk.AIProviderBedrockProtocol
+		wantErr  bool
 	}{
-		// Protocol enum validation: the typo/unknown cases still surface
-		// settings.protocol (the helper's default branch returns nil).
-		{name: "typo protocol", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Model: model, SmallFastModel: sfm, Protocol: "mnatle",
-		}, baseURL: baseURL, wantErrFields: []string{"settings.protocol"}},
-		{name: "unknown protocol", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Model: model, SmallFastModel: sfm, Protocol: "http",
-		}, baseURL: baseURL, wantErrFields: []string{"settings.protocol"}},
-
-		// invoke-model: empty protocol resolves to invoke-model.
-		{name: "invoke-model region only", settings: codersdk.AIProviderBedrockSettings{
-			Region: region,
-		}, baseURL: baseURL, wantErrFields: []string{"settings.model", "settings.small_fast_model"}},
-		{name: "invoke-model region + model", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Model: model,
-		}, baseURL: baseURL, wantErrFields: []string{"settings.small_fast_model"}},
-		{name: "invoke-model fully configured", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Model: model, SmallFastModel: sfm,
-		}, baseURL: baseURL, wantErrFields: nil},
-		{name: "invoke-model model+sfm no region no base url", settings: codersdk.AIProviderBedrockSettings{
-			Model: model, SmallFastModel: sfm,
-		}, baseURL: "", wantErrFields: []string{"settings.region"}},
-		{name: "invoke-model model+sfm base url no region", settings: codersdk.AIProviderBedrockSettings{
-			Model: model, SmallFastModel: sfm,
-		}, baseURL: baseURL, wantErrFields: nil},
-
-		// mantle.
-		{name: "mantle region + base url", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Protocol: codersdk.AIProviderBedrockProtocolMantle,
-		}, baseURL: baseURL, wantErrFields: nil},
-		{name: "mantle region + empty base url", settings: codersdk.AIProviderBedrockSettings{
-			Region: region, Protocol: codersdk.AIProviderBedrockProtocolMantle,
-		}, baseURL: "", wantErrFields: []string{"settings.base_url"}},
-		{name: "mantle empty region + base url", settings: codersdk.AIProviderBedrockSettings{
-			Protocol: codersdk.AIProviderBedrockProtocolMantle,
-		}, baseURL: baseURL, wantErrFields: []string{"settings.region"}},
+		{name: "empty is allowed", protocol: "", wantErr: false},
+		{name: "invoke-model", protocol: codersdk.AIProviderBedrockProtocolInvokeModel, wantErr: false},
+		{name: "mantle", protocol: codersdk.AIProviderBedrockProtocolMantle, wantErr: false},
+		{name: "typo", protocol: "mnatle", wantErr: true},
+		{name: "unknown", protocol: "http", wantErr: true},
 	}
 
-	// fieldsOf collects the bedrock-scoped validation fields (those under
-	// "settings."). The top-level base_url/type/name validators are exercised
-	// by their own tests; here we assert the bedrock helper produces exactly
-	// the expected settings-scoped fields : no missing, no extra.
-	fieldsOf := func(vs []codersdk.ValidationError) []string {
-		var out []string
+	hasProtocolError := func(vs []codersdk.ValidationError) bool {
 		for _, v := range vs {
-			if strings.HasPrefix(v.Field, "settings.") {
-				out = append(out, v.Field)
-			}
-		}
-		return out
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			settings := codersdk.AIProviderSettings{Bedrock: &tc.settings}
-
-			create := codersdk.CreateAIProviderRequest{
-				Type:     codersdk.AIProviderTypeBedrock,
-				Name:     "bedrock",
-				BaseURL:  tc.baseURL,
-				Settings: settings,
-			}
-			require.ElementsMatch(t, tc.wantErrFields, fieldsOf(create.Validate()),
-				"create: field error set mismatch")
-
-			update := codersdk.UpdateAIProviderRequest{
-				Settings: &settings,
-			}
-			if tc.baseURL != "" {
-				update.BaseURL = &tc.baseURL
-			}
-			require.ElementsMatch(t, tc.wantErrFields, fieldsOf(update.Validate()),
-				"update: field error set mismatch")
-		})
-	}
-}
-
-func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
-	t.Parallel()
-
-	hasFieldError := func(vs []codersdk.ValidationError, field string) bool {
-		for _, v := range vs {
-			if v.Field == field {
+			if v.Field == "settings.protocol" {
 				return true
 			}
 		}
 		return false
 	}
 
-	t.Run("MantleRequiresRegion", func(t *testing.T) {
-		t.Parallel()
-		create := codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeBedrock,
-			Name:    "bedrock",
-			BaseURL: "https://bedrock-mantle.us-east-1.api.aws",
-			Settings: codersdk.AIProviderSettings{
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Protocol: codersdk.AIProviderBedrockProtocolMantle,
-				},
-			},
-		}
-		require.True(t, hasFieldError(create.Validate(), "settings.region"))
-
-		create.Settings.Bedrock.Region = "us-east-1"
-		require.False(t, hasFieldError(create.Validate(), "settings.region"))
-	})
-
-	t.Run("MantleRequiresRegionOnUpdate", func(t *testing.T) {
-		t.Parallel()
-		settings := codersdk.AIProviderSettings{
-			Bedrock: &codersdk.AIProviderBedrockSettings{
-				Protocol: codersdk.AIProviderBedrockProtocolMantle,
-			},
-		}
-		update := codersdk.UpdateAIProviderRequest{Settings: &settings}
-		require.True(t, hasFieldError(update.Validate(), "settings.region"))
-
-		settings.Bedrock.Region = "us-east-1"
-		require.False(t, hasFieldError(update.Validate(), "settings.region"))
-	})
-
-	t.Run("InvokeModelDoesNotRequireRegionField", func(t *testing.T) {
-		t.Parallel()
-		// The mantle-specific region check must not fire for the invoke-model
-		// protocol, whether it is set explicitly or left empty (existing rows).
-		for _, protocol := range []codersdk.AIProviderBedrockProtocol{"", codersdk.AIProviderBedrockProtocolInvokeModel} {
-			create := codersdk.CreateAIProviderRequest{
-				Type:    codersdk.AIProviderTypeBedrock,
-				Name:    "bedrock",
-				BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
-				Settings: codersdk.AIProviderSettings{
-					Bedrock: &codersdk.AIProviderBedrockSettings{Protocol: protocol},
+					Region:   "us-east-1",
+					Protocol: tc.protocol,
 				},
 			}
-			require.False(t, hasFieldError(create.Validate(), "settings.region"))
-		}
-	})
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasProtocolError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasProtocolError(update.Validate()))
+		})
+	}
 }

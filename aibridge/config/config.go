@@ -80,27 +80,56 @@ func (c AWSBedrock) ResolvedProtocol() BedrockProtocol {
 	return c.Protocol
 }
 
-// Validate verifies protocol-specific Bedrock configuration.
-func (c AWSBedrock) Validate() error {
+// FieldError is a single failed validation rule scoped to a settings field.
+// Field is the settings JSON tag name (region, model, small_fast_model,
+// base_url) without the "settings." prefix; callers mapping to an API
+// response add that prefix.
+type FieldError struct {
+	Field  string
+	Detail string
+}
+
+func (e FieldError) Error() string { return e.Detail }
+
+// ValidationErrors returns the field-scoped validation errors for the bedrock
+// config. It encodes the same required-field rules as Validate() but as a
+// slice so callers can map each to an API field-level error. Returns nil when
+// the config is valid. It returns nil for an unknown protocol; Validate()
+// handles that case as a hard non-field-scoped error.
+func (c AWSBedrock) ValidationErrors() []FieldError {
+	var errs []FieldError
 	switch c.ResolvedProtocol() {
 	case BedrockProtocolInvokeModel:
 		if c.Region == "" && c.BaseURL == "" {
-			return xerrors.New("region or base url required")
+			errs = append(errs, FieldError{Field: "region", Detail: "region or base url required"})
 		}
 		if c.Model == "" {
-			return xerrors.New("model required")
+			errs = append(errs, FieldError{Field: "model", Detail: "model required"})
 		}
 		if c.SmallFastModel == "" {
-			return xerrors.New("small fast model required")
+			errs = append(errs, FieldError{Field: "small_fast_model", Detail: "small fast model required"})
 		}
 	case BedrockProtocolMantle:
 		if c.Region == "" {
-			return xerrors.New("region required")
+			errs = append(errs, FieldError{Field: "region", Detail: "region required"})
 		}
 		if c.BaseURL == "" {
-			return xerrors.New("base_url required")
+			errs = append(errs, FieldError{Field: "base_url", Detail: "base_url required"})
 		}
-	default:
+	}
+	return errs
+}
+
+// Validate verifies protocol-specific Bedrock configuration.
+func (c AWSBedrock) Validate() error {
+	if errs := c.ValidationErrors(); len(errs) > 0 {
+		// Preserve the single-error behavior callers expect: return the first.
+		return errs[0]
+	}
+	// Unknown protocol is still a hard error (not field-scoped);
+	// ValidationErrors() returns nil for unknown protocols (the switch falls
+	// through), so handle it here to preserve behavior.
+	if c.ResolvedProtocol() != BedrockProtocolInvokeModel && c.ResolvedProtocol() != BedrockProtocolMantle {
 		return xerrors.Errorf("unknown bedrock protocol: %q", c.Protocol)
 	}
 	return nil

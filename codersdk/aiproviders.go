@@ -14,8 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // AIProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
@@ -286,7 +284,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 				Detail: "external_id is server-generated and cannot be set",
 			})
 		}
-		validations = append(validations, validateAIProviderBedrockRequiredFields(req.BaseURL, *req.Settings.Bedrock)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -340,7 +337,6 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.Settings != nil && req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
-		validations = append(validations, validateAIProviderBedrockRequiredFields(ptr.NilToDefault(req.BaseURL, ""), *req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -374,56 +370,6 @@ func validateAIProviderBedrockProtocol(protocol AIProviderBedrockProtocol) []Val
 			Detail: fmt.Sprintf("unsupported bedrock protocol %q, must be one of %q or %q", protocol, AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle),
 		}}
 	}
-}
-
-// validateAIProviderBedrockRequiredFields mirrors the protocol-specific
-// required-field rules enforced at runtime by aibridge/config.AWSBedrock.Validate
-// without importing that package (which would create an import cycle). It is
-// called from CreateAIProviderRequest.Validate and UpdateAIProviderRequest.Validate
-// so the API rejects the same shapes the runtime rejects.
-//
-// baseURL is the parent provider's base URL: on the codersdk side it lives on
-// the request/row, not on AIProviderBedrockSettings (unlike the runtime struct).
-func validateAIProviderBedrockRequiredFields(baseURL string, b AIProviderBedrockSettings) []ValidationError {
-	var validations []ValidationError
-	switch b.ResolvedProtocol() {
-	case AIProviderBedrockProtocolInvokeModel:
-		if b.Region == "" && baseURL == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.region",
-				Detail: "region or base_url is required for the invoke-model protocol",
-			})
-		}
-		if b.Model == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.model",
-				Detail: "model is required for the invoke-model protocol",
-			})
-		}
-		if b.SmallFastModel == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.small_fast_model",
-				Detail: "small_fast_model is required for the invoke-model protocol",
-			})
-		}
-	case AIProviderBedrockProtocolMantle:
-		if b.Region == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.region",
-				Detail: "region is required for the mantle protocol",
-			})
-		}
-		if baseURL == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.base_url",
-				Detail: "base_url is required for the mantle protocol",
-			})
-		}
-	default:
-		// The protocol enum is already validated by validateAIProviderBedrockProtocol.
-		return nil
-	}
-	return validations
 }
 
 func validateAIProviderRoleARN(roleARN string) []ValidationError {

@@ -939,6 +939,39 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
 	})
 
+	t.Run("BedrockRegionOnlyRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A region-only bedrock create (no model, no small_fast_model) is
+		// rejected by the handler via config.AWSBedrock.ValidationErrors(),
+		// the single source of truth shared with the runtime.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-region-only",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region: "us-east-1",
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.model",
+			Detail: "model required",
+		})
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.small_fast_model",
+			Detail: "small fast model required",
+		})
+	})
+
 	t.Run("CopilotCreateWithoutKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

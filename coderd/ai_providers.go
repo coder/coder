@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -161,7 +162,22 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := req.Validate(); len(validations) > 0 {
+	validations := req.Validate()
+	// Bedrock required-field validation: the codersdk Validate() above checks
+	// structure (type/name/keys/protocol enum/role-arn); the required model and
+	// small_fast_model (invoke-model) and base_url (mantle) rules live in
+	// aibridge/config.AWSBedrock.ValidationErrors() as the single source of truth
+	// shared with the runtime. Map its field-scoped errors to the API response.
+	if req.Settings.Bedrock != nil {
+		cfg, _ := aibridge.BedrockConfigFromSettings(req.BaseURL, req.Settings.Bedrock)
+		for _, fe := range cfg.ValidationErrors() {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "settings." + fe.Field,
+				Detail: fe.Detail,
+			})
+		}
+	}
+	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",
 			Validations: validations,
@@ -294,7 +310,17 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if validations := req.Validate(); len(validations) > 0 {
+	validations := req.Validate()
+	if req.Settings != nil && req.Settings.Bedrock != nil {
+		cfg, _ := aibridge.BedrockConfigFromSettings(ptr.NilToDefault(req.BaseURL, ""), req.Settings.Bedrock)
+		for _, fe := range cfg.ValidationErrors() {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "settings." + fe.Field,
+				Detail: fe.Detail,
+			})
+		}
+	}
+	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",
 			Validations: validations,

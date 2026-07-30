@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
@@ -281,7 +282,11 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}), nil
 
 	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
-		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
+		bedrockCfg, ok := agplaibridge.BedrockConfigFromSettings(spec.BaseURL, spec.Bedrock)
+		var bedrock *config.AWSBedrock
+		if ok {
+			bedrock = &bedrockCfg
+		}
 		// A spec typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned
@@ -333,32 +338,17 @@ func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridg
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
 }
 
-// bedrockConfig returns nil when the settings are absent or when the
-// Bedrock fields are not actually configured. The provider's BaseURL is
-// the generic upstream endpoint and is always non-empty, so it cannot
-// serve as a Bedrock detection signal; gate on the settings alone via
-// [codersdk.AIProviderBedrockSettings.IsConfigured].
+// bedrockConfig is a thin adapter over the shared
+// [agplaibridge.BedrockConfigFromSettings] converter, retained so the
+// package-local test harness can construct a *config.AWSBedrock from
+// codersdk settings. The conversion logic lives in coderd/aibridge so
+// both cli and the coderd handler share a single implementation.
 func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) *aibridge.AWSBedrockConfig {
-	if bedrock == nil {
+	cfg, ok := agplaibridge.BedrockConfigFromSettings(baseURL, bedrock)
+	if !ok {
 		return nil
 	}
-	bedrockSettings := *bedrock
-	if !bedrockSettings.IsConfigured() {
-		return nil
-	}
-	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
-	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
-	return &aibridge.AWSBedrockConfig{
-		BaseURL:         baseURL,
-		Region:          bedrockSettings.Region,
-		AccessKey:       accessKey,
-		AccessKeySecret: accessKeySecret,
-		Model:           bedrockSettings.Model,
-		SmallFastModel:  bedrockSettings.SmallFastModel,
-		RoleARN:         bedrockSettings.RoleARN,
-		ExternalID:      bedrockSettings.ExternalID,
-		Protocol:        config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
-	}
+	return &cfg
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.
