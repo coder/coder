@@ -175,7 +175,12 @@ SELECT
             WHERE key = 'agents_chat_system_prompt'
                 AND value != ''
         )
-    ) :: boolean AS include_default_system_prompt;
+    ) :: boolean AS include_default_system_prompt,
+    EXISTS (
+        SELECT 1
+        FROM site_configs
+        WHERE key = 'agents_chat_include_default_system_prompt'
+    ) :: boolean AS include_default_system_prompt_set;
 
 -- name: UpsertChatSystemPrompt :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
