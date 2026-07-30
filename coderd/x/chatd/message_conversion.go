@@ -339,19 +339,28 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
-func currentTurnStepCount(messages []database.ChatMessage) int {
-	latestUser := -1
+// Hook model-context messages use the user role but must not reset
+// per-turn guards.
+func lastUserPromptIndex(messages []database.ChatMessage) int {
+	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
-			latestUser = i
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+			index = i
 		}
 	}
+	return index
+}
+
+func currentTurnStartIndex(messages []database.ChatMessage) int {
+	return lastUserPromptIndex(messages) + 1
+}
+
+func currentTurnStepCount(messages []database.ChatMessage) int {
 	count := 0
-	for i := latestUser + 1; i < len(messages); i++ {
-		msg := messages[i]
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
@@ -480,16 +489,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 	if len(stopAfterTools) == 0 {
 		return false, nil
 	}
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
-	for _, msg := range messages[start:] {
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}

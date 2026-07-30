@@ -73,7 +73,7 @@ var (
 	}
 	// Hard usage exhaustion codes that fire at any HTTP status,
 	// including 429.
-	usageLimitAnyStatusPatterns = []string{"insufficient_quota"}
+	usageLimitAnyStatusPatterns = []string{"insufficient_quota", "ai budget of"}
 	configPatterns              = []string{
 		"invalid model",
 		"model not found",

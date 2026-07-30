@@ -108,7 +108,6 @@ available in the documentation.
 |------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | [MCP Server](../../ai-coder/mcp-server.md)                                   | Connect external AI coding agents to Coder using its built-in Model Context Protocol server.               |
 | [JetBrains Toolbox](../../user-guides/workspace-access/jetbrains/toolbox.md) | Connect to and manage your Coder workspaces from the JetBrains Toolbox app.                                |
-| [User secrets](../../user-guides/user-secrets.md)                            | Store secret values in Coder and automatically inject them into workspaces                                 |
 | [Coder Agents](../../ai-coder/agents/index.md)                               | Delegate development work to coding agents in your deployment with Coder Agents, a chat interface and API. |
 <!-- END: available-beta-features -->
 

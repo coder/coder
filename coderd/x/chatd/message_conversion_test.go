@@ -336,6 +336,22 @@ func TestCurrentTurnStepCount_CountsAssistantMessagesAfterLatestUser(t *testing.
 	require.Equal(t, 2, got)
 }
 
+func TestCurrentTurnStepCount_IgnoresHookModelContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+		hookContext,
+		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 2, got)
+}
+
 func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	t.Parallel()
 
@@ -608,6 +624,22 @@ func TestDecisionDetectsStopAfterToolFromCommittedHistory(t *testing.T) {
 	got, err = historyHasStopAfterToolResult(messages, map[string]struct{}{"propose_plan": {}})
 	require.NoError(t, err)
 	require.False(t, got)
+}
+
+func TestDecisionDetectsStopAfterToolAcrossHookContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("plan")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("plan-1", "propose_plan", json.RawMessage(`{}`))),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("plan-1", "propose_plan", json.RawMessage(`{"ok":true}`), false, false)),
+		hookContext,
+	}
+	got, err := historyHasStopAfterToolResult(messages, map[string]struct{}{"propose_plan": {}})
+	require.NoError(t, err)
+	require.True(t, got)
 }
 
 func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {

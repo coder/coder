@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -10,7 +9,6 @@ import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
 
 const meta: Meta<typeof CreateTemplateGalleryPageView> = {
 	title: "pages/CreateTemplateGalleryPage",
-	parameters: { chromatic },
 	component: CreateTemplateGalleryPageView,
 };
 

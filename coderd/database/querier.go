@@ -265,6 +265,11 @@ type sqlcQuerier interface {
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
 	// These were most likely created via 'coder login' as the prebuilds user.
 	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
+	// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+	// @organization_id over the [period_start, period_end) window. Spend is
+	// attributed through the token usage's effective group, and rows are bucketed
+	// by the token usage created_at, matching how ai_user_daily_spend is derived.
+	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error)
@@ -341,6 +346,13 @@ type sqlcQuerier interface {
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
+	// Returns the authorization roles (site and org-scoped, including implied
+	// member roles and organization default roles) and the group memberships
+	// for every active, non-deleted user who is neither a system user nor a
+	// service account, matching the GetActiveUserCount population.
+	// Must stay semantically in sync with GetAuthorizationUserRoles;
+	// TestGetActiveUsersAuthorizationRolesParity enforces this.
+	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
@@ -364,6 +376,9 @@ type sqlcQuerier interface {
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
+	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+	// (implied member roles, org default roles, groups);
+	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	// Returns read-only root chat candidates for state-machine-backed
 	// auto-archive. Activity is computed across the root family. The query
@@ -446,10 +461,16 @@ type sqlcQuerier interface {
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.
 	GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error)
+	// Ordered by id to match the @after_id cursor. created_at is the transaction
+	// start time, so it can disagree with append order when a transaction takes the
+	// chat row lock later than one that started after it.
 	GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
+	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
+	// The compaction boundary and final ordering must use the same key so tool
+	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
@@ -622,6 +643,8 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
+	// The returned id becomes both an AfterID cursor and last_read_message_id, so
+	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
@@ -653,6 +676,7 @@ type sqlcQuerier interface {
 	GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error)
 	GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
+	GetOAuth2DCREnabled(ctx context.Context) (bool, error)
 	GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error)
 	// RFC 7591/7592 Dynamic Client Registration queries
 	GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
@@ -669,9 +693,13 @@ type sqlcQuerier interface {
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
-	// belong to @organization_id, on or after period_start until NOW. The spend
-	// limit is null when the group has no configured budget.
+	// belong to @organization_id, on or after period_start until NOW.
+	// spend_limit_micros is the per-member limit, null when the group has no budget.
+	// total_spend_limit_micros is the combined budget of the members attributed to
+	// the group, with each member's override replacing their share. It is null when
+	// the group has no budget.
 	// The period_start parameter is normalized to its UTC calendar day.
+	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
@@ -680,6 +708,11 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
+	// Returns, per effective group, the number of users at or over their spend
+	// limit since period_start. Only users with an enforceable limit (override or
+	// budgeted group) count, and the unlimited Everyone fallback does not.
+	// TODO(AIGOV-527): unify effective group resolution in a single place.
+	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
@@ -1084,7 +1117,10 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
-	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
+	// Returns the inserted rows in input array order. Ids are allocated before the
+	// insert and the k-th smallest is assigned to input index k, so callers may
+	// index the result positionally.
+	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]InsertChatMessagesRow, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
@@ -1624,6 +1660,7 @@ type sqlcQuerier interface {
 	// Insert or update notification report generator logs with recent activity.
 	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error
 	UpsertNotificationsSettings(ctx context.Context, value string) error
+	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -24,6 +24,7 @@ import type {
 	GroupMemberAISpend,
 	GroupMembersAISpend,
 	ReducedUser,
+	UserAIBudgetOverride,
 	UserAISpendStatus,
 } from "#/api/typesGenerated";
 import {
@@ -100,9 +101,11 @@ const membersQuery = (data: unknown) => ({
 /** period_end is exclusive. */
 const mockUserAISpend: UserAISpendStatus = {
 	user_id: MockUserOwner.id,
-	spend_limit_micros: 9_000_000_000,
 	effective_group_id: MockGroupWithoutMembers.id,
-	limit_source: "group",
+	effective_budget: {
+		spend_limit_micros: 9_000_000_000,
+		limit_source: "group",
+	},
 	current_spend_micros: 1_345_000_000,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",
@@ -157,7 +160,6 @@ export const MembersSpendError: Story = {
 	},
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserMember], count: 1 }),
@@ -312,7 +314,6 @@ const mockGroupBudget: GroupAIBudget = {
 export const WithMemberAIBudget: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -395,7 +396,6 @@ export const WithoutMemberAIBudgetColumn: Story = {
 export const AIBudgetActionDisabledForOtherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -449,7 +449,6 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 export const WithMemberAIBudgetInAnotherOrg: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -503,10 +502,141 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 	},
 };
 
+const mockUserBudgetOverride: UserAIBudgetOverride = {
+	user_id: MockUserOwner.id,
+	group_id: MockGroupWithoutMembers.id,
+	spend_limit_micros: 12_000_000_000,
+	created_at: "2026-06-01T00:00:00Z",
+	updated_at: "2026-06-01T00:00:00Z",
+};
+
+const mockOwnerSpend: GroupMemberAISpend = {
+	...mockSpend,
+	user_id: MockUserOwner.id,
+};
+
+const mockOwnerOverrideSpend: GroupMemberAISpend = {
+	...mockOwnerSpend,
+	group_budget: {
+		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
+		limit_source: "user_override",
+	},
+};
+
+export const SaveMemberAIBudgetRefreshesRow: Story = {
+	beforeEach: () => {
+		spyOn(API, "upsertUserAIBudgetOverride").mockResolvedValue(
+			mockUserBudgetOverride,
+		);
+		spyOn(API, "getUserAIBudgetOverride").mockResolvedValue(
+			mockUserBudgetOverride,
+		);
+		spyOn(API, "getGroupMembersAISpend").mockResolvedValue(
+			membersSpendQuery([mockOwnerOverrideSpend]).data,
+		);
+	},
+	parameters: {
+		features: ["aibridge"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
+			membersSpendQuery([mockOwnerSpend]),
+			permissionsQuery({ canUpdateGroup: true }),
+			{ key: meAISpendKey, data: mockUserAISpend },
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup2],
+			},
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: mockGroupBudget,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const budgetCell = await canvas.findByTestId(
+			`member-ai-budget-${MockUserOwner.id}`,
+		);
+		await expect(budgetCell).toHaveTextContent("Group limit $9,000");
+
+		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Manage AI budget" }),
+		);
+		await userEvent.click(await body.findByText("Override group budget"));
+		const input = body.getByLabelText("Custom monthly budget");
+		await userEvent.clear(input);
+		await userEvent.type(input, "12000");
+		await userEvent.click(body.getByRole("button", { name: "Update" }));
+
+		await waitFor(() =>
+			expect(budgetCell).toHaveTextContent("Custom limit $12,000"),
+		);
+	},
+};
+
+export const DeleteMemberAIBudgetRefreshesRow: Story = {
+	beforeEach: () => {
+		spyOn(API, "deleteUserAIBudgetOverride").mockResolvedValue();
+		spyOn(API, "getGroupMembersAISpend").mockResolvedValue(
+			membersSpendQuery([mockOwnerSpend]).data,
+		);
+	},
+	parameters: {
+		features: ["aibridge"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
+			membersSpendQuery([mockOwnerOverrideSpend]),
+			permissionsQuery({ canUpdateGroup: true }),
+			{ key: meAISpendKey, data: mockUserAISpend },
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id),
+				data: mockUserBudgetOverride,
+			},
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup2],
+			},
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: mockGroupBudget,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const budgetCell = await canvas.findByTestId(
+			`member-ai-budget-${MockUserOwner.id}`,
+		);
+		await expect(budgetCell).toHaveTextContent("Custom limit $12,000");
+
+		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Manage AI budget" }),
+		);
+		await userEvent.click(body.getByRole("checkbox"));
+		await userEvent.click(body.getByRole("button", { name: "Update" }));
+
+		await waitFor(() =>
+			expect(budgetCell).toHaveTextContent("Group limit $9,000"),
+		);
+	},
+};
+
 export const OpenAIBudgetForCurrentGroupMember: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
@@ -661,7 +791,6 @@ const showcaseSpends: GroupMemberAISpend[] = [
 export const AIBudgetShowcase: Story = {
 	parameters: {
 		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
