@@ -1010,11 +1010,13 @@ const (
 )
 
 // getUserChatProviderAvailability returns the enabled chat providers and models
-// the user can access. Deployment-level configuration is read as chatd, while
-// user key lookups still use the caller's authorization context.
+// the user can access in one organization. Deployment-level configuration is
+// read as chatd, while user key lookups still use the caller's authorization
+// context.
 func (api *API) getUserChatProviderAvailability(
 	ctx context.Context,
 	userID uuid.UUID,
+	organizationID uuid.UUID,
 ) (userChatModelAvailability, error) {
 	//nolint:gocritic // Chatd context is required to read enabled chat providers.
 	chatdCtx := dbauthz.AsChatd(ctx)
@@ -1022,9 +1024,9 @@ func (api *API) getUserChatProviderAvailability(
 	if err != nil {
 		return userChatModelAvailability{}, err
 	}
-	// The authorized filter admits exactly the configs the user can read
-	// across orgs, which is the union of models available to them.
-	enabledModels, err := api.Database.GetChatModelConfigs(ctx)
+	// The authorized filter admits exactly the configs the user can read in
+	// this organization.
+	enabledModels, err := api.Database.GetChatModelConfigs(ctx, organizationID)
 	if err != nil {
 		return userChatModelAvailability{}, err
 	}
@@ -1186,7 +1188,7 @@ func (api *API) userCanUseChatModelConfig(
 		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 	}
 
-	availability, err := api.getUserChatProviderAvailability(ctx, userID)
+	availability, err := api.getUserChatProviderAvailability(ctx, userID, organizationID)
 	if err != nil {
 		return database.ChatModelConfig{}, chatModelConfigAvailable, err
 	}
@@ -1595,18 +1597,20 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary List chat models
-// @ID list-chat-models
+// @Summary List available chat models in an organization
+// @ID list-chat-model-availability
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Success 200 {object} codersdk.ChatModelsResponse
-// @Router /api/experimental/chats/models [get]
+// @Param organization path string true "Organization name or ID"
+// @Success 200 {object} codersdk.ChatModelAvailabilityResponse
+// @Router /api/experimental/organizations/{organization}/chats/models/available [get]
 // @Description Experimental: this endpoint is subject to change.
-func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listChatModelAvailability(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID)
+	organization := httpmw.OrganizationParam(r)
+	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -1615,7 +1619,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	catalog := chatprovider.NewModelCatalog()
-	var response codersdk.ChatModelsResponse
+	var response codersdk.ChatModelAvailabilityResponse
 	if configured, ok := catalog.ListConfiguredModels(
 		availability.configuredProviders,
 		availability.configuredModels,
@@ -7402,68 +7406,26 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
 }
 
-// listChatModelConfigs is the member union endpoint: it returns every chat
-// model config the caller can read across all of their organizations, with
-// the org display name attached so user-context pages can label each copy.
-// The authorized query applies the RBAC SQL filter under the caller's
-// subject, so the union needs no handler-level gate.
-// @Summary List chat model configs across the caller's organizations
-// @ID list-chat-model-configs-union
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Success 200 {array} codersdk.ChatModelConfig
-// @Router /api/experimental/chat-model-configs [get]
-// @x-apidocgen {"skip": true}
-func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	configs, err := api.Database.GetChatModelConfigs(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	displayNames, err := api.chatModelConfigOrgDisplayNames(ctx, configs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
-	for _, config := range configs {
-		converted := convertChatModelConfig(config)
-		converted.OrganizationDisplayName = displayNames[config.OrganizationID]
-		resp = append(resp, converted)
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
 // listChatModelConfigsByOrganization returns the caller-readable chat model
-// configs in the org carried by the route. The authorized query filters by
-// permission; the org filter is applied on top so management and picker
+// configs in the org carried by the route, plus the redacted provider
+// descriptors the authoring page needs. The authorized query filters models
+// by permission; the org filter is applied on top so management and picker
 // surfaces see exactly one org's set.
-// @Summary List chat model configs in an organization
-// @ID list-chat-model-configs-by-organization
+// @Summary List AI models and provider descriptors in an organization
+// @ID list-ai-models-by-organization
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Success 200 {array} codersdk.ChatModelConfig
-// @Router /api/experimental/organizations/{organization}/chat-model-configs [get]
+// @Success 200 {object} codersdk.OrganizationChatModelsResponse
+// @Router /api/experimental/organizations/{organization}/chats/models [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
 
-	configs, err := api.Database.GetChatModelConfigs(ctx)
+	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat model configs.",
@@ -7472,143 +7434,7 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
-	for _, config := range configs {
-		if config.OrganizationID != organization.ID {
-			continue
-		}
-		resp = append(resp, convertChatModelConfig(config))
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-// getChatModelConfig returns one chat model config by ID; the org is
-// resolved from the row and authorization is the dbauthz object read.
-// @Summary Get a chat model config
-// @ID get-chat-model-config
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Param modelConfig path string true "Model config ID"
-// @Success 200 {object} codersdk.ChatModelConfig
-// @Router /api/experimental/chat-model-configs/{modelConfig} [get]
-// @x-apidocgen {"skip": true}
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	modelConfigID, ok := parseChatModelConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	config, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
-}
-
-// chatModelConfigOrgDisplayNames batch-resolves org display names for the
-// union response. The union admits configs a caller can read in orgs the
-// caller cannot read as organizations (the permission sets are
-// independent), so resolving under the caller's subject would leave those
-// rows unlabeled. The fetch is scoped to exactly the org IDs of the
-// returned rows, so it never discloses names of orgs with no returned
-// rows.
-func (api *API) chatModelConfigOrgDisplayNames(
-	ctx context.Context,
-	configs []database.ChatModelConfig,
-) (map[uuid.UUID]string, error) {
-	ids := make([]uuid.UUID, 0, len(configs))
-	seen := make(map[uuid.UUID]struct{}, len(configs))
-	for _, config := range configs {
-		if _, ok := seen[config.OrganizationID]; ok {
-			continue
-		}
-		seen[config.OrganizationID] = struct{}{}
-		ids = append(ids, config.OrganizationID)
-	}
-	names := make(map[uuid.UUID]string, len(ids))
-	if len(ids) == 0 {
-		return names, nil
-	}
-	//nolint:gocritic // Labels for exactly the rows the caller can already
-	// read; orgs with no returned row are never looked up.
-	orgs, err := api.Database.GetOrganizations(dbauthz.AsChatd(ctx), database.GetOrganizationsParams{
-		Deleted: false,
-		IDs:     ids,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, org := range orgs {
-		names[org.ID] = org.DisplayName
-	}
-	return names, nil
-}
-
-// getChatAIProviderCatalog serves the redacted AI provider catalog to org
-// model admins, who cannot read the deployment-scoped provider endpoints.
-// dbauthz cannot express "create/update on chat model configs in ANY of the
-// caller's orgs" for a deployment-scoped fetch, so the access boundary is
-// the handler-level rbac.Authorize pre-check below, in front of an AsChatd
-// fetch that can only yield the redacted fields mapped here. This is the
-// declared invariant-3 exception for this subsystem: the response never
-// carries key material, base URLs, or headers.
-// @Summary Get the redacted AI provider catalog for org model admins
-// @ID get-chat-ai-provider-catalog
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Success 200 {array} codersdk.ChatAIProviderCatalogEntry
-// @Router /api/experimental/ai-providers/catalog [get]
-// @x-apidocgen {"skip": true}
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatAIProviderCatalog(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-
-	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID:  apiKey.UserID,
-		Deleted: sql.NullBool{Bool: false, Valid: true},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve organizations.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	allowed := false
-	for _, org := range orgs {
-		if api.Authorize(r, policy.ActionCreate, rbac.ResourceChatModelConfig.InOrg(org.ID)) ||
-			api.Authorize(r, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(org.ID)) {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	//nolint:gocritic // The handler gate above is the access boundary; the
-	// fetch only yields the redacted fields mapped below.
-	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{})
+	providers, err := api.chatModelProviderDescriptors(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list AI providers.",
@@ -7617,26 +7443,45 @@ func (api *API) getChatAIProviderCatalog(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	//nolint:gocritic // Key presence is boolean metadata, not key material;
-	// the same redaction the deployment endpoint applies.
+	resp := codersdk.OrganizationChatModelsResponse{
+		Models:    make([]codersdk.ChatModel, 0, len(configs)),
+		Providers: providers,
+	}
+	for _, config := range configs {
+		resp.Models = append(resp.Models, convertChatModelConfig(config))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// chatModelProviderDescriptors assembles the redacted provider descriptors
+// for the org model collection. The caller already passed the org's model
+// read gate; providers are deployment-scoped and an org admin cannot read
+// them directly, so the fetch runs under a narrow AsChatd context scoped to
+// exactly these two reads and the result is projected to the fixed redacted
+// fields (no key material, base URLs, or headers). Disclosure matches what
+// /api/experimental/chats/models already shows any authenticated caller.
+func (api *API) chatModelProviderDescriptors(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]codersdk.ChatModelProviderDescriptor, error) {
+	//nolint:gocritic // Fixed redacted projection under the model read gate; see function doc.
+	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{})
+	if err != nil {
+		return nil, err
+	}
+
+	//nolint:gocritic // Key presence is boolean metadata, not key material; same redaction as the deployment endpoint.
 	keysByProvider, err := loadAIProviderKeysByProvider(dbauthz.AsChatd(ctx), api.Database)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load AI provider keys.",
-			Detail:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	userKeys := make(map[uuid.UUID]struct{})
 	if api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
-		userKeyRows, err := api.Database.GetUserAIProviderKeysByUserID(ctx, apiKey.UserID)
+		userKeyRows, err := api.Database.GetUserAIProviderKeysByUserID(ctx, userID)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to load user AI provider keys.",
-				Detail:  err.Error(),
-			})
-			return
+			return nil, err
 		}
 		for _, row := range userKeyRows {
 			if row.APIKey != "" {
@@ -7645,7 +7490,7 @@ func (api *API) getChatAIProviderCatalog(rw http.ResponseWriter, r *http.Request
 		}
 	}
 
-	out := make([]codersdk.ChatAIProviderCatalogEntry, 0, len(providers))
+	out := make([]codersdk.ChatModelProviderDescriptor, 0, len(providers))
 	for _, provider := range providers {
 		display := provider.Name
 		if provider.DisplayName.Valid && provider.DisplayName.String != "" {
@@ -7659,7 +7504,7 @@ func (api *API) getChatAIProviderCatalog(rw http.ResponseWriter, r *http.Request
 			}
 		}
 		_, hasUserKey := userKeys[provider.ID]
-		out = append(out, codersdk.ChatAIProviderCatalogEntry{
+		out = append(out, codersdk.ChatModelProviderDescriptor{
 			ID:              provider.ID,
 			Type:            string(provider.Type),
 			DisplayName:     display,
@@ -7670,8 +7515,26 @@ func (api *API) getChatAIProviderCatalog(rw http.ResponseWriter, r *http.Request
 			AllowUserAPIKey: api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		})
 	}
+	return out, nil
+}
 
-	httpapi.Write(ctx, rw, http.StatusOK, out)
+// getChatModelConfig returns one chat model config; the config and its org
+// are resolved and read-authorized once by ExtractChatModelConfigParam.
+// @Summary Get an AI model
+// @ID get-ai-model
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param model path string true "Model ID"
+// @Success 200 {object} codersdk.ChatModel
+// @Router /api/experimental/ai/models/{model} [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config := httpmw.ChatModelConfigParam(r)
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
 }
 
 type chatModelConfigProviderModelError struct {
@@ -7708,32 +7571,23 @@ func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx databas
 	}, nil)
 }
 
-// @Summary Create a chat model config in an organization
-// @ID create-chat-model-config
+// @Summary Create an AI model in an organization
+// @ID create-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param request body codersdk.CreateChatModelConfigRequest true "Model config"
-// @Success 201 {object} codersdk.ChatModelConfig
-// @Router /api/experimental/organizations/{organization}/chat-model-configs [post]
+// @Param request body codersdk.CreateChatModelRequest true "Model"
+// @Success 201 {object} codersdk.ChatModel
+// @Router /api/experimental/organizations/{organization}/ai/models [post]
 // @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 
-	// Authorize the write before any privileged lookup so unauthorized
-	// principals cannot probe provider state. The pre-check mirrors the
-	// dbauthz create-in-org check exactly; dbauthz remains the access
-	// boundary for the insert itself.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.CreateChatModelConfigRequest
+	var req codersdk.CreateChatModelRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -7742,35 +7596,13 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required."})
 		return
 	}
-	//nolint:gocritic // The route already authorized chat model config updates.
-	aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get AI provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !aiProvider.Enabled {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
-		return
-	}
-	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
+	aiProviderID := uuid.NullUUID{UUID: *req.AIProviderID, Valid: true}
 
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Model is required.",
 		})
-		return
-	}
-
-	if validationErr := validateChatModelConfigProviderModel(aiProvider, model); validationErr != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, validationErr.Response)
 		return
 	}
 
@@ -7845,16 +7677,16 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var inserted database.ChatModelConfig
 	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		//nolint:gocritic // The route already authorized chat model config updates.
+		//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
-				return errChatProviderNotConfigured
+				return errChatProviderNotFound
 			}
 			return xerrors.Errorf("get AI provider for update: %w", err)
 		}
 		if !lockedAIProvider.Enabled {
-			return errChatProviderNotConfigured
+			return errChatProviderDisabled
 		}
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
 			return err
@@ -7910,10 +7742,19 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case xerrors.Is(err, errChatProviderNotConfigured):
+		case dbauthz.IsNotAuthorizedError(err):
+			// The dbauthz create-in-org check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
+		case xerrors.Is(err, errChatProviderNotFound):
 			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "Chat provider is not configured.",
-				Detail:  err.Error(),
+				Message: "AI provider is not configured.",
+			})
+			return
+		case xerrors.Is(err, errChatProviderDisabled):
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+				Message: "AI provider is disabled.",
 			})
 			return
 		default:
@@ -7930,71 +7771,30 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
-// @Summary Update a chat model config
-// @ID update-chat-model-config
+// @Summary Update an AI model
+// @ID update-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
-// @Param modelConfig path string true "Model config ID"
-// @Param request body codersdk.UpdateChatModelConfigRequest true "Model config updates"
-// @Success 200 {object} codersdk.ChatModelConfig
-// @Router /api/experimental/chat-model-configs/{modelConfig} [patch]
+// @Param model path string true "Model ID"
+// @Param request body codersdk.UpdateChatModelRequest true "Model updates"
+// @Success 200 {object} codersdk.ChatModel
+// @Router /api/experimental/ai/models/{model} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	existing := httpmw.ChatModelConfigParam(r)
 
-	modelConfigID, ok := parseChatModelConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Authorize the write before any privileged lookup (see
-	// createChatModelConfig); mirrors the dbauthz object update check.
-	if !api.Authorize(r, policy.ActionUpdate, existing.RBACObject()) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.UpdateChatModelConfigRequest
+	var req codersdk.UpdateChatModelRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
 	aiProviderID := existing.AIProviderID
 	if req.AIProviderID != nil {
-		//nolint:gocritic // The route already authorized chat model config updates.
-		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get AI provider.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if !aiProvider.Enabled {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
-			return
-		}
-		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
+		aiProviderID = uuid.NullUUID{UUID: *req.AIProviderID, Valid: true}
 	}
 
 	model := existing.Model
@@ -8068,18 +7868,18 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	// Re-derive the provider type under lock when the model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
-	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
+	err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if revalidateProviderModel {
-			//nolint:gocritic // The route already authorized chat model config updates.
+			//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
-					return errChatProviderNotConfigured
+					return errChatProviderNotFound
 				}
 				return xerrors.Errorf("get AI provider for update: %w", err)
 			}
 			if !aiProvider.Enabled {
-				return errChatProviderNotConfigured
+				return errChatProviderDisabled
 			}
 			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
 				return err
@@ -8138,17 +7938,26 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case xerrors.Is(err, errChatProviderNotConfigured):
+		case dbauthz.IsNotAuthorizedError(err):
+			// The dbauthz object update check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
+		case xerrors.Is(err, errChatProviderNotFound):
 			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "Chat provider is not configured.",
-				Detail:  err.Error(),
+				Message: "AI provider is not configured.",
+			})
+			return
+		case xerrors.Is(err, errChatProviderDisabled):
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+				Message: "AI provider is disabled.",
 			})
 			return
 		case xerrors.Is(err, errChatModelConfigNotFound):
 			httpapi.ResourceNotFound(rw)
 			return
 		case httpapi.Is404Error(err):
-			// dbauthz denials do not unwrap to sql.ErrNoRows; conceal the
+			// The refresh read inside the transaction can miss; conceal the
 			// config's existence like any other missing resource.
 			httpapi.ResourceNotFound(rw)
 			return
@@ -8166,51 +7975,31 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
-// @Summary Delete a chat model config
-// @ID delete-chat-model-config
+// @Summary Delete an AI model
+// @ID delete-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
-// @Param modelConfig path string true "Model config ID"
+// @Param model path string true "Model ID"
 // @Success 204
-// @Router /api/experimental/chat-model-configs/{modelConfig} [delete]
+// @Router /api/experimental/ai/models/{model} [delete]
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	modelConfigID, ok := parseChatModelConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Authorize the write before the transaction (see
-	// createChatModelConfig); mirrors the dbauthz object delete check.
-	if !api.Authorize(r, policy.ActionDelete, existing.RBACObject()) {
-		httpapi.Forbidden(rw)
-		return
-	}
+	existing := httpmw.ChatModelConfigParam(r)
 
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+		if err := tx.DeleteChatModelConfigByID(ctx, existing.ID); err != nil {
 			return err
 		}
 		return ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID)
 	}); err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			// The dbauthz object delete check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
+		}
 		if httpapi.Is404Error(err) {
-			// dbauthz denials do not unwrap to sql.ErrNoRows; conceal the
-			// config's existence like any other missing resource.
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -8221,7 +8010,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, existing.ID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -8241,16 +8030,9 @@ func ensureDefaultChatModelConfig(
 		return xerrors.Errorf("get default model config: %w", err)
 	}
 
-	//nolint:gocritic // Candidate enumeration for default election is internal; the election mutations below stay under the caller's subject.
-	modelConfigs, err := tx.GetChatModelConfigs(dbauthz.AsChatd(ctx))
+	orgModelConfigs, err := tx.GetChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return xerrors.Errorf("list default chat model config candidates: %w", err)
-	}
-	orgModelConfigs := make([]database.ChatModelConfig, 0, len(modelConfigs))
-	for _, config := range modelConfigs {
-		if config.OrganizationID == organizationID {
-			orgModelConfigs = append(orgModelConfigs, config)
-		}
 	}
 	if len(orgModelConfigs) == 0 {
 		return nil
@@ -8386,7 +8168,7 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel {
 	modelConfig := unmarshalChatModelCallConfig(config.Options)
 	var reasoningEffortConfig *codersdk.ChatModelReasoningEffortConfig
 	if modelConfig != nil {
@@ -8395,7 +8177,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 
 	// Active configs always carry a non-null ai_provider_id (CHECK
 	// chat_model_configs_ai_provider_required_when_active).
-	return codersdk.ChatModelConfig{
+	return codersdk.ChatModel{
 		ID:                   config.ID,
 		OrganizationID:       config.OrganizationID,
 		AIProviderID:         config.AIProviderID.UUID,
@@ -8579,8 +8361,9 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 }
 
 var (
-	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
-	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+	errChatModelConfigNotFound = xerrors.New("chat model config not found")
+	errChatProviderNotFound    = xerrors.New("chat provider is not configured")
+	errChatProviderDisabled    = xerrors.New("chat provider is disabled")
 )
 
 // ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat

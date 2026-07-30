@@ -26,6 +26,7 @@ LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.deleted = FALSE
+    AND cmc.organization_id = @organization_id::uuid
     -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
     -- @authorize_filter
 ORDER BY
@@ -34,24 +35,22 @@ ORDER BY
     cmc.updated_at DESC,
     cmc.id DESC;
 
--- name: GetEnabledChatModelConfigs :many
+-- name: GetChatModelConfigsByOrganization :many
+-- All live configs in one organization, unfiltered. Consumed ONLY by
+-- ensureDefaultChatModelConfig's default-election read inside the write
+-- transaction; authorization is the caller's update-in-org check that every
+-- path reaching the election already requires. No @authorize_filter.
 SELECT
-    sqlc.embed(cmc),
-    ap.type::text AS provider
+    *
 FROM
-    chat_model_configs cmc
-JOIN
-    ai_providers ap ON ap.id = cmc.ai_provider_id
+    chat_model_configs
 WHERE
-    cmc.enabled = TRUE
-    AND cmc.deleted = FALSE
-    AND ap.enabled = TRUE
-    AND ap.deleted = FALSE
+    organization_id = @organization_id::uuid
+    AND deleted = FALSE
 ORDER BY
-    ap.type::text ASC,
-    cmc.model ASC,
-    cmc.updated_at DESC,
-    cmc.id DESC;
+    model ASC,
+    updated_at DESC,
+    id DESC;
 
 -- name: GetEnabledChatModelConfigsByOrganization :many
 SELECT

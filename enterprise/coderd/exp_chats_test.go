@@ -51,12 +51,12 @@ func createOpenAIModelConfigForTest(
 	client *codersdk.ExperimentalClient,
 	apiKey string,
 	baseURL string,
-) codersdk.ChatModelConfig {
+) codersdk.ChatModel {
 	t.Helper()
 	provider := createOpenAIProviderForTest(ctx, t, client, apiKey, baseURL)
 	defaultOrg, err := client.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
-	model, err := client.CreateChatModelConfig(ctx, defaultOrg.ID, codersdk.CreateChatModelConfigRequest{
+	model, err := client.CreateChatModel(ctx, defaultOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
@@ -954,10 +954,10 @@ func TestChatModelConfigDefault(t *testing.T) {
 	trueValue := true
 	falseValue := false
 
-	firstModel, err := expClient.CreateChatModelConfig(
+	firstModel, err := expClient.CreateChatModel(
 		ctx,
 		defaultOrg.ID,
-		codersdk.CreateChatModelConfigRequest{
+		codersdk.CreateChatModelRequest{
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-a",
 			DisplayName:          "GPT 5 A",
@@ -969,10 +969,10 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, firstModel.IsDefault)
 
-	secondModel, err := expClient.CreateChatModelConfig(
+	secondModel, err := expClient.CreateChatModel(
 		ctx,
 		defaultOrg.ID,
-		codersdk.CreateChatModelConfigRequest{
+		codersdk.CreateChatModelRequest{
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-b",
 			DisplayName:          "GPT 5 B",
@@ -984,53 +984,53 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, secondModel.IsDefault)
 
-	modelConfigs, err := expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err := expClient.ChatModels(ctx, defaultOrg.ID)
 	require.NoError(t, err)
-	firstStored := findChatModelConfigByID(t, modelConfigs, firstModel.ID)
-	secondStored := findChatModelConfigByID(t, modelConfigs, secondModel.ID)
+	firstStored := findChatModelConfigByID(t, modelConfigs.Models, firstModel.ID)
+	secondStored := findChatModelConfigByID(t, modelConfigs.Models, secondModel.ID)
 	require.False(t, firstStored.IsDefault)
 	require.True(t, secondStored.IsDefault)
 
-	updatedFirst, err := expClient.UpdateChatModelConfig(
+	updatedFirst, err := expClient.UpdateChatModel(
 		ctx,
 		firstModel.ID,
-		codersdk.UpdateChatModelConfigRequest{
+		codersdk.UpdateChatModelRequest{
 			IsDefault: &trueValue,
 		},
 	)
 	require.NoError(t, err)
 	require.True(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ChatModels(ctx, defaultOrg.ID)
 	require.NoError(t, err)
-	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
-	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
+	firstStored = findChatModelConfigByID(t, modelConfigs.Models, firstModel.ID)
+	secondStored = findChatModelConfigByID(t, modelConfigs.Models, secondModel.ID)
 	require.True(t, firstStored.IsDefault)
 	require.False(t, secondStored.IsDefault)
 
-	updatedFirst, err = expClient.UpdateChatModelConfig(
+	updatedFirst, err = expClient.UpdateChatModel(
 		ctx,
 		firstModel.ID,
-		codersdk.UpdateChatModelConfigRequest{
+		codersdk.UpdateChatModelRequest{
 			IsDefault: &falseValue,
 		},
 	)
 	require.NoError(t, err)
 	require.False(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ChatModels(ctx, defaultOrg.ID)
 	require.NoError(t, err)
-	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
-	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
+	firstStored = findChatModelConfigByID(t, modelConfigs.Models, firstModel.ID)
+	secondStored = findChatModelConfigByID(t, modelConfigs.Models, secondModel.ID)
 	require.False(t, firstStored.IsDefault)
 	require.True(t, secondStored.IsDefault)
 }
 
 func findChatModelConfigByID(
 	t *testing.T,
-	modelConfigs []codersdk.ChatModelConfig,
+	modelConfigs []codersdk.ChatModel,
 	id uuid.UUID,
-) codersdk.ChatModelConfig {
+) codersdk.ChatModel {
 	t.Helper()
 
 	for _, modelConfig := range modelConfigs {
@@ -1040,7 +1040,7 @@ func findChatModelConfigByID(
 	}
 
 	require.FailNowf(t, "missing model config", "model config %s not found", id)
-	return codersdk.ChatModelConfig{}
+	return codersdk.ChatModel{}
 }
 
 // cookieOnlySessionTokenProvider authenticates HTTP requests via the
@@ -1107,7 +1107,7 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 
 	// Strict org scoping: the chat below lives in the second org, so its
 	// default model config must too.
-	_, err := expClient.CreateChatModelConfig(ctx, secondOrg.ID, codersdk.CreateChatModelConfigRequest{
+	_, err := expClient.CreateChatModel(ctx, secondOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
@@ -1176,7 +1176,7 @@ func TestCreateChatCrossOrgModelConfigRejected(t *testing.T) {
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
 
 	// The config lives in the default org.
-	defaultConfig, err := expClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
+	defaultConfig, err := expClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Default Org Model",
@@ -1239,7 +1239,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	// Strict org scoping: the chats below live in the second org, so
 	// their default model config must too.
-	_, err := expClient.CreateChatModelConfig(ctx, secondOrg.ID, codersdk.CreateChatModelConfigRequest{
+	_, err := expClient.CreateChatModel(ctx, secondOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",

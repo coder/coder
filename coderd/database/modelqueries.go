@@ -57,10 +57,10 @@ type customQuerier interface {
 }
 
 type chatModelConfigQuerier interface {
-	GetAuthorizedChatModelConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error)
+	GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error)
 }
 
-func (q *sqlQuerier) GetAuthorizedChatModelConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error) {
+func (q *sqlQuerier) GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChatModelConfigs())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
@@ -73,7 +73,7 @@ func (q *sqlQuerier) GetAuthorizedChatModelConfigs(ctx context.Context, prepared
 
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedChatModelConfigs :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
 	if err != nil {
 		return nil, err
 	}

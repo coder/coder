@@ -1336,34 +1336,19 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
-		// Org-scoped chat model config management. Configs are org-scoped;
-		// creation and org listing resolve the org from the route.
-		r.Route("/organizations/{organization}/chat-model-configs", func(r chi.Router) {
+		// Org-scoped chat model management and runtime discovery. Configs are
+		// org-scoped; creation, org listing, and the availability view resolve
+		// the org from the route.
+		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.listChatModelConfigsByOrganization)
 			r.Post("/", api.createChatModelConfig)
-		})
-		// Item-level chat model config routes resolve the org from the row.
-		r.Route("/chat-model-configs", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.listChatModelConfigs)
-			r.Route("/{modelConfig}", func(r chi.Router) {
-				r.Get("/", api.getChatModelConfig)
-				r.Patch("/", api.updateChatModelConfig)
-				r.Delete("/", api.deleteChatModelConfig)
-			})
-		})
-		// Redacted AI provider catalog for org model admins.
-		r.Route("/ai-providers/catalog", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.getChatAIProviderCatalog)
+			// Runtime discovery: the provider-grouped, per-caller availability
+			// view of this organization's models.
+			r.Get("/available", api.listChatModelAvailability)
 		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
@@ -1372,7 +1357,16 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
+			// Item-level chat model routes resolve the config and its org once
+			// at the boundary; the middleware authorizes the read. These sit
+			// beside the org-scoped runtime discovery list, which lives at
+			// /organizations/{organization}/chats/models.
+			r.Route("/models/{model}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatModelConfigParam(options.Database))
+				r.Get("/", api.getChatModelConfig)
+				r.Patch("/", api.updateChatModelConfig)
+				r.Delete("/", api.deleteChatModelConfig)
+			})
 			r.Get("/watch", api.watchChats)
 			r.Route("/cost", func(r chi.Router) {
 				r.Get("/users", api.chatCostUsers)

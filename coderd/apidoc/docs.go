@@ -64,7 +64,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/ai-providers/catalog": {
+        "/api/experimental/ai/models/{model}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -72,75 +72,13 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Get the redacted AI provider catalog for org model admins",
-                "operationId": "get-chat-ai-provider-catalog",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatAIProviderCatalogEntry"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chat-model-configs": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat model configs across the caller's organizations",
-                "operationId": "list-chat-model-configs-union",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatModelConfig"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chat-model-configs/{modelConfig}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get a chat model config",
-                "operationId": "get-chat-model-config",
+                "summary": "Get an AI model",
+                "operationId": "get-ai-model",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model config ID",
-                        "name": "modelConfig",
+                        "description": "Model ID",
+                        "name": "model",
                         "in": "path",
                         "required": true
                     }
@@ -149,7 +87,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelConfig"
+                            "$ref": "#/definitions/codersdk.ChatModel"
                         }
                     }
                 },
@@ -166,13 +104,13 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Delete a chat model config",
-                "operationId": "delete-chat-model-config",
+                "summary": "Delete an AI model",
+                "operationId": "delete-ai-model",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model config ID",
-                        "name": "modelConfig",
+                        "description": "Model ID",
+                        "name": "model",
                         "in": "path",
                         "required": true
                     }
@@ -201,23 +139,23 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Update a chat model config",
-                "operationId": "update-chat-model-config",
+                "summary": "Update an AI model",
+                "operationId": "update-ai-model",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model config ID",
-                        "name": "modelConfig",
+                        "description": "Model ID",
+                        "name": "model",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Model config updates",
+                        "description": "Model updates",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatModelConfigRequest"
+                            "$ref": "#/definitions/codersdk.UpdateChatModelRequest"
                         }
                     }
                 ],
@@ -225,7 +163,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelConfig"
+                            "$ref": "#/definitions/codersdk.ChatModel"
                         }
                     }
                 },
@@ -461,32 +399,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/models": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat models",
-                "operationId": "list-chat-models",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
-                        }
                     }
                 },
                 "security": [
@@ -1276,7 +1188,56 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/organizations/{organization}/chat-model-configs": {
+        "/api/experimental/organizations/{organization}/ai/models": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create an AI model in an organization",
+                "operationId": "create-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1284,8 +1245,8 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "List chat model configs in an organization",
-                "operationId": "list-chat-model-configs-by-organization",
+                "summary": "List AI models and provider descriptors in an organization",
+                "operationId": "list-ai-models-by-organization",
                 "parameters": [
                     {
                         "type": "string",
@@ -1299,10 +1260,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatModelConfig"
-                            }
+                            "$ref": "#/definitions/codersdk.OrganizationChatModelsResponse"
                         }
                     }
                 },
@@ -1314,19 +1272,19 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models/available": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Create a chat model config in an organization",
-                "operationId": "create-chat-model-config",
+                "summary": "List available chat models in an organization",
+                "operationId": "list-chat-model-availability",
                 "parameters": [
                     {
                         "type": "string",
@@ -1334,22 +1292,13 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "Model config",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatModelConfigRequest"
-                        }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelConfig"
+                            "$ref": "#/definitions/codersdk.ChatModelAvailabilityResponse"
                         }
                     }
                 },
@@ -1357,10 +1306,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/experimental/users/{user}/skills": {
@@ -17614,36 +17560,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatAIProviderCatalogEntry": {
-            "type": "object",
-            "properties": {
-                "allow_user_api_key": {
-                    "type": "boolean"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "has_api_key": {
-                    "type": "boolean"
-                },
-                "has_user_api_key": {
-                    "type": "boolean"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
@@ -18397,17 +18313,53 @@ const docTemplate = `{
         "codersdk.ChatModel": {
             "type": "object",
             "properties": {
+                "ai_provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "display_name": {
                     "type": "string"
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "is_default": {
+                    "type": "boolean"
                 },
                 "model": {
                     "type": "string"
                 },
-                "provider": {
-                    "type": "string"
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_efforts": {
+                    "description": "ReasoningEfforts lists selectable reasoning effort values through\nthe model's configured maximum.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -18454,6 +18406,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatModelAvailabilityResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelProvider"
+                    }
+                },
+                "unsupported_providers": {
+                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
+                }
+            }
+        },
         "codersdk.ChatModelCallConfig": {
             "type": "object",
             "properties": {
@@ -18483,63 +18453,6 @@ const docTemplate = `{
                 },
                 "top_p": {
                     "type": "number"
-                }
-            }
-        },
-        "codersdk.ChatModelConfig": {
-            "type": "object",
-            "properties": {
-                "ai_provider_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "compression_threshold": {
-                    "type": "integer"
-                },
-                "context_limit": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "is_default": {
-                    "type": "boolean"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "model_config": {
-                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
-                },
-                "organization_display_name": {
-                    "description": "OrganizationDisplayName is set on union-list responses so user-context\npages can label which org each copy belongs to.",
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "reasoning_efforts": {
-                    "description": "ReasoningEfforts lists selectable reasoning effort values through\nthe model's configured maximum.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
@@ -18763,7 +18676,7 @@ const docTemplate = `{
                 "models": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.ChatModel"
+                        "$ref": "#/definitions/codersdk.MinimalChatModel"
                     }
                 },
                 "provider": {
@@ -18771,6 +18684,36 @@ const docTemplate = `{
                 },
                 "unavailable_reason": {
                     "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
+                }
+            }
+        },
+        "codersdk.ChatModelProviderDescriptor": {
+            "type": "object",
+            "properties": {
+                "allow_user_api_key": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "has_api_key": {
+                    "type": "boolean"
+                },
+                "has_user_api_key": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -18883,24 +18826,6 @@ const docTemplate = `{
                 },
                 "user": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.ChatModelsResponse": {
-            "type": "object",
-            "properties": {
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatModelProvider"
-                    }
-                },
-                "unsupported_providers": {
-                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
-                    }
                 }
             }
         },
@@ -19551,7 +19476,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateChatModelConfigRequest": {
+        "codersdk.CreateChatModelRequest": {
             "type": "object",
             "properties": {
                 "ai_provider_id": {
@@ -22072,6 +21997,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MinimalChatModel": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.MinimalOrganization": {
             "type": "object",
             "required": [
@@ -23095,6 +23037,23 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationChatModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModel"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelProviderDescriptor"
+                    }
                 }
             }
         },
@@ -26625,7 +26584,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateChatModelConfigRequest": {
+        "codersdk.UpdateChatModelRequest": {
             "type": "object",
             "properties": {
                 "ai_provider_id": {

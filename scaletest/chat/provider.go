@@ -93,21 +93,21 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 }
 
 func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, provider codersdk.AIProvider, organizationID uuid.UUID) (uuid.UUID, error) {
-	modelConfigs, err := client.ListChatModelConfigsByOrganization(ctx, organizationID)
+	resp, err := client.ChatModels(ctx, organizationID)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("list chat model configs: %w", err)
 	}
 
-	for i := range modelConfigs {
-		matchesProvider := modelConfigs[i].AIProviderID == provider.ID
-		matchesModel := modelConfigs[i].Model == scaletestModelName
+	for i := range resp.Models {
+		matchesProvider := resp.Models[i].AIProviderID == provider.ID
+		matchesModel := resp.Models[i].Model == scaletestModelName
 		if !matchesProvider || !matchesModel {
 			continue
 		}
-		if !modelConfigs[i].Enabled {
-			return uuid.Nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", modelConfigs[i].ID)
+		if !resp.Models[i].Enabled {
+			return uuid.Nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", resp.Models[i].ID)
 		}
-		modelConfigID := modelConfigs[i].ID
+		modelConfigID := resp.Models[i].ID
 		logger.Info(ctx, "reusing scaletest model config", slog.F("model_config_id", modelConfigID), slog.F("organization_id", organizationID))
 		return modelConfigID, nil
 	}
@@ -115,7 +115,7 @@ func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigC
 	enabled := true
 	isDefault := false
 	contextLimit := scaletestModelContextLimit
-	created, err := client.CreateChatModelConfig(ctx, organizationID, codersdk.CreateChatModelConfigRequest{
+	created, err := client.CreateChatModel(ctx, organizationID, codersdk.CreateChatModelRequest{
 		AIProviderID: &provider.ID,
 		Model:        scaletestModelName,
 		DisplayName:  scaletestModelDisplayName,
