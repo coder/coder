@@ -26,12 +26,6 @@ type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	// DiffOverride, when set, replaces the auditor's diff for this
-	// request. It exists so AGPL handler tests can pin the Old/New pair
-	// the handler captured, which the mock auditor's empty diff cannot
-	// express. Production wiring never sets it.
-	DiffOverride func(old, newVal any) Map
-
 	// OrganizationID is only provided when possible. If an audit resource extends
 	// beyond the org scope, leave this as the nil uuid.
 	OrganizationID   uuid.UUID
@@ -501,9 +495,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if sw.Status < 400 &&
 			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
-			if req.params.DiffOverride != nil {
-				diff = req.params.DiffOverride(req.Old, req.New)
-			}
 
 			var err error
 			diffRaw, err = json.Marshal(diff)
