@@ -3528,6 +3528,7 @@ const (
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
+	ResourceTypeAIModelPrice               ResourceType = "ai_model_price"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3601,7 +3602,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroupAIBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
-		ResourceTypeUserAIBudgetOverride:
+		ResourceTypeUserAIBudgetOverride,
+	ResourceTypeAIModelPrice:
 		return true
 	}
 	return false
@@ -3644,6 +3646,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
+		ResourceTypeAIModelPrice,
 	}
 }
 

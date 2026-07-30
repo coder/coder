@@ -156,6 +156,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserSkill:
 		return typed.Name
+	case database.AuditableAIModelPriceUpdate:
+		return typed.Providers
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -238,6 +240,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSkill:
 		return typed.ID
+	case database.AuditableAIModelPriceUpdate:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -311,6 +316,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
+	case database.AuditableAIModelPriceUpdate:
+		return database.ResourceTypeAIModelPrice
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}

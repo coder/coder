@@ -44,6 +44,14 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+// AuditableAIModelPriceUpdate is never stored in the database. It exists
+// for audit logging of batch AI model price updates.
+type AuditableAIModelPriceUpdate struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Providers string    `db:"providers" json:"providers"` // comma-separated affected providers
+	Count     int       `db:"count" json:"count"`         // number of rows in this batch
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
