@@ -119,6 +119,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIA-original"),
 				AccessKeySecret: serpent.String("secret-original"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -213,8 +214,9 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// via the AWS environment (instance profile, AWS_PROFILE, etc.).
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
-				Region: serpent.String("us-east-1"),
-				Model:  serpent.String("anthropic.claude-3-5-sonnet"),
+				Region:         serpent.String("us-east-1"),
+				Model:          serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel: serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -240,6 +242,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIAONLY"),
 				AccessKeySecret: serpent.String("secretonly"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -363,6 +366,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 					BaseURL:                 "https://bedrock-runtime.us-east-1.amazonaws.com/",
 					BedrockRegion:           "us-east-1",
 					BedrockModel:            "anthropic.claude-3-5-sonnet",
+					BedrockSmallFastModel:   "anthropic.claude-3-5-haiku",
 					BedrockAccessKeys:       []string{"AKIA-indexed"},
 					BedrockAccessKeySecrets: []string{"indexed-secret"},
 				},
@@ -602,6 +606,46 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Contains(t, err.Error(), "conflicting fields")
 	})
 
+	t.Run("IndexedBedrockRegionOnlyRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Region without model/small_fast_model is exactly the bad-row
+		// class the PR prevents: a region-only row that 404s at runtime.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:          "bedrock",
+					Name:          "region-only",
+					BedrockRegion: "us-east-1",
+				},
+			},
+		}
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "bedrock config")
+		require.Contains(t, err.Error(), "model required")
+	})
+
+	t.Run("LegacyBedrockRegionOnlyRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Same bad-row class via the legacy env path: region set, no
+		// model or small_fast_model.
+		cfg := codersdk.AIBridgeConfig{
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region: serpent.String("us-east-1"),
+			},
+		}
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "bedrock config")
+		require.Contains(t, err.Error(), "model required")
+	})
+
 	t.Run("SeedIsIdempotentAfterBedrockBackfill", func(t *testing.T) {
 		t.Parallel()
 		// Regression: seed must not treat a type=anthropic row promoted to
@@ -615,6 +659,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIA"),
 				AccessKeySecret: serpent.String("secret"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 

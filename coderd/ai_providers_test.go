@@ -972,6 +972,80 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		})
 	})
 
+	t.Run("BedrockMantleMissingBaseURLRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A mantle bedrock provider with region but no base_url is rejected:
+		// config.AWSBedrock.ValidationErrors() requires both for mantle.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-mantle-no-baseurl",
+			Enabled: true,
+			// No BaseURL: mantle requires it.
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:   "us-east-1",
+					Protocol: codersdk.AIProviderBedrockProtocolMantle,
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.base_url",
+			Detail: "base_url required",
+		})
+	})
+
+	t.Run("BedrockRegionOnlyRejectedOnUpdate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create a valid bedrock provider, then PATCH to a region-only
+		// (no model, no small_fast_model) bedrock settings blob. The
+		// update handler rejects it via config.AWSBedrock.ValidationErrors().
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-update-region-only",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-6",
+					SmallFastModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: ptr.Ref("https://bedrock-runtime.us-east-1.amazonaws.com"),
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region: "us-east-1",
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.model",
+			Detail: "model required",
+		})
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.small_fast_model",
+			Detail: "small fast model required",
+		})
+	})
+
 	t.Run("CopilotCreateWithoutKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

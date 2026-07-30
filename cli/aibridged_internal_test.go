@@ -280,7 +280,8 @@ func TestBuildProviders(t *testing.T) {
 			Name:    aibridge.ProviderAnthropic,
 			BaseUrl: "https://api.anthropic.com/",
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
+		_, ok := agplaibridge.BedrockConfigFromSettings(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock)
+		assert.False(t, ok)
 	})
 
 	t.Run("NativeAnthropicCustomBaseURL", func(t *testing.T) {
@@ -290,7 +291,8 @@ func TestBuildProviders(t *testing.T) {
 			Name:    "anthropic-proxy",
 			BaseUrl: "https://internal-proxy.example.com/anthropic/",
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
+		_, ok := agplaibridge.BedrockConfigFromSettings(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock)
+		assert.False(t, ok)
 	})
 
 	t.Run("BedrockSettingsPresent", func(t *testing.T) {
@@ -315,8 +317,9 @@ func TestBuildProviders(t *testing.T) {
 				RoleARN:         roleARN,
 			},
 		}
-		got := bedrockConfig(row.BaseUrl, settings.Bedrock)
-		require.NotNil(t, got)
+		cfg, ok := agplaibridge.BedrockConfigFromSettings(row.BaseUrl, settings.Bedrock)
+		require.True(t, ok)
+		got := &cfg
 		assert.Equal(t, row.BaseUrl, got.BaseURL)
 		assert.Equal(t, "us-west-2", got.Region)
 		assert.Equal(t, accessKey, got.AccessKey)
@@ -339,7 +342,8 @@ func TestBuildProviders(t *testing.T) {
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{},
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, settings.Bedrock))
+		_, ok := agplaibridge.BedrockConfigFromSettings(row.BaseUrl, settings.Bedrock)
+		assert.False(t, ok)
 	})
 }
 

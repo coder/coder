@@ -168,13 +168,20 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	// small_fast_model (invoke-model) and base_url (mantle) rules live in
 	// aibridge/config.AWSBedrock.ValidationErrors() as the single source of truth
 	// shared with the runtime. Map its field-scoped errors to the API response.
+	// Only validate when BedrockConfigFromSettings reports the settings are
+	// configured; otherwise the zero config emits spurious field errors that
+	// would reject a type=anthropic provider carrying an unconfigured bedrock
+	// blob (codersdk.Validate() handles the "type=bedrock requires bedrock
+	// settings" check separately).
 	if req.Settings.Bedrock != nil {
-		cfg, _ := aibridge.BedrockConfigFromSettings(req.BaseURL, req.Settings.Bedrock)
-		for _, fe := range cfg.ValidationErrors() {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "settings." + fe.Field,
-				Detail: fe.Detail,
-			})
+		cfg, ok := aibridge.BedrockConfigFromSettings(req.BaseURL, req.Settings.Bedrock)
+		if ok {
+			for _, fe := range cfg.ValidationErrors() {
+				validations = append(validations, codersdk.ValidationError{
+					Field:  "settings." + fe.Field,
+					Detail: fe.Detail,
+				})
+			}
 		}
 	}
 	if len(validations) > 0 {
@@ -311,13 +318,23 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	validations := req.Validate()
-	if req.Settings != nil && req.Settings.Bedrock != nil {
-		cfg, _ := aibridge.BedrockConfigFromSettings(ptr.NilToDefault(req.BaseURL, ""), req.Settings.Bedrock)
-		for _, fe := range cfg.ValidationErrors() {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "settings." + fe.Field,
-				Detail: fe.Detail,
-			})
+	// Validate the bedrock fields using the single source of truth in
+	// config.AWSBedrock. The PATCH is validated as-is: a bedrock-touching
+	// PATCH must resend the full settings AND base_url (the UI does this).
+	// When base_url is nil (unchanged from the stored row) we cannot
+	// evaluate the mantle base_url rule without a DB read, so skip field
+	// validation in that case rather than risk a false positive. Only
+	// validate when BedrockConfigFromSettings reports the settings are
+	// configured; otherwise the zero config emits spurious field errors.
+	if req.Settings != nil && req.Settings.Bedrock != nil && req.BaseURL != nil {
+		cfg, ok := aibridge.BedrockConfigFromSettings(*req.BaseURL, req.Settings.Bedrock)
+		if ok {
+			for _, fe := range cfg.ValidationErrors() {
+				validations = append(validations, codersdk.ValidationError{
+					Field:  "settings." + fe.Field,
+					Detail: fe.Detail,
+				})
+			}
 		}
 	}
 	if len(validations) > 0 {

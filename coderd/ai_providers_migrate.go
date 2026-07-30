@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	cdaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -449,6 +450,24 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			continue
 		}
 		out[name] = dp
+	}
+
+	// Validate bedrock providers against the single source of
+	// truth (config.AWSBedrock.ValidationErrors) so the seed path
+	// enforces the same required-field rules as the HTTP handlers.
+	// Failing here prevents persisting a region-only (or otherwise
+	// incomplete) row that would 404 at runtime.
+	for name, dp := range out {
+		if dp.Bedrock == nil {
+			continue
+		}
+		cfg, ok := cdaibridge.BedrockConfigFromSettings(dp.BaseURL, dp.Bedrock)
+		if !ok {
+			continue
+		}
+		if errs := cfg.ValidationErrors(); len(errs) > 0 {
+			return nil, xerrors.Errorf("ai provider %q: bedrock config: %s", name, errs[0].Detail)
+		}
 	}
 
 	// Stable order so audit log entries are deterministic across

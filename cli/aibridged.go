@@ -338,19 +338,6 @@ func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridg
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
 }
 
-// bedrockConfig is a thin adapter over the shared
-// [agplaibridge.BedrockConfigFromSettings] converter, retained so the
-// package-local test harness can construct a *config.AWSBedrock from
-// codersdk settings. The conversion logic lives in coderd/aibridge so
-// both cli and the coderd handler share a single implementation.
-func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) *aibridge.AWSBedrockConfig {
-	cfg, ok := agplaibridge.BedrockConfigFromSettings(baseURL, bedrock)
-	if !ok {
-		return nil
-	}
-	return &cfg
-}
-
 // circuitBreakerConfig returns nil when the breaker is disabled.
 func circuitBreakerConfig(cfg codersdk.AIBridgeConfig) *config.CircuitBreaker {
 	if !cfg.CircuitBreakerEnabled.Value() {
