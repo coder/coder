@@ -1161,12 +1161,16 @@ WITH per_request AS (
 	-- One row per interception. A request records one token usage per provider
 	-- response, so aggregating here keeps the outer counts per request and
 	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
 	SELECT
 		SUM(tu.cost_micros) AS cost_micros,
-		BOOL_OR(tu.cost_micros IS NULL) AS has_unpriced_usage
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
 	FROM aibridge_interceptions i
 	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
-	JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
 	WHERE (
 			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
 			-- stays a plain comparison against an indexed column.

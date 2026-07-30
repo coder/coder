@@ -11799,6 +11799,37 @@ func TestGetChatCost(t *testing.T) {
 		require.Equal(t, int64(0), cost.UnpricedRequestCount)
 	})
 
+	t.Run("RequestWithoutUsage", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		everyoneGroup := uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true}
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "failed request chat",
+		})
+		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID, database.InsertAIBridgeTokenUsageParams{
+			EffectiveGroupID: everyoneGroup,
+			CostMicros:       sql.NullInt64{Int64: 200, Valid: true},
+		})
+		// A request that fails upstream still ends, but records no usage. It
+		// counts as a request, adds no cost, and is not unpriced usage.
+		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(200), cost.TotalCostMicros)
+		require.Equal(t, int64(2), cost.RequestCount)
+		require.Equal(t, int64(0), cost.UnpricedRequestCount)
+	})
+
 	t.Run("IsolatesSiblingChatTrees", func(t *testing.T) {
 		t.Parallel()
 
@@ -11856,7 +11887,7 @@ func TestGetChatCost(t *testing.T) {
 		}
 	})
 
-	t.Run("ExcludesUnattributedUsage", func(t *testing.T) {
+	t.Run("ExcludesUnattributedUsageFromCost", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := newChatClientWithDatabase(t)
@@ -11870,7 +11901,8 @@ func TestGetChatCost(t *testing.T) {
 			Title:             "legacy chat",
 		})
 		// Usage recorded before group attribution existed never reached
-		// ai_user_daily_spend, so it must not appear as chat spend either.
+		// ai_user_daily_spend, so it must not appear as chat spend either. The
+		// request itself still finished, so it stays in the request count.
 		seedChatGatewayRequest(t, db, firstUser.UserID, chat.ID, database.InsertAIBridgeTokenUsageParams{
 			CostMicros: sql.NullInt64{Int64: 900, Valid: true},
 		})
@@ -11880,7 +11912,8 @@ func TestGetChatCost(t *testing.T) {
 		cost, err := client.GetChatCost(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, int64(0), cost.TotalCostMicros)
-		require.Equal(t, int64(0), cost.RequestCount)
+		require.Equal(t, int64(1), cost.RequestCount)
+		require.Equal(t, int64(0), cost.UnpricedRequestCount)
 	})
 
 	t.Run("ExcludesForeignAndUnfinishedRequests", func(t *testing.T) {

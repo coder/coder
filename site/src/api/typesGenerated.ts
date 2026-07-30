@@ -2157,6 +2157,8 @@ export interface ChatContextTool {
 /**
  * ChatCost is the AI Gateway cost for the requested chat's whole tree.
  * Root and subagent chats report the same total.
+ * RequestCount counts every finished request in the tree, including ones that
+ * recorded no billable usage at all, such as a request that failed upstream.
  * UnpricedRequestCount counts requests with at least one usage record whose
  * model had no recorded price; RequestCount includes them and
  * TotalCostMicros omits only their unpriced usage.
