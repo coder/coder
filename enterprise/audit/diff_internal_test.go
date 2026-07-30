@@ -512,11 +512,11 @@ func Test_diff(t *testing.T) {
 			// endpoint populates only its two fields; the untouched
 			// plan-mode field stays zero on both sides and never diffs.
 			name: "SystemPromptChangeTracked",
-			left: database.ChatSystemPromptSettings{
+			left: database.ChatInstructionSettings{
 				SystemPrompt:               "old instructions",
 				IncludeDefaultSystemPrompt: true,
 			},
-			right: database.ChatSystemPromptSettings{
+			right: database.ChatInstructionSettings{
 				ID:                         uuid.UUID{1},
 				SystemPrompt:               "new instructions",
 				IncludeDefaultSystemPrompt: false,
@@ -531,10 +531,10 @@ func Test_diff(t *testing.T) {
 			// system-prompt fields stay zero on both sides, so a
 			// plan-mode change diffs exactly one field.
 			name: "PlanModeInstructionsChangeTracked",
-			left: database.ChatSystemPromptSettings{
+			left: database.ChatInstructionSettings{
 				PlanModeInstructions: "old plan guidance",
 			},
-			right: database.ChatSystemPromptSettings{
+			right: database.ChatInstructionSettings{
 				ID:                   uuid.UUID{1},
 				PlanModeInstructions: "new plan guidance",
 			},
@@ -547,11 +547,11 @@ func Test_diff(t *testing.T) {
 			// would diff empty. Handlers additionally suppress the entry
 			// entirely by leaving both resource IDs nil.
 			name: "ArtificialIDIgnored",
-			left: database.ChatSystemPromptSettings{
+			left: database.ChatInstructionSettings{
 				SystemPrompt:               "same",
 				IncludeDefaultSystemPrompt: true,
 			},
-			right: database.ChatSystemPromptSettings{
+			right: database.ChatInstructionSettings{
 				ID:                         uuid.UUID{1},
 				SystemPrompt:               "same",
 				IncludeDefaultSystemPrompt: true,

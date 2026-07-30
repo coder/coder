@@ -375,6 +375,38 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
+// failNextChatSettingsLockStore lets a test force the chat settings advisory
+// lock acquisition to fail once, sharing its failure state across InTx
+// wrappers.
+type failNextChatSettingsLockStore struct {
+	database.Store
+
+	failNextAcquireLock *atomic.Bool
+}
+
+func newFailNextChatSettingsLockStore(store database.Store) *failNextChatSettingsLockStore {
+	return &failNextChatSettingsLockStore{
+		Store:               store,
+		failNextAcquireLock: &atomic.Bool{},
+	}
+}
+
+func (s *failNextChatSettingsLockStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextChatSettingsLockStore{
+			Store:               tx,
+			failNextAcquireLock: s.failNextAcquireLock,
+		})
+	}, txOpts)
+}
+
+func (s *failNextChatSettingsLockStore) AcquireLock(ctx context.Context, id int64) error {
+	if s.failNextAcquireLock.CompareAndSwap(true, false) {
+		return stderrors.New("forced advisory lock acquisition failure")
+	}
+	return s.Store.AcquireLock(ctx, id)
+}
+
 // normalizingChatPlanModeInstructionsStore stores an uppercased value on
 // every upsert, so tests can prove the audited New comes from the stored
 // value, not the request text.
@@ -12967,7 +12999,8 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
 
-		// A value change emits a Write entry for the deployment singleton.
+		// A value change emits a Write entry with the setting's stable
+		// identity.
 		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "You are a test assistant.",
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
@@ -12977,9 +13010,9 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
-		require.Equal(t, "", logs[0].ResourceTarget)
-		require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+		require.Equal(t, database.ResourceTypeChatInstructionSettings, logs[0].ResourceType)
+		require.Equal(t, audit.ChatInstructionSystemPromptID, logs[0].ResourceID)
+		require.Equal(t, "System prompt", logs[0].ResourceTarget)
 		require.Equal(t, uuid.Nil, logs[0].OrganizationID)
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 
@@ -12996,6 +13029,18 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.NoError(t, err)
 		require.Equal(t, "You are a test assistant.", resp.SystemPrompt)
 		require.True(t, resp.IncludeDefaultSystemPrompt)
+
+		// A second distinct change keeps the same stable identity.
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Renamed assistant.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		logs = mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, audit.ChatInstructionSystemPromptID, logs[0].ResourceID)
+		require.Equal(t, "System prompt", logs[0].ResourceTarget)
 
 		// An omitted-flag PUT is not mis-suppressed: the stored toggle row
 		// keeps the effective include-default flag false, so a prompt-only
@@ -13020,14 +13065,49 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.Equal(t, "Renamed without default.", resp.SystemPrompt)
 		require.False(t, resp.IncludeDefaultSystemPrompt)
 
-		// A failed PUT emits nothing.
+		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
 		tooLong := strings.Repeat("a", 131073)
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: tooLong,
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
-		require.Empty(t, mAudit.AuditLogs())
+		logs = mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusBadRequest, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A denied PUT records the attempt with status 403, an empty diff, and
+	// no request body content in the row.
+	t.Run("AuditDeniedPUTRecordsAttempt", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, auditClient.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, auditClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		mAudit.ResetLogs()
+
+		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "must not leak into the audit row",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.ResourceTypeChatInstructionSettings, logs[0].ResourceType)
+		require.Equal(t, audit.ChatInstructionSystemPromptID, logs[0].ResourceID)
+		require.Equal(t, "System prompt", logs[0].ResourceTarget)
+		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.NotContains(t, string(logs[0].Diff), "must not leak")
 	})
 
 	// A failing audit capture read must not change the request outcome:
@@ -13060,8 +13140,11 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		require.NoError(t, err)
-		require.Empty(t, mAudit.AuditLogs())
-		require.Contains(t, sink.messages(), "audit old capture failed, writing chat system prompt without an audit entry")
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.Contains(t, sink.messages(), "audit old capture failed, writing chat system prompt without a diff")
 
 		resp, err := client.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
@@ -13115,8 +13198,11 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			SystemPrompt: "Changed prompt.",
 		})
 		require.NoError(t, err)
-		require.Empty(t, mAudit.AuditLogs())
-		require.Contains(t, sink.messages(), "audit new capture failed, writing chat system prompt without an audit entry")
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.Contains(t, sink.messages(), "audit new capture failed, writing chat system prompt without a diff")
 
 		resp, err := client.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
@@ -13151,19 +13237,67 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			IncludeDefaultSystemPrompt: ptr.Ref(false),
 		})
 		requireSDKError(t, err, http.StatusInternalServerError)
-		require.Empty(t, mAudit.AuditLogs())
+		// The failed request records the attempt with an empty diff.
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
 
 		// The failed write rolled back, so the effective state is still
 		// the deployment default (empty prompt, include-default true).
 		// Writing exactly that state changes nothing and must stay
 		// suppressed: the stale Old from the failed request must not
 		// survive into this one.
+		mAudit.ResetLogs()
 		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// When the advisory lock cannot be taken, the write still happens
+	// through main's direct path and the response stays 204; the attempt
+	// exports with an empty diff. Accepted degradation: two concurrent
+	// identical writes can both record in this state.
+	t.Run("AuditLockFailureFallsBack", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSettingsLockStore(rawDB)
+		mAudit := audit.NewMock()
+		sink := &recordingSink{}
+		logger := slog.Make(sink)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+			Logger:           &logger,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextAcquireLock.Store(true)
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Written despite the lock failure.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.Contains(t, sink.messages(), "chat system prompt update transaction failed")
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Written despite the lock failure.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
@@ -13219,9 +13353,9 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		// commitAudit), so it must use assert, not require: require calls
 		// t.FailNow, which is only legal on the test goroutine.
 		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.ChatSystemPromptSettings)
+			oldSettings, ok := old.(database.ChatInstructionSettings)
 			assert.True(t, ok)
-			newSettings, ok := newVal.(database.ChatSystemPromptSettings)
+			newSettings, ok := newVal.(database.ChatInstructionSettings)
 			assert.True(t, ok)
 			return audit.Map{
 				"system_prompt":                 {Old: oldSettings.SystemPrompt, New: newSettings.SystemPrompt},
@@ -13302,7 +13436,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
+		require.Equal(t, database.ResourceTypeChatInstructionSettings, logs[0].ResourceType)
 
 		resp, err = auditClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
@@ -13403,7 +13537,8 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
 
-		// A value change emits a Write entry.
+		// A value change emits a Write entry with the setting's stable
+		// identity, distinct from the system prompt's.
 		err := auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: "Draft a plan first.",
 		})
@@ -13412,9 +13547,10 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeChatSystemPromptSettings, logs[0].ResourceType)
-		require.Equal(t, "", logs[0].ResourceTarget)
-		require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+		require.Equal(t, database.ResourceTypeChatInstructionSettings, logs[0].ResourceType)
+		require.Equal(t, audit.ChatInstructionPlanModeID, logs[0].ResourceID)
+		require.Equal(t, "Plan mode instructions", logs[0].ResourceTarget)
+		require.NotEqual(t, audit.ChatInstructionSystemPromptID, logs[0].ResourceID)
 		require.Equal(t, uuid.Nil, logs[0].OrganizationID)
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 
@@ -13430,14 +13566,60 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Draft a plan first.", resp.PlanModeInstructions)
 
-		// A failed PUT emits nothing.
+		// A second distinct change keeps the same stable identity.
+		mAudit.ResetLogs()
+		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Draft a better plan.",
+		})
+		require.NoError(t, err)
+		logs = mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, audit.ChatInstructionPlanModeID, logs[0].ResourceID)
+		require.Equal(t, "Plan mode instructions", logs[0].ResourceTarget)
+
+		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
 		tooLong := strings.Repeat("a", 131073)
 		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: tooLong,
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
-		require.Empty(t, mAudit.AuditLogs())
+		logs = mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusBadRequest, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A denied PUT records the attempt with status 403, an empty diff, and
+	// no request body content in the row.
+	t.Run("AuditDeniedPUTRecordsAttempt", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, auditClient.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, auditClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		mAudit.ResetLogs()
+
+		err := memberClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "must not leak into the audit row",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.ResourceTypeChatInstructionSettings, logs[0].ResourceType)
+		require.Equal(t, audit.ChatInstructionPlanModeID, logs[0].ResourceID)
+		require.Equal(t, "Plan mode instructions", logs[0].ResourceTarget)
+		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.NotContains(t, string(logs[0].Diff), "must not leak")
 	})
 
 	// A failing audit old-capture read must not change the request
@@ -13466,7 +13648,10 @@ func TestChatPlanModeInstructions(t *testing.T) {
 			PlanModeInstructions: "Written despite the failed audit read.",
 		})
 		require.NoError(t, err)
-		require.Empty(t, mAudit.AuditLogs())
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
 
 		resp, err := client.GetChatPlanModeInstructions(ctx)
 		require.NoError(t, err)
@@ -13483,9 +13668,9 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := &normalizingChatPlanModeInstructionsStore{Store: rawDB}
 		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.ChatSystemPromptSettings)
+			oldSettings, ok := old.(database.ChatInstructionSettings)
 			assert.True(t, ok)
-			newSettings, ok := newVal.(database.ChatSystemPromptSettings)
+			newSettings, ok := newVal.(database.ChatInstructionSettings)
 			assert.True(t, ok)
 			return audit.Map{
 				"plan_mode_instructions": {Old: oldSettings.PlanModeInstructions, New: newSettings.PlanModeInstructions},
@@ -13558,16 +13743,61 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		// The response detail must be the raw write error, byte-identical
 		// to the pre-transaction endpoint, not the InTx wrapper.
 		require.Equal(t, "forced plan mode instructions upsert failure", sdkErr.Detail)
-		require.Empty(t, mAudit.AuditLogs())
+		// The failed request records the attempt with an empty diff.
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
 
 		// The failed write rolled back, so the stored value is still
 		// "Persist me." and repeating it is a no-op: no entry. The stale
 		// Old from the failed request must not survive into this one.
+		mAudit.ResetLogs()
 		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: "Persist me.",
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// When the advisory lock cannot be taken, the write still happens
+	// through main's direct path and the response stays 204; the attempt
+	// exports with an empty diff.
+	t.Run("AuditLockFailureFallsBack", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSettingsLockStore(rawDB)
+		mAudit := audit.NewMock()
+		sink := &recordingSink{}
+		logger := slog.Make(sink)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+			Logger:           &logger,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextAcquireLock.Store(true)
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Written despite the lock failure.",
+		})
+		require.NoError(t, err)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+		require.Contains(t, sink.messages(), "plan mode instructions update transaction failed")
+
+		resp, err := client.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Written despite the lock failure.", resp.PlanModeInstructions)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
