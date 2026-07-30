@@ -13489,7 +13489,10 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: "Never stored.",
 		})
-		requireSDKError(t, err, http.StatusInternalServerError)
+		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+		// The response detail must be the raw write error, byte-identical
+		// to the pre-transaction endpoint, not the InTx wrapper.
+		require.Equal(t, "forced plan mode instructions upsert failure", sdkErr.Detail)
 		require.Empty(t, mAudit.AuditLogs())
 
 		// The failed write rolled back, so the stored value is still

@@ -4719,6 +4719,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// of the write path, so a failure to acquire it fails the request.
 	// The read and write share one transaction so the audited old value is
 	// exactly the value this request replaced.
+	var writeErr error
 	err := api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDChatSettingsWrites); err != nil {
 			return xerrors.Errorf("acquire chat settings write lock: %w", err)
@@ -4737,6 +4738,11 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			}
 		}
 		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+			// Record the raw write error so the response matches the
+			// pre-transaction behavior exactly: InTx wraps callback
+			// errors in "execute transaction", which would otherwise leak
+			// into the response detail.
+			writeErr = err
 			return err
 		}
 		if oldErr != nil || sanitizedInstructions == oldInstructions {
@@ -4755,9 +4761,16 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return nil
 	}, nil)
 	if err != nil {
+		// A write failure responds with the raw error exactly as the
+		// pre-transaction endpoint did; lock, begin, commit and rollback
+		// failures keep the InTx wrapper so they stay distinguishable.
+		detail := err.Error()
+		if writeErr != nil {
+			detail = writeErr.Error()
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",
-			Detail:  err.Error(),
+			Detail:  detail,
 		})
 		return
 	}
