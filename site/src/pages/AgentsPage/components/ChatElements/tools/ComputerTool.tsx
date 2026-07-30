@@ -16,9 +16,18 @@ export const ComputerTool: React.FC<{
 	mimeType: string;
 	text: string;
 	status: ToolStatus;
+	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ imageData, mimeType, text, status, isError, errorMessage }) => {
+}> = ({
+	imageData,
+	mimeType,
+	text,
+	status,
+	hookRewritten,
+	isError,
+	errorMessage,
+}) => {
 	const [showLightbox, setShowLightbox] = useState(false);
 	const isRunning = status === "running";
 	const hasImage = imageData.length > 0;
@@ -28,6 +37,7 @@ export const ComputerTool: React.FC<{
 
 	return (
 		<ToolCall.Root
+			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

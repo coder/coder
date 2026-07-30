@@ -5,6 +5,7 @@ import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
 interface StartWorkspaceToolProps {
 	status: ToolStatus;
+	hookRewritten?: boolean;
 	buildId?: string;
 	workspaceName: string;
 	isError: boolean;
@@ -15,6 +16,7 @@ interface StartWorkspaceToolProps {
 
 export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	status,
+	hookRewritten,
 	buildId,
 	workspaceName,
 	isError,
@@ -38,6 +40,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	return (
 		<ToolCall.Root
+			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

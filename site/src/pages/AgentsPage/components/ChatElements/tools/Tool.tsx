@@ -117,6 +117,7 @@ type ToolRendererProps = {
 	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	hookRewritten?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -214,6 +215,7 @@ const parseAskUserQuestionResult = (
 
 const ExecuteRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -228,6 +230,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			command={data.command}
 			transcriptBlocks={data.transcriptBlocks}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorText={data.errorText}
 			durationMs={data.durationMs}
@@ -242,6 +245,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 
 const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 	killedBySignal,
@@ -263,12 +267,14 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
+			hookRewritten={hookRewritten}
 		/>
 	);
 };
 
 const ReadFileRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -276,11 +282,13 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	<ReadFileTool
 		{...getReadFileToolData({ args, result, isError })}
 		status={status}
+		hookRewritten={hookRewritten}
 	/>
 );
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -295,6 +303,7 @@ const ReadSkillRenderer: FC<ToolRendererProps> = ({
 			label={skillName ? `skill ${skillName}` : "skill"}
 			body={body}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
@@ -303,6 +312,7 @@ const ReadSkillRenderer: FC<ToolRendererProps> = ({
 
 const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -322,6 +332,7 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 			label={label}
 			body={content}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
@@ -330,6 +341,7 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 
 const WriteFileRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -345,6 +357,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 			path={path || "file"}
 			diff={writeFileDiff}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			codeDiffDisplayMode={codeDiffDisplayMode}
@@ -354,6 +367,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 
 const EditFilesRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -378,6 +392,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 			files={editFiles}
 			diffs={editDiffs}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			codeDiffDisplayMode={codeDiffDisplayMode}
@@ -389,6 +404,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 // with workspace metadata.
 const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -405,6 +421,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			workspaceName={wsName}
 			resultJson={resultJson}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
@@ -417,6 +434,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 const SubagentRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -519,12 +537,14 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			}
 			recordingFileId={recordingFileId || undefined}
 			thumbnailFileId={thumbnailFileId || undefined}
+			hookRewritten={hookRewritten}
 		/>
 	);
 };
 
 const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -539,6 +559,7 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 			templates={templates}
 			count={count}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
@@ -547,6 +568,7 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 
 const ListAgentsRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -561,6 +583,7 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 			agents={agents}
 			total={total}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={
 				rec
@@ -575,6 +598,7 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 
 const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -588,6 +612,7 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 		<ReadTemplateTool
 			templateName={name}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
@@ -596,6 +621,7 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 
 const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -615,6 +641,7 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 		<ChatSummarizedTool
 			summary={summary}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			source={source || undefined}
@@ -625,6 +652,7 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
+	hookRewritten,
 	result,
 	isError,
 	onSendAskUserQuestionResponse,
@@ -653,6 +681,7 @@ const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 		<AskUserQuestionTool
 			questions={questions}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
 			onSubmitAnswer={onSendAskUserQuestionResponse}
@@ -666,6 +695,7 @@ const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
+	hookRewritten,
 	result,
 	isError,
 	onImplementPlan,
@@ -686,6 +716,7 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 			fileID={fileID}
 			path={path}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={errorMessage}
 			onImplementPlan={onImplementPlan}
@@ -696,6 +727,7 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 const AdvisorRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -732,6 +764,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 		<AdvisorTool
 			question={question}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={hasError}
 			resultType={resolvedResultType}
 			advice={advice}
@@ -744,6 +777,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -799,6 +833,7 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 			mimeType={mimeType}
 			text={text}
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 		/>
 	);
@@ -899,6 +934,7 @@ const getGenericToolErrorMessage = ({
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
+	hookRewritten,
 	args,
 	result,
 	isError,
@@ -936,6 +972,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ToolCall.Root
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={errorMessage || fallbackErrorMessage}
 			hasContent={hasContent}
@@ -990,6 +1027,7 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 
 const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	status,
+	hookRewritten,
 	result,
 	isError,
 }) => {
@@ -1003,6 +1041,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	return (
 		<StartWorkspaceTool
 			status={status}
+			hookRewritten={hookRewritten}
 			buildId={buildId}
 			workspaceName={wsName}
 			isError={isError || hasErrorInResult}
@@ -1094,31 +1133,30 @@ export const Tool = memo(
 				)}
 				{...props}
 			>
-				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
-					<Renderer
-						name={name}
-						status={status}
-						args={args}
-						result={result}
-						isError={isError}
-						killedBySignal={killedBySignal}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						showDesktopPreviews={showDesktopPreviews}
-						subagentStatusOverrides={subagentStatusOverrides}
-						mcpServerConfigId={mcpServerConfigId}
-						mcpServers={mcpServers}
-						onImplementPlan={onImplementPlan}
-						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-						isChatCompleted={isChatCompleted}
-						isLatestAskUserQuestion={isLatestAskUserQuestion}
-						previousResponseText={previousResponseText}
-						modelIntent={modelIntent}
-						parsedCommands={parsedCommands}
-						shellToolDisplayMode={shellToolDisplayMode}
-						codeDiffDisplayMode={codeDiffDisplayMode}
-					/>
-				</ToolCall.PolicyProvider>
+				<Renderer
+					name={name}
+					status={status}
+					args={args}
+					result={result}
+					isError={isError}
+					killedBySignal={killedBySignal}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					showDesktopPreviews={showDesktopPreviews}
+					subagentStatusOverrides={subagentStatusOverrides}
+					mcpServerConfigId={mcpServerConfigId}
+					mcpServers={mcpServers}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					isLatestAskUserQuestion={isLatestAskUserQuestion}
+					previousResponseText={previousResponseText}
+					modelIntent={modelIntent}
+					parsedCommands={parsedCommands}
+					hookRewritten={hookRewritten}
+					shellToolDisplayMode={shellToolDisplayMode}
+					codeDiffDisplayMode={codeDiffDisplayMode}
+				/>
 			</div>
 		);
 	},

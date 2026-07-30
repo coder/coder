@@ -35,6 +35,7 @@ type ExecuteToolProps = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+	hookRewritten?: boolean;
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = ({
@@ -49,6 +50,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	modelIntent,
 	parsedCommands,
 	shellToolDisplayMode,
+	hookRewritten,
 }) => {
 	const hasTranscriptBlocks = transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
@@ -78,6 +80,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
+			hookRewritten={hookRewritten}
 			isError={isError}
 			errorMessage={errorText || "Command failed"}
 			hasContent

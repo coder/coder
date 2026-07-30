@@ -8,14 +8,16 @@ export const ReadSkillTool: React.FC<{
 	label: string;
 	body: string;
 	status: ToolStatus;
+	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ label, body, status, isError, errorMessage }) => {
+}> = ({ label, body, status, hookRewritten, isError, errorMessage }) => {
 	const hasContent = body.length > 0;
 	const isRunning = status === "running";
 
 	return (
 		<ToolCall.Root
+			hookRewritten={hookRewritten}
 			className="w-full"
 			status={status}
 			isError={isError}

@@ -20,6 +20,7 @@ export const ProposePlanTool: React.FC<{
 	fileID?: string;
 	path: string;
 	status: ToolStatus;
+	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	onImplementPlan?: () => Promise<void> | void;
@@ -28,6 +29,7 @@ export const ProposePlanTool: React.FC<{
 	fileID,
 	path,
 	status,
+	hookRewritten,
 	isError,
 	errorMessage,
 	onImplementPlan,
@@ -76,6 +78,7 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<ToolCall.Root
+				hookRewritten={hookRewritten}
 				status={status}
 				isError={effectiveError}
 				errorMessage={effectiveErrorMessage || "Failed to propose plan"}

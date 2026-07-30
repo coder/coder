@@ -26,10 +26,19 @@ export const EditFilesTool: React.FC<{
 	files: EditFilesFileEntry[];
 	diffs: (FileDiffMetadata | null)[];
 	status: ToolStatus;
+	hookRewritten?: boolean;
 	isError: boolean;
 	errorMessage?: string;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
+}> = ({
+	files,
+	diffs,
+	status,
+	hookRewritten,
+	isError,
+	errorMessage,
+	codeDiffDisplayMode,
+}) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
@@ -56,6 +65,7 @@ export const EditFilesTool: React.FC<{
 
 	return (
 		<ToolCall.Root
+			hookRewritten={hookRewritten}
 			key={`${codeDiffDisplayMode ?? "auto"}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}

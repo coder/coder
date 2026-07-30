@@ -42,38 +42,13 @@ type ToolCallContextValue = {
 	errorMessage?: string;
 	expanded: boolean;
 	failed: boolean;
+	hookRewritten: boolean;
 	onToggle: () => void;
 	status: ToolStatus;
 	view: ToolCallView;
 };
 
 const ToolCallContext = createContext<ToolCallContextValue | null>(null);
-
-const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
-	hookRewritten: false,
-});
-
-const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
-	hookRewritten,
-	children,
-}) => (
-	<ToolPolicyContext.Provider value={{ hookRewritten }}>
-		{children}
-	</ToolPolicyContext.Provider>
-);
-
-const PolicyBadge: FC = () => {
-	const { hookRewritten } = useContext(ToolPolicyContext);
-	if (!hookRewritten) {
-		return null;
-	}
-	return (
-		<span className="flex shrink-0 items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary">
-			<ShieldIcon aria-hidden className="size-3 shrink-0" />
-			Modified by policy
-		</span>
-	);
-};
 
 const useToolCallContext = () => {
 	const context = useContext(ToolCallContext);
@@ -83,6 +58,19 @@ const useToolCallContext = () => {
 		);
 	}
 	return context;
+};
+
+const PolicyBadge: FC = () => {
+	const { hookRewritten } = useToolCallContext();
+	if (!hookRewritten) {
+		return null;
+	}
+	return (
+		<span className="flex shrink-0 items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary">
+			<ShieldIcon aria-hidden className="size-3 shrink-0" />
+			Modified by policy
+		</span>
+	);
 };
 
 /**
@@ -98,6 +86,9 @@ const useToolCallContext = () => {
  *
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
+ *
+ * `hookRewritten` reaches descendants through context, so a
+ * {@link ToolCall.PolicyBadge} anywhere under this root picks it up.
  */
 type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	children: ReactNode;
@@ -112,6 +103,7 @@ type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
 	view?: ToolCallView;
+	hookRewritten?: boolean;
 };
 
 /**
@@ -135,6 +127,7 @@ const Root: FC<ToolCallRootProps> = ({
 	ariaLabel,
 	className,
 	view: viewProp,
+	hookRewritten = false,
 	...divProps
 }) => {
 	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
@@ -170,6 +163,7 @@ const Root: FC<ToolCallRootProps> = ({
 				errorMessage,
 				expanded,
 				failed,
+				hookRewritten,
 				onToggle,
 				status,
 				view,
@@ -203,8 +197,8 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 	className,
 	alwaysButton = false,
 }) => {
-	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
-	const { hookRewritten } = useContext(ToolPolicyContext);
+	const { ariaLabel, collapsible, expanded, hookRewritten, onToggle } =
+		useToolCallContext();
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
@@ -447,7 +441,6 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 
 export const ToolCall = {
 	Root,
-	PolicyProvider,
 	PolicyBadge,
 	HeaderRow,
 	HeaderButton,

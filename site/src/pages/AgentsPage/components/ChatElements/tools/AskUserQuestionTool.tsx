@@ -38,6 +38,7 @@ type AskUserQuestionToolProps = {
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
+	hookRewritten?: boolean;
 };
 
 const OTHER_OPTION_VALUE = "other";
@@ -377,6 +378,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	isLatestAskUserQuestion = false,
 	previousResponseText,
 	onSubmitAnswer,
+	hookRewritten,
 }) => {
 	const idPrefix = useId();
 	const filteredQuestions = questions.map(filterQuestionOptions);
@@ -542,6 +544,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					isError
 					errorMessage={errorMessage || "Failed to ask questions"}
 					hasContent={false}
+					hookRewritten={hookRewritten}
 				>
 					<ToolCall.Header
 						iconName="ask_user_question"
@@ -561,6 +564,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 						hasContent={false}
 						role="status"
 						aria-live="polite"
+						hookRewritten={hookRewritten}
 					>
 						<ToolCall.Header
 							iconName="ask_user_question"
@@ -678,19 +682,19 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	);
 
 	return (
-		<div className="w-full">
+		<ToolCall.Root
+			className="w-full"
+			status={status}
+			hasContent={false}
+			hookRewritten={hookRewritten}
+		>
 			{isRunning && (
-				<ToolCall.Root
-					status={status}
-					hasContent={false}
-					role="status"
-					aria-live="polite"
-				>
+				<div role="status" aria-live="polite">
 					<ToolCall.Header
 						iconName="ask_user_question"
 						label="Asking for clarification..."
 					/>
-				</ToolCall.Root>
+				</div>
 			)}
 			{!isRunning && (
 				<div className="flex">
@@ -703,6 +707,6 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			) : (
 				content
 			)}
-		</div>
+		</ToolCall.Root>
 	);
 };
