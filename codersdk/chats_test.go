@@ -23,13 +23,11 @@ func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testin
 	t.Parallel()
 
 	sendReasoning := true
-	effort := "high"
 	thinkingDisplay := "summarized"
 
 	raw, err := json.Marshal(codersdk.ChatModelProviderOptions{
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
 			SendReasoning:   &sendReasoning,
-			Effort:          &effort,
 			ThinkingDisplay: &thinkingDisplay,
 		},
 	})
@@ -37,7 +35,6 @@ func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testin
 	require.NotContains(t, string(raw), `"type":"anthropic.options"`)
 	require.NotContains(t, string(raw), `"data":`)
 	require.Contains(t, string(raw), `"send_reasoning":true`)
-	require.Contains(t, string(raw), `"effort":"high"`)
 	require.Contains(t, string(raw), `"thinking_display":"summarized"`)
 }
 
@@ -47,7 +44,6 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	raw := []byte(`{
 		"anthropic": {
 			"send_reasoning": true,
-			"effort": "high",
 			"thinking_display": "summarized"
 		}
 	}`)
@@ -58,12 +54,6 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	require.NotNil(t, decoded.Anthropic)
 	require.NotNil(t, decoded.Anthropic.SendReasoning)
 	require.True(t, *decoded.Anthropic.SendReasoning)
-	require.NotNil(t, decoded.Anthropic.Effort)
-	require.Equal(
-		t,
-		"high",
-		*decoded.Anthropic.Effort,
-	)
 	require.NotNil(t, decoded.Anthropic.ThinkingDisplay)
 	require.Equal(t, "summarized", *decoded.Anthropic.ThinkingDisplay)
 }
@@ -288,6 +278,18 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 	})
 }
 
+func TestChatModelReasoningEffortConfigEnumTags(t *testing.T) {
+	t.Parallel()
+
+	want := strings.Join(codersdk.ChatModelReasoningEffortValues(), ",")
+	typ := reflect.TypeOf(codersdk.ChatModelReasoningEffortConfig{})
+	for _, fieldName := range []string{"Default", "Max"} {
+		field, ok := typ.FieldByName(fieldName)
+		require.True(t, ok)
+		require.Equal(t, want, field.Tag.Get("enum"))
+	}
+}
+
 // TestChatMessagePartVariantTags validates the `variants` struct tags
 // on ChatMessagePart fields. Every field must either declare variant
 // membership or be explicitly excluded, and every known part type
@@ -305,13 +307,18 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
-		"signature":                    "added in #22290, never populated by any code path",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+	}
+	// Part types intentionally excluded from all generated variants.
+	// If you add a new part type, either reference it in a variants
+	// tag or add it here with a reason.
+	excludedTypes := map[codersdk.ChatMessagePartType]string{
+		codersdk.ChatMessagePartTypeHookContext: "internal only, stripped from client-facing conversions by db2sdk",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
@@ -352,8 +359,14 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		}
 	}
 
-	// Every known type must appear in at least one variants tag.
+	// Every known type must appear in at least one variants tag
+	// unless it is intentionally excluded from client codegen.
 	for pt := range knownTypes {
+		if _, excluded := excludedTypes[pt]; excluded {
+			assert.False(t, coveredTypes[pt],
+				"ChatMessagePartType %q is in excludedTypes but referenced by a variants tag; %s", pt, editHint)
+			continue
+		}
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
 	}
@@ -544,6 +557,31 @@ func TestChatModelCallConfig_UnmarshalLegacyPricing(t *testing.T) {
 	require.NotNil(t, decoded.Cost)
 	require.NotNil(t, decoded.Cost.InputPricePerMillionTokens)
 	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
+}
+
+func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
+	t.Parallel()
+
+	var decoded codersdk.ChatModelCallConfig
+	err := decoded.UnmarshalStrict([]byte(`{
+		"temperature": 0.5,
+		"cost": {"input_price_per_million_tokens": "5"},
+		"input_price_per_million_tokens": 1.5,
+		"provider_options": {"anthropic": {"thinking": {"budget_tokens": 1024}}}
+	}`))
+	require.NoError(t, err)
+	require.NotNil(t, decoded.Temperature)
+	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("5")))
+
+	err = decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
+	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
+
+	// Trailing data after the first value is rejected, matching json.Unmarshal.
+	err = decoded.UnmarshalStrict([]byte(`{"temperature": 0.5} {"bogus_setting": true}`))
+	require.ErrorContains(t, err, "trailing data")
+
+	// UnmarshalJSON stays lenient.
+	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
 func TestChatCostSummary_JSONRoundTrip(t *testing.T) {

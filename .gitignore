@@ -129,3 +129,4 @@ docs/plans/
 docs/.audit/
 
 /release-action
+test-timings.tsv

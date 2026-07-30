@@ -1,9 +1,8 @@
 # Auditing AI Sessions
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 AI Gateway groups intercepted requests into **sessions** and **threads** to show
 the causal relationships between human prompts and agent actions. This
@@ -49,7 +48,12 @@ not just what was called.
 
 The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists all sessions in
 reverse-chronological order. Each row shows the last prompt, initiator, provider,
-client, token usage, thread count, and timestamp.
+client, token usage, network calls, thread count, and timestamp.
+
+The network calls column reports the total and blocked
+[Agent Firewall](../agent-firewall/index.md) calls for the session. It shows
+`No activity` when the session made no calls, and `Disabled` when the session
+did not pass through Agent Firewall, so no network calls were monitored.
 
 Select one to view its full details.
 

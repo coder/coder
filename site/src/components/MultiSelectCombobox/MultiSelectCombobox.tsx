@@ -526,7 +526,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										}}
 										onClick={() => handleUnselect(option)}
 									>
-										<XIcon className="h-4 w-4 text-content-secondary hover:text-content-primary align-text-bottom" />
+										<XIcon className="size-4 text-content-secondary hover:text-content-primary align-text-bottom" />
 									</button>
 								</Badge>
 							);
@@ -593,7 +593,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									"hidden",
 							)}
 						>
-							<XIcon className="h-5 w-5" />
+							<XIcon className="size-5" />
 						</button>
 						<ChevronDownIcon
 							open={open}

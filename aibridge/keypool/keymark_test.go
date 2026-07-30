@@ -61,22 +61,24 @@ func TestMarkKeyOnStatus(t *testing.T) {
 			expectedReason:   "rate_limited",
 		},
 		{
-			name:           "401_marks_permanent",
-			statusCode:     http.StatusUnauthorized,
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
-			expectedReason: "unauthorized",
-		},
-		{
-			name:           "403_marks_permanent",
-			statusCode:     http.StatusForbidden,
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
-			expectedReason: "forbidden",
+			name:             "401_marks_temporary",
+			statusCode:       http.StatusUnauthorized,
+			expectedReturn:   true,
+			expectedState:    keypool.KeyStateTemporary,
+			expectedCooldown: 60 * time.Second,
+			expectedReason:   "unauthorized",
 		},
 		{
 			name:           "200_does_not_mark",
 			statusCode:     http.StatusOK,
+			expectedReturn: false,
+			expectedState:  keypool.KeyStateValid,
+		},
+		{
+			// 403 is a per-request authorization failure, so the key
+			// is not marked.
+			name:           "403_does_not_mark",
+			statusCode:     http.StatusForbidden,
 			expectedReturn: false,
 			expectedState:  keypool.KeyStateValid,
 		},
@@ -121,9 +123,7 @@ func TestMarkKeyOnStatus(t *testing.T) {
 				context.Background(),
 				key,
 				resp,
-				// 401 and 403 cases legitimately log at error
-				// level when marking a key permanent.
-				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				slogtest.Make(t, nil),
 			)
 
 			assert.Equal(t, tc.expectedReturn, got)
@@ -133,7 +133,7 @@ func TestMarkKeyOnStatus(t *testing.T) {
 			require.NoError(t, err)
 			// A state transition records one event under its reason,
 			// and other reasons record none.
-			for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+			for _, reason := range []string{"rate_limited", "unauthorized"} {
 				if reason == tc.expectedReason {
 					assert.True(t, codertestutil.PromCounterHasValue(t, gathered, 1, "key_pool_state_transitions_total", providerName, reason))
 				} else {

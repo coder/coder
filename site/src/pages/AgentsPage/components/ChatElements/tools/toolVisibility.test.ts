@@ -22,6 +22,7 @@ describe("toolVisibility", () => {
 			).toEqual({
 				command: "git fetch origin",
 				transcriptBlocks: [{ kind: "output", text: "fetched" }],
+				errorText: "",
 				durationMs: 47200,
 				isBackgrounded: true,
 				authenticateURL: "https://example.com/auth",
@@ -136,7 +137,7 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it("renders list_agents rows even without a chat_id", () => {
+		it("renders list_agents rows regardless of chat_id", () => {
 			expect(
 				shouldRenderTool({
 					name: "list_agents",

@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,11 +26,10 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
-	Runtime            time.Duration
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
+	Runtime      time.Duration
 
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time
@@ -48,6 +48,7 @@ type pendingDynamicToolCall struct {
 type compactionOutcome struct {
 	SystemSummary    string
 	SummaryReport    string
+	Source           chatloop.CompactionSource
 	ThresholdPercent int32
 	UsagePercent     float64
 	ContextTokens    int64

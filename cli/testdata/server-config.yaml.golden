@@ -301,7 +301,7 @@ oauth2:
     # (default: <unset>, type: string-array)
     allowedOrgs: []
     # Teams inside organizations the user must be a member of to Login with GitHub.
-    # Structured as: <organization-name>/<team-slug>.
+    # Structured as: `<organization-name>/<team-slug>`.
     # (default: <unset>, type: string-array)
     allowedTeams: []
     # Whether new users can sign up with GitHub.
@@ -448,6 +448,13 @@ oidc:
   # enable if you understand and accept the risk.
   # (default: <unset>, type: bool)
   dangerousOidcEmailFallback: false
+  # An allowlist of hostnames that may be used as the host of the OIDC redirect_uri.
+  # When set, the redirect_uri sent to the OIDC provider is built from the incoming
+  # request's Host header (validated against this list) instead of from access-url.
+  # Every listed host must also be registered as a valid redirect URI in the OIDC
+  # provider. Ignored when oidc-redirect-url is set.
+  # (default: <unset>, type: string-array)
+  oidcRedirectAllowedHosts: []
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -796,9 +803,19 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-  # Route chat model requests through AI Gateway when both chat routing and AI
-  # Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats
-  # without API key metadata may need a retry or temporary direct routing.
+  # HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when
+  # unset. Requires the agent-lifecycle-hooks experiment.
+  # (default: <unset>, type: url)
+  hookURL:
+  # Maximum time to wait for a chat agent lifecycle hook response.
+  # (default: 1.5s, type: duration)
+  hookTimeout: 1.5s
+  # Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+  # Requires the agent-lifecycle-hooks experiment.
+  # (default: true, type: bool)
+  hookEnabled: true
+  # Deprecated: AI Gateway routing is now the only routing path. Setting this value
+  # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
 aibridge:
@@ -1080,6 +1097,10 @@ ai_gateway_proxy:
   # The address the AI Gateway Proxy will listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
+  # Base URL of the AI Gateway to forward intercepted requests to. Defaults to the
+  # embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
+  # (default: <unset>, type: string)
+  target: ""
   # Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set
   # together with AI Gateway Proxy TLS Key File.
   # (default: <unset>, type: string)

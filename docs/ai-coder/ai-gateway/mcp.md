@@ -1,9 +1,8 @@
 # MCP
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 <!-- -->
 
@@ -26,7 +25,7 @@ AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) appl
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
-```bash
+```sh
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
@@ -34,11 +33,11 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
-See the diagram in [Implementation Details](./reference.md#implementation-details) for more information.
+Refer to the diagram in [Embedded Gateway](./reference.md#embedded-gateway) for more information.
 
 You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_ALLOW_REGEX=(.+_gist.*)
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_DENY_REGEX=(create_gist)
 ```
@@ -64,7 +63,7 @@ AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MC
 
 ## Tool Injection
 
-If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Gateway has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it sees is the result of this loop. See [Implementation Details](./reference.md#implementation-details).
+If a model decides to invoke a tool and it has a `bmcp_` prefix and AI Gateway has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client. The client only sees the result of this loop. Refer to [Deployment topologies](./reference.md#deployment-topologies).
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 

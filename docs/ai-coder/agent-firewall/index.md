@@ -7,9 +7,8 @@ autonomous programs, such as AI agents, can access and use.
 of Agent Firewall blocking a process.
 
 > [!NOTE]
-> Agent Firewall requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access Agent Firewall.
+> Agent Firewall is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 >
 > Agent Firewall was previously known as "Agent Boundaries". Some
 > configuration options and internal references still use the old name
@@ -141,7 +140,7 @@ per template. You can do so by installing the
 [binary](https://github.com/coder/boundary) into the workspace image or at
 start-up. You can do so with the following command:
 
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
 ```
 

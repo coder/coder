@@ -2,10 +2,12 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatAutoArchiveDays,
+	chatDebugLogging,
 	chatDebugRetentionDays,
 	chatRetentionDays,
 	chatWorkspaceTTL,
 	updateChatAutoArchiveDays,
+	updateChatDebugLogging,
 	updateChatDebugRetentionDays,
 	updateChatRetentionDays,
 	updateChatWorkspaceTTL,
@@ -34,6 +36,10 @@ const LifecyclePage: FC = () => {
 		...chatDebugRetentionDays(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const debugLoggingQuery = useQuery({
+		...chatDebugLogging(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const saveWorkspaceTTLMutation = useMutation(
 		updateChatWorkspaceTTL(queryClient),
 	);
@@ -45,6 +51,9 @@ const LifecyclePage: FC = () => {
 	);
 	const saveDebugRetentionDaysMutation = useMutation(
 		updateChatDebugRetentionDays(queryClient),
+	);
+	const saveDebugLoggingMutation = useMutation(
+		updateChatDebugLogging(queryClient),
 	);
 
 	return (
@@ -75,6 +84,11 @@ const LifecyclePage: FC = () => {
 				onSaveAutoArchiveDays={saveAutoArchiveDaysMutation.mutate}
 				isSavingAutoArchiveDays={saveAutoArchiveDaysMutation.isPending}
 				isSaveAutoArchiveDaysError={saveAutoArchiveDaysMutation.isError}
+				debugLoggingData={debugLoggingQuery.data}
+				isDebugLoggingLoading={debugLoggingQuery.isLoading}
+				onSaveDebugLogging={saveDebugLoggingMutation.mutate}
+				isSavingDebugLogging={saveDebugLoggingMutation.isPending}
+				isSaveDebugLoggingError={saveDebugLoggingMutation.isError}
 			/>
 		</RequirePermission>
 	);

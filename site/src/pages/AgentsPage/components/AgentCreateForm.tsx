@@ -6,7 +6,7 @@ import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -21,11 +21,19 @@ import {
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
+import {
 	formatUsageLimitMessage,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
+import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
@@ -47,6 +55,7 @@ export type CreateChatOptions = {
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
+	reasoningEffort?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
@@ -128,6 +137,8 @@ interface AgentCreateFormProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -152,6 +163,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -234,6 +247,33 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
+	const effectiveReasoningEffort = selectedModelOption
+		? pickReasoningEffort(
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
+				selectedModelOption.reasoningEfforts ?? [],
+				selectedModelOption.reasoningEffortDefault,
+			)
+		: undefined;
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -334,6 +374,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
 	const isForbidden = !canCreateChat;
 
 	// Filter workspaces by the selected organization. We use
@@ -363,6 +411,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
@@ -481,6 +530,30 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									{formatUsageLimitMessage(createError.response.data)}
 								</AlertDescription>
 							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 502 &&
+							isChatHookDispatchFailedResponse(createError.response.data) ? (
+							<Alert severity="error">
+								<AlertTitle>
+									{getErrorTitle("hook_dispatch_failed", "error")}
+								</AlertTitle>
+								<AlertDescription>
+									<span>{createError.response.data.message}</span>
+									{createError.response.data.detail && (
+										<span className="mt-1 block text-content-secondary">
+											{createError.response.data.detail}
+										</span>
+									)}
+								</AlertDescription>
+							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 403 &&
+							isChatHookDeniedResponse(createError.response.data) ? (
+							<Alert severity="info">
+								<AlertDescription>
+									{createError.response.data.message}
+								</AlertDescription>
+							</Alert>
 						) : (
 							<ErrorAlert error={createError} />
 						)
@@ -514,7 +587,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							isPersonalModelOverridesLoading ||
-							!hasModelOptions
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -524,6 +598,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onModelChange={handleModelChange}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						reasoningEffort={effectiveReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
@@ -548,6 +624,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						canConfigureAgentSetup={canConfigureAgentSetup}
 						providerCount={providerCount}
 						modelCount={modelCount}
+						unsupportedProviderNames={unsupportedProviderNames}
+						aiGatewayDisabled={aiGatewayDisabled}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

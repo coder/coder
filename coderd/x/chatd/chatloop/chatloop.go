@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -48,6 +47,10 @@ var (
 	// StopAfterTools produces a successful result, indicating
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
+	// ErrContentFiltered is returned when the provider's safety
+	// classifiers blocked the response and the model produced no
+	// content, e.g. Anthropic's stop_reason "refusal".
+	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -63,16 +66,13 @@ type PendingToolCall struct {
 	Args       string
 }
 
-// PersistedStep contains the full content of a completed or
-// interrupted agent step. Content includes both assistant blocks
-// (text, reasoning, tool calls) and tool result blocks. The
-// persistence layer is responsible for splitting these into
-// separate database messages by role.
+// PersistedStep is the unit the persistence layer splits into role-separated
+// database messages. Content mixes assistant blocks (text, reasoning, tool
+// calls) and tool result blocks from one completed or interrupted agent step.
 type PersistedStep struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -162,19 +162,8 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger           slog.Logger
-	Compaction       *CompactionOptions
-	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
-	DisableChainMode func()
-	// PrepareMessages is called at least once before each LLM step
-	// with the current message history. If it returns non-nil, the
-	// returned slice replaces messages for this and all subsequent
-	// steps.
-	// Used to inject system context that becomes available mid-loop
-	// (e.g. AGENTS.md after create_workspace).
-	// NOTE: It may be called more than once per step in case of a
-	// retry, so callbacks should avoid duplicating messages.
-	PrepareMessages func([]fantasy.Message) []fantasy.Message
+	Logger     slog.Logger
+	Compaction *CompactionOptions
 
 	// PrepareTools is called once before each LLM step with the
 	// current tool list. If it returns non-nil, the returned slice
@@ -285,16 +274,35 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
-	Timeout              time.Duration
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
+
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
 
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
 	ToolCallID          string
 	ToolName            string
+
+	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
+	// summary model, which can differ from the chat model when a
+	// compaction override is configured. Debug runs record these.
+	ResolvedProvider string
+	ResolvedModel    string
+	ModelConfigID    uuid.UUID
+
+	// ProviderOptions carry summary-model call options such as an
+	// override's reasoning effort.
+	ProviderOptions fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 }
@@ -432,11 +440,18 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	// A content-filter finish without user-visible output means the
+	// provider's safety classifiers blocked the whole response (e.g.
+	// Anthropic stop_reason "refusal"). The refusal can arrive after
+	// reasoning has already streamed, so reasoning alone must not
+	// count as output.
+	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
+		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
-		ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:              opts.Clock.Since(stepStart),
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
@@ -465,6 +480,33 @@ func wrapProviderStreamError(provider string, err error) error {
 		}
 	}
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
+
+// hasUserVisibleContent reports whether any content part carries output the
+// user can see. Reasoning parts do not count: they stream transiently and are
+// not a substitute for a response.
+func hasUserVisibleContent(content []fantasy.Content) bool {
+	for _, part := range content {
+		switch part.(type) {
+		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
+	classified := chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindContentFilter,
+		Provider:  provider,
+		Retryable: false,
+	}
+	if refusal := fantasyanthropic.GetRefusalMetadata(metadata); refusal != nil {
+		classified.Message = chaterror.ContentFilterMessage(provider, refusal.Category)
+		classified.Detail = strings.TrimSpace(refusal.Explanation)
+	}
+	return chaterror.WithClassification(ErrContentFiltered, classified)
 }
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It
@@ -581,11 +623,6 @@ func prepareMessagesForRequest(
 	totalSteps int,
 ) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
-	if opts.PrepareMessages != nil {
-		if updated := opts.PrepareMessages(canonical); updated != nil {
-			canonical = updated
-		}
-	}
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
 	prompt = slices.Clone(canonical)

@@ -472,11 +472,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN @search :: text != '' THEN (
 			email ILIKE concat('%', @search, '%')
 			OR username ILIKE concat('%', @search, '%')
+			OR name ILIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END
@@ -594,6 +595,9 @@ WHERE
 -- name: GetAuthorizationUserRoles :one
 -- This function returns roles for authorization purposes. Implied member roles
 -- are included.
+-- Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+-- (implied member roles, org default roles, groups);
+-- TestGetActiveUsersAuthorizationRolesParity enforces this.
 SELECT
 	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
@@ -653,6 +657,67 @@ FROM
 WHERE
 	users.id = @user_id;
 
+-- name: GetActiveUsersAuthorizationRoles :many
+-- Returns the authorization roles (site and org-scoped, including implied
+-- member roles and organization default roles) and the group memberships
+-- for every active, non-deleted user who is neither a system user nor a
+-- service account, matching the GetActiveUserCount population.
+-- Must stay semantically in sync with GetAuthorizationUserRoles;
+-- TestGetActiveUsersAuthorizationRolesParity enforces this.
+WITH org_roles AS (
+	SELECT
+		organization_members.user_id,
+		-- The roles are returned as a flat array, org scoped and site side.
+		-- Concatenating the organization id scopes the organization roles.
+		array_agg(org_role || ':' || organization_members.organization_id::text) AS roles
+	FROM
+		organization_members
+		JOIN organizations ON organizations.id = organization_members.organization_id,
+		-- All org members get an implied organization-member role for
+		-- their orgs. Memberships of service accounts are aggregated here
+		-- too, but their rows never survive the join against the outer
+		-- WHERE, so the organization-service-account case does not apply.
+		--
+		-- organizations.default_org_member_roles applies to every member
+		-- but is not materialized on membership rows, so it is unioned in
+		-- here.
+		unnest(
+			array_cat(
+				array_append(organization_members.roles, 'organization-member'),
+				organizations.default_org_member_roles
+			)
+		) AS org_role
+	GROUP BY
+		organization_members.user_id
+),
+user_groups AS (
+	SELECT
+		group_members.user_id,
+		array_agg(group_members.group_id :: text) AS groups
+	FROM
+		group_members
+	GROUP BY
+		group_members.user_id
+)
+SELECT
+	users.id,
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		-- Users with no org memberships have no org_roles row.
+		coalesce(org_roles.roles, ARRAY[]::text[])
+	) :: text[] AS roles,
+	coalesce(user_groups.groups, ARRAY[]::text[]) :: text[] AS groups
+FROM
+	users
+	LEFT JOIN org_roles ON org_roles.user_id = users.id
+	LEFT JOIN user_groups ON user_groups.user_id = users.id
+WHERE
+	users.status = 'active'::user_status
+	AND users.deleted = false
+	AND users.is_system = false
+	AND users.is_service_account = false;
+
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE
 	users
@@ -689,3 +754,8 @@ SET
 WHERE
     id = $1
 ;
+
+-- name: GetUserForChatSyntheticAPIKeyByID :one
+SELECT *
+FROM users
+WHERE id = @id::uuid;

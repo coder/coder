@@ -1,6 +1,7 @@
 # Licensing
 
-Some features are only accessible with a Premium license or the [AI Governance Add-On](../../ai-coder/ai-governance.md). See our
+Some features are only accessible with a Premium license, including
+[AI Governance](../../ai-coder/ai-governance.md). See our
 [pricing page](https://coder.com/pricing) for more details. To try paid
 features, you can [request a trial](https://coder.com/trial) or
 [contact sales](https://coder.com/contact).
@@ -42,7 +43,7 @@ There are two ways to add a license to a Coder deployment:
 1. Open a terminal.
 1. Log in to your Coder deployment:
 
-   ```shell
+   ```sh
    coder login <access url>
    ```
 
@@ -50,7 +51,7 @@ There are two ways to add a license to a Coder deployment:
 
    - For a `.jwt` license file:
 
-     ```shell
+     ```sh
      coder licenses add -f <path to your license key>
      ```
 

@@ -7,6 +7,16 @@ Chatd has 4 main pieces:
 - **chat worker**: lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
 - **stream loop**: powers `GET /api/experimental/chats/{chat}/stream`, the WebSocket endpoint that the UI uses to consume a live chat. It combines two kinds of data: messages committed to the database and streaming message parts emitted by the chat worker. It receives notifications over pubsub whenever the chat state is updated, fetches messages from the database, and connects to the coderd replica that currently owns the chat to relay the streaming message parts to the client.
 
+# Gateway attribution keys
+
+Chatd attributes AI Gateway requests with a synthetic API key owned by the chat owner, one key per user. There is no mapping table: the key is found in `api_keys` by its deterministic token name, `chatd_<owner_id>_session_token`, excluding `login_type = 'token'` rows. Token names are unvalidated user input, so the login type filter ensures chatd never picks up (or extends) a real bearer token a user created with the colliding name. Synthetic keys are minted with the owner's login type, which is never `'token'`. All chatd AI Gateway attribution resolves the key from `chats.owner_id`; callers do not provide the key ID.
+
+Synthetic keys expire after 30 days. When less than 24 hours remain, chatd extends the expiry of the existing row in place instead of replacing it, because an in-flight generation may have already delegated the current key ID to the gateway. The key ID is therefore stable for the lifetime of the user. Mints and extensions are serialized with a per-user advisory lock, since the partial unique index on token names only covers `login_type = 'token'` rows. The generated token is discarded, so the stored key cannot be used as a bearer credential, and it carries a minimal scope as defense in depth.
+
+Messages and queued messages no longer carry `api_key_id` columns; attribution is resolved solely from `chats.owner_id`. The drop migration discards any IDs stamped by older replicas, and its rollback restores the columns as nullable without backfilling them.
+
+Deleting a synthetic key (password reset, explicit key deletion, dbpurge of long-expired keys) does not touch chat messages, queued messages, or their version fields. Chatd mints a replacement on the next request without mutating history. User suspension and deletion still block delegated gateway authorization.
+
 # Core state machine
 
 The core state machine describes how a chat's execution state in the database can change over time. A fundamental component of the state machine is the set of valid **states** it can be in. We will consider 2 kinds of states: **execution states** and **ownership states**. These states let us describe what the runtime components of chatd can do with a chat at a given point in time.
@@ -101,11 +111,12 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
-- `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
+- `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
-- `CompleteRequiresAction(results)` inserts submitted tool-result messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
+- `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
+- `RequestCompaction` records a manual compaction request on an idle chat by setting `compaction_requested_at` and landing in `running` without inserting any message. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 
 ### Transitions used by the chat worker
 
@@ -117,7 +128,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
 - `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
-- `FinishError(err)` ends a running chat in `error` and persists `last_error = err`, overwriting any prior stored error.
+- `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
 
@@ -137,6 +148,8 @@ stateDiagram-v2
 
     W --> R0: SendMessage
     W --> R0: EditMessage
+    W --> R0: RequestCompaction
+    W --> E0: FinishError
     W --> XW: SetArchived(true)
 
     E0 --> R0: SendMessage
@@ -259,7 +272,7 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 `chats.history_version` stores the latest `snapshot_version` in which chat message history changed. It starts at `0`, remains unchanged for non-history transitions, and is set to the current `snapshot_version` whenever a message is inserted or meaningfully updated. A newly created chat starts with `snapshot_version = 1`; because `Create` inserts initial history in that snapshot, the created chat's `history_version` becomes `1`. No-op message updates do not advance message `revision`, advance `history_version`, or reset `generation_attempt`. Whenever `history_version` changes, `generation_attempt` is reset to `0`; generation attempts are scoped to the current history version.
 
-Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly.
+Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
 
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
 
@@ -530,6 +543,14 @@ This endpoint uses `CompleteRequiresAction(results)`:
 - `A1 -> CompleteRequiresAction(results) -> R1`
 
 No other input states are supported.
+
+### `POST /api/experimental/chats/{chat}/compact`
+
+This endpoint uses `RequestCompaction`:
+
+- `W -> RequestCompaction -> R0`
+
+No other input states are supported: busy chats get a conflict error, and archived chats are rejected. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
 ## Pubsub
 
@@ -815,7 +836,7 @@ Parallel tool call results must be inserted in bulk after all parallel tool call
 
 The generation goroutine supports:
 
-- chat compaction
+- chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - file links
 - workspace binding
@@ -824,6 +845,27 @@ The generation goroutine supports:
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
+
+##### Reasoning effort
+
+Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
+
+Subagent spawning is a second source of both values. `spawn_agent` accepts optional `model_config_id` and `reasoning_effort` args (discoverable via the `list_subagent_models` tool): an explicit model selection becomes the child chat's `last_model_config_id` and wins over personal and deployment subagent overrides and over parent inheritance, and an explicit effort is stored on the child's initial message and wins over effort carried by those overrides. Both are validated at spawn time (enabled config, enabled provider, usable credentials, effort on the global scale) and rejected with tool errors before the child chat is created; `computer_use` spawns reject both args because their model routing is specialized. Generation-time resolution and clamping below apply to the child unchanged.
+
+During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options with `chatprovider.ApplyReasoningEffort` after provider option conversion. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
+
+#### Compaction model selection
+
+Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
+
+By default the summary is generated with the chat model. Admins can override the compaction model deployment-wide via the `compaction` context of the chat model override API (`/api/experimental/chats/config/model-override/{context}`, stored in the `agents_chat_compaction_model_override` site config). The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
+
+Details that follow from the override:
+
+- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window. The post-compaction "still over limit" check stays against the chat model's limit, since continuation runs on the chat model.
+- Failure semantics: an unset override uses the chat model. Stale or malformed stored references (deleted or disabled config or provider, missing credentials, non-UUID value) fall back to the chat model with a log. A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback. The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
+- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
+- Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine
 
@@ -851,6 +893,29 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.
+
+## Manual compaction
+
+Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
+
+Users can also request a compaction on demand via `POST /api/experimental/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
+
+1. The endpoint applies the `RequestCompaction` transition: only allowed from `W`, sets `chats.compaction_requested_at = now()`, lands in `R0` without inserting any message, and publishes a status-change pubsub event to wake workers. A timestamp is used instead of a boolean for debuggability. AI Gateway attribution needs no per-request key: generation preparation resolves the owner's synthetic API key like any other turn.
+2. The generation goroutine's decision logic checks `compaction_requested_at` after the unresolved local/dynamic tool guards but before the history-completeness check (an idle chat's history is otherwise complete, which would end the turn). If the marker is set and at least one uncompressed assistant message exists after the latest compaction boundary, it selects a forced compaction; if there is nothing to compact, the marker is ignored and the turn finishes normally, clearing it.
+3. A forced compaction bypasses the automatic threshold gates (usage below threshold, unknown context window, and the threshold=100 disable) and stamps `source: "manual"` instead of `source: "automatic"` into the `chat_summarized` tool call arguments, tool result JSON, and streamed parts so clients can render manual compactions distinctly.
+4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so the chat returns to `waiting` with no assistant follow-up. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
+
+The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
+
+# Lifecycle hooks
+
+When the `agent-lifecycle-hooks` experiment is enabled and a hook URL is configured, chatd sends events to an external consumer at key points in a conversation: session start, prompt submission, tool use, compaction, and turn completion.
+
+The consumer can observe activity, add model-only or user-visible context, replace supported prompt or tool input, and deny prompts or tool calls. Prompt submission is evaluated once when the submission is accepted, including queued messages and subagent prompts. Returned context becomes part of the conversation for its intended audience, except that context returned before a compaction guides the compaction summary instead.
+
+Lifecycle hooks fail closed. If the consumer cannot be reached or returns an invalid response, Coder stops the triggering operation rather than continuing without the consumer's decision. Affected chats can enter an error state until the consumer recovers or hooks are disabled.
+
+Coder stores no hook-specific dispatch or decision state. Delivery is best-effort and can duplicate, and a failed dispatch is never redelivered, so the consumer owns durable policy state, audit records, and deduplication based on stable event identifiers.
 
 # Stream loop
 

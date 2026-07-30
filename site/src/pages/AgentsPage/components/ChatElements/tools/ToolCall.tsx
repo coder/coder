@@ -15,7 +15,6 @@ import {
 import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
-import type { SubagentIconKind } from "./subagentDescriptor";
 import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
@@ -208,7 +207,6 @@ type ToolCallLeadingIconProps = {
 	children?: ReactNode;
 	iconUrl?: string;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
 };
 
 const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
@@ -216,9 +214,8 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 	children,
 	iconUrl,
 	serverName,
-	subagentIconKind,
 }) => {
-	const { active, failed } = useToolCallContext();
+	const { active } = useToolCallContext();
 	if (children) {
 		return <>{children}</>;
 	}
@@ -229,11 +226,9 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 	return (
 		<ToolIcon
 			name={name}
-			isError={failed}
 			isRunning={active}
 			iconUrl={iconUrl}
 			serverName={serverName}
-			subagentIconKind={subagentIconKind}
 		/>
 	);
 };
@@ -267,16 +262,11 @@ const Label: FC<ToolCallLabelProps> = ({
 
 type ToolCallStatusProps = {
 	className?: string;
-	errorMessage?: string;
 };
 
-const Status: FC<ToolCallStatusProps> = ({ className, errorMessage }) => {
-	const {
-		active,
-		errorMessage: contextErrorMessage,
-		failed,
-	} = useToolCallContext();
-	const message = errorMessage || contextErrorMessage || "Tool call failed";
+const Status: FC<ToolCallStatusProps> = ({ className }) => {
+	const { active, errorMessage, failed } = useToolCallContext();
+	const message = errorMessage || "Tool call failed";
 	return (
 		<>
 			{active && (
@@ -367,7 +357,6 @@ type ToolCallHeaderProps = {
 	label: ReactNode;
 	iconUrl?: string;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
 	secondaryLabel?: ReactNode;
 	trailing?: ReactNode;
 	showStatus?: boolean;
@@ -388,7 +377,6 @@ const Header: FC<ToolCallHeaderProps> = ({
 	label,
 	iconUrl,
 	serverName,
-	subagentIconKind,
 	secondaryLabel,
 	trailing,
 	showStatus = true,
@@ -396,12 +384,7 @@ const Header: FC<ToolCallHeaderProps> = ({
 }) => {
 	return (
 		<HeaderButton className={headerClassName}>
-			<LeadingIcon
-				name={iconName}
-				iconUrl={iconUrl}
-				serverName={serverName}
-				subagentIconKind={subagentIconKind}
-			/>
+			<LeadingIcon name={iconName} iconUrl={iconUrl} serverName={serverName} />
 			<Label>{label}</Label>
 			{secondaryLabel}
 			{showStatus && <Status />}

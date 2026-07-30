@@ -247,6 +247,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
+			errorText={data.errorText}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
@@ -640,6 +641,7 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 
 const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
@@ -647,6 +649,12 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
+	// The result carries the source once committed; while streaming,
+	// only the call args are available.
+	const argsRec = parseArgs(args);
+	const source =
+		(rec ? asString(rec.source) : "") ||
+		(argsRec ? asString(argsRec.source) : "");
 
 	return (
 		<ChatSummarizedTool
@@ -654,6 +662,7 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			source={source || undefined}
 		/>
 	);
 };
@@ -1106,10 +1115,9 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer =
-			isSubagentToolName(name) && name !== "list_agents"
-				? SubagentRenderer
-				: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer = isSubagentToolName(name)
+			? SubagentRenderer
+			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;

@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
 import themes, { baseModeFor, isConcreteThemeName } from "../src/theme";
+import { AppearanceProvider } from "../src/theme/appearance";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
@@ -114,10 +115,14 @@ const withTheme: Decorator = (Story, context) => {
 			<StyledEngineProvider injectFirst>
 				<MuiThemeProvider theme={themes[concreteName]}>
 					<EmotionThemeProvider theme={themes[concreteName]}>
-						<TooltipProvider delayDuration={100}>
-							<CssBaseline />
-							<Story />
-						</TooltipProvider>
+						<AppearanceProvider
+							externalImages={themes[concreteName].externalImages}
+						>
+							<TooltipProvider delayDuration={100}>
+								<CssBaseline />
+								<Story />
+							</TooltipProvider>
+						</AppearanceProvider>
 					</EmotionThemeProvider>
 				</MuiThemeProvider>
 			</StyledEngineProvider>

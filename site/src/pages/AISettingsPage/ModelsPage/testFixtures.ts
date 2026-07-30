@@ -7,6 +7,7 @@ const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	enabled: true,
 	has_api_key: true,
 	central_api_key_enabled: true,
@@ -27,7 +28,6 @@ const MockAnthropicProviderConfig: ChatProviderConfig = {
 
 export const mockGPT5: ChatModelConfig = {
 	id: "model-gpt5",
-	provider: "openai",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",
 	display_name: "GPT-5",
@@ -42,7 +42,6 @@ export const mockGPT5: ChatModelConfig = {
 export const mockClaude: ChatModelConfig = {
 	...mockGPT5,
 	id: "model-claude",
-	provider: "anthropic",
 	ai_provider_id: "prov-anthropic",
 	model: "claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5",
@@ -93,7 +92,6 @@ const MockBedrockProviderConfig: ChatProviderConfig = {
 export const mockBedrockClaude: ChatModelConfig = {
 	...mockClaude,
 	id: "model-bedrock-claude",
-	provider: "bedrock",
 	ai_provider_id: "prov-bedrock",
 	model: "anthropic.claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5 (Bedrock)",
@@ -108,6 +106,31 @@ export const MockBedrockProviderState: ProviderState = {
 	modelConfigs: [mockBedrockClaude],
 };
 
+const MockDisabledProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-openai-disabled",
+	display_name: "OpenAI Secondary",
+	enabled: false,
+};
+
+export const mockProviderDisabledModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-provider-disabled",
+	ai_provider_id: "prov-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT-4o Secondary",
+	is_default: false,
+};
+
+export const MockDisabledProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-disabled",
+	provider: "openai",
+	label: "OpenAI Secondary",
+	providerConfig: MockDisabledProviderConfig,
+	modelConfigs: [mockProviderDisabledModel],
+};
+
 export const MockCopilotProviderState: ProviderState = {
 	...MockOpenAIProviderState,
 	key: "prov-copilot",
@@ -120,4 +143,18 @@ export const MockCopilotProviderState: ProviderState = {
 		display_name: "GitHub Copilot",
 	},
 	modelConfigs: [],
+};
+
+// A model whose provider row has been deleted. In production such models
+// still appear in the top-level model list, but `deriveProviderStates`
+// drops them from every providerState.modelConfigs. Stories should feed
+// this fixture through `models` alone; do not add it to a provider state.
+export const mockOrphanedModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-orphaned",
+	ai_provider_id: "prov-orphaned",
+	model: "gpt-4o-orphaned",
+	display_name: "Orphaned Model",
+	is_default: false,
+	enabled: true,
 };

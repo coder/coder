@@ -65,7 +65,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	return (
 		<div className="flex flex-row gap-8 items-start">
 			{starterTemplatesByTag && tags && (
-				<div className="flex flex-col gap-4 w-[202px] shrink-0 sticky">
+				<div className="flex flex-col gap-4 w-[202px] shrink-0 sticky top-[88px]">
 					<h2 className="m-0 text-base font-normal text-content-primary">
 						Choose a starter template
 					</h2>

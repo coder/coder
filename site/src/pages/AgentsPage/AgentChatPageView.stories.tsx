@@ -166,7 +166,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
-		handleRegenerateTitle: fn(),
 		scrollContainerRef:
 			overrides.scrollContainerRef ?? defaultScrollContainerRef,
 		scrollToBottomRef: overrides.scrollToBottomRef ?? defaultScrollToBottomRef,
@@ -197,6 +196,16 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
+	// Summary is the default tab and reads chat + cost; mock both so the sidebar renders.
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(API.experimental, "getChatCost").mockResolvedValue({
+			chat_id: AGENT_ID,
+			total_cost_micros: 0,
+			priced_message_count: 0,
+			unpriced_messages_having_usage_count: 0,
+		});
+	},
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		layout: "fullscreen",
@@ -479,6 +488,9 @@ index abc1234..def5678 100644
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+
+		// Summary is the default tab; switch to Git to view the PR diff.
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
 
 		// Wait for the initial diff fetch triggered by React Query.
 		await waitFor(() => {
@@ -853,7 +865,7 @@ const buildMessage = (
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
-	status: TypesGen.ChatStatus = "completed",
+	status: TypesGen.ChatStatus = "waiting",
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
@@ -1099,7 +1111,7 @@ const resetScrollStoryStore = (
 	count = 80,
 ) => {
 	store.replaceMessages(buildLongConversation(count));
-	store.setChatStatus("completed");
+	store.setChatStatus("waiting");
 };
 
 const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
@@ -1332,7 +1344,7 @@ export const StickyUserMessagePinsOnScroll: Story = {
 		// which is the regression this story guards against.
 		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
 		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of sentinels) {
+		for (const sentinel of Array.from(sentinels)) {
 			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
 				scrollContainer,
 			);
@@ -1426,7 +1438,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
 	play: async ({ canvasElement }) => {
 		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
-		stickyClipUpdateStore.setChatStatus("completed");
+		stickyClipUpdateStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1446,7 +1458,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 		// resize of that node reflects transcript growth.
 		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
 		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of sentinels) {
+		for (const sentinel of Array.from(sentinels)) {
 			expect(contentMarker?.contains(sentinel)).toBe(true);
 		}
 
@@ -1527,7 +1539,7 @@ export const TerminalFocusOnTabSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The sidebar should open on the Git tab by default.
+		// Sidebar defaults to Summary; this story drives the Terminal tab instead.
 		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
 		// 1. Click the Terminal tab.
@@ -1625,8 +1637,8 @@ export const PersistsSidebarTabClick: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
@@ -1641,15 +1653,11 @@ export const PersistsSidebarTabClick: Story = {
 };
 
 /**
- * When localStorage holds a tab ID whose tab is not currently available
- * (e.g. `"terminal"` while the workspace is stopped), the sidebar
- * should fall back to the first available tab (Git) and the stored
- * value must be preserved so it can be honoured once the tab reappears.
- *
- * This locks down the contract described in the PR: `getEffectiveTabId`
- * only reads `sidebarTabId` and never writes back. A future write-back
- * in the fallback path would silently break restore-after-recovery, so
- * this story exists to catch that regression.
+ * When localStorage holds an unavailable tab ID (e.g. `"terminal"` while the
+ * workspace is stopped), the sidebar falls back to the first available tab
+ * (Summary) while preserving the stored value for when the tab reappears.
+ * Guards the `getEffectiveTabId` contract: it only reads `sidebarTabId`, never
+ * writes back, so restore-after-recovery cannot silently break.
  */
 export const PreservesUnavailableSidebarTab: Story = {
 	beforeEach: () => {
@@ -1663,8 +1671,8 @@ export const PreservesUnavailableSidebarTab: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
@@ -1703,8 +1711,8 @@ export const DoesNotPersistForArchivedChat: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });

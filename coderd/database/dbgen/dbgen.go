@@ -2,13 +2,19 @@ package dbgen
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"maps"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -87,6 +93,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -116,21 +123,12 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		content = string(seed.Content.RawMessage)
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
-	apiKeyID := seed.APIKeyID.String
-	// Mint a real API key for user turns so the api_key_id foreign key is
-	// satisfied. Without a creator we leave it empty, which the insert query
-	// stores as NULL.
-	if role == database.ChatMessageRoleUser && apiKeyID == "" &&
-		seed.CreatedBy.Valid && seed.CreatedBy.UUID != uuid.Nil {
-		key, _ := APIKey(t, db, database.APIKey{UserID: seed.CreatedBy.UUID})
-		apiKeyID = key.ID
-	}
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
 		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
@@ -145,11 +143,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		Compressed:          []bool{seed.Compressed},
 		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
-		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (
@@ -160,14 +157,15 @@ const (
 
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
-	providerName := takeFirst(seed.Provider, "openai")
 	aiProviderID := seed.AIProviderID
 	if !aiProviderID.Valid {
+		// No AIProviderID supplied: reuse or create a default openai provider.
+		// Tests needing a specific provider type should pass seed.AIProviderID.
 		providers, err := db.GetAIProviders(genCtx, database.GetAIProvidersParams{IncludeDisabled: true})
 		require.NoError(t, err, "get ai providers")
 		var provider database.AIProvider
 		for _, candidate := range providers {
-			if candidate.Type != database.AIProviderType(providerName) {
+			if candidate.Type != database.AIProviderTypeOpenai {
 				continue
 			}
 			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
@@ -176,13 +174,12 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		if provider.ID == uuid.Nil {
 			provider = AIProvider(t, db, database.AIProvider{
-				Type: database.AIProviderType(providerName),
+				Type: database.AIProviderTypeOpenai,
 			})
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
 	params := database.InsertChatModelConfigParams{
-		Provider:             providerName,
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
 		CreatedBy:            seed.CreatedBy,
@@ -222,6 +219,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		Type:        provType,
 		Name:        name,
 		DisplayName: displayName,
+		Icon:        seed.Icon,
 		Enabled:     takeFirst(seed.Enabled, true),
 		// Use an unsupported scheme so leaked test provider calls fail immediately without retries.
 		BaseUrl:       takeFirst(seed.BaseUrl, "invalid://test.invalid/"),
@@ -354,6 +352,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
+		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -1964,6 +1963,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+		Enabled:     takeFirst(seed.Enabled, true),
 	}
 	for _, mut := range mutators {
 		mut(&params)
@@ -2022,6 +2022,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 			ID:             interception.ID,
 			EndedAt:        *endedAt,
 			CredentialHint: takeFirst(seed.CredentialHint, ""),
+			ErrorType:      database.NullAIBridgeInterceptionErrorType{},
+			ErrorMessage:   sql.NullString{},
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}
@@ -2078,6 +2080,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
 		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
+		ProviderItemID:     takeFirst(seed.ProviderItemID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),
@@ -2219,8 +2222,45 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCACryptoKeySecret()
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+// generateCACryptoKeySecret generates a self-signed CA certificate and private
+// key as a PEM bundle, matching the secret format that coderd/cryptokeys
+// produces for the nats_ca feature. It intentionally duplicates
+// cryptokeys.generateCASecret rather than calling it: coderd/cryptokeys's
+// internal tests import dbgen, so importing cryptokeys here would create a
+// test-build import cycle.
+func generateCACryptoKeySecret() (string, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", xerrors.Errorf("generate key: %w", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "dbgen-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		return "", xerrors.Errorf("create certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", xerrors.Errorf("marshal private key: %w", err)
+	}
+	var secret []byte
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})...)
+	return string(secret), nil
 }
 
 func generateCryptoKey(length int) (string, error) {

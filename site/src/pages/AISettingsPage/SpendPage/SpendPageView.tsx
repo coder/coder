@@ -1,9 +1,11 @@
 import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
+import { Link } from "#/components/Link/Link";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -22,6 +24,7 @@ import {
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
+import { docs } from "#/utils/docs";
 import {
 	DefaultLimitController,
 	type DefaultLimitFormValues,
@@ -232,6 +235,19 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 				>
 					{(userCtrl) => (
 						<div className="flex max-w-[1100px] flex-col gap-8">
+							<Alert severity="info">
+								<AlertDescription>
+									Cost controls features will move to AI Governance in v2.37.{" "}
+									<Link
+										href={docs("/ai-coder/ai-gateway/cost-controls")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Read more here
+									</Link>
+								</AlertDescription>
+							</Alert>
+
 							<SettingsHeader>
 								<SettingsHeaderTitle>
 									Spend limits and usage
@@ -263,7 +279,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 									<div className="space-y-8">
 										{isLoadingConfig ? (
 											<div className="flex items-center justify-center rounded-lg border border-border-default px-6 py-10">
-												<Spinner loading className="h-6 w-6" />
+												<Spinner loading className="size-6" />
 											</div>
 										) : configError ? (
 											<div className="space-y-4">

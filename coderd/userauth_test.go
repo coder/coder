@@ -153,13 +153,19 @@ func TestUserLogin(t *testing.T) {
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Password = ""
-			r.UserLoginType = codersdk.LoginTypeNone
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		noneUser := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeNone,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: first.OrganizationID,
+			UserID:         noneUser.ID,
 		})
 
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
+		_, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    noneUser.Email,
 			Password: "SomeSecurePassword!",
 		})
 		require.Error(t, err)
@@ -2850,10 +2856,26 @@ func TestUserForgotPassword(t *testing.T) {
 		// as we haven't change the password yet.
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 
+		// Create an API token to confirm the password reset revokes the
+		// user's existing keys.
+		token, tokenErr := anotherClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, tokenErr)
+
+		tokenClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+
+		_, tokenErr = tokenClient.User(ctx, codersdk.Me)
+		require.NoError(t, tokenErr, "token should authenticate before the password reset")
+
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
 		requireChangePasswordWithOneTimePasscode(t, ctx, anotherClient, anotherUser.Email, oneTimePasscode, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+
+		// The password reset must revoke every API key owned by the user.
+		_, tokenErr = tokenClient.User(ctx, codersdk.Me)
+		var tokenAPIErr *codersdk.Error
+		require.ErrorAs(t, tokenErr, &tokenAPIErr)
+		require.Equal(t, http.StatusUnauthorized, tokenAPIErr.StatusCode())
 
 		// We now need to check that the one-time passcode isn't valid.
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{

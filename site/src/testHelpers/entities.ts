@@ -578,6 +578,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used by example templates.",
 		env_name: "EXAMPLE_TOKEN",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-04-28T16:30:00Z",
 		updated_at: "2026-04-30T16:30:00Z",
 	},
@@ -587,6 +588,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Mounted as a workspace file.",
 		env_name: "",
 		file_path: "~/.config/example/config.json",
+		enabled: true,
 		created_at: "2026-04-29T16:30:00Z",
 		updated_at: "2026-05-01T16:30:00Z",
 	},
@@ -596,15 +598,20 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Available as an environment variable and file.",
 		env_name: "SERVICE_API_KEY",
 		file_path: "/var/run/secrets/service-api-key",
+		enabled: true,
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 	},
 	{
+		// Mirrors a pre-migration secret that had both env_name and
+		// file_path empty. The migration flips such rows to
+		// enabled: false, so this is the shape they have after upgrade.
 		id: "secret-not-injected",
 		name: "SERVICE_PASSWORD",
 		description: "",
 		env_name: "",
 		file_path: "",
+		enabled: false,
 		created_at: "2026-05-01T16:30:00Z",
 		updated_at: "2026-05-03T16:30:00Z",
 	},
@@ -614,12 +621,35 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used to exercise duplicate validation.",
 		env_name: "DUPLICATE_API_KEY",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
 	},
 ];
 
+export const MockImportedUserSecret: TypesGen.UserSecret = {
+	id: "imported-database-url",
+	name: "DATABASE_URL",
+	description: "",
+	env_name: "DATABASE_URL",
+	file_path: "",
+	enabled: true,
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+};
+
+export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	MockImportedUserSecret,
+	{
+		...MockImportedUserSecret,
+		id: "imported-api-token",
+		name: "API_TOKEN",
+		env_name: "API_TOKEN",
+	},
+];
+
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -1831,12 +1861,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
-};
-
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -1902,20 +1926,19 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 		ephemeral: false,
 	};
 
-export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
-	{
-		name: "fourth_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is fourth parameter",
-		description_plaintext: "Markdown: This is fourth parameter",
-		default_value: "def",
-		mutable: false,
-		icon: "/icon/database.svg",
-		options: [],
-		required: true,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
+	name: "fourth_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is fourth parameter",
+	description_plaintext: "Markdown: This is fourth parameter",
+	default_value: "def",
+	mutable: false,
+	icon: "/icon/database.svg",
+	options: [],
+	required: true,
+	ephemeral: false,
+};
 
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
@@ -1950,23 +1973,22 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 	};
 
 // Not required and the default is a blank string.
-export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
-	{
-		name: "seventh_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is seventh parameter",
-		description_plaintext: "Markdown: This is seventh parameter",
-		default_value: "",
-		mutable: true,
-		icon: "/icon/folder.svg",
-		options: [],
-		validation_min: 1,
-		validation_max: 10,
-		validation_monotonic: "decreasing",
-		required: false,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter = {
+	name: "seventh_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is seventh parameter",
+	description_plaintext: "Markdown: This is seventh parameter",
+	default_value: "",
+	mutable: true,
+	icon: "/icon/folder.svg",
+	options: [],
+	validation_min: 1,
+	validation_max: 10,
+	validation_monotonic: "decreasing",
+	required: false,
+	ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -3244,7 +3266,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,
@@ -3298,6 +3320,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 export const MockPermissions: Permissions = {
 	createTemplates: true,
 	createUser: true,
+	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
 	viewAllUsers: true,
@@ -3334,6 +3357,7 @@ export const MockPermissions: Permissions = {
 export const MockNoPermissions: Permissions = {
 	createTemplates: false,
 	createUser: false,
+	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
 	viewAllUsers: false,
@@ -3561,7 +3585,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-const MockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3579,7 +3603,7 @@ const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-const MockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3614,7 +3638,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
@@ -3673,19 +3697,6 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	],
 	order: 1,
 };
-
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
-	{
-		id: 1,
-		parameters: [
-			MockDropdownParameter,
-			MockSliderParameter,
-			MockSwitchParameter,
-			MockTagSelectParameter,
-			MockMultiSelectParameter,
-		],
-		diagnostics: [],
-	};
 
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
@@ -4845,13 +4856,13 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
-		callback_url: "http://localhost:3001",
+		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		endpoints: {
-			authorization: "http://localhost:3001/oauth2/authorize",
-			token: "http://localhost:3001/oauth2/token",
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
 			device_authorization: "",
-			token_revoke: "http://localhost:3001/oauth2/revoke",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
 		},
 	},
 ];
@@ -4864,9 +4875,9 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 			last_used_at: null,
 		},
 		{
-			id: "1",
+			id: "2",
 			last_used_at: "2022-12-16T20:10:45.637452Z",
-			client_secret_truncated: "foo",
+			client_secret_truncated: "bar",
 		},
 	];
 
@@ -5537,6 +5548,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
 	},
+	network_calls: {
+		total: 23,
+		blocked: 2,
+	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
@@ -5546,6 +5561,7 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	type: "openai",
 	name: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
 	api_keys: [
@@ -5565,6 +5581,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	type: "anthropic",
 	name: "anthropic",
 	display_name: "Anthropic",
+	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
@@ -5584,6 +5601,7 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
+	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
 	api_keys: [],
@@ -5603,6 +5621,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	type: "copilot",
 	name: "copilot",
 	display_name: "GitHub Copilot",
+	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
 	api_keys: [],

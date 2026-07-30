@@ -51,7 +51,7 @@ Create or update your Terraform CLI configuration file to use Artifactory.
 
 On Linux/macOS, create `~/.terraformrc`. On Windows, create `%APPDATA%\terraform.rc`.
 
-```hcl
+```tf
 host "<your-artifactory-host>" {
   services = {
     "modules.v1" = "https://<your-artifactory-host>/artifactory/api/terraform/coder-registry/v1/modules/"

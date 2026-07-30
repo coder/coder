@@ -53,7 +53,7 @@ Go duration units (`h`, `m`, `s`):
 
 ### CLI Example
 
-```bash
+```sh
 coder server \
   --audit-logs-retention=365d \
   --connection-logs-retention=90d \
@@ -64,7 +64,7 @@ coder server \
 
 ### Environment Variables Example
 
-```bash
+```sh
 export CODER_AUDIT_LOGS_RETENTION=365d
 export CODER_CONNECTION_LOGS_RETENTION=90d
 export CODER_API_KEYS_RETENTION=7d
