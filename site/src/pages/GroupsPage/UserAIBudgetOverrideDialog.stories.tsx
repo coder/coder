@@ -105,9 +105,7 @@ export const ReadOnlyWithoutPermission: Story = {
 		const body = within(document.body);
 		await expect(await body.findByText("$12,000 USD")).toBeInTheDocument();
 		await expect(
-			body.getByText(
-				/To update this limit, contact your deployment administrator\./,
-			),
+			body.getByText(/To update this limit, contact a Coder administrator\./),
 		).toBeInTheDocument();
 		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
 		await expect(
@@ -116,11 +114,30 @@ export const ReadOnlyWithoutPermission: Story = {
 		await expect(
 			body.queryByRole("button", { name: "Budget assigned to" }),
 		).not.toBeInTheDocument();
-		await expect(
-			body.queryByRole("button", { name: "Update" }),
-		).not.toBeInTheDocument();
-		// Nothing to submit or cancel, so the dialog has no action buttons.
-		await expect(body.queryAllByRole("button")).toHaveLength(0);
+		for (const name of ["Update", "Cancel", "Close"]) {
+			await expect(
+				body.queryByRole("button", { name }),
+			).not.toBeInTheDocument();
+		}
+	},
+};
+
+/** The assigned group is in another organization, so it can't be named. */
+export const OverrideWithUnresolvableGroup: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: { ...mockOverride, group_id: "another-org-group" },
+			},
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		const summary = await body.findByText(/charged to/);
+		await expect(summary).toHaveTextContent("charged to their group.");
+		await expect(summary).not.toHaveTextContent("group group");
 	},
 };
 

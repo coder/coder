@@ -716,7 +716,7 @@ export const AIBudgetReadOnlyWithoutUserPermission: Story = {
 		);
 		await expect(
 			await body.findByText(
-				/To update this limit, contact your deployment administrator\./,
+				/To update this limit, contact a Coder administrator\./,
 			),
 		).toBeInTheDocument();
 		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
