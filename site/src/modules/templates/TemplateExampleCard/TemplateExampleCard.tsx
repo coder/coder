@@ -64,7 +64,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
+					<RouterLink to={`/templates/new/builder?base=${example.id}`}>
 						Use template
 					</RouterLink>
 				</Button>
