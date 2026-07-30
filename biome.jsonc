@@ -138,6 +138,19 @@
 			"complexity": {
 				"noImportantStyles": "off", // TODO: check and fix !important styles
 				"useLiteralKeys": "off"
+			},
+			"nursery": {
+				"noJsRestrictedProperties": {
+					"level": "error",
+					"options": {
+						"entries": [
+							{
+								"property": "randomUUID",
+								"message": "crypto.randomUUID() is only defined in secure contexts, so it is undefined on deployments served over plain HTTP. Use `import { v4 as uuidv4 } from \"uuid\"` instead."
+							}
+						]
+					}
+				}
 			}
 		}
 	},
