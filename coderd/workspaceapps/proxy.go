@@ -765,9 +765,6 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	container := parser.String(values, "", "container")
 	containerUser := parser.String(values, "", "container_user")
 	backendType := parser.String(values, "", "backend_type")
-	// Browsers cannot set the baggage header on a WebSocket handshake, so the
-	// web terminal passes its session ID as a query parameter instead. Attach
-	// it to the logs for this session when present and valid.
 	sessionID := parser.String(values, "", tracing.SessionIDBaggageKey)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
