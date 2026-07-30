@@ -9,7 +9,7 @@ import type {
 /**
  * UI-only metadata for a coder_agent declared by the selected base.
  */
-type SelectedBaseAgent = {
+export type SelectedBaseAgent = {
 	name: string;
 	displayName: string;
 	default: boolean;

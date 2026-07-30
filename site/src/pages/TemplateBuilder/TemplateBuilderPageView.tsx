@@ -311,6 +311,13 @@ function renderStepContent(
 						})
 					}
 					onRemoveModule={onRemoveModule}
+					agents={state.selectedBase.agents ?? []}
+					moduleAgents={Object.fromEntries(
+						state.modules.map((m) => [m.id, m.agent_name ?? ""]),
+					)}
+					onChangeModuleAgent={(moduleId, agentName) =>
+						dispatch({ type: "SET_MODULE_AGENT", moduleId, agentName })
+					}
 				/>
 			);
 		case "customizations":

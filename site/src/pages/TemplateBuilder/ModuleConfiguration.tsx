@@ -1,4 +1,5 @@
 import { CheckIcon, TrashIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
@@ -16,6 +17,8 @@ type ModuleConfigurationProps = {
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
 	optionalFields?: ConfigurationFieldDefinition[];
+	/** Rendered between the header and variable fields, e.g. an agent selector. */
+	agentSelector?: ReactNode;
 };
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
@@ -26,6 +29,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	onRemove,
 	fields,
 	optionalFields,
+	agentSelector,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -49,6 +53,8 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 					</Button>
 				)}
 			</header>
+
+			{agentSelector}
 
 			{fields && fields.length > 0 && (
 				<ConfigurationFieldContainer>
