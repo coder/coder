@@ -37,6 +37,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 	return (
 		<TimelineEntry
 			data-testid={`version-${version.id}`}
+			aria-label={version.name}
 			{...(permissions.updateTemplates ? clickableProps : { clickable: false })}
 		>
 			<TableCell className="relative border-b-0 !p-0">
