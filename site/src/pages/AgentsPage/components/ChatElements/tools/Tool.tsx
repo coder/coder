@@ -117,7 +117,7 @@ type ToolRendererProps = {
 	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-	hookRewritten?: boolean;
+	hookRewritten: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -1078,7 +1078,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 };
 
 // Exported so tests can assert cross-cutting header affordances across every
-// dispatch target instead of a hand-picked subset.
+// registered renderer instead of a hand-picked subset.
 export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 
 // ---------------------------------------------------------------------------

@@ -229,7 +229,7 @@ const ReadFileTimelineBlock = memo<{
 				<ReadFileTool
 					{...readFile}
 					status={firstTool.status}
-					hookRewritten={firstTool.hookRewritten ?? false}
+					hookRewritten={firstTool.hookRewritten}
 					expanded={expanded}
 					onExpandedChange={setExpanded}
 				/>

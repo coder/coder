@@ -3279,7 +3279,6 @@ export const AllToolIconsTranscript: Story = {
 
 // The badge reaches tools implicitly through the shared header, so a renderer
 // that builds its own header rows drops it with no type or runtime error.
-// Asserting over the whole registry also fails when a new tool ships uncovered.
 export const PolicyBadgeCoversEveryRenderer: Story = {
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
@@ -3335,7 +3334,7 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 			toolRendererNames.filter((name) => !covered.has(name)),
 		).toStrictEqual([]);
 
-		const rendered: string[] = [];
+		const rendered = new Set<string>();
 		const missingBadge: string[] = [];
 		for (const toolCase of canvasElement.querySelectorAll(
 			"[data-policy-case]",
@@ -3344,13 +3343,15 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 			if (toolCase.textContent?.trim() === "") {
 				continue;
 			}
-			rendered.push(name);
+			rendered.add(name);
 			if (!within(toolCase as HTMLElement).queryByText("Modified by policy")) {
 				missingBadge.push(name);
 			}
 		}
 
 		expect(missingBadge).toStrictEqual([]);
-		expect(rendered.length).toBeGreaterThanOrEqual(toolRendererNames.length);
+		expect(
+			toolRendererNames.filter((name) => !rendered.has(name)),
+		).toStrictEqual([]);
 	},
 };
