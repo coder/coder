@@ -629,8 +629,6 @@ type sqlcQuerier interface {
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
-	// GetHideCodernauts returns whether the Codernauts game link is hidden
-	// from the user dropdown menu. Defaults to false when unset.
 	GetHideCodernauts(ctx context.Context) (bool, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
 	// breaking ties by the earliest organization membership. Implements the

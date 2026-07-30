@@ -25533,8 +25533,6 @@ SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'hide_codernauts'), false) :: boolean AS hide_codernauts
 `
 
-// GetHideCodernauts returns whether the Codernauts game link is hidden
-// from the user dropdown menu. Defaults to false when unset.
 func (q *sqlQuerier) GetHideCodernauts(ctx context.Context) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getHideCodernauts)
 	var hide_codernauts bool

@@ -16745,7 +16745,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "hide_codernauts": {
-                    "description": "HideCodernauts hides the Codernauts game link in the user dropdown menu.",
                     "type": "boolean"
                 },
                 "logo_url": {
@@ -25801,7 +25800,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "hide_codernauts": {
-                    "description": "HideCodernauts hides the Codernauts game link in the user dropdown menu.",
                     "type": "boolean"
                 },
                 "logo_url": {

@@ -57,8 +57,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 -- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name';
 
--- GetHideCodernauts returns whether the Codernauts game link is hidden
--- from the user dropdown menu. Defaults to false when unset.
 -- name: GetHideCodernauts :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'hide_codernauts'), false) :: boolean AS hide_codernauts;
@@ -68,13 +66,13 @@ INSERT INTO site_configs (key, value)
 VALUES (
     'hide_codernauts',
     CASE
-        WHEN sqlc.arg(hide)::bool THEN 'true'
+        WHEN @hide::bool THEN 'true'
         ELSE 'false'
     END
 )
 ON CONFLICT (key) DO UPDATE
 SET value = CASE
-    WHEN sqlc.arg(hide)::bool THEN 'true'
+    WHEN @hide::bool THEN 'true'
     ELSE 'false'
 END
 WHERE site_configs.key = 'hide_codernauts';

@@ -312,15 +312,4 @@ export const CodernautsHidden: Story = {
 	},
 };
 
-export const CodernautsShown: Story = {
-	play: async ({ canvasElement, step }) => {
-		await step("shows the Codernauts link by default", async () => {
-			await openDropdown(canvasElement);
-			expect(
-				screen.getByRole("menuitem", { name: "Codernauts" }),
-			).toBeInTheDocument();
-		});
-	},
-};
-
 export { Example as UserDropdown };

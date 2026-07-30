@@ -89,9 +89,7 @@ type Options struct {
 func New(opts *Options) (*Handler, error) {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
-		// No database is available here; coderd replaces this fetcher
-		// with a database-backed one during startup.
-		f := appearance.NewDefaultFetcher(nil, opts.DocsURL)
+		f := appearance.NewDefaultFetcher(opts.Database, opts.DocsURL)
 		daf.Store(&f)
 		opts.AppearanceFetcher = &daf
 	}
