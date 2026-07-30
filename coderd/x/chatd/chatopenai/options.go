@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
@@ -120,17 +119,7 @@ func EnsureResponseIncludes(
 // UsesResponsesAPI reports whether a model uses the OpenAI Responses API.
 // Callers must pass the same override the client was built with.
 func UsesResponsesAPI(provider, modelID string, override *bool) bool {
-	switch provider {
-	case fantasyopenai.Name:
-		if override != nil {
-			return *override
-		}
-		return fantasyopenai.IsResponsesModel(modelID)
-	case fantasyazure.Name:
-		return fantasyopenai.IsResponsesModel(modelID)
-	default:
-		return false
-	}
+	return TransportFor(provider, modelID, override).UsesResponses()
 }
 
 // UsesResponsesOptions reports whether the model should use OpenAI Responses

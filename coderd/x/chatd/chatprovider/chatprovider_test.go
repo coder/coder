@@ -918,7 +918,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			nil,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, model)
+		require.True(t, model.Valid())
 		require.Equal(t, fantasybedrock.Name, model.Provider())
 	})
 
@@ -934,7 +934,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			nil,
 			nil,
 		)
-		require.Nil(t, model)
+		require.False(t, model.Valid())
 		require.EqualError(t, err, "API key for provider \"bedrock\" is not set")
 	})
 
@@ -978,9 +978,9 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			nil,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, model)
+		require.True(t, model.Valid())
 
-		_, err = model.Generate(ctx, fantasy.Call{
+		_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 			Prompt: []fantasy.Message{
 				{
 					Role: fantasy.MessageRoleUser,
@@ -1034,7 +1034,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 					nil,
 					nil,
 				)
-				require.Nil(t, model)
+				require.False(t, model.Valid())
 				require.EqualError(t, err, tt.wantErr)
 			})
 		}
@@ -1103,9 +1103,9 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role: fantasy.MessageRoleUser,
@@ -1188,9 +1188,9 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 
-	stream, err := model.Stream(ctx, fantasy.Call{
+	stream, err := model.LanguageModel().Stream(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role: fantasy.MessageRoleUser,
@@ -1338,7 +1338,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers, nil, nil)
 		require.NoError(t, err)
 
-		_, err = model.Generate(ctx, fantasy.Call{
+		_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 			Prompt: []fantasy.Message{
 				{
 					Role:    fantasy.MessageRoleUser,
@@ -1369,7 +1369,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers, nil, nil)
 		require.NoError(t, err)
 
-		_, err = model.Generate(ctx, fantasy.Call{
+		_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 			Prompt: []fantasy.Message{
 				{
 					Role:    fantasy.MessageRoleUser,
@@ -1422,8 +1422,8 @@ func TestBetaHeadersFromCallConfig(t *testing.T) {
 	}
 }
 
-func generateHello(ctx context.Context, model fantasy.LanguageModel) error {
-	_, err := model.Generate(ctx, fantasy.Call{
+func generateHello(ctx context.Context, model chatprovider.Model) error {
+	_, err := model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role:    fantasy.MessageRoleUser,
@@ -1584,7 +1584,7 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil, nil)
 	require.NoError(t, err)
 
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role: fantasy.MessageRoleUser,
@@ -1625,7 +1625,7 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil, nil, nil)
 	require.NoError(t, err)
 
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role:    fantasy.MessageRoleUser,
@@ -1670,7 +1670,7 @@ func TestModelFromConfig_HTTPClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{{
 			Role:    fantasy.MessageRoleUser,
 			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},

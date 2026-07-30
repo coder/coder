@@ -278,11 +278,11 @@ func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel fantasy.LanguageModel,
+	fallbackModel chatprovider.Model,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
-) (fantasy.LanguageModel, codersdk.ChatModelCallConfig, error) {
+) (chatprovider.Model, codersdk.ChatModelCallConfig, error) {
 	if advisorCfg.ModelConfigID == uuid.Nil {
 		return fallbackModel, fallbackCallConfig, nil
 	}
@@ -331,7 +331,7 @@ func (p *Server) resolveAdvisorModelOverride(
 	)
 	if err != nil {
 		if overrideConfig.AIProviderID.Valid {
-			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
+			return chatprovider.Model{}, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
 		}
 		logger.Warn(
 			ctx,
@@ -350,7 +350,7 @@ func (p *Server) resolveAdvisorModelOverride(
 	}, route, modelOpts)
 	if err != nil {
 		if overrideConfig.AIProviderID.Valid {
-			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
+			return chatprovider.Model{}, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
 		}
 		logger.Warn(
 			ctx,
@@ -381,7 +381,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel fantasy.LanguageModel,
+	fallbackModel chatprovider.Model,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
@@ -430,19 +430,19 @@ func (p *Server) newAdvisorRuntime(
 	)
 	advisorResponsesOverride := chatprovider.OpenAIResponsesAPIOverride(advisorCallConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		advisorModel,
+		advisorModel.LanguageModel(),
 		advisorCallConfig.ProviderOptions,
 		advisorResponsesOverride,
 	)
 	providerOptions = chatprovider.ApplyReasoningEffort(
-		advisorModel,
+		advisorModel.LanguageModel(),
 		providerOptions,
 		advisorReasoningEffort,
 		advisorResponsesOverride,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model:           advisorModel,
+		Model:           advisorModel.LanguageModel(),
 		ModelConfig:     advisorCallConfig,
 		ProviderOptions: providerOptions,
 		MaxUsesPerRun:   maxUsesPerRun,
@@ -2602,7 +2602,7 @@ func (p *Server) generateManualTitleCandidate(
 		titleCtx,
 		messages,
 		pasteText,
-		titleModel,
+		titleModel.LanguageModel(),
 		p.titleGenerationProviderOptions(ctx, titleModel, modelConfig),
 	)
 	finishDebugRun(err)
@@ -2654,8 +2654,8 @@ func (p *Server) prepareManualTitleDebugRun(
 	modelConfig database.ChatModelConfig,
 	modelOpts modelBuildOptions,
 	messages []database.ChatMessage,
-	fallbackModel fantasy.LanguageModel,
-) (context.Context, fantasy.LanguageModel, func(error)) {
+	fallbackModel chatprovider.Model,
+) (context.Context, chatprovider.Model, func(error)) {
 	titleCtx := ctx
 	titleModel := fallbackModel
 	finishDebugRun := func(error) {}
@@ -2674,7 +2674,7 @@ func (p *Server) prepareManualTitleDebugRun(
 	debugOpts := modelOpts
 	debugOpts.RecordHTTP = true
 	var debugModelErr error
-	var debugModel fantasy.LanguageModel
+	var debugModel chatprovider.Model
 	if routeErr != nil {
 		debugModelErr = routeErr
 	} else {
@@ -2693,18 +2693,18 @@ func (p *Server) prepareManualTitleDebugRun(
 			slog.F("model", modelConfig.Model),
 			slog.Error(debugModelErr),
 		)
-	case debugModel == nil:
+	case !debugModel.Valid():
 		p.logger.Warn(ctx, "manual title debug model creation returned nil",
 			slog.F("chat_id", chat.ID),
 			slog.F("model", modelConfig.Model),
 		)
 	default:
-		titleModel = chatdebug.WrapModel(debugModel, debugSvc, chatdebug.RecorderOptions{
+		titleModel = debugModel.WithLanguageModel(chatdebug.WrapModel(debugModel.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
 			ChatID:   chat.ID,
 			OwnerID:  chat.OwnerID,
 			Provider: routeProvider,
 			Model:    modelConfig.Model,
-		})
+		}))
 	}
 
 	var historyTipMessageID int64
@@ -2829,7 +2829,7 @@ func (p *Server) resolveManualTitleModel(
 	store database.Store,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+) (chatprovider.Model, database.ChatModelConfig, error) {
 	overrideConfig, overrideModel, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
@@ -2837,7 +2837,7 @@ func (p *Server) resolveManualTitleModel(
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return nil, database.ChatModelConfig{}, xerrors.Errorf(
+			return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -2896,17 +2896,17 @@ func (p *Server) resolveFallbackManualTitleModel(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+) (chatprovider.Model, database.ChatModelConfig, error) {
 	config, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
 			"resolve fallback manual title model config: %w",
 			err,
 		)
 	}
 	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, err
+		return chatprovider.Model{}, database.ChatModelConfig{}, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:          chat,
@@ -2916,7 +2916,7 @@ func (p *Server) resolveFallbackManualTitleModel(
 		ConfigOptions: config.Options,
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
 			"create fallback manual title model: %w",
 			err,
 		)
@@ -3499,7 +3499,7 @@ func (p *Server) trackWorkspaceUsage(
 
 type runChatResult struct {
 	FinalAssistantText  string
-	StatusLabelModel    fantasy.LanguageModel
+	StatusLabelModel    chatprovider.Model
 	FallbackProvider    string
 	FallbackRoute       aiGatewayModelRoute
 	FallbackModel       string
@@ -4085,7 +4085,7 @@ func (p *Server) resolveChatModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (
-	model fantasy.LanguageModel,
+	model chatprovider.Model,
 	dbConfig database.ChatModelConfig,
 	route aiGatewayModelRoute,
 	debugEnabled bool,
@@ -4095,16 +4095,16 @@ func (p *Server) resolveChatModel(
 ) {
 	dbConfig, err = p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
+		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
 	}
 
 	if !dbConfig.Enabled {
-		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
+		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
 	}
 
 	route, err = p.resolveModelRouteForConfig(ctx, chat.OwnerID, dbConfig)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", err
+		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", err
 	}
 
 	providerHint := route.ModelProviderHint
@@ -4113,7 +4113,7 @@ func (p *Server) resolveChatModel(
 		providerHint,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
+		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
 			"resolve model metadata: %w", err,
 		)
 	}
@@ -4126,7 +4126,7 @@ func (p *Server) resolveChatModel(
 		ConfigOptions: dbConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
+		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
@@ -4680,7 +4680,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	}
 
 	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-	if assistantText == "" || runResult.StatusLabelModel == nil {
+	if assistantText == "" || !runResult.StatusLabelModel.Valid() {
 		return fallbackTurnStatusLabel(status)
 	}
 
@@ -4946,7 +4946,7 @@ func (p *Server) resolveChatSummaryModel(
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, database.ChatModelConfig{}, false
 	}
-	return model, dbConfig, true
+	return model.LanguageModel(), dbConfig, true
 }
 
 func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
