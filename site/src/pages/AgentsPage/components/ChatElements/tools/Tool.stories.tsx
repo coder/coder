@@ -6,7 +6,7 @@ import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
-import { Tool } from "./Tool";
+import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
 const executeIntentCommand = "npm test";
@@ -125,6 +125,13 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 				},
 			],
 			count: 1,
+		},
+	},
+	{
+		name: "list_agents",
+		result: {
+			agents: [{ id: "agent-1", title: "Workspace diagnostics" }],
+			total: 1,
 		},
 	},
 	{
@@ -486,6 +493,41 @@ export const SubagentRewrittenByHook: Story = {
 			name: /Spawned Workspace diagnostics/,
 		});
 		expect(within(header).getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const NonCollapsibleRewrittenByHook: Story = {
+	args: {
+		name: "read_template",
+		status: "completed",
+		args: { template_id: "template-1" },
+		hookRewritten: true,
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /Read template/ }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const NonCollapsibleNotRewrittenByHook: Story = {
+	args: {
+		name: "read_template",
+		status: "completed",
+		args: { template_id: "template-1" },
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Read template Go Development")).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
 	},
 };
 
@@ -3232,5 +3274,83 @@ export const AllToolIconsTranscript: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+// The badge reaches tools implicitly through the shared header, so a renderer
+// that builds its own header rows drops it with no type or runtime error.
+// Asserting over the whole registry also fails when a new tool ships uncovered.
+export const PolicyBadgeCoversEveryRenderer: Story = {
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+			<DesktopPanelContext.Provider
+				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
+			>
+				<div className="flex flex-col gap-2">
+					{allToolShowcaseItems.map((tool, index) => (
+						<div key={`${tool.name}-${index}`} data-policy-case={tool.name}>
+							<Tool
+								name={tool.name}
+								status={tool.status ?? "completed"}
+								args={tool.args}
+								result={tool.result}
+								isError={tool.isError}
+								killedBySignal={tool.killedBySignal}
+								modelIntent={tool.modelIntent}
+								parsedCommands={tool.parsedCommands}
+								subagentVariants={tool.subagentVariants}
+								hookRewritten
+								shellToolDisplayMode="always_collapsed"
+								codeDiffDisplayMode="always_collapsed"
+								showDesktopPreviews={false}
+							/>
+						</div>
+					))}
+				</div>
+			</DesktopPanelContext.Provider>
+		</ChatWorkspaceContext>
+	),
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: { id: "test-build-id", status: "running" },
+				},
+			},
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const covered = new Set(allToolShowcaseItems.map((tool) => tool.name));
+		expect(
+			toolRendererNames.filter((name) => !covered.has(name)),
+		).toStrictEqual([]);
+
+		const rendered: string[] = [];
+		const missingBadge: string[] = [];
+		for (const toolCase of canvasElement.querySelectorAll(
+			"[data-policy-case]",
+		)) {
+			const name = toolCase.getAttribute("data-policy-case") ?? "";
+			if (toolCase.textContent?.trim() === "") {
+				continue;
+			}
+			rendered.push(name);
+			if (!within(toolCase as HTMLElement).queryByText("Modified by policy")) {
+				missingBadge.push(name);
+			}
+		}
+
+		expect(missingBadge).toStrictEqual([]);
+		expect(rendered.length).toBeGreaterThanOrEqual(toolRendererNames.length);
 	},
 };
