@@ -399,9 +399,6 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
-      chromatic:
-        specifier: 11.29.0
-        version: 11.29.0
       dpdm:
         specifier: 3.15.1
         version: 3.15.1
@@ -3312,18 +3309,6 @@ packages:
 
   chroma-js@2.6.0:
     resolution: {integrity: sha512-BLHvCB9s8Z1EV4ethr6xnkl/P2YRFOGqfgvuMG/MyCbZPrTA+NeiByY6XvgF0zP4/2deU2CXnWyMa3zu1LqQ3A==, tarball: https://registry.npmjs.org/chroma-js/-/chroma-js-2.6.0.tgz}
-
-  chromatic@11.29.0:
-    resolution: {integrity: sha512-yisBlntp9hHVj19lIQdpTlcYIXuU9H/DbFuu6tyWHmj6hWT2EtukCCcxYXL78XdQt1vm2GfIrtgtKpj/Rzmo4A==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.29.0.tgz}
-    hasBin: true
-    peerDependencies:
-      '@chromatic-com/cypress': ^0.*.* || ^1.0.0
-      '@chromatic-com/playwright': ^0.*.* || ^1.0.0
-    peerDependenciesMeta:
-      '@chromatic-com/cypress':
-        optional: true
-      '@chromatic-com/playwright':
-        optional: true
 
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==, tarball: https://registry.npmjs.org/class-variance-authority/-/class-variance-authority-0.7.1.tgz}
@@ -9517,8 +9502,6 @@ snapshots:
       readdirp: 4.1.2
 
   chroma-js@2.6.0: {}
-
-  chromatic@11.29.0: {}
 
   class-variance-authority@0.7.1:
     dependencies:
