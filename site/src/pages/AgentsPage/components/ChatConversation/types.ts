@@ -22,6 +22,8 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
+	/** Accumulated result text before parsing, set while result deltas stream. */
+	resultRaw?: string;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
