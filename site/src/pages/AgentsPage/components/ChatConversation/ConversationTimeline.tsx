@@ -225,8 +225,6 @@ const ReadFileTimelineBlock = memo<{
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			// This row renders ReadFileTool directly instead of going through
-			// Tool, which is what supplies the policy state everywhere else.
 			<ToolCall.PolicyProvider hookRewritten={firstTool.hookRewritten ?? false}>
 				<div data-tool-call="">
 					<ReadFileTool

@@ -402,7 +402,6 @@ export const ExecuteDeniedByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// parsed_commands summarizes the label, as it does for stored calls.
 		expect(canvas.getByText(/Failed to run cat/)).toBeVisible();
 		expect(canvas.queryByText(/Ran cat/)).not.toBeInTheDocument();
 		await expect(

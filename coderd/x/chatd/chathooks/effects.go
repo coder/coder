@@ -36,8 +36,6 @@ func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message
 		})
 	}
 	if result.GetUserMessage() != "" {
-		// Use a typed part so clients can distinguish hook notices from other
-		// system rows.
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
 			Type: codersdk.ChatMessagePartTypeHookNotice,
 			Text: result.UserMessage,
@@ -161,8 +159,6 @@ func UserPromptParts(result *Result) []codersdk.ChatMessagePart {
 	return parts
 }
 
-// The hook's prompt field contains only concatenated text, so an override
-// replaces text parts while preserving non-text parts for policy inspection.
 func applyPromptOverride(parts []codersdk.ChatMessagePart, override string) []codersdk.ChatMessagePart {
 	userParts := make([]codersdk.ChatMessagePart, 0, len(parts)+1)
 	replaced := false

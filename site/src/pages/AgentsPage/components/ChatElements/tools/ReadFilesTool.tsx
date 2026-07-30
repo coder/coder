@@ -55,9 +55,6 @@ export const ReadFilesTool: FC<{
 				</ToolCall.PolicyProvider>
 				<ToolCall.Content>
 					<div className="space-y-1 py-0.5 pl-3">
-						{/* The group header shows the aggregate, so each row needs
-						its own flag to avoid crediting the rewrite to files the
-						hook left alone. */}
 						{items.map((item) => (
 							<ToolCall.PolicyProvider
 								key={item.id}

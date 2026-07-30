@@ -3557,9 +3557,7 @@ export interface ChatToolCallPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * HookRewritten indicates a lifecycle hook replaced the input the
-	 * model proposed for this call. Without it the stored call is
-	 * indistinguishable from one the model authored.
+	 * HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	 */
 	readonly hook_rewritten?: boolean;
 	/**
