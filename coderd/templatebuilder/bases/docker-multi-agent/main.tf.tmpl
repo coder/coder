@@ -1,0 +1,205 @@
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+    docker = {
+      source = "kreuzwerker/docker"
+    }
+  }
+}
+
+locals {
+  username = data.coder_workspace_owner.me.name
+}
+
+variable "docker_socket" {
+  default     = ""
+  description = "(Optional) Docker socket URI"
+  type        = string
+}
+
+provider "docker" {
+  # Defaulting to null if the variable is an empty string lets us have an optional variable without having to set our own default
+  host = var.docker_socket != "" ? var.docker_socket : null
+}
+
+data "coder_provisioner" "me" {}
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+# This template provisions two workspace agents that run in separate
+# containers: a primary "main" agent and a secondary "dev" agent. Modules
+# can attach to either agent depending on where the tooling should run.
+resource "coder_agent" "main" {
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
+  startup_script = <<-EOT
+    set -e
+
+    # Prepare user home with default files on first start.
+    if [ ! -f ~/.init_done ]; then
+      cp -rT /etc/skel ~
+      touch ~/.init_done
+    fi
+  EOT
+
+  env = {
+    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+  }
+
+  metadata {
+    display_name = "CPU Usage"
+    key          = "0_cpu_usage"
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "1_ram_usage"
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
+}
+
+resource "coder_agent" "dev" {
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
+  startup_script = <<-EOT
+    set -e
+
+    # Prepare user home with default files on first start.
+    if [ ! -f ~/.init_done ]; then
+      cp -rT /etc/skel ~
+      touch ~/.init_done
+    fi
+  EOT
+
+  metadata {
+    display_name = "CPU Usage"
+    key          = "0_cpu_usage"
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "1_ram_usage"
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
+}
+
+resource "docker_volume" "main_home" {
+  name = "coder-${data.coder_workspace.me.id}-main-home"
+  lifecycle {
+    ignore_changes = all
+  }
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+}
+
+resource "docker_volume" "dev_home" {
+  name = "coder-${data.coder_workspace.me.id}-dev-home"
+  lifecycle {
+    ignore_changes = all
+  }
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+}
+
+resource "docker_container" "main" {
+  count      = data.coder_workspace.me.start_count
+  image      = {{ .Variables.container_image }}
+  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}-main"
+  hostname   = "${data.coder_workspace.me.name}-main"
+  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/coder"
+    volume_name    = docker_volume.main_home.name
+    read_only      = false
+  }
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "docker_container" "dev" {
+  count      = data.coder_workspace.me.start_count
+  image      = {{ .Variables.container_image }}
+  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}-dev"
+  hostname   = "${data.coder_workspace.me.name}-dev"
+  entrypoint = ["sh", "-c", replace(coder_agent.dev.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  env        = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/coder"
+    volume_name    = docker_volume.dev_home.name
+    read_only      = false
+  }
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
+}

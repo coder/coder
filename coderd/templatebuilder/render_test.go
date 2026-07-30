@@ -411,8 +411,8 @@ func TestAllBasesRenderAndExtractAgent(t *testing.T) {
 			require.NoError(t, err, "base %q should render without error", id)
 			require.NotEmpty(t, rendered)
 
-			name, err := templatebuilder.ExtractAgentResourceName(rendered)
-			require.NoError(t, err, "base %q should have exactly one coder_agent", id)
+			name, err := templatebuilder.ExtractAgentResourceNames(rendered)
+			require.NoError(t, err, "base %q should declare at least one coder_agent", id)
 			require.NotEmpty(t, name)
 		})
 	}

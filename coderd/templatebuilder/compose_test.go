@@ -94,6 +94,30 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `unknown agent "nonexistent"`)
 	})
 
+	t.Run("MultiAgentBasePerModuleAgent", func(t *testing.T) {
+		t.Parallel()
+		// The docker-multi-agent base declares two agents. A module with
+		// no AgentName attaches to the default (main); a module naming
+		// "dev" attaches to the dev agent.
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker-multi-agent",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "code-server"},
+				{ID: "git-clone", AgentName: "dev", Variables: map[string]string{
+					"url": `"https://github.com/coder/coder"`,
+				}},
+			},
+		})
+		require.NoError(t, err)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `resource "coder_agent" "dev"`)
+		modules := string(result.ModulesTF)
+		require.Contains(t, modules, `coder_agent.main.id`)
+		require.Contains(t, modules, `coder_agent.dev.id`)
+	})
+
 	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{

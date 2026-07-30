@@ -15,6 +15,7 @@ var allBaseIDs = []string{
 	"azure-linux",
 	"digitalocean-linux",
 	"docker",
+	"docker-multi-agent",
 	"gcp-linux",
 	"gcp-windows",
 	"kubernetes",
