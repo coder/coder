@@ -415,3 +415,12 @@ INSERT INTO site_configs (key, value)
 VALUES ('agents_chat_auto_archive_days', CAST(@auto_archive_days AS integer)::text)
 ON CONFLICT (key) DO UPDATE SET value = CAST(@auto_archive_days AS integer)::text
 WHERE site_configs.key = 'agents_chat_auto_archive_days';
+
+-- GetChatSiteConfigValue returns the raw stored text of a chat-related
+-- site_configs key, or an empty string when the key has no row. Unlike
+-- the typed per-key getters it performs no cast, so it cannot fail on
+-- malformed stored text; audit change-detection uses it to capture the
+-- exact stored value a write replaced.
+-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = sqlc.arg(config_key)), '') :: text AS value;

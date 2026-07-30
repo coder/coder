@@ -21883,7 +21883,8 @@
 				"user_ai_budget_override",
 				"chat",
 				"user_secret",
-				"user_skill"
+				"user_skill",
+				"agents_operational_settings"
 			],
 			"x-enum-varnames": [
 				"ResourceTypeTemplate",
@@ -21921,7 +21922,8 @@
 				"ResourceTypeUserAIBudgetOverride",
 				"ResourceTypeChat",
 				"ResourceTypeUserSecret",
-				"ResourceTypeUserSkill"
+				"ResourceTypeUserSkill",
+				"ResourceTypeAgentsOperationalSettings"
 			]
 		},
 		"codersdk.Response": {

@@ -3313,6 +3313,21 @@ func (mr *MockStoreMockRecorder) GetChatRetentionDays(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatRetentionDays", reflect.TypeOf((*MockStore)(nil).GetChatRetentionDays), ctx)
 }
 
+// GetChatSiteConfigValue mocks base method.
+func (m *MockStore) GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatSiteConfigValue", ctx, configKey)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatSiteConfigValue indicates an expected call of GetChatSiteConfigValue.
+func (mr *MockStoreMockRecorder) GetChatSiteConfigValue(ctx, configKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSiteConfigValue", reflect.TypeOf((*MockStore)(nil).GetChatSiteConfigValue), ctx, configKey)
+}
+
 // GetChatStreamSyncRows mocks base method.
 func (m *MockStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	m.ctrl.T.Helper()

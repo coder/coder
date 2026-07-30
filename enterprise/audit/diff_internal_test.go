@@ -504,6 +504,57 @@ func Test_diff(t *testing.T) {
 			},
 		},
 	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Each operational-settings endpoint populates only its own
+			// field, so a single-setting change diffs exactly one field;
+			// the other fields stay zero on both sides and never diff,
+			// even when the deployment has values stored for them
+			// (CODAGT-720). The values are raw site_configs text and are
+			// tracked, not secret.
+			name: "SingleSettingChangeDiffsExactlyOneField",
+			left: database.AgentsOperationalSettings{
+				ChatRetentionDays: "30",
+			},
+			right: database.AgentsOperationalSettings{
+				ID:                uuid.UUID{1},
+				ChatRetentionDays: "90",
+			},
+			exp: audit.Map{
+				"chat_retention_days": audit.OldNew{Old: "30", New: "90"},
+			},
+		},
+		{
+			// Malformed stored text is rendered honestly as raw text; a
+			// repairing write diffs junk-to-valid.
+			name: "MalformedOldValueTrackedAsRawText",
+			left: database.AgentsOperationalSettings{
+				ChatRetentionDays: "not-a-number",
+			},
+			right: database.AgentsOperationalSettings{
+				ID:                uuid.UUID{1},
+				ChatRetentionDays: "60",
+			},
+			exp: audit.Map{
+				"chat_retention_days": audit.OldNew{Old: "not-a-number", New: "60"},
+			},
+		},
+		{
+			// The artificial ID is ignored, so a value-identical write
+			// would diff empty. Handlers additionally suppress the entry
+			// entirely by leaving both resource IDs nil.
+			name: "ArtificialIDIgnored",
+			left: database.AgentsOperationalSettings{
+				ChatRetentionDays: "30",
+			},
+			right: database.AgentsOperationalSettings{
+				ID:                uuid.UUID{1},
+				ChatRetentionDays: "30",
+			},
+			exp: audit.Map{},
+		},
+	})
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

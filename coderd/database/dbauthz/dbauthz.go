@@ -3570,6 +3570,17 @@ func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	return q.db.GetChatRetentionDays(ctx)
 }
 
+// GetChatSiteConfigValue reads deployment configuration, so it gates on the
+// same permission as the chat settings writes that surround it
+// (ResourceDeploymentConfig: update). The read is for audit change-detection
+// inside those writes, and grants no read capability beyond the write gate.
+func (q *querier) GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatSiteConfigValue(ctx, configKey)
+}
+
 func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err

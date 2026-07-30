@@ -7955,6 +7955,7 @@ export type ResourceType =
 	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
+	| "agents_operational_settings"
 	| "chat"
 	| "convert_login"
 	| "custom_role"
@@ -7993,6 +7994,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_provider_key",
 	"ai_seat",
 	"api_key",
+	"agents_operational_settings",
 	"chat",
 	"convert_login",
 	"custom_role",

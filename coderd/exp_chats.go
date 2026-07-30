@@ -5498,6 +5498,89 @@ func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 	})
 }
 
+// writeChatOperationalSetting writes one chat operational site_configs key
+// inside a transaction and captures the audit change-detection for it. The
+// advisory lock serializes the capture with the write: two concurrent
+// identical PUTs both still succeed, but the second transaction's
+// comparison sees the first's committed state and suppresses its duplicate
+// audit entry. The lock is part of the write path, so a failure to acquire
+// it fails the request. Audit capture is best-effort: a failed read
+// degrades to an unaudited write with a warn log rather than aborting the
+// request or rolling back the write. Old and New are populated only after
+// the write succeeds and only when the stored text actually changed, so a
+// value-identical PUT and a failed capture both leave the request with no
+// resource IDs, which suppresses the audit entry entirely.
+func (api *API) writeChatOperationalSetting(ctx context.Context, aReq *audit.Request[database.AgentsOperationalSettings], key string, write func(tx database.Store) error) error {
+	return api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.LockIDChatSettingsWrites); err != nil {
+			return xerrors.Errorf("acquire chat settings write lock: %w", err)
+		}
+
+		// Audit capture only: a failed read must not change the outcome
+		// of the request, so it degrades to an unaudited write rather
+		// than aborting.
+		oldValue, oldErr := tx.GetChatSiteConfigValue(ctx, key)
+		if oldErr != nil {
+			api.Logger.Warn(ctx, "audit old capture failed, writing chat operational setting without an audit entry",
+				slog.F("key", key),
+				slog.Error(oldErr))
+		}
+		if err := write(tx); err != nil {
+			return err
+		}
+		if oldErr != nil {
+			// Without a baseline there is no meaningful change detection.
+			return nil
+		}
+		// Re-read the stored text to build New: the write may normalize
+		// the value, so comparing against the request-derived text would
+		// misreport changes. Same best-effort rule as the Old capture: a
+		// failed re-read must not roll back the completed write.
+		newValue, newErr := tx.GetChatSiteConfigValue(ctx, key)
+		if newErr != nil {
+			api.Logger.Warn(ctx, "audit new capture failed, writing chat operational setting without an audit entry",
+				slog.F("key", key),
+				slog.Error(newErr))
+			return nil
+		}
+		if newValue == oldValue {
+			// Value-identical PUT: leave both audit sides without a
+			// resource ID, which suppresses the audit entry entirely.
+			// The write above still runs either way.
+			return nil
+		}
+		aReq.Old = operationalSettingsForKey(key, oldValue, uuid.Nil)
+		// Artificial ID for auditing purposes, set only on New so the
+		// entry shows the old-to-new transition.
+		aReq.New = operationalSettingsForKey(key, newValue, uuid.New())
+		return nil
+	}, nil)
+}
+
+// operationalSettingsForKey returns an AgentsOperationalSettings with only
+// the field for key populated, so a change to one setting diffs exactly one
+// field and never reads or emits the other settings.
+func operationalSettingsForKey(key, value string, id uuid.UUID) database.AgentsOperationalSettings {
+	s := database.AgentsOperationalSettings{ID: id}
+	switch key {
+	case "agents_chat_retention_days":
+		s.ChatRetentionDays = value
+	case "agents_chat_debug_retention_days":
+		s.ChatDebugRetentionDays = value
+	case "agents_chat_auto_archive_days":
+		s.ChatAutoArchiveDays = value
+	case "agents_workspace_ttl":
+		s.WorkspaceTTL = value
+	case "agents_computer_use_provider":
+		s.ComputerUseProvider = value
+	case "agents_chat_debug_logging_allow_users":
+		s.DebugLoggingAllowUsers = value
+	case "agents_chat_personal_model_overrides_enabled":
+		s.PersonalModelOverridesEnabled = value
+	}
+	return s
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5506,11 +5589,22 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if err := api.Database.UpsertChatPersonalModelOverridesEnabled(ctx, req.AllowUsers); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_chat_personal_model_overrides_enabled", func(tx database.Store) error {
+		return tx.UpsertChatPersonalModelOverridesEnabled(ctx, req.AllowUsers)
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating personal model override setting.",
 			Detail:  err.Error(),
@@ -5731,6 +5825,14 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatComputerUseProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -5747,7 +5849,10 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := api.Database.UpsertChatComputerUseProvider(ctx, string(req.Provider)); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_computer_use_provider", func(tx database.Store) error {
+		return tx.UpsertChatComputerUseProvider(ctx, string(req.Provider))
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating computer use provider.",
 			Detail:  err.Error(),
@@ -5793,11 +5898,22 @@ func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatDebugLoggingAllowUsersRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if err := api.Database.UpsertChatDebugLoggingAllowUsers(ctx, req.AllowUsers); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_chat_debug_logging_allow_users", func(tx database.Store) error {
+		return tx.UpsertChatDebugLoggingAllowUsers(ctx, req.AllowUsers)
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat debug logging setting.",
 			Detail:  err.Error(),
@@ -6036,6 +6152,14 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatWorkspaceTTLRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -6068,7 +6192,10 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the canonicalized duration string.
-	if err := api.Database.UpsertChatWorkspaceTTL(ctx, d.String()); httpapi.Is404Error(err) {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_workspace_ttl", func(tx database.Store) error {
+		return tx.UpsertChatWorkspaceTTL(ctx, d.String())
+	})
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
@@ -6125,6 +6252,15 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatRetentionDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -6135,7 +6271,10 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if err := api.Database.UpsertChatRetentionDays(ctx, req.RetentionDays); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_chat_retention_days", func(tx database.Store) error {
+		return tx.UpsertChatRetentionDays(ctx, req.RetentionDays)
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat retention days.",
 			Detail:  err.Error(),
@@ -6176,6 +6315,15 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 		httpapi.Forbidden(rw)
 		return
 	}
+
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatDebugRetentionDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -6186,7 +6334,10 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	if err := api.Database.UpsertChatDebugRetentionDays(ctx, req.DebugRetentionDays); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_chat_debug_retention_days", func(tx database.Store) error {
+		return tx.UpsertChatDebugRetentionDays(ctx, req.DebugRetentionDays)
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat debug retention days.",
 			Detail:  err.Error(),
@@ -6228,6 +6379,15 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 		httpapi.Forbidden(rw)
 		return
 	}
+
+	aReq, commitAudit := audit.InitRequest[database.AgentsOperationalSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	var req codersdk.UpdateChatAutoArchiveDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -6238,7 +6398,10 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if err := api.Database.UpsertChatAutoArchiveDays(ctx, req.AutoArchiveDays); err != nil {
+	err := api.writeChatOperationalSetting(ctx, aReq, "agents_chat_auto_archive_days", func(tx database.Store) error {
+		return tx.UpsertChatAutoArchiveDays(ctx, req.AutoArchiveDays)
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat auto-archive days.",
 			Detail:  err.Error(),

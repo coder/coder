@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,10 +23,12 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -16976,4 +16979,511 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			}
 		}
 	})
+}
+
+// failNextChatSiteConfigValueStore lets a test force GetChatSiteConfigValue
+// reads to fail until the armed count reaches zero. Best-effort audit
+// captures swallow these errors without retrying, which is why a one-shot
+// flag is not enough: the failure would stay latent and fire on a later,
+// unrelated read. The counter is shared across InTx wrappers.
+type failNextChatSiteConfigValueStore struct {
+	database.Store
+
+	armedGetChatSiteConfigValueFailures *atomic.Int64
+}
+
+func newFailNextChatSiteConfigValueStore(store database.Store) *failNextChatSiteConfigValueStore {
+	return &failNextChatSiteConfigValueStore{
+		Store:                               store,
+		armedGetChatSiteConfigValueFailures: &atomic.Int64{},
+	}
+}
+
+func (s *failNextChatSiteConfigValueStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextChatSiteConfigValueStore{
+			Store:                               tx,
+			armedGetChatSiteConfigValueFailures: s.armedGetChatSiteConfigValueFailures,
+		})
+	}, txOpts)
+}
+
+func (s *failNextChatSiteConfigValueStore) GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error) {
+	if s.armedGetChatSiteConfigValueFailures != nil && s.armedGetChatSiteConfigValueFailures.Load() > 0 {
+		s.armedGetChatSiteConfigValueFailures.Add(-1)
+		return "", stderrors.New("forced chat site config value read failure")
+	}
+	return s.Store.GetChatSiteConfigValue(ctx, configKey)
+}
+
+// failNextUpsertChatRetentionDaysStore lets a test force the retention-days
+// upsert to fail once, sharing its failure state across InTx wrappers.
+type failNextUpsertChatRetentionDaysStore struct {
+	database.Store
+
+	failNextUpsertChatRetentionDays *atomic.Bool
+}
+
+func newFailNextUpsertChatRetentionDaysStore(store database.Store) *failNextUpsertChatRetentionDaysStore {
+	return &failNextUpsertChatRetentionDaysStore{
+		Store:                           store,
+		failNextUpsertChatRetentionDays: &atomic.Bool{},
+	}
+}
+
+func (s *failNextUpsertChatRetentionDaysStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextUpsertChatRetentionDaysStore{
+			Store:                           tx,
+			failNextUpsertChatRetentionDays: s.failNextUpsertChatRetentionDays,
+		})
+	}, txOpts)
+}
+
+func (s *failNextUpsertChatRetentionDaysStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
+	if s.failNextUpsertChatRetentionDays.CompareAndSwap(true, false) {
+		return stderrors.New("forced retention days upsert failure")
+	}
+	return s.Store.UpsertChatRetentionDays(ctx, retentionDays)
+}
+
+// TestChatOperationalSettingsAudit covers the seven deployment-wide
+// operational agents settings endpoints that share the
+// agents_operational_settings audit resource (CODAGT-720).
+//
+//nolint:tparallel,paralleltest // Subtests share mock auditors and stores.
+func TestChatOperationalSettingsAudit(t *testing.T) {
+	t.Parallel()
+
+	// Write + no-op suppression for every endpoint, plus the storage-level
+	// no-op boundary: a value-identical PUT on an existing row emits
+	// nothing, while a row-materializing PUT of the effective default
+	// emits the empty-to-value entry.
+	t.Run("WriteAndSuppression", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name string
+			// set writes a value that differs from any prior state.
+			set func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error
+			// stored returns the raw stored text of the setting.
+			stored func(t *testing.T, ctx context.Context, store database.Store) string
+			// defaultValueIndex selects the change value that equals the
+			// endpoint's effective fallback default.
+			defaultValueIndex int
+			// invalid exercises the request-validation rejection path.
+			invalid func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error
+			// changedField is the struct field this endpoint populates.
+			changedField func(s database.AgentsOperationalSettings) string
+		}{
+			{
+				name: "RetentionDays",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: int32(value) /* #nosec G115 - test values are small */})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 30,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: -1})
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatRetentionDays },
+			},
+			{
+				name: "DebugRetentionDays",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: int32(value) /* #nosec G115 - test values are small */})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_debug_retention_days")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 30,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: -1})
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatDebugRetentionDays },
+			},
+			{
+				name: "AutoArchiveDays",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: int32(value) /* #nosec G115 - test values are small */})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_auto_archive_days")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 0,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: -1})
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatAutoArchiveDays },
+			},
+			{
+				name: "WorkspaceTTL",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					// value is interpreted as hours here.
+					return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: int64(value) * 3_600_000})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_workspace_ttl")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 0,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: -1})
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.WorkspaceTTL },
+			},
+			{
+				name: "ComputerUseProvider",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					provider := codersdk.ChatComputerUseProviderAnthropic
+					if value%2 == 0 {
+						provider = codersdk.ChatComputerUseProviderOpenAI
+					}
+					return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{Provider: provider})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_computer_use_provider")
+					require.NoError(t, err)
+					return v
+				},
+				// No effective default: the raw absent value "" is what
+				// the row-materializing PUT comparison uses.
+				defaultValueIndex: -1,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{Provider: "not-a-provider"})
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.ComputerUseProvider },
+			},
+			{
+				name: "DebugLogging",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					return client.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: value%2 == 1})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_debug_logging_allow_users")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 0,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return nil
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.DebugLoggingAllowUsers },
+			},
+			{
+				name: "PersonalModelOverrides",
+				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
+					return client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{AllowUsers: value%2 == 1})
+				},
+				stored: func(t *testing.T, ctx context.Context, store database.Store) string {
+					v, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_personal_model_overrides_enabled")
+					require.NoError(t, err)
+					return v
+				},
+				defaultValueIndex: 0,
+				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
+					return nil
+				},
+				changedField: func(s database.AgentsOperationalSettings) string { return s.PersonalModelOverridesEnabled },
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				mAudit := audit.NewMock()
+				client, store := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+					opts.Auditor = mAudit
+				})
+				_ = coderdtest.CreateFirstUser(t, client.Client)
+				// Discard the login entry emitted by user creation.
+				mAudit.ResetLogs()
+
+				// First write materializes the row: entry with the
+				// empty-to-value transition. Use 47 as the change value;
+				// bool settings use odd=true.
+				changeValue := 47
+				require.NoError(t, tc.set(t, ctx, client, changeValue))
+				logs := mAudit.AuditLogs()
+				require.Len(t, logs, 1)
+				require.Equal(t, database.AuditActionWrite, logs[0].Action)
+				require.Equal(t, database.ResourceTypeAgentsOperationalSettings, logs[0].ResourceType)
+				require.Equal(t, "", logs[0].ResourceTarget)
+				require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+				require.Equal(t, uuid.Nil, logs[0].OrganizationID)
+				require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+				// The write itself is unchanged: the value is stored.
+				require.NotEmpty(t, tc.stored(t, ctx, store))
+
+				// A value-identical PUT emits nothing (the write still
+				// runs).
+				mAudit.ResetLogs()
+				require.NoError(t, tc.set(t, ctx, client, changeValue))
+				require.Empty(t, mAudit.AuditLogs())
+
+				// Storage-level no-op boundary: PUT the effective
+				// fallback default on a fresh deployment (row absent).
+				// The materialization audits as empty-to-default even
+				// though the typed getter already returned the default.
+				if tc.defaultValueIndex >= 0 {
+					mAudit2 := audit.NewMock()
+					client2, store2 := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+						opts.Auditor = mAudit2
+					})
+					_ = coderdtest.CreateFirstUser(t, client2.Client)
+					mAudit2.ResetLogs()
+
+					require.Empty(t, tc.stored(t, ctx, store2))
+					require.NoError(t, tc.set(t, ctx, client2, tc.defaultValueIndex))
+					logs2 := mAudit2.AuditLogs()
+					require.Len(t, logs2, 1)
+					require.Equal(t, database.AuditActionWrite, logs2[0].Action)
+				}
+
+				// A validation-rejected PUT emits nothing.
+				if err := tc.invalid(t, ctx, client); err != nil {
+					mAudit.ResetLogs()
+					require.Error(t, tc.invalid(t, ctx, client))
+					require.Empty(t, mAudit.AuditLogs())
+				}
+			})
+		}
+	})
+
+	// The audit diff for a single-setting change names exactly the changed
+	// field, even when other operational settings hold stored values. The
+	// mock's test-supplied diff function pins the captured Old/New pair,
+	// which the default empty mock diff cannot express.
+	t.Run("SingleSettingDiffNamesExactlyOneField", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// This runs on the HTTP handler goroutine (via the deferred
+		// commitAudit), so it must use assert, not require: require calls
+		// t.FailNow, which is only legal on the test goroutine.
+		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldSettings, ok := old.(database.AgentsOperationalSettings)
+			assert.True(t, ok)
+			newSettings, ok := newVal.(database.AgentsOperationalSettings)
+			assert.True(t, ok)
+			return audit.Map{
+				"chat_retention_days":              {Old: oldSettings.ChatRetentionDays, New: newSettings.ChatRetentionDays},
+				"chat_debug_retention_days":        {Old: oldSettings.ChatDebugRetentionDays, New: newSettings.ChatDebugRetentionDays},
+				"chat_auto_archive_days":           {Old: oldSettings.ChatAutoArchiveDays, New: newSettings.ChatAutoArchiveDays},
+				"workspace_ttl":                    {Old: oldSettings.WorkspaceTTL, New: newSettings.WorkspaceTTL},
+				"computer_use_provider":            {Old: oldSettings.ComputerUseProvider, New: newSettings.ComputerUseProvider},
+				"debug_logging_allow_users":        {Old: oldSettings.DebugLoggingAllowUsers, New: newSettings.DebugLoggingAllowUsers},
+				"personal_model_overrides_enabled": {Old: oldSettings.PersonalModelOverridesEnabled, New: newSettings.PersonalModelOverridesEnabled},
+			}
+		})
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// Populate unrelated settings so the deployment has stored values
+		// elsewhere.
+		require.NoError(t, client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: 14}))
+		require.NoError(t, client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: 7_200_000}))
+		mAudit.ResetLogs()
+
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+		// Only the changed field has an old-to-new transition; the other
+		// fields are zero on both sides and their diff entries carry no
+		// change, so the effective diff names exactly one field.
+		changed := make([]string, 0, 1)
+		for field, entry := range diff {
+			if entry.Old != entry.New {
+				changed = append(changed, field)
+			}
+		}
+		require.Equal(t, []string{"chat_retention_days"}, changed)
+		require.Equal(t, codersdk.AuditDiffField{Old: "", New: "90"}, diff["chat_retention_days"])
+	})
+
+	// Seeding junk text into a key and PUTting a valid value keeps today's
+	// response and write semantics unchanged (the stored value is repaired
+	// to the valid text), and the audit diff shows the junk-to-valid
+	// transition.
+	t.Run("MalformedSettingRepair", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		client, store := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		// Seed malformed raw text directly into site_configs, the state a
+		// hand-edited or legacy deployment can hold.
+		require.NoError(t, store.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   "agents_chat_retention_days",
+			Value: "not-a-number",
+		}))
+
+		// The PUT validates only the request body and writes the valid
+		// value, exactly as on main: 204 and the row repaired.
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 60}))
+		raw, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "60", raw)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+	})
+
+	// A failing audit old-capture read must not change the request
+	// outcome: the write still happens and the response is still 204, the
+	// entry is just skipped.
+	t.Run("OldCaptureFailureStillWrites", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSiteConfigValueStore(rawDB)
+		mAudit := audit.NewMock()
+		sink := &recordingSink{}
+		logger := slog.Make(sink)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+			Logger:           &logger,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.armedGetChatSiteConfigValueFailures.Store(1)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		require.Empty(t, mAudit.AuditLogs())
+		require.Contains(t, sink.messages(), "audit old capture failed, writing chat operational setting without an audit entry")
+
+		resp, err := client.GetChatRetentionDays(ctx)
+		require.NoError(t, err)
+		require.Equal(t, int32(90), resp.RetentionDays)
+	})
+
+	// A failing upsert rolls the transaction back: the request fails with
+	// 500, no audit entry is emitted, and the stale Old the failed request
+	// captured must not poison a later no-change PUT into being audited as
+	// a change.
+	t.Run("UpsertFailureThenNoChangeSuppressed", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpsertChatRetentionDaysStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		mAudit.ResetLogs()
+		store.failNextUpsertChatRetentionDays.Store(true)
+		err := client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7})
+		requireSDKError(t, err, http.StatusInternalServerError)
+		require.Empty(t, mAudit.AuditLogs())
+
+		// The failed write rolled back, so the stored value is still 90
+		// and repeating it is a no-op: no entry. The stale Old from the
+		// failed request must not survive into this one.
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// Two concurrent identical PUTs both succeed, but the advisory lock
+	// makes the second comparison see the first's committed state, so only
+	// the first write is audited as a change.
+	t.Run("ConcurrentIdenticalPUTsSingleEntry", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		const puts = 2
+		start := make(chan struct{})
+		errs := make(chan error, puts)
+		var wg sync.WaitGroup
+		for range puts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				errs <- client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90})
+			}()
+		}
+		close(start)
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			require.NoError(t, err)
+		}
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+	})
+}
+
+// recordingSink captures slog entries so tests can assert on messages the
+// handler logs, e.g. best-effort audit capture failures.
+type recordingSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *recordingSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, e)
+}
+
+func (*recordingSink) Sync() {}
+
+func (s *recordingSink) messages() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	msgs := make([]string, len(s.entries))
+	for i, e := range s.entries {
+		msgs[i] = e.Message
+	}
+	return msgs
 }

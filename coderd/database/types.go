@@ -49,6 +49,26 @@ type OAuth2ProviderSettings struct {
 	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
 }
 
+// AgentsOperationalSettings is the auditable shape of the deployment-wide
+// operational agents settings, stored as raw text in the site_configs keys
+// agents_chat_retention_days, agents_chat_debug_retention_days,
+// agents_chat_auto_archive_days, agents_workspace_ttl,
+// agents_computer_use_provider, agents_chat_debug_logging_allow_users and
+// agents_chat_personal_model_overrides_enabled. Every field mirrors the raw
+// stored text of its key (empty string when the row is absent); each of the
+// seven settings endpoints audits this one type and populates only its own
+// field, so a change to one setting diffs exactly one field.
+type AgentsOperationalSettings struct {
+	ID                            uuid.UUID `db:"id" json:"id"`
+	ChatRetentionDays             string    `db:"chat_retention_days" json:"chat_retention_days"`
+	ChatDebugRetentionDays        string    `db:"chat_debug_retention_days" json:"chat_debug_retention_days"`
+	ChatAutoArchiveDays           string    `db:"chat_auto_archive_days" json:"chat_auto_archive_days"`
+	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
+	ComputerUseProvider           string    `db:"computer_use_provider" json:"computer_use_provider"`
+	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
+	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

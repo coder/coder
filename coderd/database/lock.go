@@ -17,6 +17,7 @@ const (
 	LockIDBoundaryUsageStats
 	LockIDAIProvidersEnvSeed
 	LockIDChatModelConfigWrites
+	LockIDChatSettingsWrites
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

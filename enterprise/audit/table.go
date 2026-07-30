@@ -37,6 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AgentsOperationalSettings":     {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -282,6 +283,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.OAuth2ProviderSettings{}: {
 		"id":                                  ActionIgnore,
 		"dynamic_client_registration_enabled": ActionTrack,
+	},
+	&database.AgentsOperationalSettings{}: {
+		"id":                               ActionIgnore,
+		"chat_retention_days":              ActionTrack,
+		"chat_debug_retention_days":        ActionTrack,
+		"chat_auto_archive_days":           ActionTrack,
+		"workspace_ttl":                    ActionTrack,
+		"computer_use_provider":            ActionTrack,
+		"debug_logging_allow_users":        ActionTrack,
+		"personal_model_overrides_enabled": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
