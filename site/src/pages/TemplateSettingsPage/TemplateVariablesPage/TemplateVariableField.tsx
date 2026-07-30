@@ -1,4 +1,10 @@
-import { type FC, type ReactNode, useId, useState } from "react";
+import {
+	type FC,
+	type FocusEventHandler,
+	type ReactNode,
+	useId,
+	useState,
+} from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
@@ -20,6 +26,8 @@ interface TemplateVariableFieldProps {
 	onChange: (value: string) => void;
 	error?: boolean;
 	helperText?: ReactNode;
+	name?: string;
+	onBlur?: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
 }
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
@@ -29,6 +37,8 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
 	onChange,
 	error = false,
 	helperText,
+	name,
+	onBlur,
 }) => {
 	const id = useId();
 	const [variableValue, setVariableValue] = useState(initialValue);
@@ -81,14 +91,14 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
 	return (
 		<FormField
 			field={{
-				name: templateVersionVariable.name,
+				name: name ?? templateVersionVariable.name,
 				id,
 				value: variableValue,
 				onChange: (event) => {
 					setVariableValue(event.target.value);
 					onChange(event.target.value);
 				},
-				onBlur: () => {},
+				onBlur: onBlur ?? (() => {}),
 				error,
 				helperText,
 			}}

@@ -556,6 +556,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								disabled={
 									isSubmitting || !form.values.inactivity_cleanup_enabled
 								}
+								id={timeTilDormantField.id}
+								name={timeTilDormantField.name}
+								onBlur={timeTilDormantField.onBlur}
 								error={timeTilDormantField.error}
 								helperText={timeTilDormantField.helperText}
 							/>
@@ -592,6 +595,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									isSubmitting ||
 									!form.values.dormant_autodeletion_cleanup_enabled
 								}
+								id={timeTilDormantAutodeleteField.id}
+								name={timeTilDormantAutodeleteField.name}
+								onBlur={timeTilDormantAutodeleteField.onBlur}
 								error={timeTilDormantAutodeleteField.error}
 								helperText={timeTilDormantAutodeleteField.helperText}
 							/>
@@ -620,6 +626,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								valueMs={form.values.failure_ttl_ms ?? 0}
 								onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
 								disabled={isSubmitting || !form.values.failure_cleanup_enabled}
+								id={failureTtlField.id}
+								name={failureTtlField.name}
+								onBlur={failureTtlField.onBlur}
 								error={failureTtlField.error}
 								helperText={failureTtlField.helperText}
 							/>
