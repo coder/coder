@@ -104,7 +104,7 @@ their group.
    **Budget assigned to**.
 1. Select **Update**.
 
-![User AI budget override](../../images/aibridge/user_override_ai_budget.png)
+![User AI budget override](../../images/aibridge/user-override-ai-budget.png)
 
 Overrides behave as follows:
 
