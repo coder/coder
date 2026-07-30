@@ -5,18 +5,26 @@ import {
 	MockCancelingProvisionerJob,
 	MockFailedProvisionerJob,
 	MockPendingProvisionerJob,
+	MockPermissions,
 	MockRunningProvisionerJob,
 	MockTemplateVersion,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { VersionsTable } from "./VersionsTable";
 
 const meta: Meta<typeof VersionsTable> = {
 	title: "pages/TemplatePage/VersionsTable",
 	component: VersionsTable,
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
 	args: {
 		onPromoteClick: () => {},
 		onArchiveClick: () => {},
 	},
+	decorators: [withAuthProvider],
 };
 
 export default meta;
