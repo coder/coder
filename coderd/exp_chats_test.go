@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
@@ -17575,6 +17577,83 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.Equal(t, "90", raw)
 	})
 
+	// The fallback preserves the Old/New the audited transaction captured,
+	// so a post-commit failure that the fallback recovers emits the
+	// ordinary entry: client status, entry status, and diff agree. Removing
+	// the keep-Old-New-across-the-fallback behavior turns this red.
+	t.Run("PostCommitFallbackEmitsOrdinaryEntry", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, store, mAudit := openS2CommitFailServer(t)
+
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 30}))
+		mAudit.ResetLogs()
+
+		// The audited transaction writes and captures Old and New, then
+		// Commit fails; the fallback direct write repeats the idempotent
+		// upsert and succeeds, so the client sees 204.
+		s2CommitFailArmed.Store(true)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+
+		raw, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "90", raw)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+		require.Equal(t, map[string]codersdk.AuditDiffField{
+			"chat_retention_days": {Old: "30", New: "90"},
+		}, diff)
+	})
+
+	// A client retrying with a corrected value after a failed audited
+	// write is a real path: the audited transaction rolls back, the
+	// fallback persists the new value with no entry (audit degrades), and
+	// a later audited change diffs from the fallback-persisted baseline,
+	// not from any pre-failure value.
+	t.Run("DivergentValueFallbackBaseline", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpsertChatRetentionDaysStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 30}))
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		// The forced failure rolls back the audited transaction; the
+		// fallback direct write persists 7 with no entry.
+		mAudit.ResetLogs()
+		store.failNextUpsertChatRetentionDays.Store(true)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7}))
+		require.Empty(t, mAudit.AuditLogs())
+
+		raw, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "7", raw)
+
+		// A later audited change reads the fallback-persisted 7 as its
+		// baseline and diffs 7 -> 90.
+		mAudit.ResetLogs()
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+	})
+
 	// Two concurrent identical PUTs both succeed, but the advisory lock
 	// makes the second comparison see the first's committed state, so only
 	// the first write is audited as a change.
@@ -17691,4 +17770,80 @@ func (s *failNextChatSettingsLockStore) AcquireLock(ctx context.Context, id int6
 		return stderrors.New("forced chat settings lock failure")
 	}
 	return s.Store.AcquireLock(ctx, id)
+}
+
+// s2CommitFailDriver fails the next Commit while armed, used to drive the
+// post-commit-after-callback position in the operational-settings audit
+// tests.
+var s2CommitFailArmed atomic.Bool
+
+type s2CommitFailDriver struct{ drv driver.Driver }
+
+func (d *s2CommitFailDriver) Open(name string) (driver.Conn, error) {
+	c, err := d.drv.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return &s2CommitFailConn{Conn: c}, nil
+}
+
+type s2CommitFailConn struct{ driver.Conn }
+
+func (c *s2CommitFailConn) Begin() (driver.Tx, error) {
+	tx, err := c.Conn.Begin()
+	if err != nil {
+		return nil, err
+	}
+	return &s2CommitFailTx{Tx: tx}, nil
+}
+
+func (c *s2CommitFailConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if btx, ok := c.Conn.(driver.ConnBeginTx); ok {
+		tx, err := btx.BeginTx(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		return &s2CommitFailTx{Tx: tx}, nil
+	}
+	return c.Begin()
+}
+
+type s2CommitFailTx struct{ driver.Tx }
+
+func (t *s2CommitFailTx) Commit() error {
+	if s2CommitFailArmed.CompareAndSwap(true, false) {
+		return stderrors.New("forced commit failure")
+	}
+	return t.Tx.Commit()
+}
+
+func init() {
+	sql.Register("postgres-s2commitfail", &s2CommitFailDriver{drv: &pq.Driver{}})
+}
+
+// openS2CommitFailServer returns a client whose store commits through the
+// commit-failing driver, plus a diff-pinning mock auditor.
+func openS2CommitFailServer(t *testing.T) (*codersdk.ExperimentalClient, database.Store, *audit.MockAuditor) {
+	t.Helper()
+	mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+		o, _ := old.(database.ChatOperationalSettings)
+		n, _ := newVal.(database.ChatOperationalSettings)
+		return audit.Map{"chat_retention_days": {Old: o.ChatRetentionDays, New: n.ChatRetentionDays}}
+	})
+	url, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+	_, ps := dbtestutil.NewDB(t, dbtestutil.WithURL(url))
+	sqlDB, err := sql.Open("postgres-s2commitfail", url)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	cfDB := database.New(sqlDB, database.WithSerialRetryCount(1))
+	rawClient := coderdtest.New(t, &coderdtest.Options{
+		Database:         cfDB,
+		Pubsub:           ps,
+		DeploymentValues: coderdtest.DeploymentValues(t),
+		Auditor:          mAudit,
+	})
+	_ = coderdtest.CreateFirstUser(t, rawClient)
+	mAudit.ResetLogs()
+	return codersdk.NewExperimentalClient(rawClient), cfDB, mAudit
 }
