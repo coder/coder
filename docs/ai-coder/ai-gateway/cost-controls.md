@@ -267,8 +267,8 @@ see [Prometheus metrics](../../admin/integrations/prometheus.md).
 
 ## Migrate from Coder Agents Cost Control
 
-In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control for
-enforcement. The legacy Coder Agents Spend page remains available until v2.37.
+In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control. The
+legacy Coder Agents Spend page remains available until v2.37.
 
 > [!WARNING]
 > Spend limits configured under **Admin settings** > **AI** > **Spend** are no
