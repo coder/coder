@@ -339,21 +339,65 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
-// normalizingChatPlanModeInstructionsStore stores an uppercased value on// normalizingChatPlanModeInstructionsStore stores an uppercased value on
-// every upsert, so tests can prove the audited New comes from the stored
-// value, not the request text.
-type normalizingChatPlanModeInstructionsStore struct {
+// lockSwitchChatPlanModeInstructionsStore can disable the per-setting
+// advisory lock (to prove its effect) and stall the Old-capture read until
+// every concurrent transaction is parked there, so the stale-Old race the
+// lock prevents is deterministic when the lock is off. The lock must stay
+// enabled in any test that leaves it on, or the barrier deadlocks.
+type lockSwitchChatPlanModeInstructionsStore struct {
 	database.Store
+
+	lockEnabled *atomic.Bool
+	mu          *sync.Mutex
+	parked      *int
+	target      *atomic.Int64
+	release     chan struct{}
 }
 
-func (s *normalizingChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+func newLockSwitchChatPlanModeInstructionsStore(store database.Store) *lockSwitchChatPlanModeInstructionsStore {
+	return &lockSwitchChatPlanModeInstructionsStore{
+		Store:       store,
+		lockEnabled: &atomic.Bool{},
+		mu:          &sync.Mutex{},
+		parked:      new(int),
+		target:      &atomic.Int64{},
+		release:     make(chan struct{}),
+	}
+}
+
+func (s *lockSwitchChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return function(&normalizingChatPlanModeInstructionsStore{Store: tx})
+		return function(&lockSwitchChatPlanModeInstructionsStore{
+			Store:       tx,
+			lockEnabled: s.lockEnabled,
+			mu:          s.mu,
+			parked:      s.parked,
+			target:      s.target,
+			release:     s.release,
+		})
 	}, txOpts)
 }
 
-func (s *normalizingChatPlanModeInstructionsStore) UpsertChatPlanModeInstructions(ctx context.Context, instructions string) error {
-	return s.Store.UpsertChatPlanModeInstructions(ctx, strings.ToUpper(instructions))
+func (s *lockSwitchChatPlanModeInstructionsStore) AcquireLock(ctx context.Context, id int64) error {
+	if !s.lockEnabled.Load() {
+		return nil
+	}
+	return s.Store.AcquireLock(ctx, id)
+}
+
+func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	if s.target.Load() > 0 {
+		s.mu.Lock()
+		*s.parked++
+		done := *s.parked >= int(s.target.Load())
+		s.mu.Unlock()
+		if done {
+			close(s.release)
+		} else {
+			<-s.release
+		}
+	}
+	return s.Store.GetChatPlanModeInstructions(ctx)
 }
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
@@ -13077,9 +13121,71 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
+	// The derived New must match the getter's computed effective state on
+	// the happy path for every combination of written prompt and
+	// include-default input, so the derivation cannot drift from
+	// GetChatSystemPromptConfig's rule.
+	t.Run("AuditDerivedNewMatchesGetter", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			prompt   string
+			explicit *bool
+		}{
+			{"EmptyPromptOmittedToggle", "", nil},
+			{"EmptyPromptExplicitTrue", "", ptr.Ref(true)},
+			{"EmptyPromptExplicitFalse", "", ptr.Ref(false)},
+			{"NonEmptyPromptOmittedToggle", "Custom instructions.", nil},
+			{"NonEmptyPromptExplicitTrue", "Custom instructions.", ptr.Ref(true)},
+			{"NonEmptyPromptExplicitFalse", "Custom instructions.", ptr.Ref(false)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				auditClient, db := newChatClientWithDatabase(t)
+				_ = coderdtest.CreateFirstUser(t, auditClient.Client)
+
+				err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+					SystemPrompt:               tc.prompt,
+					IncludeDefaultSystemPrompt: tc.explicit,
+				})
+				require.NoError(t, err)
+
+				// The getter's computed state after the write.
+				stored, err := db.GetChatSystemPromptConfig(dbauthz.AsSystemRestricted(ctx))
+				require.NoError(t, err)
+
+				// The derivation the handler applies, computed from the
+				// written values and the pre-write stored state (empty
+				// here, fresh deployment).
+				newIncludeSet := false
+				newIncludeValue := true
+				if tc.explicit != nil {
+					newIncludeSet = true
+					newIncludeValue = *tc.explicit
+				}
+				if !newIncludeSet {
+					newIncludeValue = tc.prompt == ""
+				}
+
+				require.Equal(t, tc.prompt, stored.ChatSystemPrompt)
+				require.Equal(t, newIncludeSet, stored.IncludeDefaultSystemPromptSet,
+					"derived presence must match the getter")
+				require.Equal(t, newIncludeValue, stored.IncludeDefaultSystemPrompt,
+					"derived effective value must match the getter")
+			})
+		}
+	})
+
 	// Two concurrent identical PUTs both succeed, but the advisory lock
 	// makes the second comparison see the first's committed state, so
 	// only the first write is audited as a change.
+	// Two concurrent identical PUTs of a new value both succeed, but the
+	// per-setting lock serializes the Old capture with the write, so the
+	// first is a real change and the second sees the first's committed
+	// state and is a no-op: one entry.
 	t.Run("AuditConcurrentIdenticalPUTsSingleEntry", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -13091,6 +13197,14 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
 
+		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Seed prompt.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		mAudit.ResetLogs()
 		const puts = 2
 		start := make(chan struct{})
 		errs := make(chan error, puts)
@@ -13399,54 +13513,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.NotContains(t, string(logs[0].Diff), "must not leak")
 	})
 
-	// The audited New must be the STORED value, not the request text: the
-	// write may normalize the value, and request-derived text would
-	// misreport the change. The store uppercases every upsert; the entry
-	// must carry the stored uppercase form.
-	t.Run("AuditNewIsStoredValue", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := &normalizingChatPlanModeInstructionsStore{Store: rawDB}
-		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			newSettings, ok := newVal.(database.ChatInstructionSettings)
-			assert.True(t, ok)
-			return audit.Map{
-				"plan_mode_instructions": {Old: oldSettings.PlanModeInstructions, New: newSettings.PlanModeInstructions},
-			}
-		})
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "normalize me",
-		})
-		require.NoError(t, err)
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		var diff map[string]codersdk.AuditDiffField
-		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
-		require.Equal(t, map[string]codersdk.AuditDiffField{
-			"plan_mode_instructions": {Old: "", New: "NORMALIZE ME"},
-		}, diff)
-
-		resp, err := client.GetChatPlanModeInstructions(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "NORMALIZE ME", resp.PlanModeInstructions)
-	})
-
 	// A failing upsert rolls the transaction back: the request fails with
 	// 500, no audit entry is emitted, and the stale Old the failed request
 	// captured must not poison a later no-change PUT into being audited
@@ -13501,20 +13567,41 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	// Two concurrent identical PUTs both succeed, but the advisory lock
-	// makes the second comparison see the first's committed state, so
-	// only the first write is audited as a change.
+	// Two concurrent identical PUTs both succeed, but the per-setting lock
+	// serializes the Old capture with the write, so the second
+	// transaction's comparison sees the first's committed state and only
+	// the first write is audited as a change. The barrier forces both
+	// transactions to the Old capture before either commits, so the
+	// lock-off case below reproduces the stale-Old race deterministically.
 	t.Run("AuditConcurrentIdenticalPUTsSingleEntry", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
+		store.lockEnabled.Store(true)
 		mAudit := audit.NewMock()
-		auditClient := newChatClient(t, func(opts *coderdtest.Options) {
-			opts.Auditor = mAudit
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
 		})
-		_ = coderdtest.CreateFirstUser(t, auditClient.Client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
 
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Seed instructions.",
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		// Concurrent identical PUTs of a NEW value under the lock: the
+		// first is a real change, the second sees the first's committed
+		// value and is a no-op.
+		mAudit.ResetLogs()
 		const puts = 2
 		start := make(chan struct{})
 		errs := make(chan error, puts)
@@ -13524,7 +13611,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				errs <- auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 					PlanModeInstructions: "Concurrent instructions.",
 				})
 			}()
@@ -13535,10 +13622,62 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		for err := range errs {
 			require.NoError(t, err)
 		}
+		require.Len(t, mAudit.AuditLogs(), 1)
+	})
 
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+	// With the lock removed, the barrier parks both transactions at the
+	// Old capture before either writes, so both read the same stale Old,
+	// both write, and both emit: the exact duplicate the lock prevents.
+	// This is the mutation proof for the lock.
+	t.Run("AuditConcurrentIdenticalPUTsDuplicateWithoutLock", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
+		// Lock disabled.
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Seed instructions.",
+		})
+		require.NoError(t, err)
+		require.Len(t, mAudit.AuditLogs(), 1)
+
+		mAudit.ResetLogs()
+		store.target.Store(2)
+		const puts = 2
+		start := make(chan struct{})
+		errs := make(chan error, puts)
+		var wg sync.WaitGroup
+		for range puts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+					PlanModeInstructions: "Concurrent instructions.",
+				})
+			}()
+		}
+		close(start)
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			require.NoError(t, err)
+		}
+		// Both captured the same stale Old and both wrote: two entries.
+		require.Len(t, mAudit.AuditLogs(), 2)
 	})
 }
 
