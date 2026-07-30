@@ -2414,15 +2414,15 @@ func TestMigration000556UserSecretsEnabled(t *testing.T) {
 			"to preserve the previous implicit-skip behavior")
 }
 
-// TestMigration000544OAuth2PublicClientTokensBackfill seeds a pre-migration
+// TestMigration000562OAuth2PublicClientTokensBackfill seeds a pre-migration
 // oauth2_provider_app_tokens row (the only shape that could exist before this
 // migration, since app_secret_id was NOT NULL) and asserts that the new app_id
 // column is backfilled from the existing app_secret_id -> app_id join, and
 // that app_secret_id becomes nullable afterward.
-func TestMigration000544OAuth2PublicClientTokensBackfill(t *testing.T) {
+func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 543
+	const priorMigrationVersion = 561
 
 	sqlDB := testSQLDB(t)
 
@@ -2443,7 +2443,7 @@ func TestMigration000544OAuth2PublicClientTokensBackfill(t *testing.T) {
 	appID := uuid.New()
 	secretID := uuid.New()
 	tokenID := uuid.New()
-	const apiKeyID = "test544apikeyid"
+	const apiKeyID = "test562apikeyid"
 
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -2451,7 +2451,7 @@ func TestMigration000544OAuth2PublicClientTokensBackfill(t *testing.T) {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
-		VALUES ($1, 'test-user-544', 'test-544@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
+		VALUES ($1, 'test-user-562', 'test-562@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
 	`, userID, now)
 	require.NoError(t, err)
 
@@ -2463,25 +2463,25 @@ func TestMigration000544OAuth2PublicClientTokensBackfill(t *testing.T) {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url)
-		VALUES ($1, $2, $2, 'test-app-544', '', 'http://localhost/callback')
+		VALUES ($1, $2, $2, 'test-app-562', '', 'http://localhost/callback')
 	`, appID, now)
 	require.NoError(t, err)
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO oauth2_provider_app_secrets (id, created_at, hashed_secret, display_secret, app_id, secret_prefix)
-		VALUES ($1, $2, ''::bytea, '****1234', $3, 'prefix544'::bytea)
+		VALUES ($1, $2, ''::bytea, '****1234', $3, 'prefix562'::bytea)
 	`, secretID, now, appID)
 	require.NoError(t, err)
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, user_id)
-		VALUES ($1, $2, $3, 'prefix544'::bytea, ''::bytea, $4, $5, $6)
+		VALUES ($1, $2, $3, 'prefix562'::bytea, ''::bytea, $4, $5, $6)
 	`, tokenID, now, now.Add(time.Hour), secretID, apiKeyID, userID)
 	require.NoError(t, err)
 
 	require.NoError(t, tx.Commit())
 
-	migrationSQL, err := os.ReadFile("000544_oauth2_public_client_tokens.up.sql")
+	migrationSQL, err := os.ReadFile("000562_oauth2_public_client_tokens.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
 	require.NoError(t, err)
