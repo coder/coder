@@ -1,5 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -7,6 +7,8 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
+import { Label } from "#/components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
@@ -17,6 +19,7 @@ import {
 } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import type { SelectedBaseAgent } from "./wizardState";
 
 interface ModuleSettingsStepProps {
 	baseId: string;
@@ -27,7 +30,52 @@ interface ModuleSettingsStepProps {
 		variables: Record<string, string>,
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
+	/** Agents the base declares. When more than one, each module picks one. */
+	agents: readonly SelectedBaseAgent[];
+	/** Maps module id to its selected agent name. */
+	moduleAgents: Record<string, string>;
+	onChangeModuleAgent: (moduleId: string, agentName: string) => void;
 }
+
+/**
+ * Radio group letting a single module choose which base agent it attaches to.
+ */
+const ModuleAgentSelector: FC<{
+	agents: readonly SelectedBaseAgent[];
+	value: string;
+	onChange: (agentName: string) => void;
+}> = ({ agents, value, onChange }) => {
+	const groupId = useId();
+	const labelId = `${groupId}-label`;
+	return (
+		<div className="mb-6">
+			<Label id={labelId} className="block mb-1">
+				Agent
+			</Label>
+			<p className="mt-0 mb-3 text-sm text-content-secondary">
+				Choose which agent runs this module.
+			</p>
+			<RadioGroup
+				aria-labelledby={labelId}
+				value={value}
+				onValueChange={onChange}
+				className="gap-3"
+			>
+				{agents.map((agent) => {
+					const itemId = `${groupId}-${agent.name}`;
+					return (
+						<div key={agent.name} className="flex items-center gap-2">
+							<RadioGroupItem id={itemId} value={agent.name} />
+							<Label htmlFor={itemId} className="font-normal cursor-pointer">
+								{agent.displayName}
+							</Label>
+						</div>
+					);
+				})}
+			</RadioGroup>
+		</div>
+	);
+};
 
 function variableToField(
 	moduleId: string,
@@ -109,9 +157,13 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	moduleVariables,
 	onChangeModuleVariables,
 	onRemoveModule,
+	agents,
+	moduleAgents,
+	onChangeModuleAgent,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
+	const hasMultipleAgents = agents.length > 1;
 
 	const selectedModules = selectedModuleIds
 		.map((id) => modules.find((m) => m.id === id))
@@ -126,7 +178,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
-				Set values for module variables.
+				{hasMultipleAgents
+					? "Choose an agent for each module and set values for module variables."
+					: "Set values for module variables."}
 			</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
@@ -159,6 +213,17 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								fields={requiredFields}
 								optionalFields={optionalFields}
 								onRemove={() => onRemoveModule(mod.id)}
+								agentSelector={
+									hasMultipleAgents ? (
+										<ModuleAgentSelector
+											agents={agents}
+											value={moduleAgents[mod.id] ?? ""}
+											onChange={(agentName) =>
+												onChangeModuleAgent(mod.id, agentName)
+											}
+										/>
+									) : undefined
+								}
 							/>
 
 							{sensitiveVars.length > 0 && (
