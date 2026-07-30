@@ -1,302 +1,193 @@
-# Design Sketch: Incremental Backfill of AI Model Price Costs
+# Design Sketch: `valid_from` on AI Model Prices
 
 ## Problem
 
 When an admin adds pricing for a model that was previously unpriced, historical
-token usage rows for that model have `cost_micros IS NULL`. The daily spend
-table (`ai_user_daily_spend`) was never incremented for those rows. Spend
-reports and budget enforcement are inaccurate until those rows are backfilled.
+token usage rows have `cost_micros = NULL`. Without a validity period, the
+system either (a) leaves them NULL forever (understated spend), or (b) requires
+a backfill rollup job to retroactively compute and accumulate spend —
+introducing complexity around idempotency, past-day-only spend, budget
+threshold suppression, and partial indexes.
+
+A `valid_from` column dissolves the problem at the schema level. The price is
+valid from a point in time. Past usage that predates the price is correctly
+NULL — the price didn't exist yet. The admin can optionally choose retroactive
+validity with `--valid-from <past>`, accepting the consequences.
 
 ## Design
 
-An incremental rollup job, modeled on the existing `dbrollup` package, runs
-periodically and backfills NULL-cost rows in batches. It is fully automatic:
-when an admin adds a price via `coder exp model-prices update`, the next rollup
-tick starts backfilling historical usage. No manual command required.
+### Schema change
 
-### Rollup job
-
-New package: `coderd/database/dbaipricebackfill` (mirrors `dbrollup`/`dbpurge`).
-
-```go
-package dbaipricebackfill
-
-const (
-    DefaultInterval = 5 * time.Minute
-    BatchSize       = 1000
-)
-
-type Backfiller struct {
-    cancel   context.CancelFunc
-    closed   chan struct{}
-    db       database.Store
-    logger   slog.Logger
-    interval time.Duration
-    batch    int
-}
-```
-
-Wired into the server lifecycle the same way as `dbrollup.New`:
-
-```go
-// In coderd/coderd.go Options:
-AIPriceBackfiller *dbaipricebackfill.Backfiller
-
-// In New():
-if options.AIPriceBackfiller == nil {
-    options.AIPriceBackfiller = dbaipricebackfill.New(
-        options.Logger.Named("aipricebackfill"),
-        options.Database,
-    )
-}
-
-// In API struct:
-aIPriceBackfiller *dbaipricebackfill.Backfiller
-
-// In Close():
-api.aIPriceBackfiller.Close()
-```
-
-New advisory lock ID in `coderd/database/lock.go`:
-
-```go
-LockIDAIPriceBackfill
-```
-
-### Per-tick logic
-
-Each tick, in one transaction with the advisory lock:
-
-1. **Snapshot prices + compute cost** for up to `BatchSize` NULL-cost rows
-   that now have a matching price.
-
-2. **Backfill daily spend** for past-day rows only (today's spend is deferred
-   to tomorrow's rollup — avoids mid-session budget surprises).
-
-The `cost_micros IS NULL` predicate is both the filter and the idempotency
-guarantee: rows already backfilled have non-NULL cost and are skipped. Partial
-failures roll back and retry next tick.
-
-### SQL queries
-
-Two new queries in `coderd/database/queries/aicostcontrol.sql`:
-
-#### Query 1: Backfill cost snapshots
+Add `valid_from` to `ai_model_prices` and change the primary key:
 
 ```sql
--- name: BackfillAIModelPriceCosts :exec
--- Backfills cost_micros and price snapshots for up to @batch_size token usage
--- rows that have NULL cost (model was unpriced at request time) and now have a
--- matching price in ai_model_prices. Mirrors computeCost in cost.go:
--- tokens * price_per_million / 1_000_000, with NULL prices treated as 0.
-UPDATE aibridge_token_usages tu
-SET
-    input_price_micros       = p.input_price,
-    output_price_micros      = p.output_price,
-    cache_read_price_micros  = p.cache_read_price,
-    cache_write_price_micros = p.cache_write_price,
-    cost_micros = (
-        tu.input_tokens              * COALESCE(p.input_price, 0)
-      + tu.output_tokens             * COALESCE(p.output_price, 0)
-      + tu.cache_read_input_tokens   * COALESCE(p.cache_read_price, 0)
-      + tu.cache_write_input_tokens  * COALESCE(p.cache_write_price, 0)
-    ) / 1000000
-FROM aibridge_interceptions ai
-JOIN ai_model_prices p ON p.provider = ai.provider AND p.model = ai.model
-WHERE tu.interception_id = ai.id
-  AND tu.cost_micros IS NULL
-LIMIT @batch_size;
+-- Migration: 000NNN_ai_model_prices_valid_from.up.sql
+ALTER TABLE ai_model_prices
+    ADD COLUMN valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+-- Drop the old PK and create a new one that allows multiple price rows
+-- per (provider, model) — one per validity period.
+ALTER TABLE ai_model_prices
+    DROP CONSTRAINT ai_model_prices_pkey,
+    ADD PRIMARY KEY (provider, model, valid_from);
 ```
 
-#### Query 2: Backfill daily spend (past days only)
+Existing rows get `valid_from = NOW()` at migration time (the `DEFAULT NOW()`
+populates them). This is correct — existing prices are valid from the moment
+of migration, not retroactively.
+
+### Price lookup (most recent valid row)
+
+The current `GetAIModelPriceByProviderModel` returns a single row by
+`(provider, model)`. With `valid_from`, it becomes a "most recent valid" lookup:
 
 ```sql
--- name: BackfillAIDailySpend :exec
--- Aggregates newly-backfilled costs into ai_user_daily_spend for past days
--- only. Today's spend is deferred to the next day's rollup to avoid
--- mid-session budget enforcement surprises. Uses the same ON CONFLICT
--- accumulation pattern as IncrementUserAIDailySpend.
-INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
-SELECT
-    ai.initiator_id,
-    tu.effective_group_id,
-    ((tu.created_at AT TIME ZONE 'UTC')::date) AS day,
-    SUM(tu.cost_micros) AS spend_micros
-FROM aibridge_token_usages tu
-JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-WHERE tu.cost_micros IS NOT NULL
-  AND tu.effective_group_id IS NOT NULL
-  AND ((tu.created_at AT TIME ZONE 'UTC')::date) < ((NOW() AT TIME ZONE 'UTC')::date)
-  AND NOT EXISTS (
-      SELECT 1 FROM ai_user_daily_spend ds
-      WHERE ds.user_id = ai.initiator_id
-        AND ds.effective_group_id = tu.effective_group_id
-        AND ds.day = ((tu.created_at AT TIME ZONE 'UTC')::date)
-        AND ds.spend_backfilled = true
-  )
-GROUP BY ai.initiator_id, tu.effective_group_id, day
-ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
-    spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros;
+-- name: GetAIModelPriceByProviderModel :one
+SELECT *
+FROM ai_model_prices
+WHERE provider = @provider AND model = @model
+  AND valid_from <= NOW()
+ORDER BY valid_from DESC
+LIMIT 1;
 ```
 
-Wait — the `NOT EXISTS` + `spend_backfilled` marker approach requires a new
-column on `ai_user_daily_spend`, which complicates things. A simpler approach:
-track backfill progress via a separate marker or rely on the fact that
-`BackfillAIModelPriceCosts` already sets `cost_micros` to non-NULL, so the
-daily spend query only needs to find rows where cost was backfilled *and*
-spend hasn't been accumulated yet.
+If no row matches (no price valid at the current time), `sql.ErrNoRows` — cost
+is NULL, same as today. This is correct: the price wasn't valid yet.
 
-Alternative: add a `cost_backfilled_at TIMESTAMPTZ` column to
-`aibridge_token_usages` that is set when the cost is backfilled (not when it
-was originally computed). The daily spend query then filters on
-`cost_backfilled_at IS NOT NULL` to find rows that need spend accumulation,
-and a separate query marks them as spend-accumulated. But this adds two
-columns.
+### Upsert behavior
 
-Simplest approach: **two-phase within the same transaction**. Phase 1 computes
-costs. Phase 2 accumulates spend for the rows that were just updated (same
-transaction, so the cost_micros is now non-NULL). The trick is identifying
-*which* rows were just updated. Use a CTE:
+The current `UpsertAIModelPrices` uses `ON CONFLICT (provider, model) DO UPDATE`
+— it overwrites the price columns on conflict. With the new PK
+`(provider, model, valid_from)`, the conflict key changes. Two options:
 
-```sql
--- name: BackfillAIModelPriceCostsAndSpend :exec
--- Single-transaction backfill: compute costs for NULL-cost rows, then
--- accumulate past-day spend for the rows that were just backfilled.
--- Today's spend is deferred to avoid mid-session budget surprises.
-WITH backfilled AS (
-    UPDATE aibridge_token_usages tu
-    SET
-        input_price_micros       = p.input_price,
-        output_price_micros      = p.output_price,
-        cache_read_price_micros  = p.cache_read_price,
-        cache_write_price_micros = p.cache_write_price,
-        cost_micros = (
-            tu.input_tokens              * COALESCE(p.input_price, 0)
-          + tu.output_tokens             * COALESCE(p.output_price, 0)
-          + tu.cache_read_input_tokens   * COALESCE(p.cache_read_price, 0)
-          + tu.cache_write_input_tokens  * COALESCE(p.cache_write_price, 0)
-        ) / 1000000
-    FROM aibridge_interceptions ai
-    JOIN ai_model_prices p ON p.provider = ai.provider AND p.model = ai.model
-    WHERE tu.interception_id = ai.id
-      AND tu.cost_micros IS NULL
-    LIMIT @batch_size
-    RETURNING tu.id, tu.interception_id, tu.effective_group_id,
-              tu.cost_micros, tu.created_at
-),
-past_day AS (
-    SELECT
-        ai.initiator_id,
-        b.effective_group_id,
-        ((b.created_at AT TIME ZONE 'UTC')::date) AS day,
-        SUM(b.cost_micros) AS spend_micros
-    FROM backfilled b
-    JOIN aibridge_interceptions ai ON ai.id = b.interception_id
-    WHERE b.effective_group_id IS NOT NULL
-      AND ((b.created_at AT TIME ZONE 'UTC')::date) < ((NOW() AT TIME ZONE 'UTC')::date)
-    GROUP BY ai.initiator_id, b.effective_group_id, day
-)
-INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
-SELECT initiator_id, effective_group_id, day, spend_micros
-FROM past_day
-ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
-    spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros;
-```
+**Option A: `ON CONFLICT DO NOTHING`** — insert new price periods, never
+clobber existing ones. If the admin re-applies the same seed with the same
+`valid_from`, rows are silently skipped. If they use a different `valid_from`,
+a new row is inserted. This is the safest default.
 
-This is the recommended approach: single CTE-based query, one transaction,
-idempotent (NULL-cost rows are the resume marker), past-day-only spend
-accumulation.
+**Option B: `ON CONFLICT (provider, model, valid_from) DO UPDATE`** — update
+the price columns for the same validity period. This lets the admin correct a
+price they just set without creating a new row. The `updated_at` column tracks
+the correction.
 
-### Partial index for performance
+Recommended: **Option B** — the admin can correct a just-set price, and new
+`valid_from` values create new rows naturally.
 
-```sql
-CREATE INDEX idx_aibridge_token_usages_null_cost
-    ON aibridge_token_usages (id)
-    WHERE cost_micros IS NULL;
-```
+### Startup seeder
 
-Keeps repeated scans cheap as backfilled rows drop out of the index.
+The existing seeder (`coderd/aibridge/prices/prices.go`) runs at server
+startup and upserts the embedded price book. With `valid_from`, it should only
+seed prices that don't exist yet — it should not clobber admin-set prices.
 
-### Rollup tick structure
+Two approaches:
 
-```go
-func (b *Backfiller) start(ctx context.Context) {
-    defer close(b.closed)
+1. **Seed with `ON CONFLICT DO NOTHING`** — the seeder inserts rows only if
+   `(provider, model, valid_from)` doesn't exist. Admin-set prices survive
+   restart. The seeder uses `valid_from = NOW()` for the first seed, then
+   subsequent restarts are no-ops (the row already exists).
 
-    do := func() {
-        err := b.db.InTx(func(tx database.Store) error {
-            ok, err := tx.TryAcquireLock(ctx, database.LockIDAIPriceBackfill)
-            if err != nil {
-                return err
-            }
-            if !ok {
-                return nil
-            }
-            return tx.BackfillAIModelPriceCostsAndSpend(ctx, int64(b.batch))
-        }, database.DefaultTXOptions().WithID("ai_price_backfill"))
-        if err != nil && !database.IsQueryCanceledError(err) && ctx.Err() == nil {
-            b.logger.Error(ctx, "failed to backfill AI model price costs", slog.Error(err))
-        }
-    }
+2. **Check before seed** — query for existing prices before upserting. More
+   explicit but more queries.
 
-    // Same ticker pattern as dbrollup: immediate run, then on interval.
-    // ...
-}
-```
+Recommended: **Option 1** — `ON CONFLICT DO NOTHING` in the seeder's upsert.
+Simple, idempotent, non-destructive.
 
-### Effective group resolution
+### CLI changes
 
-Rows where `effective_group_id` is also NULL (no group was resolved at request
-time) get their cost snapshot backfilled but no daily spend. This is correct —
-those rows can't be attributed to a group for budget purposes, and they're
-also excluded from `ExportOrganizationAISpend` (which joins on
-`groups.id = tu.effective_group_id`).
+#### `coder exp model-prices update <seed> [--yes] [--valid-from <timestamp>]`
 
-Resolving `effective_group_id` retroactively would require calling
-`budget.ResolveUserEffectiveGroup` with *current* group memberships, which may
-differ from the memberships at request time. This is out of scope — the
-backfill only fills in cost for rows that already have an `effective_group_id`.
+- **Default:** `--valid-from` is `NOW()`. Past unpriced usage stays NULL.
+  New requests use the new price. No retroactive impact.
 
-### What this does NOT do
+- **`--valid-from <past>`:** sets `valid_from` on all rows in the seed to the
+  specified timestamp. The price is retroactively valid from that point.
 
-- **Does not fire budget threshold detection.** The rollup writes spend but
-  does not call `detectBudgetThresholdCrossings`. Threshold notifications are
-  for live spend events, not historical corrections. The budget check on the
-  user's next live request naturally includes the backfilled past-day spend.
-- **Does not backfill today's spend.** Today's unpriced usage gets its cost
-  snapshot backfilled (for reporting accuracy) but daily spend accumulation is
-  deferred until tomorrow's rollup. This prevents a user mid-session from
-  suddenly hitting a budget limit due to retroactive spend from today.
-- **Does not resolve `effective_group_id` for rows where it's NULL.** Those
-  rows get cost snapshots only.
-- **Does not handle the case where a model's price changes** (only handles
-  models that were previously unpriced — `cost_micros IS NULL`). Price
-  *changes* (where `cost_micros` is already non-NULL) are not backfilled;
-  the old price snapshot is the historical record.
+  Interactive mode warns before applying:
+  ```
+  You are setting prices valid from 2025-01-01. This means:
+  - Past usage from 2025-01-01 onward will be priced at these rates.
+  - Users whose backfilled spend exceeds their budget may be blocked
+    on their next request.
+  Continue? (y/N)
+  ```
 
-### Edge cases
+  With `--yes`, the warning is skipped.
 
-- **Rows whose model never gets a price:** stay NULL forever. The rollup
-  no-ops on them each tick. The partial index keeps this cheap.
-- **Price changes after initial backfill:** if an admin updates a model's
-  price after it was already backfilled, the backfilled rows keep their
-  original (now-stale) price snapshot. Only *new* requests use the updated
-  price. This matches the point-in-time snapshot design of the cost columns.
-- **Server restart:** the rollup resumes on next tick. No state to recover —
-  `cost_micros IS NULL` is the resume marker.
-- **HA deployment:** the advisory lock ensures only one instance runs the
-  backfill at a time.
+- **No `--valid-from` and no `valid_from` in the seed file:** defaults to
+  `NOW()`. The seed file may also carry `valid_from` per row, overriding the
+  flag.
+
+#### `coder exp model-prices list`
+
+Add a `valid_from` column to the table output. JSON output already includes
+all fields.
+
+#### `coder exp model-prices import`
+
+No change — the `import` command transforms models.dev data into wire-format
+rows. The `valid_from` field is optional in the output (omitted = `NOW()` when
+applied).
+
+### What this replaces
+
+The `dbaipricebackfill` rollup job (previously sketched in this doc) is no
+longer needed. The entire backfill machinery — advisory lock, periodic tick,
+CTE query, partial index, past-day-only spend logic, threshold suppression —
+is replaced by a single column and a WHERE clause.
+
+### Cost calculation implications
+
+The cost calculation path (`resolveTokenUsageCost` → `GetAIModelPriceByProviderModel`
+→ `computeCost`) is unchanged in structure. The only difference is the SQL
+query: `WHERE ... AND valid_from <= NOW() ORDER BY valid_from DESC LIMIT 1`
+instead of `WHERE provider = $1 AND model = $2`.
+
+The price snapshot on `aibridge_token_usages` (`input_price_micros` etc.) is
+taken from the `valid_from` row that was active at the time of the request.
+This is correct — it records the price that was in effect.
+
+### Budget enforcement with retroactive pricing
+
+When `--valid-from <past>` is used, past token usage rows that were NULL-cost
+are NOT automatically backfilled by this design. The cost lookup at request
+time uses `valid_from <= NOW()`, which picks up the retroactive price for
+*new* requests. But *past* requests already have `cost_micros = NULL` and are
+not re-computed.
+
+If the admin wants past usage to reflect the retroactive price, a separate
+backfill step is still needed. However, the `valid_from` design makes this
+opt-in rather than automatic:
+
+- The admin can run a one-time SQL migration/CLI command to backfill
+  `cost_micros` for rows where `created_at >= valid_from AND cost_micros IS NULL`.
+- The backfill is simple: join `aibridge_token_usages` →
+  `aibridge_interceptions` → `ai_model_prices` (matching on `valid_from`),
+  compute cost, accumulate daily spend.
+- This is a manual, explicit step — not an automatic rollup job.
+
+The key insight: `valid_from` makes the *default* behavior correct (past
+usage stays NULL = "price didn't exist yet"), and makes retroactive pricing
+an explicit admin decision with clear consequences. The rollup job was trying
+to solve a problem that `valid_from` prevents from existing in the first
+place.
 
 ## Files to create/modify (sketch — not implemented)
 
 | File | Action |
 |------|--------|
-| `coderd/database/lock.go` | Add `LockIDAIPriceBackfill` |
-| `coderd/database/queries/aicostcontrol.sql` | Add `BackfillAIModelPriceCostsAndSpend` query |
+| `coderd/database/migrations/000NNN_ai_model_prices_valid_from.up.sql` | Add column, change PK |
+| `coderd/database/queries/aicostcontrol.sql` | Update `GetAIModelPriceByProviderModel` (add `valid_from <= NOW() ORDER BY`), update `UpsertAIModelPrices` (new conflict key) |
 | `coderd/database/queries.sql.go` | Regenerate (`make gen/db`) |
-| `coderd/database/querier.go` | Regenerate |
-| `coderd/database/dbauthz/dbauthz.go` | Regenerate |
-| `coderd/database/migrations/000NNN_ai_token_usage_null_cost_index.up.sql` | Create partial index |
-| `coderd/database/dbaipricebackfill/dbaipricebackfill.go` | Create rollup job |
-| `coderd/database/dbaipricebackfill/dbaipricebackfill_test.go` | Create tests |
-| `coderd/coderd.go` | Wire into server lifecycle |
+| `coderd/aibridge/prices/prices.go` | Seeder uses `ON CONFLICT DO NOTHING` |
+| `coderd/aibridge/prices/data/prices.json` | No change (valid_from defaults at seed time) |
+| `cli/exp_modelprices.go` | Add `--valid-from` flag, warning prompt |
+| `cli/exp_modelprices_test.go` | Test `--valid-from` default and past |
+| `codersdk/aimodelprices.go` | Add `ValidFrom time.Time` field |
+
+## Out of scope
+
+- Automatic backfill rollup job (replaced by explicit admin `--valid-from`)
+- `effective_group_id` resolution for NULL rows (unchanged — still not
+  retroactively resolved)
+- Historical price querying ("what was the price on day X") — the
+  `(provider, model, valid_from)` PK supports this, but no query is added
