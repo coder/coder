@@ -4590,6 +4590,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var writeErr error
+	oldCaptured := false
 	// The advisory lock serializes the audit change-detection with the
 	// write: two concurrent identical PUTs both still succeed, but the
 	// second transaction's comparison sees the first's committed state
@@ -4606,6 +4607,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 			api.Logger.Warn(ctx, "audit old capture failed, writing chat system prompt without a diff",
 				slog.Error(oldErr))
 		} else {
+			oldCaptured = true
 			aReq.Old.SystemPrompt = oldConfig.ChatSystemPrompt
 			aReq.Old.IncludeDefaultSystemPrompt = oldConfig.IncludeDefaultSystemPrompt
 		}
@@ -4667,8 +4669,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// Only the audit machinery around the write failed (lock, begin,
 		// commit or rollback). Main's write path stays authoritative:
 		// the same upserts are idempotent, so run them directly and
-		// derive the response from that. The attempt row exports with
-		// the real status and an empty diff; with the lock unusable, two
+		// derive the response from that. With the lock unusable, two
 		// concurrent identical writes can both record, which is accepted
 		// audit degradation.
 		if mainErr := api.Database.InTx(func(tx database.Store) error {
@@ -4686,6 +4687,33 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if !oldCaptured {
+			// The machinery failed before any baseline existed (lock or
+			// begin), so no truthful diff is possible: the attempt row
+			// exports with an empty diff and the real status.
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// The fallback succeeded, so the request is a success in every
+		// respect and gets the ordinary entry: re-read the stored pair
+		// for New (the effective include-default flag is computed from
+		// both rows, so request-derived text can misreport) and emit the
+		// real old-to-new diff.
+		newConfig, newErr := api.Database.GetChatSystemPromptConfig(ctx)
+		if newErr != nil {
+			api.Logger.Warn(ctx, "audit new capture failed after fallback, writing chat system prompt without a diff",
+				slog.Error(newErr))
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if newConfig.ChatSystemPrompt == aReq.Old.SystemPrompt &&
+			newConfig.IncludeDefaultSystemPrompt == aReq.Old.IncludeDefaultSystemPrompt {
+			commitAudit(false)
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		aReq.New.SystemPrompt = newConfig.ChatSystemPrompt
+		aReq.New.IncludeDefaultSystemPrompt = newConfig.IncludeDefaultSystemPrompt
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4759,6 +4787,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	}
 
 	var writeErr error
+	oldCaptured := false
 	// The advisory lock serializes the audit change-detection with the
 	// write; see putChatSystemPrompt for the rationale.
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -4773,6 +4802,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			api.Logger.Warn(ctx, "audit old capture failed, writing plan mode instructions without a diff",
 				slog.Error(oldErr))
 		} else {
+			oldCaptured = true
 			aReq.Old.PlanModeInstructions = oldInstructions
 		}
 		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
@@ -4814,10 +4844,8 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			// path stays authoritative: the upsert is idempotent, so
 			// run it directly exactly as the endpoint did before the
 			// audit wiring existed, and derive the response from that.
-			// The attempt row exports with the real status and an empty
-			// diff; with the lock unusable, two concurrent identical
-			// writes can both record, which is accepted audit
-			// degradation.
+			// With the lock unusable, two concurrent identical writes
+			// can both record, which is accepted audit degradation.
 			writeErr = api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions)
 		}
 		if writeErr != nil {
@@ -4827,6 +4855,30 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			})
 			return
 		}
+		if !oldCaptured {
+			// The machinery failed before any baseline existed (lock or
+			// begin), so no truthful diff is possible: the attempt row
+			// exports with an empty diff and the real status.
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// The fallback succeeded, so the request is a success in every
+		// respect and gets the ordinary entry: re-read the stored value
+		// for New (the write may normalize it, so request-derived text
+		// can misreport) and emit the real old-to-new diff.
+		newInstructions, newErr := api.Database.GetChatPlanModeInstructions(ctx)
+		if newErr != nil {
+			api.Logger.Warn(ctx, "audit new capture failed after fallback, writing plan mode instructions without a diff",
+				slog.Error(newErr))
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if newInstructions == aReq.Old.PlanModeInstructions {
+			commitAudit(false)
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		aReq.New.PlanModeInstructions = newInstructions
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
