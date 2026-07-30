@@ -66,9 +66,7 @@ export const DynamicClientRegistrationSetting: FC<
 			<ConfirmDialog
 				type="delete"
 				hideCancel={false}
-				// Closes itself if the setting becomes enabled elsewhere while the
-				// dialog is open, so confirming cannot act on a stale value.
-				open={isEnableDialogOpen && !enabled}
+				open={isEnableDialogOpen}
 				onConfirm={() => {
 					setIsEnableDialogOpen(false);
 					onChange(true);
