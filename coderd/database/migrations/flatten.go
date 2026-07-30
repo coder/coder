@@ -121,6 +121,15 @@ func (f *flattenFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return slices.Clone(f.entries), nil
 }
 
+// Close keeps the wrapper transparent to golang-migrate, which closes the fs.FS
+// it is given when that value is an io.Closer.
+func (f *flattenFS) Close() error {
+	if closer, ok := f.inner.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 // flattenRoot is the flattened tree's root directory, which has no counterpart
 // in the underlying fs.
 type flattenRoot struct {

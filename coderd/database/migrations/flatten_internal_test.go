@@ -56,10 +56,10 @@ func migrationVersion(t *testing.T, name string) int {
 	return version
 }
 
-// TestEmbeddedMigrationsCoverDisk guards the one archive mistake with no other
-// symptom: golang-migrate skips directories and unparseable names silently, so
-// an embed pattern that stops matching an archive directory drops migrations
-// from the binary without any error.
+// TestEmbeddedMigrationsCoverDisk guards a failure with no other symptom:
+// golang-migrate skips directories and unparseable names silently, so an embed
+// pattern that stops matching an archive directory drops migrations from the
+// binary without any error.
 func TestEmbeddedMigrationsCoverDisk(t *testing.T) {
 	t.Parallel()
 
@@ -207,6 +207,44 @@ func TestFlattenIsConformingFS(t *testing.T) {
 	// walking it would yield each migration twice.
 	_, err = flat.Open("000001-000100")
 	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestFlattenClosesInner(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Closable", func(t *testing.T) {
+		t.Parallel()
+
+		inner := &closableFS{FS: fstest.MapFS{"000501_recent.up.sql": {}}}
+		flat, err := flatten(inner)
+		require.NoError(t, err)
+
+		driver, err := iofs.New(flat, ".")
+		require.NoError(t, err)
+		require.NoError(t, driver.Close())
+		require.True(t, inner.closed)
+	})
+
+	t.Run("NotClosable", func(t *testing.T) {
+		t.Parallel()
+
+		flat, err := flatten(fstest.MapFS{"000501_recent.up.sql": {}})
+		require.NoError(t, err)
+
+		driver, err := iofs.New(flat, ".")
+		require.NoError(t, err)
+		require.NoError(t, driver.Close())
+	})
+}
+
+type closableFS struct {
+	fs.FS
+	closed bool
+}
+
+func (c *closableFS) Close() error {
+	c.closed = true
+	return nil
 }
 
 func TestFlattenRejectsDuplicateMigrations(t *testing.T) {
