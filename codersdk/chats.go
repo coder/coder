@@ -1578,15 +1578,16 @@ func IsChatGitWatchFallbackMessage(msg string) bool {
 type ChatStreamEventType string
 
 const (
-	ChatStreamEventTypeMessagePart    ChatStreamEventType = "message_part"
-	ChatStreamEventTypeMessage        ChatStreamEventType = "message"
-	ChatStreamEventTypeStatus         ChatStreamEventType = "status"
-	ChatStreamEventTypeError          ChatStreamEventType = "error"
-	ChatStreamEventTypeQueueUpdate    ChatStreamEventType = "queue_update"
-	ChatStreamEventTypeRetry          ChatStreamEventType = "retry"
-	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
-	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
-	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
+	ChatStreamEventTypeMessagePart     ChatStreamEventType = "message_part"
+	ChatStreamEventTypeMessage         ChatStreamEventType = "message"
+	ChatStreamEventTypeStatus          ChatStreamEventType = "status"
+	ChatStreamEventTypeError           ChatStreamEventType = "error"
+	ChatStreamEventTypeQueueUpdate     ChatStreamEventType = "queue_update"
+	ChatStreamEventTypeRetry           ChatStreamEventType = "retry"
+	ChatStreamEventTypeActionRequired  ChatStreamEventType = "action_required"
+	ChatStreamEventTypePreviewReset    ChatStreamEventType = "preview_reset"
+	ChatStreamEventTypeHistoryReset    ChatStreamEventType = "history_reset"
+	ChatStreamEventTypeStreamConnected ChatStreamEventType = "stream_connected"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -1610,6 +1611,14 @@ type ChatStreamMessagePart struct {
 // ChatStreamStatus represents an updated chat status.
 type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
+}
+
+// ChatStreamConnected identifies a single server-side stream connection.
+// It is the first event on every stream so that clients can reference the
+// connection in error reports and correlate them with server logs, which
+// include the same stream ID.
+type ChatStreamConnected struct {
+	StreamID uuid.UUID `json:"stream_id" format:"uuid"`
 }
 
 // ChatErrorKind classifies chat errors for consistent client rendering.
@@ -1793,15 +1802,16 @@ type ChatWatchEvent struct {
 
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type           ChatStreamEventType       `json:"type"`
-	ChatID         uuid.UUID                 `json:"chat_id" format:"uuid"`
-	Message        *ChatMessage              `json:"message,omitempty"`
-	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
-	Status         *ChatStreamStatus         `json:"status,omitempty"`
-	Error          *ChatError                `json:"error,omitempty"`
-	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
-	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
-	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	Type            ChatStreamEventType       `json:"type"`
+	ChatID          uuid.UUID                 `json:"chat_id" format:"uuid"`
+	Message         *ChatMessage              `json:"message,omitempty"`
+	MessagePart     *ChatStreamMessagePart    `json:"message_part,omitempty"`
+	Status          *ChatStreamStatus         `json:"status,omitempty"`
+	Error           *ChatError                `json:"error,omitempty"`
+	Retry           *ChatStreamRetry          `json:"retry,omitempty"`
+	QueuedMessages  []ChatQueuedMessage       `json:"queued_messages,omitempty"`
+	ActionRequired  *ChatStreamActionRequired `json:"action_required,omitempty"`
+	StreamConnected *ChatStreamConnected      `json:"stream_connected,omitempty"`
 }
 
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.

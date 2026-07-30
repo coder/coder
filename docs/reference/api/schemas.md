@@ -3421,6 +3421,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
 
+## codersdk.ChatStreamConnected
+
+```json
+{
+  "stream_id": "173fd1b7-72c4-44c4-9244-55a0a167a352"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `stream_id` | string | false    |              |             |
+
 ## codersdk.ChatStreamEvent
 
 ```json
@@ -3676,23 +3690,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "status": {
     "status": "waiting"
   },
+  "stream_connected": {
+    "stream_id": "173fd1b7-72c4-44c4-9244-55a0a167a352"
+  },
   "type": "message_part"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
-| `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+| Name               | Type                                                                   | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
+| `chat_id`          | string                                                                 | false    |              |             |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
+| `stream_connected` | [codersdk.ChatStreamConnected](#codersdkchatstreamconnected)           | false    |              |             |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
 
 ## codersdk.ChatStreamEventType
 
@@ -3704,9 +3722,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                   |
-|----------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                                       |
+|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status`, `stream_connected` |
 
 ## codersdk.ChatStreamMessagePart
 

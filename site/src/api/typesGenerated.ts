@@ -2971,6 +2971,17 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamConnected identifies a single server-side stream connection.
+ * It is the first event on every stream so that clients can reference the
+ * connection in error reports and correlate them with server logs, which
+ * include the same stream ID.
+ */
+export interface ChatStreamConnected {
+	readonly stream_id: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -2983,6 +2994,7 @@ export interface ChatStreamEvent {
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	readonly stream_connected?: ChatStreamConnected;
 }
 
 // From codersdk/chats.go
@@ -2995,7 +3007,8 @@ export type ChatStreamEventType =
 	| "preview_reset"
 	| "queue_update"
 	| "retry"
-	| "status";
+	| "status"
+	| "stream_connected";
 
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
@@ -3007,6 +3020,7 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"queue_update",
 	"retry",
 	"status",
+	"stream_connected",
 ];
 
 // From codersdk/chats.go

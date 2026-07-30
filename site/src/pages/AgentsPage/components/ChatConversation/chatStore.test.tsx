@@ -5227,9 +5227,79 @@ describe("parse errors", () => {
 			expect.objectContaining({ message: "bad json" }),
 			{
 				chatId: chatID,
+				streamId: "unknown",
 				frameSnippet: "{ not valid json",
 				frameLength: "16",
 			},
+		);
+	});
+
+	it("includes the server stream ID in parse error reports", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-parse-report-stream-id";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		// The server sends stream_connected as the first event on every
+		// connection.
+		const streamID = "b7a7ae12-5f8e-4a5a-9e0e-2f9f8a3d1c4b";
+		act(() => {
+			mockSocket.emitData({
+				type: "stream_connected",
+				chat_id: chatID,
+				stream_connected: { stream_id: streamID },
+			});
+		});
+
+		act(() => {
+			mockSocket.emitParseError("garbage frame");
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Failed to parse chat stream update.",
+			});
+		});
+
+		expect(reportClientError).toHaveBeenLastCalledWith(
+			expect.objectContaining({ message: "bad json" }),
+			expect.objectContaining({
+				chatId: chatID,
+				streamId: streamID,
+			}),
 		);
 	});
 });
