@@ -15499,7 +15499,7 @@ const docTemplate = `{
                     }
                 },
                 "network_calls": {
-                    "description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+                    "description": "NetworkCalls summarizes the Agent Firewall network requests made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"

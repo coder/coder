@@ -141,7 +141,7 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// NetworkCalls summarizes the Agent Firewall network requests made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
 	// surfaces as "Disabled".
