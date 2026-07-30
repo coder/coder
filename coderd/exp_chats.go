@@ -8179,8 +8179,13 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
 		config.ReasoningEffort == nil &&
+		isZeroChatModelOpenAIConfig(config.OpenAIConfig) &&
 		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
+}
+
+func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
+	return config == nil || config.UseResponsesAPI == nil
 }
 
 func isZeroModelCostConfig(cost *codersdk.ModelCostConfig) bool {

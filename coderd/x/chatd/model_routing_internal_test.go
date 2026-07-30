@@ -365,6 +365,78 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	})
 }
 
+func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
+	t.Parallel()
+
+	newServer := func(t *testing.T, paths chan string) *Server {
+		t.Helper()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			paths <- req.URL.Path
+			body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+			if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+				body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    req,
+			}, nil
+		})}
+		return &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	}
+
+	configOptions := func(t *testing.T, useResponsesAPI *bool) json.RawMessage {
+		t.Helper()
+		raw, err := json.Marshal(codersdk.ChatModelCallConfig{
+			OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: useResponsesAPI},
+		})
+		require.NoError(t, err)
+		return raw
+	}
+
+	forceResponses := true
+	forceCompletions := false
+
+	tests := []struct {
+		name     string
+		model    string
+		override *bool
+		wantPath string
+	}{
+		{name: "ForceResponsesOnUnknownModel", model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
+		{name: "ForceCompletionsOnKnownModel", model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
+		{name: "UnsetKeepsKnownModelList", model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			paths := make(chan string, 1)
+			server := newServer(t, paths)
+			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
+			req.ConfigOptions = configOptions(t, tt.override)
+
+			model, err := server.newModel(
+				t.Context(),
+				req,
+				aibridgeTestRoute(provider),
+				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			)
+			require.NoError(t, err)
+			_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantPath, <-paths)
+		})
+	}
+}
+
 func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Parallel()
 

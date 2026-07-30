@@ -42,6 +42,9 @@ type compactionModelOverride struct {
 	// providerOptions include the override's reasoning effort for the
 	// summary call.
 	providerOptions fantasy.ProviderOptions
+	// openAIResponsesOverride keeps prompt sanitization aligned with the
+	// API the override model client was built for.
+	openAIResponsesOverride *bool
 }
 
 // resolvedCompactionOverride is the compaction override resolved at
@@ -136,10 +139,11 @@ func (p *Server) buildCompactionOverrideModel(
 		)
 	}
 	model, _, err := p.newDebugAwareModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    modelConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     modelConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: modelConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
 		return compactionModelOverride{}, xerrors.Errorf(
@@ -147,16 +151,17 @@ func (p *Server) buildCompactionOverrideModel(
 			err,
 		)
 	}
-	providerOptions, err := compactionOverrideProviderOptions(model, modelConfig)
+	providerOptions, responsesOverride, err := compactionOverrideProviderOptions(model, modelConfig)
 	if err != nil {
 		return compactionModelOverride{}, err
 	}
 	return compactionModelOverride{
-		modelConfig:      modelConfig,
-		model:            model,
-		resolvedProvider: resolvedProvider,
-		resolvedModel:    resolvedModel,
-		providerOptions:  providerOptions,
+		modelConfig:             modelConfig,
+		model:                   model,
+		resolvedProvider:        resolvedProvider,
+		resolvedModel:           resolvedModel,
+		providerOptions:         providerOptions,
+		openAIResponsesOverride: responsesOverride,
 	}, nil
 }
 
@@ -166,23 +171,30 @@ func (p *Server) buildCompactionOverrideModel(
 func compactionOverrideProviderOptions(
 	model fantasy.LanguageModel,
 	modelConfig database.ChatModelConfig,
-) (fantasy.ProviderOptions, error) {
+) (fantasy.ProviderOptions, *bool, error) {
 	callConfig := codersdk.ChatModelCallConfig{}
 	if len(modelConfig.Options) > 0 {
 		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return nil, xerrors.Errorf(
+			return nil, nil, xerrors.Errorf(
 				"parse compaction model override call config: %w",
 				err,
 			)
 		}
 	}
+	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		model,
 		callConfig.ProviderOptions,
+		responsesOverride,
 	)
 	reasoningEffort := chatprovider.ResolveReasoningEffort(
 		nil,
 		callConfig.ReasoningEffort,
 	)
-	return chatprovider.ApplyReasoningEffort(model, providerOptions, reasoningEffort), nil
+	return chatprovider.ApplyReasoningEffort(
+		model,
+		providerOptions,
+		reasoningEffort,
+		responsesOverride,
+	), responsesOverride, nil
 }

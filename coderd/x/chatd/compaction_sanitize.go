@@ -30,6 +30,7 @@ func sanitizeCompactionPrompt(
 	compactionModel fantasy.LanguageModel,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
+	openAIResponsesOverride *bool,
 ) []fantasy.Message {
 	messages := prompt
 	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
@@ -40,6 +41,7 @@ func sanitizeCompactionPrompt(
 			compactionModel.Provider(),
 			compactionModel.Model(),
 			mediaType,
+			openAIResponsesOverride,
 		)
 	})
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(

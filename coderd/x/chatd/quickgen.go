@@ -143,6 +143,7 @@ type shortTextCandidate struct {
 	route           aiGatewayModelRoute
 	lm              fantasy.LanguageModel
 	providerOptions fantasy.ProviderOptions
+	configOptions   json.RawMessage
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
@@ -320,6 +321,7 @@ func (p *Server) maybeGenerateChatTitle(
 			route:           overrideRoute,
 			lm:              overrideModel,
 			providerOptions: p.titleGenerationProviderOptions(ctx, overrideModel, overrideConfig),
+			configOptions:   overrideConfig.Options,
 		}
 	} else {
 		candidate = shortTextCandidate{
@@ -328,6 +330,7 @@ func (p *Server) maybeGenerateChatTitle(
 			route:           fallbackRoute,
 			lm:              fallbackModel,
 			providerOptions: p.titleGenerationProviderOptions(ctx, fallbackModel, fallbackConfig),
+			configOptions:   fallbackConfig.Options,
 		}
 	}
 
@@ -422,11 +425,17 @@ func (p *Server) titleGenerationProviderOptions(
 			)
 		}
 	}
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
+	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+		model,
+		callConfig.ProviderOptions,
+		responsesOverride,
+	)
 	return chatprovider.ApplyReasoningEffort(
 		model,
 		providerOptions,
 		chatprovider.ResolveReasoningEffort(nil, callConfig.ReasoningEffort),
+		responsesOverride,
 	)
 }
 
@@ -438,14 +447,16 @@ func (p *Server) newQuickgenDebugModel(
 	model string,
 	route aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
+	configOptions json.RawMessage,
 ) (fantasy.LanguageModel, error) {
 	debugOpts := modelOpts
 	debugOpts.RecordHTTP = true
 	debugModel, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: configOptions,
 	}, route, debugOpts)
 	if err != nil {
 		return nil, err
@@ -484,6 +495,7 @@ func (p *Server) prepareQuickgenDebugCandidate(
 		candidate.model,
 		candidate.route,
 		modelOpts,
+		candidate.configOptions,
 	)
 	if err != nil {
 		logger.Warn(ctx, "failed to build short-text debug model",
@@ -1332,6 +1344,7 @@ func (p *Server) generateTurnStatusLabel(
 	fallbackModel fantasy.LanguageModel,
 	fallbackRoute aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
+	configOptions json.RawMessage,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1348,10 +1361,11 @@ func (p *Server) generateTurnStatusLabel(
 		"\n\nAgent's latest message:\n" + assistantText
 
 	candidate := shortTextCandidate{
-		provider: fallbackProvider,
-		model:    fallbackModelName,
-		route:    fallbackRoute,
-		lm:       fallbackModel,
+		provider:      fallbackProvider,
+		model:         fallbackModelName,
+		route:         fallbackRoute,
+		lm:            fallbackModel,
+		configOptions: configOptions,
 	}
 
 	statusSeedSummary := chatdebug.SeedSummary("Turn status label")

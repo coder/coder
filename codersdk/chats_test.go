@@ -584,6 +584,28 @@ func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
+func TestChatModelCallConfig_UseResponsesAPIRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	var decoded codersdk.ChatModelCallConfig
+	err := decoded.UnmarshalStrict([]byte(`{"openai_config": {"use_responses_api": true}}`))
+	require.NoError(t, err)
+	require.NotNil(t, decoded.OpenAIConfig)
+	require.NotNil(t, decoded.OpenAIConfig.UseResponsesAPI)
+	require.True(t, *decoded.OpenAIConfig.UseResponsesAPI)
+
+	raw, err := json.Marshal(decoded)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"use_responses_api":true`)
+
+	var unset codersdk.ChatModelCallConfig
+	require.NoError(t, unset.UnmarshalStrict([]byte(`{"openai_config": {}}`)))
+	require.Nil(t, unset.OpenAIConfig.UseResponsesAPI)
+	raw, err = json.Marshal(unset)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "use_responses_api")
+}
+
 func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 

@@ -937,6 +937,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.model,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.modelConfig,
+			overrideModel.openAIResponsesOverride,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact)

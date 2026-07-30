@@ -1010,6 +1010,7 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 		chatprovider.UserAgent(),
 		nil,
 		nil,
+		nil,
 	)
 	require.NoError(t, err)
 	return model

@@ -46,6 +46,7 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 	got := chatopenai.ProviderOptionsFromChatConfig(
 		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
 		options,
+		nil,
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ProviderOptions)
@@ -98,6 +99,7 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 	got := chatopenai.ProviderOptionsFromChatConfig(
 		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
 		options,
+		nil,
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ResponsesProviderOptions)
@@ -243,10 +245,14 @@ func TestEnsureResponseIncludes(t *testing.T) {
 func TestUsesResponsesOptions(t *testing.T) {
 	t.Parallel()
 
+	forceResponses := true
+	forceCompletions := false
+
 	tests := []struct {
-		name  string
-		model fantasy.LanguageModel
-		want  bool
+		name     string
+		model    fantasy.LanguageModel
+		override *bool
+		want     bool
 	}{
 		{name: "Nil"},
 		{
@@ -267,13 +273,39 @@ func TestUsesResponsesOptions(t *testing.T) {
 			name:  "NonOpenAIProvider",
 			model: fakeLanguageModel{provider: "other", model: "gpt-4.1"},
 		},
+		{
+			name:     "NilModelIgnoresOverride",
+			override: &forceResponses,
+		},
+		{
+			name:     "OverrideForcesResponsesForUnknownModel",
+			model:    fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-9-brand-new"},
+			override: &forceResponses,
+			want:     true,
+		},
+		{
+			name:     "OverrideForcesCompletionsForResponsesModel",
+			model:    fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
+			override: &forceCompletions,
+		},
+		{
+			name:     "AzureIgnoresOverride",
+			model:    fakeLanguageModel{provider: fantasyazure.Name, model: "gpt-4.1"},
+			override: &forceCompletions,
+			want:     true,
+		},
+		{
+			name:     "NonOpenAIProviderIgnoresOverride",
+			model:    fakeLanguageModel{provider: "other", model: "gpt-4.1"},
+			override: &forceResponses,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatopenai.UsesResponsesOptions(tt.model)
+			got := chatopenai.UsesResponsesOptions(tt.model, tt.override)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -292,7 +324,8 @@ func TestServiceTierFromChat(t *testing.T) {
 		{name: "Auto", value: ptr(" auto "), want: ptr(fantasyopenai.ServiceTierAuto)},
 		{name: "FlexCase", value: ptr(" FLEX "), want: ptr(fantasyopenai.ServiceTierFlex)},
 		{name: "Priority", value: ptr("priority"), want: ptr(fantasyopenai.ServiceTierPriority)},
-		{name: "DefaultUnsupported", value: ptr("default")},
+		{name: "Default", value: ptr("default"), want: ptr(fantasyopenai.ServiceTier("default"))},
+		{name: "ScaleCase", value: ptr(" Scale "), want: ptr(fantasyopenai.ServiceTier("scale"))},
 		{name: "Invalid", value: ptr("fast")},
 	}
 

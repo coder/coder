@@ -71,7 +71,7 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 	}
 
 	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()), nil)
 
 	require.Len(t, sanitized, 3)
 	// Provider-executed parts are flattened to text so the summary keeps
@@ -120,7 +120,7 @@ func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *test
 	}
 
 	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()), nil)
 
 	require.Len(t, sanitized, 1)
 	require.Equal(t, fantasy.MessageRoleUser, sanitized[0].Role)
@@ -150,7 +150,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	// placeholder while the prompt stays otherwise intact.
 	compactionModel := &chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), nil)
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)
@@ -190,7 +190,7 @@ func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *test
 
 	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), nil)
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)

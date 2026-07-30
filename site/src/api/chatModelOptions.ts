@@ -25,6 +25,8 @@ export interface FieldSchema {
 	hidden?: boolean;
 	visible_when?: string;
 	conflicts_with?: string[];
+	/** Raw provider types the field applies to; absent means every provider. */
+	visible_for_providers?: string[];
 }
 
 /**
@@ -179,7 +181,21 @@ export function getVisibleProviderFields(provider: string): FieldSchema[] {
 	return getProviderFields(provider).filter((f) => !f.hidden);
 }
 
-/** Get only the visible (non-hidden) general fields. */
-export function getVisibleGeneralFields(): FieldSchema[] {
-	return getGeneralFields().filter((f) => !f.hidden);
+/** Matches the raw provider type, not {@link resolveProvider}, so aliases
+ * like "azure" do not inherit client construction fields. */
+export function isFieldVisibleForProvider(
+	field: FieldSchema,
+	provider: string,
+): boolean {
+	const scope = field.visible_for_providers;
+	if (!scope || scope.length === 0) {
+		return true;
+	}
+	return scope.includes(provider.trim().toLowerCase());
+}
+
+export function getVisibleGeneralFields(provider: string): FieldSchema[] {
+	return getGeneralFields().filter(
+		(f) => !f.hidden && isFieldVisibleForProvider(f, provider),
+	);
 }

@@ -17,8 +17,9 @@ import (
 func ProviderOptionsFromChatConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelOpenAIProviderOptions,
+	openAIResponsesOverride *bool,
 ) fantasy.ProviderOptionsData {
-	if UsesResponsesOptions(model) {
+	if UsesResponsesOptions(model, openAIResponsesOverride) {
 		include := EnsureResponseIncludes(IncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
 			Include:           include,
@@ -116,40 +117,53 @@ func EnsureResponseIncludes(
 	return append(values, required)
 }
 
-// UsesResponsesOptions reports whether the model should use OpenAI Responses
-// API provider options.
-func UsesResponsesOptions(model fantasy.LanguageModel) bool {
-	if model == nil {
-		return false
-	}
-	switch model.Provider() {
-	case fantasyopenai.Name, fantasyazure.Name:
-		return fantasyopenai.IsResponsesModel(model.Model())
+// UsesResponsesAPI reports whether a model uses the OpenAI Responses API.
+// Callers must pass the same override the client was built with.
+func UsesResponsesAPI(provider, modelID string, override *bool) bool {
+	switch provider {
+	case fantasyopenai.Name:
+		if override != nil {
+			return *override
+		}
+		return fantasyopenai.IsResponsesModel(modelID)
+	case fantasyazure.Name:
+		return fantasyopenai.IsResponsesModel(modelID)
 	default:
 		return false
 	}
 }
 
-// ServiceTierFromChat normalizes chat-config service tier values for OpenAI
-// Responses API and returns the canonical provider service tier value.
+// UsesResponsesOptions reports whether the model should use OpenAI Responses
+// API provider options.
+func UsesResponsesOptions(model fantasy.LanguageModel, override *bool) bool {
+	if model == nil {
+		return false
+	}
+	return UsesResponsesAPI(model.Provider(), model.Model(), override)
+}
+
+// ServiceTierFromChat normalizes chat-config service tier values for the
+// OpenAI Responses API. It maps every tier the codersdk enum advertises, not
+// only the ones fantasy declares constants for, because fantasy forwards the
+// value to the API unchanged.
 func ServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
 	normalized := chatutil.NormalizedStringPointer(value)
 	if normalized == nil {
 		return nil
 	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyopenai.ServiceTierAuto):
-		serviceTier := fantasyopenai.ServiceTierAuto
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierFlex):
-		serviceTier := fantasyopenai.ServiceTierFlex
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierPriority):
-		serviceTier := fantasyopenai.ServiceTierPriority
-		return &serviceTier
-	default:
+	tier := chatutil.NormalizedEnumValue(
+		strings.ToLower(*normalized),
+		string(fantasyopenai.ServiceTierAuto),
+		"default",
+		string(fantasyopenai.ServiceTierFlex),
+		"scale",
+		string(fantasyopenai.ServiceTierPriority),
+	)
+	if tier == nil {
 		return nil
 	}
+	serviceTier := fantasyopenai.ServiceTier(*tier)
+	return &serviceTier
 }
 
 // ResponsesLogProbsFromChatConfig maps chat-config log probability options to the

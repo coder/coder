@@ -67,6 +67,7 @@ func generateOpenAICompatRequest(t *testing.T, baseURL string, modelID string) m
 		chatprovider.UserAgent(),
 		nil,
 		&http.Client{Transport: transport},
+		nil,
 	)
 	require.NoError(t, err)
 

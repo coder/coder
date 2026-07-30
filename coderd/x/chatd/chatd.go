@@ -428,14 +428,17 @@ func (p *Server) newAdvisorRuntime(
 		nil,
 		advisorCallConfig.ReasoningEffort,
 	)
+	advisorResponsesOverride := chatprovider.OpenAIResponsesAPIOverride(advisorCallConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
+		advisorResponsesOverride,
 	)
 	providerOptions = chatprovider.ApplyReasoningEffort(
 		advisorModel,
 		providerOptions,
 		advisorReasoningEffort,
+		advisorResponsesOverride,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -3501,6 +3504,7 @@ type runChatResult struct {
 	FallbackRoute       aiGatewayModelRoute
 	FallbackModel       string
 	ModelBuildOptions   modelBuildOptions
+	StatusLabelOptions  json.RawMessage
 	TriggerMessageID    int64
 	HistoryTipMessageID int64
 }
@@ -4690,6 +4694,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		runResult.StatusLabelModel,
 		runResult.FallbackRoute,
 		runResult.ModelBuildOptions,
+		runResult.StatusLabelOptions,
 		logger,
 		p.existingDebugService(),
 		runResult.TriggerMessageID,
