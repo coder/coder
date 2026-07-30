@@ -37,7 +37,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 	return (
 		<TimelineEntry
 			data-testid={`version-${version.id}`}
-			{...(permissions.updateTemplates ? { clickable: false } : clickableProps)}
+			{...(permissions.updateTemplates ? clickableProps : { clickable: false })}
 		>
 			<TableCell className="relative border-b-0 !p-0">
 				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
