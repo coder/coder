@@ -23,6 +23,11 @@ export const Disabled: Story = {
 
 		await expect(canvas.getByRole("button", { name: "Enable" })).toBeEnabled();
 		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		// Stated in both states. An admin who has already disabled still needs to
+		// know that clients registered earlier were not revoked.
+		await expect(
+			canvas.getByText(/keep working until you remove them/),
+		).toBeVisible();
 	},
 };
 
@@ -35,6 +40,9 @@ export const Enabled: Story = {
 
 		await expect(canvas.getByText("Enabled")).toBeVisible();
 		await expect(canvas.getByRole("button", { name: "Disable" })).toBeVisible();
+		await expect(
+			canvas.getByText(/keep working until you remove them/),
+		).toBeVisible();
 	},
 };
 

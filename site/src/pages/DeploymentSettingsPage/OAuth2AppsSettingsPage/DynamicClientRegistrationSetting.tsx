@@ -37,9 +37,16 @@ export const DynamicClientRegistrationSetting: FC<
 							</Badge>
 						)}
 					</div>
+					{/*
+					 * Disabling only gates the registration endpoint. It deletes no apps,
+					 * secrets, or tokens, so the caveat stays visible in both states: an
+					 * admin who has just disabled needs it as much as one deciding to.
+					 */}
 					<p className="text-sm text-content-secondary m-0">
 						Allow OAuth2 clients to register themselves against this deployment
-						without prior administrator approval (RFC 7591).
+						without prior administrator approval (RFC 7591). Disabling stops new
+						registrations. Clients that already registered keep working until
+						you remove them from the Applications tab.
 					</p>
 					{/*
 					 * A disabled button takes no focus and no pointer events, so it
