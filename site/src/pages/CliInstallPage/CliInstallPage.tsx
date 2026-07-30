@@ -1,4 +1,4 @@
-import { isPixel } from "@coder/pixel-storybook";
+import { isPixel } from "@coder/pixel-storybook/storyapi";
 import type { FC } from "react";
 import { pageTitle } from "#/utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";

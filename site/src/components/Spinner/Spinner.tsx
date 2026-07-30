@@ -4,7 +4,7 @@
  * https://v0.dev/ help.
  */
 
-import { isPixel } from "@coder/pixel-storybook";
+import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "#/utils/cn";
