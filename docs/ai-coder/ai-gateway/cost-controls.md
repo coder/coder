@@ -165,7 +165,8 @@ budget, or when an override is added.
 ### Notifications
 
 The first time a user's spend crosses a threshold within a budget period, Coder
-notifies the user and the administrators responsible for them:
+notifies the user and deployment-wide Owners and User Admins, excluding the
+affected user:
 
 | Threshold | User notification              | Admin notification                       |
 |-----------|--------------------------------|------------------------------------------|
@@ -216,21 +217,23 @@ Prometheus metrics report enforcement and pricing gaps.
 
 Visibility follows the viewer's role:
 
-| Who                                                  | Sees                                                   |
-|------------------------------------------------------|--------------------------------------------------------|
-| Every user                                           | Their own spend and budget in their avatar menu        |
-| Members of a group                                   | The group's spend and budget, and their own member row |
-| Owners, User Admins, and organization administrators | Spend and budgets for every group and every member     |
+| Who                                                  | Sees                                                                 |
+|------------------------------------------------------|----------------------------------------------------------------------|
+| Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
+| Members of a group                                   | The group's spend and budget, and their own member row               |
+| Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
 
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
   its source, labeled `Custom limit` for an override or `Group limit` for a
-  group budget. If the effective group is in a different organization, the row
-  shows `Budget managed by another group` to keep organization-scoped data
-  private.
+  group budget. If the effective group is another group in the same organization,
+  the row shows `Budget managed by another group`. If the effective group is in a
+  different organization, the row shows a dash and explains that the group is not
+  visible there.
 - The avatar menu reports the signed-in user's own spend for the budget period
-  as `$<spend> / $<budget> USD`.
+  as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget
+  applies.
 
 Administrators can also use the
 [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API
@@ -238,8 +241,9 @@ endpoint to see a user's current effective group.
 
 ### CSV Export
 
-Organization administrators can export estimated spend for reporting and
-internal cost allocation. The export is available through the API only.
+Users who can read group-member data for the organization can export estimated
+spend for reporting and internal cost allocation. The export is available through
+the API only.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
@@ -254,19 +258,14 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 
 ### Prometheus Metrics
 
-These metrics report AI Governance Cost Control activity. For the full list, see
-[Prometheus metrics](../../admin/integrations/prometheus.md).
-
-| Metric                                                             | Purpose                                         |
-|--------------------------------------------------------------------|-------------------------------------------------|
-| `coder_ai_gateway_cost_control_blocked_requests_total`             | Requests blocked because a budget was exceeded. |
-| `coder_ai_gateway_cost_control_blocked_users`                      | Users currently over their budget.              |
-| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | Usage records with no known model price.        |
-| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | Duration of budget checks.                      |
+Prometheus metrics report blocked requests, users over budget, unpriced usage,
+and enforcement latency. For the full metric list, including types and labels,
+see [Prometheus metrics](../../admin/integrations/prometheus.md).
 
 ## Migrate from Coder Agents Cost Control
 
-AI Governance Cost Control replaces Coder Agents Cost Control in v2.36.
+In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control for
+enforcement. The legacy Coder Agents Spend page remains available until v2.37.
 
 > [!WARNING]
 > Spend limits configured under **Admin settings** > **AI** > **Spend** are no
@@ -287,11 +286,13 @@ Expect the following differences:
   currently supported.
 - Users in several budgeted groups receive the highest budget. Coder Agents Cost
   Control applied the lowest.
-- Budgets cover all AI Gateway traffic. Chat, IDE extensions, and CLI agents
-  draw on the same budget.
+- Budgets cover priced AI Gateway traffic. Chat, IDE extensions, and CLI agents
+  draw on the same budget when their provider and model are priced. See
+  [How spend is estimated](#how-spend-is-estimated).
 - Recorded spend does not carry over. Every user starts the first period at
   $0 USD.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
+  The error details include the AI Governance budget limit.
 
 ## Next steps
 
