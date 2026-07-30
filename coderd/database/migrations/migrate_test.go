@@ -1552,24 +1552,25 @@ func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
 	t.Helper()
 
-	entries, err := os.ReadDir(".")
+	paths, err := filepath.Glob("*.up.sql")
 	require.NoError(t, err)
+	archived, err := filepath.Glob("[0-9]*-[0-9]*/*.up.sql")
+	require.NoError(t, err)
+	paths = append(paths, archived...)
 
 	var files []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".up.sql") {
-			continue
-		}
+	for _, path := range paths {
 		var version int
-		if _, err := fmt.Sscanf(name, "%06d_", &version); err != nil {
+		if _, err := fmt.Sscanf(filepath.Base(path), "%06d_", &version); err != nil {
 			continue
 		}
 		if version >= from && version <= to {
-			files = append(files, name)
+			files = append(files, path)
 		}
 	}
-	slices.Sort(files)
+	slices.SortFunc(files, func(a, b string) int {
+		return strings.Compare(filepath.Base(a), filepath.Base(b))
+	})
 
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)

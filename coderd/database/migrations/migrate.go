@@ -30,8 +30,12 @@ var (
 
 // A migrations hash is a sha256 hash of the contents and names
 // of the migrations sorted by filename.
-func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
-	files, err := migrationsFs.ReadDir(".")
+func calculateMigrationsHash(migrationsFs fs.FS) (string, error) {
+	flat, err := flatten(migrationsFs)
+	if err != nil {
+		return "", xerrors.Errorf("flatten migrations: %w", err)
+	}
+	files, err := fs.ReadDir(flat, ".")
 	if err != nil {
 		return "", xerrors.Errorf("read migrations directory: %w", err)
 	}
@@ -46,7 +50,7 @@ func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 		if _, err := builder.WriteString(file.Name()); err != nil {
 			return "", xerrors.Errorf("write migration file name %q: %w", file.Name(), err)
 		}
-		content, err := migrationsFs.ReadFile(file.Name())
+		content, err := fs.ReadFile(flat, file.Name())
 		if err != nil {
 			return "", xerrors.Errorf("read migration file %q: %w", file.Name(), err)
 		}
@@ -77,8 +81,12 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
+	flat, err := flatten(migs)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("flatten migrations: %w", err)
+	}
 	ctx := context.Background()
-	sourceDriver, err := iofs.New(migs, ".")
+	sourceDriver, err := iofs.New(flat, ".")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}
