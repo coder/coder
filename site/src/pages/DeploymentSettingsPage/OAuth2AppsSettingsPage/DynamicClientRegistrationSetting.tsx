@@ -74,7 +74,7 @@ export const DynamicClientRegistrationSetting: FC<
 				onClose={() => setIsEnableDialogOpen(false)}
 				title="Enable Dynamic Client Registration?"
 				confirmText="Enable"
-				description="Only enable Dynamic Client Registration if you intend to support self-service OAuth2 client registration."
+				description="Any client that can reach this deployment will be able to register itself as an OAuth2 application, with no Coder account and no administrator approval. Disabling later blocks new registrations but does not revoke clients that already registered."
 			/>
 		</>
 	);

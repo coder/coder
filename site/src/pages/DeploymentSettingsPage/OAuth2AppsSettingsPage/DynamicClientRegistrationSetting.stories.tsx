@@ -75,6 +75,17 @@ export const EnableShowsConfirmationDialog: Story = {
 		// The dialog's confirm button shares its accessible name with the trigger
 		// button behind it, so scope the query to the dialog.
 		const dialog = within(body.getByTestId("dialog"));
+
+		// The dialog covers the section description, so it is the last thing the
+		// admin reads before enabling. It has to name both what enabling exposes
+		// and what disabling does not undo, or the confirm click decides nothing.
+		await expect(
+			dialog.getByText(/no Coder account and no administrator approval/),
+		).toBeInTheDocument();
+		await expect(
+			dialog.getByText(/does not revoke clients that already registered/),
+		).toBeInTheDocument();
+
 		await userEvent.click(dialog.getByRole("button", { name: "Enable" }));
 		await expect(args.onChange).toHaveBeenCalledWith(true);
 	},
