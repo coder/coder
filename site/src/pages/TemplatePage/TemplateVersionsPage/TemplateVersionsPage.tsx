@@ -35,7 +35,7 @@ const TemplateVersionsPage = () => {
 		TemplateVersion | undefined
 	>();
 
-	const { mutate: promoteVersion, isPending: isPromoting } = useMutation({
+	const { mutateAsync: promoteVersion, isPending: isPromoting } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.updateActiveTemplateVersion(template.id, {
 				id: templateVersionId,
@@ -43,14 +43,9 @@ const TemplateVersionsPage = () => {
 		},
 	});
 
-	const { mutate: archiveVersion, isPending: isArchiving } = useMutation({
+	const { mutateAsync: archiveVersion, isPending: isArchiving } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: templateVersionsQueryKey(template.id),
-			});
 		},
 	});
 
@@ -72,31 +67,29 @@ const TemplateVersionsPage = () => {
 				type="info"
 				hideCancel={false}
 				open={Boolean(versionToPromote)}
-				onConfirm={() => {
+				onConfirm={async () => {
 					if (!versionToPromote) {
 						return;
 					}
 					const { id, name } = versionToPromote;
-					promoteVersion(id, {
-						onSuccess: () => {
-							setLatestActiveVersion(id);
-							setVersionToPromote(undefined);
-							toast.success(`Version "${name}" promoted successfully.`, {
-								action: {
-									label: "View template",
-									onClick: () => navigate(templateLink),
-								},
-							});
-						},
-						onError: (error) => {
-							toast.error(
-								getErrorMessage(error, `Failed to promote version "${name}".`),
-								{
-									description: getErrorDetail(error),
-								},
-							);
-						},
-					});
+					try {
+						await promoteVersion(id);
+						setLatestActiveVersion(id);
+						setVersionToPromote(undefined);
+						toast.success(`Version "${name}" promoted successfully.`, {
+							action: {
+								label: "View template",
+								onClick: () => navigate(templateLink),
+							},
+						});
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, `Failed to promote version "${name}".`),
+							{
+								description: getErrorDetail(error),
+							},
+						);
+					}
 				}}
 				onClose={() => setVersionToPromote(undefined)}
 				title="Promote version"
@@ -114,25 +107,26 @@ const TemplateVersionsPage = () => {
 				type="info"
 				hideCancel={false}
 				open={Boolean(versionToArchive)}
-				onConfirm={() => {
+				onConfirm={async () => {
 					if (!versionToArchive) {
 						return;
 					}
 					const { id, name } = versionToArchive;
-					archiveVersion(id, {
-						onSuccess: () => {
-							setVersionToArchive(undefined);
-							toast.success(`Version "${name}" archived successfully.`);
-						},
-						onError: (error) => {
-							toast.error(
-								getErrorMessage(error, `Failed to archive version "${name}".`),
-								{
-									description: getErrorDetail(error),
-								},
-							);
-						},
-					});
+					try {
+						await archiveVersion(id);
+						await queryClient.invalidateQueries({
+							queryKey: templateVersionsQueryKey(template.id),
+						});
+						setVersionToArchive(undefined);
+						toast.success(`Version "${name}" archived successfully.`);
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, `Failed to archive version "${name}".`),
+							{
+								description: getErrorDetail(error),
+							},
+						);
+					}
 				}}
 				onClose={() => setVersionToArchive(undefined)}
 				title="Archive version"
