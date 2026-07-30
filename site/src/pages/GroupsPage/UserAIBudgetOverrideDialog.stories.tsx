@@ -89,8 +89,8 @@ export const WithoutOverride: Story = {
 	},
 };
 
-/** An existing override still hides the controls, so it can't be removed. */
-export const ReadOnlyWithoutPermission: Story = {
+/** Without permission, an existing override can be read but not removed. */
+export const ReadOnlyWithOverride: Story = {
 	args: { canUpdate: false },
 	parameters: {
 		queries: [
@@ -119,6 +119,28 @@ export const ReadOnlyWithoutPermission: Story = {
 				body.queryByRole("button", { name }),
 			).not.toBeInTheDocument();
 		}
+	},
+};
+
+/** Without permission or an override, the group's budget is shown as-is. */
+export const ReadOnlyWithoutOverride: Story = {
+	args: { canUpdate: false },
+	parameters: {
+		queries: [
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserMember.id), data: null },
+			...groupQueries,
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("$5,000 USD")).toBeInTheDocument();
+		await expect(
+			body.getByText(/To update this limit, contact a Coder administrator\./),
+		).toBeInTheDocument();
+		await expect(body.queryByRole("checkbox")).not.toBeInTheDocument();
+		await expect(
+			body.queryByRole("button", { name: "Update" }),
+		).not.toBeInTheDocument();
 	},
 };
 
