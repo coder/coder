@@ -2,75 +2,89 @@ import type React from "react";
 import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
 
-export const ToolLabel: React.FC<{
+type ToolLabelProps = {
 	name: string;
 	args: unknown;
 	result: unknown;
 	mcpSlug?: string;
-}> = ({ name, args, result, mcpSlug }) => {
+};
+
+const ProcessSignalLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	const parsed = parseArgs(args);
 	const parsedResult = asRecord(result);
+	const signal = parsed ? asString(parsed.signal) : "";
+	const processId = parsed ? asString(parsed.process_id) : "";
+	const shortId = processId ? processId.slice(0, 8) : "";
+	const suffix = shortId ? ` ${shortId}` : "";
+	const isKill = signal === "kill";
+	const isTerminate = signal === "terminate";
 
-	switch (name) {
-		case "process_signal": {
-			const signal = parsed ? asString(parsed.signal) : "";
-			const processId = parsed ? asString(parsed.process_id) : "";
-			const shortId = processId ? processId.slice(0, 8) : "";
-			const hasResult = result !== undefined && result !== null;
-			const success = parsedResult ? Boolean(parsedResult.success) : false;
-			if (hasResult && success) {
-				const verb = signal === "kill" ? "Killed" : "Terminated";
-				return (
-					<span className="truncate text-[13px]">
-						{verb} process{shortId ? ` ${shortId}` : ""}
-					</span>
-				);
-			}
-			if (hasResult && !success) {
-				const verb =
-					signal === "kill"
-						? "kill"
-						: signal === "terminate"
-							? "terminate"
-							: "signal";
-				return (
-					<span className="truncate text-[13px]">
-						Failed to {verb} process{shortId ? ` ${shortId}` : ""}
-					</span>
-				);
-			}
-			return (
-				<span className="truncate text-[13px]">
-					{signal === "kill"
-						? "Killing process…"
-						: signal === "terminate"
-							? "Terminating process…"
-							: "Sending signal…"}
-				</span>
-			);
-		}
-		case "process_list":
-			return <span className="truncate text-[13px]">Listing processes</span>;
-		case "attach_file": {
-			const attachedName =
-				(parsedResult ? asString(parsedResult.name) : "") ||
-				(parsed ? asString(parsed.name) : "") ||
-				(parsed ? getPathBasename(asString(parsed.path)) : "") ||
-				"file";
-			return (
-				<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
-			);
-		}
-		case "advisor":
-			return (
-				<span className="truncate text-[13px] leading-4 text-content-secondary">
-					Advisor
-				</span>
-			);
-
-		default: {
-			const displayName = mcpSlug ? humanizeMCPToolName(mcpSlug, name) : name;
-			return <span className="truncate text-[13px]">{displayName}</span>;
-		}
+	const hasResult = result !== undefined && result !== null;
+	if (!hasResult) {
+		const inFlightVerb = isKill
+			? "Killing process…"
+			: isTerminate
+				? "Terminating process…"
+				: "Sending signal…";
+		return <span className="truncate text-[13px]">{inFlightVerb}</span>;
 	}
+
+	const success = parsedResult ? Boolean(parsedResult.success) : false;
+	if (success) {
+		const verb = isKill ? "Killed" : "Terminated";
+		return (
+			<span className="truncate text-[13px]">
+				{verb} process{suffix}
+			</span>
+		);
+	}
+
+	const failedVerb = isKill ? "kill" : isTerminate ? "terminate" : "signal";
+	return (
+		<span className="truncate text-[13px]">
+			Failed to {failedVerb} process{suffix}
+		</span>
+	);
+};
+
+const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
+	const parsed = parseArgs(args);
+	const parsedResult = asRecord(result);
+	const resultName = parsedResult ? asString(parsedResult.name) : "";
+	const argName = parsed ? asString(parsed.name) : "";
+	const argPath = parsed ? asString(parsed.path) : "";
+	const attachedName =
+		resultName || argName || getPathBasename(argPath) || "file";
+	return (
+		<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
+	);
+};
+
+// Names with no toolRenderers entry render through GenericToolRenderer,
+// and process_signal's registered renderer delegates to it. advisor's
+// label is rendered directly by AdvisorTool.
+export const genericToolLabels: Partial<
+	Record<string, React.FC<ToolLabelProps>>
+> = {
+	process_signal: ProcessSignalLabel,
+	process_list: () => (
+		<span className="truncate text-[13px]">Listing processes</span>
+	),
+	attach_file: AttachFileLabel,
+	advisor: () => (
+		<span className="truncate text-[13px] leading-4 text-content-secondary">
+			Advisor
+		</span>
+	),
+};
+
+export const ToolLabel: React.FC<ToolLabelProps> = (props) => {
+	const Label = genericToolLabels[props.name];
+	if (Label) {
+		return <Label {...props} />;
+	}
+	const displayName = props.mcpSlug
+		? humanizeMCPToolName(props.mcpSlug, props.name)
+		: props.name;
+	return <span className="truncate text-[13px]">{displayName}</span>;
 };

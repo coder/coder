@@ -1016,7 +1016,9 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
-const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+// Exported for the registry visibility tests (toolLabelVisibility.test.ts,
+// toolIconsCoverage.test.ts); dispatch uses it below.
+export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
