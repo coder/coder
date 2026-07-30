@@ -158,9 +158,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserSkill:
 		return typed.Name
-	case database.AgentsOperationalSettings:
-		// Deployment singleton, no target.
-		return ""
+	case database.ChatOperationalSettings:
+		// Per-setting human-readable target.
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -246,7 +246,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSkill:
 		return typed.ID
-	case database.AgentsOperationalSettings:
+	case database.ChatOperationalSettings:
 		// Artificial ID for auditing purposes.
 		return typed.ID
 	default:
@@ -324,8 +324,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
-	case database.AgentsOperationalSettings:
-		return database.ResourceTypeAgentsOperationalSettings
+	case database.ChatOperationalSettings:
+		return database.ResourceTypeChatOperationalSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -416,7 +416,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserSkill:
 		// User skills are global to the user across organizations.
 		return false
-	case database.AgentsOperationalSettings:
+	case database.ChatOperationalSettings:
 		// Artificial ID for auditing purposes. This is a deployment
 		// singleton, not scoped to any organization.
 		return false

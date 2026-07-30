@@ -17074,6 +17074,9 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 
 		cases := []struct {
 			name string
+			// expectedTarget is the setting's human-readable audit resource
+			// target.
+			expectedTarget string
 			// set writes a value that differs from any prior state.
 			set func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error
 			// stored returns the raw stored text of the setting.
@@ -17084,10 +17087,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			// invalid exercises the request-validation rejection path.
 			invalid func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error
 			// changedField is the struct field this endpoint populates.
-			changedField func(s database.AgentsOperationalSettings) string
+			changedField func(s database.ChatOperationalSettings) string
 		}{
 			{
-				name: "RetentionDays",
+				name:           "RetentionDays",
+				expectedTarget: "Chat retention days",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: int32(value) /* #nosec G115 - test values are small */})
 				},
@@ -17100,10 +17104,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: -1})
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatRetentionDays },
+				changedField: func(s database.ChatOperationalSettings) string { return s.ChatRetentionDays },
 			},
 			{
-				name: "DebugRetentionDays",
+				name:           "DebugRetentionDays",
+				expectedTarget: "Debug retention days",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: int32(value) /* #nosec G115 - test values are small */})
 				},
@@ -17116,10 +17121,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: -1})
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatDebugRetentionDays },
+				changedField: func(s database.ChatOperationalSettings) string { return s.ChatDebugRetentionDays },
 			},
 			{
-				name: "AutoArchiveDays",
+				name:           "AutoArchiveDays",
+				expectedTarget: "Auto-archive days",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: int32(value) /* #nosec G115 - test values are small */})
 				},
@@ -17132,10 +17138,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: -1})
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.ChatAutoArchiveDays },
+				changedField: func(s database.ChatOperationalSettings) string { return s.ChatAutoArchiveDays },
 			},
 			{
-				name: "WorkspaceTTL",
+				name:           "WorkspaceTTL",
+				expectedTarget: "Workspace TTL",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					// value is interpreted as hours here.
 					return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: int64(value) * 3_600_000})
@@ -17149,10 +17156,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: -1})
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.WorkspaceTTL },
+				changedField: func(s database.ChatOperationalSettings) string { return s.WorkspaceTTL },
 			},
 			{
-				name: "ComputerUseProvider",
+				name:           "ComputerUseProvider",
+				expectedTarget: "Computer-use provider",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					provider := codersdk.ChatComputerUseProviderAnthropic
 					if value%2 == 0 {
@@ -17171,10 +17179,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{Provider: "not-a-provider"})
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.ComputerUseProvider },
+				changedField: func(s database.ChatOperationalSettings) string { return s.ComputerUseProvider },
 			},
 			{
-				name: "DebugLogging",
+				name:           "DebugLogging",
+				expectedTarget: "Debug-logging allow-users",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					return client.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: value%2 == 1})
 				},
@@ -17187,10 +17196,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return nil
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.DebugLoggingAllowUsers },
+				changedField: func(s database.ChatOperationalSettings) string { return s.DebugLoggingAllowUsers },
 			},
 			{
-				name: "PersonalModelOverrides",
+				name:           "PersonalModelOverrides",
+				expectedTarget: "Personal model overrides",
 				set: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, value int) error {
 					return client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{AllowUsers: value%2 == 1})
 				},
@@ -17203,7 +17213,7 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				invalid: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) error {
 					return nil
 				},
-				changedField: func(s database.AgentsOperationalSettings) string { return s.PersonalModelOverridesEnabled },
+				changedField: func(s database.ChatOperationalSettings) string { return s.PersonalModelOverridesEnabled },
 			},
 		}
 
@@ -17227,8 +17237,8 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				logs := mAudit.AuditLogs()
 				require.Len(t, logs, 1)
 				require.Equal(t, database.AuditActionWrite, logs[0].Action)
-				require.Equal(t, database.ResourceTypeAgentsOperationalSettings, logs[0].ResourceType)
-				require.Equal(t, "", logs[0].ResourceTarget)
+				require.Equal(t, database.ResourceTypeChatOperationalSettings, logs[0].ResourceType)
+				require.Equal(t, tc.expectedTarget, logs[0].ResourceTarget)
 				require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
 				require.Equal(t, uuid.Nil, logs[0].OrganizationID)
 				require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
@@ -17282,9 +17292,9 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		// commitAudit), so it must use assert, not require: require calls
 		// t.FailNow, which is only legal on the test goroutine.
 		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.AgentsOperationalSettings)
+			oldSettings, ok := old.(database.ChatOperationalSettings)
 			assert.True(t, ok)
-			newSettings, ok := newVal.(database.AgentsOperationalSettings)
+			newSettings, ok := newVal.(database.ChatOperationalSettings)
 			assert.True(t, ok)
 			return audit.Map{
 				"chat_retention_days":              {Old: oldSettings.ChatRetentionDays, New: newSettings.ChatRetentionDays},
@@ -17340,9 +17350,9 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		// This runs on the HTTP handler goroutine (via the deferred
 		// commitAudit), so it must use assert, not require.
 		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
-			oldSettings, ok := old.(database.AgentsOperationalSettings)
+			oldSettings, ok := old.(database.ChatOperationalSettings)
 			assert.True(t, ok)
-			newSettings, ok := newVal.(database.AgentsOperationalSettings)
+			newSettings, ok := newVal.(database.ChatOperationalSettings)
 			assert.True(t, ok)
 			return audit.Map{
 				"chat_retention_days": {Old: oldSettings.ChatRetentionDays, New: newSettings.ChatRetentionDays},
@@ -17455,10 +17465,10 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.Equal(t, int32(90), resp.RetentionDays)
 	})
 
-	// A failing upsert rolls the transaction back: the request fails with
-	// 500, no audit entry is emitted, and the stale Old the failed request
-	// captured must not poison a later no-change PUT into being audited as
-	// a change.
+	// A failing upsert inside the audit transaction falls back to the
+	// direct write; the failed audited transaction leaves no stale baseline
+	// behind, so a later value-identical PUT is still a no-op and emits no
+	// phantom entry.
 	t.Run("UpsertFailureThenNoChangeSuppressed", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -17480,23 +17490,28 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
 		require.Len(t, mAudit.AuditLogs(), 1)
 
+		// The forced failure fires inside the audited transaction and rolls
+		// it back; the fallback direct write persists the same value with
+		// no entry, matching a direct write on main.
 		mAudit.ResetLogs()
 		store.failNextUpsertChatRetentionDays.Store(true)
-		err := client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7})
-		requireSDKError(t, err, http.StatusInternalServerError)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
 		require.Empty(t, mAudit.AuditLogs())
 
-		// The failed write rolled back, so the stored value is still 90
-		// and repeating it is a no-op: no entry. The stale Old from the
-		// failed request must not survive into this one.
+		// A later value-identical PUT reads the persisted 90 as both its
+		// baseline and its result, so it is still a no-op: no phantom
+		// entry. The failed audited transaction must not leave a stale
+		// baseline behind.
 		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	// The audit transaction must not change what a member sees on a write
-	// failure: the response Detail is the upsert's original error, not the
-	// InTx wrapper's "execute transaction: ..." form (review round 1).
-	t.Run("WriteFailureDetailMatchesMain", func(t *testing.T) {
+	// A write failure inside the audit transaction falls back to the
+	// direct write: the member's response never depends on the audit
+	// machinery. The fallback upsert succeeds, so the response is 204 and
+	// the value is persisted, exactly as a direct write on main behaves,
+	// and no audit entry is emitted for the request.
+	t.Run("WriteFailureFallsBackToDirectWrite", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -17514,12 +17529,50 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
 
+		// The forced failure fires inside the audited transaction; the
+		// fallback direct write then succeeds.
 		store.failNextUpsertChatRetentionDays.Store(true)
-		err := client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7})
-		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
-		// The store's forced failure text is exactly what main surfaced
-		// before the audit transaction existed.
-		require.Equal(t, "forced retention days upsert failure", sdkErr.Detail)
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7}))
+		require.Empty(t, mAudit.AuditLogs())
+
+		raw, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "7", raw)
+	})
+
+	// A transaction-level failure (begin, lock, commit, rollback) falls
+	// back to the direct write and logs the full InTx error before the
+	// response detail is selected, because InTx can fold a rollback
+	// failure over the write error and the body must not show it. The
+	// fallback still persists the value and emits no entry.
+	t.Run("TransactionFailureFallsBackAndLogs", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSettingsLockStore(rawDB)
+		mAudit := audit.NewMock()
+		sink := &recordingSink{}
+		logger := slog.Make(sink)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+			Logger:           &logger,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		require.NoError(t, client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90}))
+		require.Empty(t, mAudit.AuditLogs())
+		require.Contains(t, sink.messages(), "chat operational settings write transaction failed, falling back to a direct write without an audit entry")
+
+		raw, err := store.GetChatSiteConfigValue(dbauthz.AsSystemRestricted(ctx), "agents_chat_retention_days")
+		require.NoError(t, err)
+		require.Equal(t, "90", raw)
 	})
 
 	// Two concurrent identical PUTs both succeed, but the advisory lock
@@ -17614,4 +17667,28 @@ func (s *recordingSink) messages() []string {
 		msgs[i] = e.Message
 	}
 	return msgs
+}
+
+// failNextChatSettingsLockStore fails the chat-settings advisory lock,
+// sharing no state across InTx wrappers (the fallback direct write does not
+// re-enter it).
+type failNextChatSettingsLockStore struct {
+	database.Store
+}
+
+func newFailNextChatSettingsLockStore(store database.Store) *failNextChatSettingsLockStore {
+	return &failNextChatSettingsLockStore{Store: store}
+}
+
+func (s *failNextChatSettingsLockStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextChatSettingsLockStore{Store: tx})
+	}, txOpts)
+}
+
+func (s *failNextChatSettingsLockStore) AcquireLock(ctx context.Context, id int64) error {
+	if id == database.LockIDChatSettingsWrites {
+		return stderrors.New("forced chat settings lock failure")
+	}
+	return s.Store.AcquireLock(ctx, id)
 }

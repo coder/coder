@@ -514,10 +514,10 @@ func Test_diff(t *testing.T) {
 			// (CODAGT-720). The values are raw site_configs text and are
 			// tracked, not secret.
 			name: "SingleSettingChangeDiffsExactlyOneField",
-			left: database.AgentsOperationalSettings{
+			left: database.ChatOperationalSettings{
 				ChatRetentionDays: "30",
 			},
-			right: database.AgentsOperationalSettings{
+			right: database.ChatOperationalSettings{
 				ID:                uuid.UUID{1},
 				ChatRetentionDays: "90",
 			},
@@ -529,10 +529,10 @@ func Test_diff(t *testing.T) {
 			// Malformed stored text is rendered honestly as raw text; a
 			// repairing write diffs junk-to-valid.
 			name: "MalformedOldValueTrackedAsRawText",
-			left: database.AgentsOperationalSettings{
+			left: database.ChatOperationalSettings{
 				ChatRetentionDays: "not-a-number",
 			},
-			right: database.AgentsOperationalSettings{
+			right: database.ChatOperationalSettings{
 				ID:                uuid.UUID{1},
 				ChatRetentionDays: "60",
 			},
@@ -545,10 +545,10 @@ func Test_diff(t *testing.T) {
 			// would diff empty. Handlers additionally suppress the entry
 			// entirely by leaving both resource IDs nil.
 			name: "ArtificialIDIgnored",
-			left: database.AgentsOperationalSettings{
+			left: database.ChatOperationalSettings{
 				ChatRetentionDays: "30",
 			},
-			right: database.AgentsOperationalSettings{
+			right: database.ChatOperationalSettings{
 				ID:                uuid.UUID{1},
 				ChatRetentionDays: "30",
 			},

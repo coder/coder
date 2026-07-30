@@ -37,7 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AgentsOperationalSettings":     {codersdk.AuditActionWrite},
+	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -284,8 +284,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":                                  ActionIgnore,
 		"dynamic_client_registration_enabled": ActionTrack,
 	},
-	&database.AgentsOperationalSettings{}: {
+	&database.ChatOperationalSettings{}: {
 		"id":                               ActionIgnore,
+		"name":                             ActionIgnore,
 		"chat_retention_days":              ActionTrack,
 		"chat_debug_retention_days":        ActionTrack,
 		"chat_auto_archive_days":           ActionTrack,

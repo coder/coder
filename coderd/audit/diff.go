@@ -43,7 +43,7 @@ type Auditable interface {
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
 		database.UserSkill |
-		database.AgentsOperationalSettings
+		database.ChatOperationalSettings
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

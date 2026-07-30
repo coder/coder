@@ -372,19 +372,22 @@ func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 	}
 }
 
-// operationalSettingsForKey must panic on an unknown key rather than
-// silently return an all-zero struct, which would suppress the audit entry
-// for a setting whose handler was wired without updating the switch.
-func TestOperationalSettingsForKeyPanicsOnUnknownKey(t *testing.T) {
+// The descriptor's settings method must panic on an unknown key rather
+// than silently return an all-zero struct, which would suppress the audit
+// entry for a setting whose handler was wired without a descriptor.
+func TestChatOperationalSettingPanicsOnUnknownKey(t *testing.T) {
 	t.Parallel()
 
 	require.PanicsWithValue(t,
 		`unknown chat operational setting key "not_a_real_key"`,
 		func() {
-			operationalSettingsForKey("not_a_real_key", "1", uuid.Nil)
+			chatOperationalSetting{"not_a_real_key", "Unused"}.settings("1", uuid.Nil)
 		})
 
-	// Every supported key populates exactly its own field.
-	require.Equal(t, database.AgentsOperationalSettings{ChatRetentionDays: "90"},
-		operationalSettingsForKey("agents_chat_retention_days", "90", uuid.Nil))
+	// Every supported descriptor populates its own field and the target
+	// name, so a change to one setting diffs exactly one field and the row
+	// names the setting.
+	require.Equal(t,
+		database.ChatOperationalSettings{Name: "Chat retention days", ChatRetentionDays: "90"},
+		chatOperationalSettingChatRetentionDays.settings("90", uuid.Nil))
 }

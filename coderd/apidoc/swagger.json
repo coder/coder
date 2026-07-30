@@ -21884,7 +21884,7 @@
 				"chat",
 				"user_secret",
 				"user_skill",
-				"agents_operational_settings"
+				"chat_operational_settings"
 			],
 			"x-enum-varnames": [
 				"ResourceTypeTemplate",
@@ -21923,7 +21923,7 @@
 				"ResourceTypeChat",
 				"ResourceTypeUserSecret",
 				"ResourceTypeUserSkill",
-				"ResourceTypeAgentsOperationalSettings"
+				"ResourceTypeChatOperationalSettings"
 			]
 		},
 		"codersdk.Response": {
