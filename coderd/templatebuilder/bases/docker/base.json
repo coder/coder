@@ -2,6 +2,7 @@
 	"id": "docker",
 	"display_name": "Docker",
 	"os": "linux",
+	"agents": [{ "name": "main", "default": true }],
 	"default_context": {
 		"container_image": "codercom/example-base:ubuntu"
 	},

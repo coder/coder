@@ -271,4 +271,87 @@ func TestParseBasesFromFS(t *testing.T) {
 		require.Equal(t, "windows", bases["winbox"].Manifest.OS)
 		require.Equal(t, BaseOSWindows, validBaseOS[bases["winbox"].Manifest.OS])
 	})
+
+	t.Run("ParsesAgents", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/multi/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "multi", "os": "linux", "agents": [{"name": "main"}, {"name": "dev", "default": true}]}`),
+			},
+			"bases/multi/main.tf.tmpl": &fstest.MapFile{
+				Data: []byte(`resource "coder_agent" "main" {}`),
+			},
+			"bases/multi/README.md": &fstest.MapFile{
+				Data: []byte("# Multi\n"),
+			},
+		}
+
+		bases, err := parseBasesFromFS(fsys)
+		require.NoError(t, err)
+		agents := bases["multi"].Manifest.Agents
+		require.Len(t, agents, 2)
+		require.Equal(t, "main", agents[0].Name)
+		require.Equal(t, "dev", agents[1].Name)
+		require.True(t, agents[1].Default)
+	})
+
+	t.Run("RejectsEmptyAgentName", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": ""}]}`),
+			},
+			"bases/bad/README.md": &fstest.MapFile{
+				Data: []byte("# Bad\n"),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "empty name")
+	})
+
+	t.Run("RejectsDuplicateAgent", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "main"}, {"name": "main"}]}`),
+			},
+			"bases/bad/README.md": &fstest.MapFile{
+				Data: []byte("# Bad\n"),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "duplicate agent")
+	})
+
+	t.Run("RejectsMultipleDefaultAgents", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "main", "default": true}, {"name": "dev", "default": true}]}`),
+			},
+			"bases/bad/README.md": &fstest.MapFile{
+				Data: []byte("# Bad\n"),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "more than one default agent")
+	})
+}
+
+func TestBaseDefaultAgent(t *testing.T) {
+	t.Parallel()
+
+	// docker declares a single "main" agent marked default.
+	require.Equal(t, "main", BaseDefaultAgent("docker"))
+	// aws-linux's agent resource is named "dev".
+	require.Equal(t, "dev", BaseDefaultAgent("aws-linux"))
+	// Unknown bases resolve to no agent.
+	require.Equal(t, "", BaseDefaultAgent("nonexistent"))
 }

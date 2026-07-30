@@ -2,6 +2,7 @@
 	"id": "kubernetes",
 	"display_name": "Kubernetes",
 	"os": "linux",
+	"agents": [{ "name": "main", "default": true }],
 	"default_context": {
 		"container_image": "codercom/example-base:ubuntu"
 	},

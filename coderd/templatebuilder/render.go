@@ -3,9 +3,10 @@ package templatebuilder
 import (
 	"bytes"
 	"io/fs"
-	"regexp"
 	"text/template"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
 )
 
@@ -99,40 +100,69 @@ func renderTemplate(fsys fs.FS, templatePath string, data any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// agentResourcePattern matches `resource "coder_agent" "<name>"` in HCL.
-var agentResourcePattern = regexp.MustCompile(`resource\s+"coder_agent"\s+"(\w+)"`)
+// ExtractedAgent describes a coder_agent resource found in rendered HCL.
+type ExtractedAgent struct {
+	// Name is the bare Terraform resource name, e.g. "main" or "dev".
+	Name string
+	// Reference is the form used to reference the agent in HCL. When the
+	// agent uses count or for_each it includes an index suffix (e.g.
+	// "dev[0]") so that module templates can reference it as
+	// coder_agent.<Reference>.id.
+	Reference string
+}
 
-// agentCountPattern detects whether a coder_agent block uses count or
-// for_each, which means references to it require an index (e.g. [0]).
-var agentCountPattern = regexp.MustCompile(
-	`resource\s+"coder_agent"\s+"\w+"\s*\{[^}]*\b(?:count|for_each)\s*=`,
-)
+// ExtractAgentResourceNames finds every coder_agent resource declaration
+// in rendered HCL, in document order. When an agent uses count or
+// for_each its Reference includes an index suffix. Returns an error only
+// when the HCL cannot be parsed or declares no coder_agent resource. The
+// input is expected to be rendered output from our own curated base
+// templates, not arbitrary user HCL.
+func ExtractAgentResourceNames(hclSrc []byte) ([]ExtractedAgent, error) {
+	file, diags := hclwrite.ParseConfig(hclSrc, "main.tf", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, xerrors.Errorf("parse rendered template HCL: %s", diags.Error())
+	}
 
-// ExtractAgentResourceName finds the coder_agent resource declaration in
-// rendered HCL and returns the reference form to use in module templates.
-// When the agent uses count or for_each, the returned name includes an
-// index suffix (e.g. "dev[0]") so that module templates can reference it
-// as coder_agent.<name>.id. Returns an error unless exactly one
-// coder_agent resource is found; the builder only supports single-agent
-// templates. The input is expected to be rendered output from our own
-// curated base templates, not arbitrary user HCL.
-func ExtractAgentResourceName(hcl []byte) (string, error) {
-	matches := agentResourcePattern.FindAllSubmatch(hcl, -1)
-	switch len(matches) {
-	case 0:
-		return "", xerrors.New("no coder_agent resource found in rendered template")
-	case 1:
-		name := string(matches[0][1])
-		if agentCountPattern.Match(hcl) {
-			name += "[0]"
+	var agents []ExtractedAgent
+	for _, block := range file.Body().Blocks() {
+		if block.Type() != "resource" {
+			continue
 		}
-		return name, nil
-	default:
-		names := make([]string, 0, len(matches))
-		for _, m := range matches {
-			names = append(names, string(m[1]))
+		labels := block.Labels()
+		if len(labels) != 2 || labels[0] != "coder_agent" {
+			continue
+		}
+		name := labels[1]
+		ref := name
+		body := block.Body()
+		if body.GetAttribute("count") != nil || body.GetAttribute("for_each") != nil {
+			ref = name + "[0]"
+		}
+		agents = append(agents, ExtractedAgent{Name: name, Reference: ref})
+	}
+
+	if len(agents) == 0 {
+		return nil, xerrors.New("no coder_agent resource found in rendered template")
+	}
+	return agents, nil
+}
+
+// ExtractAgentResourceName returns the reference form of the single
+// coder_agent resource in rendered HCL. It errors unless exactly one
+// coder_agent is found. Prefer ExtractAgentResourceNames for templates
+// that may declare multiple agents.
+func ExtractAgentResourceName(hclSrc []byte) (string, error) {
+	agents, err := ExtractAgentResourceNames(hclSrc)
+	if err != nil {
+		return "", err
+	}
+	if len(agents) != 1 {
+		names := make([]string, 0, len(agents))
+		for _, a := range agents {
+			names = append(names, a.Name)
 		}
 		return "", xerrors.Errorf("expected exactly one coder_agent resource, found %d: %v",
-			len(matches), names)
+			len(agents), names)
 	}
+	return agents[0].Reference, nil
 }
