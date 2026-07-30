@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -125,23 +126,26 @@ func TestChatInstructionSettingsDegradedNewCapture(t *testing.T) {
 	require.Len(t, backend.entries(), 1)
 
 	// Fail the New re-read only: the Old capture succeeds, the write
-	// succeeds, and the re-read fails. The row must not claim the prompt
-	// was cleared.
+	// succeeds, and the re-read fails. Because the read is fatal on
+	// measured unreachability (a statement error aborts the transaction),
+	// the request fails and rolls back, so no row can carry a fabricated
+	// Old-to-empty deletion.
 	store.fail.Store(true)
 	err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 		SystemPrompt: "Changed prompt.",
 	})
-	require.NoError(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+	// The failed request records the attempt with an empty diff; no
+	// fabricated deletion can appear.
 	require.Len(t, backend.entries(), 2)
-	var diff map[string]codersdk.AuditDiffField
-	require.NoError(t, json.Unmarshal(backend.entries()[1].Diff, &diff))
-	// The unknown-value rule: the diff is empty, never a fabricated
-	// Old-to-empty deletion.
-	require.Empty(t, diff)
+	require.JSONEq(t, "{}", string(backend.entries()[1].Diff))
 
+	// The write rolled back.
 	resp, err := client.GetChatSystemPrompt(ctx)
 	require.NoError(t, err)
-	require.Equal(t, "Changed prompt.", resp.SystemPrompt)
+	require.Equal(t, "Baseline prompt.", resp.SystemPrompt)
 }
 
 // TestChatInstructionSettingsIncludeDefaultPresence exercises the production
