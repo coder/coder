@@ -34,9 +34,11 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			<h5 className="text-2xl font-medium m-0">{message}</h5>
+			<h5 className="m-0 font-medium text-content-primary text-base">
+				{message}
+			</h5>
 			{description && (
-				<p className="mt-4 line-height-[140%] max-w-md text-content-secondary">
+				<p className="mt-4 max-w-md text-content-secondary text-sm">
 					{description}
 				</p>
 			)}
