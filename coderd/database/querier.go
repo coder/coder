@@ -901,6 +901,15 @@ type sqlcQuerier interface {
 	// the events that happened on and between the two dates. Both dates are
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
+	// Gets the total Coder Agent runtime in milliseconds between two dates. Uses
+	// the aggregate table to avoid large scans or a complex index on the
+	// usage_events table.
+	//
+	// This has the trade off that we can't total accurately between two exact
+	// timestamps. The provided timestamps will be converted to UTC and truncated to
+	// the events that happened on and between the two dates. Both dates are
+	// inclusive.
+	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)

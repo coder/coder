@@ -17,6 +17,17 @@ const (
 	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
 	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
 	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
+	// LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
+	// deployment reaches the advisory soft limit but is still within its
+	// runtime hour allocation. Both placeholders are whole hours: the
+	// runtime used so far in the usage period, then the allocation.
+	LicenseAgentRuntimeHoursSoftLimitWarningText = "You have used %d of %d Coder Agent runtime hours included in your license."
+	// LicenseAgentRuntimeHoursAllocationExceededWarningText is emitted once
+	// the deployment reaches its runtime hour allocation. It replaces, and is
+	// never emitted alongside, the soft limit warning. Both placeholders are
+	// whole hours: the runtime used so far in the usage period, then the
+	// allocation.
+	LicenseAgentRuntimeHoursAllocationExceededWarningText = "You have used %d of %d Coder Agent runtime hours included in your license. Additional usage may be billable."
 )
 
 type AddLicenseRequest struct {

@@ -29230,6 +29230,40 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 	return total_count, err
 }
 
+const getTotalUsageHBAgentRuntimeV1 = `-- name: GetTotalUsageHBAgentRuntimeV1 :one
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((usage_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events_daily
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    -- Parentheses are necessary to avoid sqlc from generating an extra
+    -- argument.
+    AND day BETWEEN date_trunc('day', ($1::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', ($2::timestamptz) AT TIME ZONE 'UTC')::date
+`
+
+type GetTotalUsageHBAgentRuntimeV1Params struct {
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+// Gets the total Coder Agent runtime in milliseconds between two dates. Uses
+// the aggregate table to avoid large scans or a complex index on the
+// usage_events table.
+//
+// This has the trade off that we can't total accurately between two exact
+// timestamps. The provided timestamps will be converted to UTC and truncated to
+// the events that happened on and between the two dates. Both dates are
+// inclusive.
+func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartDate, arg.EndDate)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (

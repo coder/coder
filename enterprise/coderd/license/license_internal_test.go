@@ -1,6 +1,7 @@
 package license
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -137,4 +138,47 @@ func permutations[T any](arr []T) [][]T {
 	}
 	helper(arr, 0)
 	return res
+}
+
+func TestAgentRuntimeMsToHours(t *testing.T) {
+	t.Parallel()
+
+	const hourMs = int64(60 * 60 * 1000)
+
+	testCases := []struct {
+		name string
+		ms   int64
+		want int64
+	}{
+		{"Zero", 0, 0},
+		// Any runtime below an hour floors to zero.
+		{"OneMillisecond", 1, 0},
+		{"JustUnderAnHour", hourMs - 1, 0},
+		{"ExactlyOneHour", hourMs, 1},
+		{"JustOverAnHour", hourMs + 1, 1},
+		{"JustUnderTwoHours", 2*hourMs - 1, 1},
+		{"ExactlyTwoHours", 2 * hourMs, 2},
+		// A realistic month of continuous runtime.
+		{"Large", 720 * hourMs, 720},
+		// Negative input is not expected from the aggregate query, which
+		// COALESCEs to 0, but it must never produce a negative hour count
+		// that would compare oddly against the license limits.
+		{"Negative", -1, 0},
+		{"NegativeHour", -hourMs, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, agentRuntimeMsToHours(tc.ms))
+		})
+	}
+}
+
+func TestAgentRuntimeMsToHoursNoOverflow(t *testing.T) {
+	t.Parallel()
+
+	// Division cannot overflow, so the maximum int64 of milliseconds converts
+	// without wrapping to a negative hour count.
+	assert.Positive(t, agentRuntimeMsToHours(math.MaxInt64))
 }

@@ -117,3 +117,24 @@ WHERE
     -- Parentheses are necessary to avoid sqlc from generating an extra
     -- argument.
     AND day BETWEEN date_trunc('day', (@start_date::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', (@end_date::timestamptz) AT TIME ZONE 'UTC')::date;
+
+-- name: GetTotalUsageHBAgentRuntimeV1 :one
+-- Gets the total Coder Agent runtime in milliseconds between two dates. Uses
+-- the aggregate table to avoid large scans or a complex index on the
+-- usage_events table.
+--
+-- This has the trade off that we can't total accurately between two exact
+-- timestamps. The provided timestamps will be converted to UTC and truncated to
+-- the events that happened on and between the two dates. Both dates are
+-- inclusive.
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((usage_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events_daily
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    -- Parentheses are necessary to avoid sqlc from generating an extra
+    -- argument.
+    AND day BETWEEN date_trunc('day', (@start_date::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', (@end_date::timestamptz) AT TIME ZONE 'UTC')::date;

@@ -148,6 +148,17 @@ func TestPostLicense(t *testing.T) {
 		require.NotNil(t, feature.HardLimit)
 		require.EqualValues(t, 120, *feature.HardLimit)
 		require.NotNil(t, feature.UsagePeriod)
+		// Actual is read from the usage_events_daily rollup, which has no
+		// runtime events in this deployment. It is reported in whole hours,
+		// matching the unit of the claims above.
+		require.NotNil(t, feature.Actual)
+		require.EqualValues(t, 0, *feature.Actual)
+		require.Empty(t, entitlements.Errors)
+		// Zero usage is below both thresholds, so no runtime warning fires.
+		// Unrelated warnings from this bare license are ignored.
+		for _, warning := range entitlements.Warnings {
+			require.NotContains(t, warning, "Coder Agent runtime hours")
+		}
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
