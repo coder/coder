@@ -4,7 +4,8 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
 const meta: Meta<typeof DynamicClientRegistrationSetting> = {
-	title: "pages/DeploymentSettingsPage/DynamicClientRegistrationSetting",
+	title:
+		"pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/DynamicClientRegistrationSetting",
 	component: DynamicClientRegistrationSetting,
 	args: {
 		enabled: false,
@@ -88,21 +89,17 @@ export const EnableShowsConfirmationDialog: Story = {
 		await body.findByText("Enable Dynamic Client Registration?");
 		await expect(args.onChange).not.toHaveBeenCalled();
 
-		// The dialog's confirm button shares its accessible name with the trigger
-		// button behind it, so scope the query to the dialog.
-		const dialog = within(body.getByTestId("dialog"));
-
 		// The dialog covers the section description, so it is the last thing the
 		// admin reads before enabling. It has to name both what enabling exposes
 		// and what disabling does not undo, or the confirm click decides nothing.
 		await expect(
-			dialog.getByText(/no Coder account and no administrator approval/),
+			body.getByText(/no Coder account and no administrator approval/),
 		).toBeInTheDocument();
 		await expect(
-			dialog.getByText(/does not revoke clients that already registered/),
+			body.getByText(/does not revoke clients that already registered/),
 		).toBeInTheDocument();
 
-		await userEvent.click(dialog.getByRole("button", { name: "Enable" }));
+		await userEvent.click(body.getByTestId("confirm-button"));
 		await expect(args.onChange).toHaveBeenCalledWith(true);
 	},
 };

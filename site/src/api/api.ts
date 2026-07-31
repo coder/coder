@@ -2037,14 +2037,19 @@ class ApiMethods {
 
 	getOAuth2ProviderSettings =
 		async (): Promise<TypesGen.OAuth2ProviderSettings> => {
-			const resp = await this.axios.get("/api/v2/oauth2-provider/settings");
+			const resp = await this.axios.get<TypesGen.OAuth2ProviderSettings>(
+				"/api/v2/oauth2-provider/settings",
+			);
 			return resp.data;
 		};
 
 	putOAuth2ProviderSettings = async (
 		data: TypesGen.OAuth2ProviderSettings,
 	): Promise<TypesGen.OAuth2ProviderSettings> => {
-		const resp = await this.axios.put("/api/v2/oauth2-provider/settings", data);
+		const resp = await this.axios.put<TypesGen.OAuth2ProviderSettings>(
+			"/api/v2/oauth2-provider/settings",
+			data,
+		);
 		return resp.data;
 	};
 

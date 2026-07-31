@@ -224,6 +224,12 @@ export const UnpermittedTabFromUrlFallsBack: Story = {
 		await expect(
 			canvas.getByRole("tab", { name: "Applications" }),
 		).toHaveAttribute("aria-selected", "true");
+		// Which tab is highlighted says nothing about what rendered. Radix mounts
+		// no inactive TabsContent today, so a later forceMount would otherwise
+		// hand this user a control the deep link should not have reached.
+		await expect(
+			canvas.queryByRole("button", { name: "Enable" }),
+		).not.toBeInTheDocument();
 	},
 };
 

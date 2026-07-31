@@ -25,12 +25,12 @@ export const DynamicClientRegistrationSetting: FC<
 			>
 				<div className="flex flex-col gap-1 max-w-xl">
 					<div className="flex flex-row items-center gap-2">
-						<h3
+						<h2
 							id={headingId}
 							className="text-content-primary text-base font-semibold m-0"
 						>
 							Dynamic Client Registration
-						</h3>
+						</h2>
 						{enabled && (
 							<Badge size="sm" variant="green" className="border-0 shadow-none">
 								Enabled
@@ -91,7 +91,6 @@ export const DynamicClientRegistrationSetting: FC<
 
 			<ConfirmDialog
 				type="delete"
-				hideCancel={false}
 				open={isEnableDialogOpen}
 				onConfirm={() => {
 					setIsEnableDialogOpen(false);
