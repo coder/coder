@@ -7,10 +7,10 @@ import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";

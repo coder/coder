@@ -18,7 +18,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FormFields, FormFooter, Form } from "#/components/Form/Form";
+import { Form, FormFields, FormFooter } from "#/components/Form/Form";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,

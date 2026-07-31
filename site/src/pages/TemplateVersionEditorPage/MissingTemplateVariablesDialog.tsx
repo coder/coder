@@ -12,7 +12,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { FormFields, Form } from "#/components/Form/Form";
+import { Form, FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
 

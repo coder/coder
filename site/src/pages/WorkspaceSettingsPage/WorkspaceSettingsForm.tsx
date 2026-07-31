@@ -9,10 +9,10 @@ import {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";

@@ -14,10 +14,10 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";

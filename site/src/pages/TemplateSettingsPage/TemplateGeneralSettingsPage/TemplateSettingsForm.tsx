@@ -15,10 +15,10 @@ import {
 import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -101,10 +101,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<Form
-			onSubmit={form.handleSubmit}
-			aria-label="Template settings form"
-		>
+		<Form onSubmit={form.handleSubmit} aria-label="Template settings form">
 			<FormSection
 				title="General info"
 				description="The name is used to identify the template in URLs and the API."

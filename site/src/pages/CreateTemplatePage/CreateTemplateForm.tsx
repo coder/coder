@@ -24,10 +24,10 @@ import type {
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";

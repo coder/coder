@@ -8,10 +8,10 @@ import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	Form,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
