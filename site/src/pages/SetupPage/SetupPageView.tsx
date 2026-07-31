@@ -274,7 +274,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								rel="noreferrer"
 								className="text-xs text-content-link hover:underline mt-0.5"
 							>
-								Learn more
+								Learn more about Premium
 							</a>
 						</div>
 					</label>

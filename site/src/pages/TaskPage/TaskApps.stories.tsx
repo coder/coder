@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import kebabCase from "lodash/kebabCase";
+import { v4 as uuidv4 } from "uuid";
 import type { Task, Workspace, WorkspaceApp } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
@@ -123,7 +124,7 @@ export const WithManyEmbeddedApps: Story = {
 function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 	return {
 		...MockWorkspaceApp,
-		id: crypto.randomUUID(),
+		id: uuidv4(),
 		slug: kebabCase(name),
 		display_name: name,
 		external: false,

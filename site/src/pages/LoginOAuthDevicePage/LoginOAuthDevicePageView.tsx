@@ -37,7 +37,7 @@ const LoginOAuthDevicePageView: FC<LoginOAuthDevicePageViewProps> = ({
 
 			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				If you&apos;re not redirected automatically,{" "}
-				<a href={redirectUrl}>click here</a>.
+				<a href={redirectUrl}>continue to Coder</a>.
 			</p>
 		</SignInLayout>
 	);

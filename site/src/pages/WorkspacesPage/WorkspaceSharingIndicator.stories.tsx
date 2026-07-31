@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { v4 as uuidv4 } from "uuid";
 import type { SharedWorkspaceActor } from "#/api/typesGenerated";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 
@@ -7,7 +8,7 @@ const mockUser = (
 	name: string,
 	roles: SharedWorkspaceActor["roles"] = ["use"],
 ): SharedWorkspaceActor => ({
-	id: crypto.randomUUID(),
+	id: uuidv4(),
 	actor_type: "user",
 	name,
 	roles,
@@ -17,7 +18,7 @@ const mockGroup = (
 	name: string,
 	roles: SharedWorkspaceActor["roles"] = ["use"],
 ): SharedWorkspaceActor => ({
-	id: crypto.randomUUID(),
+	id: uuidv4(),
 	actor_type: "group",
 	name,
 	roles,

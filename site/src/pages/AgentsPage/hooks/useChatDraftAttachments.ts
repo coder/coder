@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
@@ -96,8 +97,8 @@ const pruneTerminalRegistryEntry = (entry: UploadRegistryEntry) => {
 const createClientId = () => {
 	const cryptoObject =
 		typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
-	if (cryptoObject?.randomUUID) {
-		return cryptoObject.randomUUID();
+	if (uuidv4) {
+		return uuidv4();
 	}
 	if (cryptoObject?.getRandomValues) {
 		const values = new Uint32Array(2);
