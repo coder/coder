@@ -790,7 +790,7 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	mise exec actionlint -- actionlint
+	mise exec "go:github.com/rhysd/actionlint/cmd/actionlint" -- actionlint
 .PHONY: lint/actions/actionlint
 
 # zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
