@@ -671,9 +671,9 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceLicense.Type: {policy.ActionRead},
 					rbac.ResourceAiSeat.Type:  {policy.ActionRead}, // Required for GetActiveAISeatCount.
-					// The usage publisher doesn't create events, just
-					// reads/processes them.
-					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
+					// Create is required to insert heartbeat usage events
+					// under this subject.
+					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -2793,6 +2793,16 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
+	// The aggregate covers one chat tree, so it is authorized through the
+	// root chat. Members cannot read interception rows back, but they can
+	// read their own chats.
+	if _, err := q.GetChatByID(ctx, rootChatID); err != nil {
+		return database.GetAIBridgeChatCostRow{}, err
+	}
+	return q.db.GetAIBridgeChatCost(ctx, rootChatID)
+}
+
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }
@@ -2809,6 +2819,13 @@ func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBr
 		return q.db.GetAIBridgeInterceptions(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetAIBridgeSessionTopDomains(ctx context.Context, arg database.GetAIBridgeSessionTopDomainsParams) ([]database.GetAIBridgeSessionTopDomainsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeSessionTopDomains(ctx, arg)
 }
 
 func (q *querier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
@@ -4992,6 +5009,16 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
+func (q *querier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+	// This query exists solely to compute hb_agent_runtime_v1 usage event
+	// payloads and returns a bare sum with no chat content, so it is gated
+	// on usage event creation rather than on reading chats.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.GetTotalChatMessageRuntimeMsInRange(ctx, arg)
+}
+
 func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
 		return 0, err
@@ -6899,6 +6926,13 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 func (q *querier) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
 	// TODO(Cian): replace this with a sql filter for improved performance. https://github.com/coder/internal/issues/1061
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListTasks)(ctx, arg)
+}
+
+func (q *querier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg database.ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return nil, err
+	}
+	return q.db.ListUsageEventCreatedAtsByTypeSince(ctx, arg)
 }
 
 func (q *querier) ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]database.UserConfig, error) {

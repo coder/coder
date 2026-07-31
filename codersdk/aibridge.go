@@ -141,7 +141,7 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// NetworkCalls summarizes the Agent Firewall network requests made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
 	// surfaces as "Disabled".
@@ -165,6 +165,13 @@ type AIBridgeSessionNetworkCallSummary struct {
 	Blocked int64 `json:"blocked"`
 }
 
+// AIBridgeSessionNetworkDomain is one destination host contacted during a
+// session, with the number of network calls made to it.
+type AIBridgeSessionNetworkDomain struct {
+	Domain string `json:"domain"`
+	Count  int64  `json:"count"`
+}
+
 type AIBridgeListSessionsResponse struct {
 	Count    int64             `json:"count"`
 	Sessions []AIBridgeSession `json:"sessions"`
@@ -185,7 +192,17 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
-	Threads           []AIBridgeThread                 `json:"threads"`
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	// NetworkTopDomains lists the most contacted destination hosts, ordered by
+	// call count descending. NetworkDomainCount is the total number of distinct
+	// domains, used to render a "+N more" overflow beyond the listed domains.
+	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
+	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
+	Threads            []AIBridgeThread               `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage

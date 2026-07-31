@@ -1330,10 +1330,10 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Cost Controls",
-									"description": "Manage AI Gateway spend with budgets, spend limits, and budget notifications.",
+									"title": "AI Governance Cost Control",
+									"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
 									"path": "./ai-coder/ai-gateway/cost-controls.md",
-									"state": ["ai governance add-on"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Reference",
