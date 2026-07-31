@@ -48,8 +48,8 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
