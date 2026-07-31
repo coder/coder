@@ -1,8 +1,12 @@
-import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { getOAuth2ProviderSettings, putOAuth2ProviderSettings } from "./oauth2";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	getOAuth2ProviderSettings,
+	oauth2ProviderAppKey,
+	putOAuth2ProviderSettings,
+} from "./oauth2";
 
 vi.mock("#/api/api", () => ({
 	API: {
@@ -10,18 +14,6 @@ vi.mock("#/api/api", () => ({
 		putOAuth2ProviderSettings: vi.fn(),
 	},
 }));
-
-const createTestQueryClient = (): QueryClient =>
-	new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
-				gcTime: Number.POSITIVE_INFINITY,
-				refetchOnWindowFocus: false,
-				networkMode: "offlineFirst",
-			},
-		},
-	});
 
 const settings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: true,
@@ -59,17 +51,24 @@ describe("putOAuth2ProviderSettings", () => {
 		expect(result).toEqual(settings);
 	});
 
-	it("invalidates the settings query on a successful update", async () => {
+	// `invalidateQueries` matches by key prefix, so asserting the settings key
+	// was invalidated says nothing about what else went with it. Seeding an app
+	// query alongside it is what catches a widened invalidation scope, which
+	// would refetch every app on every settings save.
+	it("invalidates the settings query without touching app queries", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(getOAuth2ProviderSettings().queryKey, {
+		const settingsQueryKey = getOAuth2ProviderSettings().queryKey;
+		const appQueryKey = oauth2ProviderAppKey("app-1");
+		queryClient.setQueryData(settingsQueryKey, {
 			dynamic_client_registration_enabled: false,
 		});
+		queryClient.setQueryData(appQueryKey, { id: "app-1" });
 
 		await putOAuth2ProviderSettings(queryClient).onSuccess();
 
-		expect(
-			queryClient.getQueryState(getOAuth2ProviderSettings().queryKey)
-				?.isInvalidated,
-		).toBe(true);
+		expect(queryClient.getQueryState(settingsQueryKey)?.isInvalidated).toBe(
+			true,
+		);
+		expect(queryClient.getQueryState(appQueryKey)?.isInvalidated).toBe(false);
 	});
 });
