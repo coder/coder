@@ -37,19 +37,23 @@ const OAuth2AppsSettingsPage: FC = () => {
 				// unknown when it loaded fine.
 				error={appsQuery.error}
 				canCreateApp={canCreateApp}
-				canViewSettings={canViewSettings}
-				canEditSettings={canEditSettings}
-				settingsError={settingsQuery.error ?? updateSettingsMutation.error}
-				isLoadingSettings={settingsQuery.isLoading}
-				isUpdatingSettings={updateSettingsMutation.isPending}
-				dynamicClientRegistrationEnabled={
-					settingsQuery.data?.dynamic_client_registration_enabled
+				settings={
+					canViewSettings
+						? {
+								canEdit: canEditSettings,
+								isLoading: settingsQuery.isLoading,
+								isUpdating: updateSettingsMutation.isPending,
+								error: settingsQuery.error ?? updateSettingsMutation.error,
+								dynamicClientRegistrationEnabled:
+									settingsQuery.data?.dynamic_client_registration_enabled,
+								onDynamicClientRegistrationChange: (enabled) => {
+									updateSettingsMutation.mutate({
+										dynamic_client_registration_enabled: enabled,
+									});
+								},
+							}
+						: undefined
 				}
-				onDynamicClientRegistrationChange={(enabled) => {
-					updateSettingsMutation.mutate({
-						dynamic_client_registration_enabled: enabled,
-					});
-				}}
 			/>
 		</>
 	);

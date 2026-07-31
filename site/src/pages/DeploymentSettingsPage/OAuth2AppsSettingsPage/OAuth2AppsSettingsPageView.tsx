@@ -32,18 +32,26 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
+/**
+ * Absent when the viewer cannot read deployment config, so "cannot view" is
+ * the shape of the prop rather than a flag the caller has to keep consistent
+ * with the five values beside it.
+ */
+type SettingsTab = {
+	canEdit: boolean;
+	isLoading: boolean;
+	isUpdating: boolean;
+	error: unknown;
+	dynamicClientRegistrationEnabled: boolean | undefined;
+	onDynamicClientRegistrationChange: (enabled: boolean) => void;
+};
+
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
 	isLoading: boolean;
 	error: unknown;
 	canCreateApp: boolean;
-	canViewSettings: boolean;
-	canEditSettings: boolean;
-	settingsError: unknown;
-	isLoadingSettings: boolean;
-	isUpdatingSettings: boolean;
-	dynamicClientRegistrationEnabled: boolean | undefined;
-	onDynamicClientRegistrationChange: (enabled: boolean) => void;
+	settings?: SettingsTab;
 };
 
 const AddApplicationButton: FC = () => (
@@ -60,13 +68,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	isLoading,
 	error,
 	canCreateApp,
-	canViewSettings,
-	canEditSettings,
-	settingsError,
-	isLoadingSettings,
-	isUpdatingSettings,
-	dynamicClientRegistrationEnabled,
-	onDynamicClientRegistrationChange,
+	settings,
 }) => {
 	const tabState = useSearchParamsKey({
 		key: "tab",
@@ -75,18 +77,26 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	// Unknown values, and the settings tab for users who cannot view it, fall
 	// back to the applications tab rather than selecting nothing.
 	const activeTab =
-		tabState.value === "settings" && canViewSettings
-			? "settings"
-			: "applications";
+		tabState.value === "settings" && settings ? "settings" : "applications";
 
 	return (
 		<div>
+			{/*
+			 * The header sits outside the tabs, so a tab-specific action here would
+			 * promise to act on content it navigates away from. Adding an
+			 * application belongs to the applications tab alone.
+			 */}
 			<SettingsHeader
-				actions={canCreateApp ? <AddApplicationButton /> : undefined}
+				actions={
+					canCreateApp && activeTab === "applications" ? (
+						<AddApplicationButton />
+					) : undefined
+				}
 			>
 				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Configure applications to use Coder as an OAuth2 provider.
+					Register applications to use Coder as an OAuth2 provider, and
+					configure how this deployment behaves as one.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -99,9 +109,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 			<Tabs value={activeTab} onValueChange={tabState.setValue}>
 				<TabsList>
 					<TabsTrigger value="applications">Applications</TabsTrigger>
-					{canViewSettings && (
-						<TabsTrigger value="settings">Settings</TabsTrigger>
-					)}
+					{settings && <TabsTrigger value="settings">Settings</TabsTrigger>}
 				</TabsList>
 
 				<TabsContent value="applications" className="pt-6">
@@ -131,40 +139,38 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</Table>
 				</TabsContent>
 
-				{/*
-				 * No permission check here. `activeTab` above already falls back to
-				 * applications without `canViewSettings`, and TabsContent renders
-				 * nothing unless its value matches, so a check here could never be
-				 * observed and only implies the fallback is untrustworthy.
-				 */}
-				<TabsContent value="settings" className="pt-6">
-					{isLoadingSettings ? (
-						<Loader label="Loading settings" />
-					) : (
-						<div className="flex flex-col gap-4">
-							{Boolean(settingsError) && <ErrorAlert error={settingsError} />}
-							{dynamicClientRegistrationEnabled !== undefined && (
-								<DynamicClientRegistrationSetting
-									enabled={dynamicClientRegistrationEnabled}
-									canEdit={canEditSettings}
-									isUpdating={isUpdatingSettings}
-									onChange={onDynamicClientRegistrationChange}
-								/>
-							)}
-							{/*
-							 * The value is optional on the wire, so a response that omits
-							 * it would otherwise leave this tab blank with nothing to
-							 * explain why.
-							 */}
-							{!settingsError &&
-								dynamicClientRegistrationEnabled === undefined && (
-									<p className="text-sm text-content-secondary m-0">
-										Settings are unavailable.
-									</p>
+				{settings && (
+					<TabsContent value="settings" className="pt-6">
+						{settings.isLoading ? (
+							<Loader label="Loading settings" />
+						) : (
+							<div className="flex flex-col gap-4">
+								{Boolean(settings.error) && (
+									<ErrorAlert error={settings.error} />
 								)}
-						</div>
-					)}
-				</TabsContent>
+								{settings.dynamicClientRegistrationEnabled !== undefined && (
+									<DynamicClientRegistrationSetting
+										enabled={settings.dynamicClientRegistrationEnabled}
+										canEdit={settings.canEdit}
+										isUpdating={settings.isUpdating}
+										onChange={settings.onDynamicClientRegistrationChange}
+									/>
+								)}
+								{/*
+								 * The value is optional on the wire, so a response that omits
+								 * it would otherwise leave this tab blank with nothing to
+								 * explain why.
+								 */}
+								{!settings.error &&
+									settings.dynamicClientRegistrationEnabled === undefined && (
+										<p className="text-sm text-content-secondary m-0">
+											Settings are unavailable.
+										</p>
+									)}
+							</div>
+						)}
+					</TabsContent>
+				)}
 			</Tabs>
 		</div>
 	);

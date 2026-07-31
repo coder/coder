@@ -4,18 +4,23 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockOAuth2ProviderApps } from "#/testHelpers/entities";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
+// Spread and override per story. Omitting `settings` entirely is how a viewer
+// without deployment config read access is expressed.
+const MockSettingsTab = {
+	canEdit: true,
+	isLoading: false,
+	isUpdating: false,
+	error: undefined,
+	dynamicClientRegistrationEnabled: false,
+	onDynamicClientRegistrationChange: fn(),
+};
+
 const meta: Meta<typeof OAuth2AppsSettingsPageView> = {
 	title: "pages/DeploymentSettingsPage/OAuth2AppsSettingsPageView",
 	component: OAuth2AppsSettingsPageView,
 	args: {
 		canCreateApp: true,
-		canViewSettings: true,
-		canEditSettings: true,
-		settingsError: undefined,
-		isLoadingSettings: false,
-		isUpdatingSettings: false,
-		dynamicClientRegistrationEnabled: false,
-		onDynamicClientRegistrationChange: fn(),
+		settings: MockSettingsTab,
 	},
 };
 export default meta;
@@ -60,22 +65,22 @@ export const NoCreatePermissions: Story = {
 // through, and clicking it proves the change handler is connected.
 export const SettingsTabRendersDynamicClientRegistration: Story = {
 	args: {
-		dynamicClientRegistrationEnabled: true,
+		settings: { ...MockSettingsTab, dynamicClientRegistrationEnabled: true },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
 
 		await userEvent.click(canvas.getByRole("button", { name: "Disable" }));
-		await expect(args.onDynamicClientRegistrationChange).toHaveBeenCalledWith(
-			false,
-		);
+		await expect(
+			args.settings?.onDynamicClientRegistrationChange,
+		).toHaveBeenCalledWith(false);
 	},
 };
 
 export const SettingsTabHiddenWithoutPermission: Story = {
 	args: {
-		canViewSettings: false,
+		settings: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -90,6 +95,33 @@ export const SettingsTabHiddenWithoutPermission: Story = {
 };
 
 /**
+ * The header sits outside the tabs, so its action is scoped to the tab it
+ * belongs to. Offering "Add application" while the settings tab is open would
+ * promise to act on the settings below it and then navigate away.
+ */
+export const AddApplicationIsScopedToApplicationsTab: Story = {
+	args: {
+		isLoading: false,
+		apps: MockOAuth2ProviderApps,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("link", { name: "Add application" });
+		await expect(header).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+		await expect(
+			canvas.queryByRole("link", { name: "Add application" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Applications" }));
+		await expect(
+			canvas.getByRole("link", { name: "Add application" }),
+		).toBeVisible();
+	},
+};
+
+/**
  * A settings failure is scoped to the settings tab. The applications empty
  * state still renders, because the apps request succeeded and only the `error`
  * prop gates that message.
@@ -98,8 +130,11 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 	args: {
 		isLoading: false,
 		apps: [],
-		settingsError: "settings boom",
-		dynamicClientRegistrationEnabled: undefined,
+		settings: {
+			...MockSettingsTab,
+			error: "settings boom",
+			dynamicClientRegistrationEnabled: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -124,8 +159,7 @@ export const SettingsUpdateErrorKeepsSettingVisible: Story = {
 	args: {
 		isLoading: false,
 		apps: MockOAuth2ProviderApps,
-		settingsError: "update boom",
-		dynamicClientRegistrationEnabled: false,
+		settings: { ...MockSettingsTab, error: "update boom" },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -143,7 +177,10 @@ export const SettingsUpdateErrorKeepsSettingVisible: Story = {
 export const SettingsValueOmitted: Story = {
 	args: {
 		isLoading: false,
-		dynamicClientRegistrationEnabled: undefined,
+		settings: {
+			...MockSettingsTab,
+			dynamicClientRegistrationEnabled: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -174,7 +211,7 @@ export const SettingsTabFromUrl: Story = {
 // tab selected at all.
 export const UnpermittedTabFromUrlFallsBack: Story = {
 	args: {
-		canViewSettings: false,
+		settings: undefined,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -194,8 +231,11 @@ export const UnpermittedTabFromUrlFallsBack: Story = {
 // once the settings request resolves.
 export const SettingsTabLoading: Story = {
 	args: {
-		isLoadingSettings: true,
-		dynamicClientRegistrationEnabled: undefined,
+		settings: {
+			...MockSettingsTab,
+			isLoading: true,
+			dynamicClientRegistrationEnabled: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
