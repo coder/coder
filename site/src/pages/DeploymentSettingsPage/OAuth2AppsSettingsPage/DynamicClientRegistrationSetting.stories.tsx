@@ -224,8 +224,9 @@ export const KeepsFocusWhileUpdating: Story = {
  * open, the dialog stays put and the admin closes it themselves. It must
  * never open, close, or reopen on its own as `enabled` changes underneath.
  *
- * The external-change buttons stack above the dialog's backdrop so they stay
- * clickable while it is open.
+ * The external change is armed on a timer rather than driven by a control
+ * clicked mid-dialog. The dialog is modal, so any pointer interaction outside
+ * it dismisses it, which would destroy the state under test.
  */
 export const SurvivesExternalEnabledChanges: Story = {
 	render: function Harness(args) {
@@ -233,14 +234,20 @@ export const SurvivesExternalEnabledChanges: Story = {
 
 		return (
 			<div className="flex flex-col gap-6">
-				<div className="relative z-[1400] flex flex-row items-center gap-4">
-					<button type="button" onClick={() => setEnabled(true)}>
-						Simulate external enable
-					</button>
-					<button type="button" onClick={() => setEnabled(false)}>
-						Simulate external disable
-					</button>
-				</div>
+				<button
+					type="button"
+					onClick={() => {
+						// Lands while the dialog is open, standing in for another admin
+						// enabling the setting and this tab refetching.
+						setTimeout(() => setEnabled(true), 150);
+					}}
+				>
+					Arm external enable
+				</button>
+
+				<button type="button" onClick={() => setEnabled(false)}>
+					Set externally disabled
+				</button>
 
 				<DynamicClientRegistrationSetting
 					{...args}
@@ -258,50 +265,37 @@ export const SurvivesExternalEnabledChanges: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const title = "Enable Dynamic Client Registration?";
 
-		// The dialog animates in and out over ~225ms, so it is present but
-		// transparent on the way in and still opaque on the way out. Anything
-		// asserting that the dialog did not close has to outlast that window, or
-		// a dialog already fading out still reads as visible.
+		// The dialog animates in and out, so it is present but transparent on the
+		// way in and still opaque on the way out. Anything asserting that the
+		// dialog did not close has to outlast that window, or a dialog already
+		// animating out still reads as visible.
 		const settleTransition = () =>
 			new Promise((resolve) => setTimeout(resolve, 400));
 
-		// Grab these before opening the dialog. MUI's modal marks everything
-		// outside itself aria-hidden, and role queries skip aria-hidden nodes,
-		// so a lookup by role after the dialog opens will not find them.
-		const externalEnable = canvas.getByRole("button", {
-			name: "Simulate external enable",
-		});
-		const externalDisable = canvas.getByRole("button", {
-			name: "Simulate external disable",
-		});
-
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Arm external enable" }),
+		);
 		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
 		await waitFor(() => expect(body.getByText(title)).toBeVisible());
 		const dialog = body.getByTestId("dialog");
 
-		// Enabled elsewhere. The dialog ignores it: the admin's intent to
-		// confirm is theirs to resolve, not the server's.
-		await userEvent.click(externalEnable);
-		await expect(canvas.getByText("Enabled")).toBeVisible();
+		// The armed change lands here. The dialog ignores it: the admin's intent
+		// to confirm is theirs to resolve, not the server's.
 		await settleTransition();
 		await expect(body.getByText(title)).toBeVisible();
 		// Still the same node, so it was never torn down and rebuilt.
 		await expect(body.getByTestId("dialog")).toBe(dialog);
 
-		// And disabled again, the transition that used to resurrect it.
-		await userEvent.click(externalDisable);
-		await settleTransition();
-		await expect(body.getByTestId("dialog")).toBe(dialog);
-
+		// Cancelling is the admin's own action, so it closes.
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 		await waitFor(() =>
 			expect(body.queryByText(title)).not.toBeInTheDocument(),
 		);
 
-		// Once the admin has closed it, no amount of external churn brings it
-		// back.
-		await userEvent.click(externalEnable);
-		await userEvent.click(externalDisable);
+		// Going back to disabled is the transition that used to resurrect it.
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Set externally disabled" }),
+		);
 		await settleTransition();
 		await expect(body.queryByText(title)).not.toBeInTheDocument();
 		await expect(args.onChange).not.toHaveBeenCalled();

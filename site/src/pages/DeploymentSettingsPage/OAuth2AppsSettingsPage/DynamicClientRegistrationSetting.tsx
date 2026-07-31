@@ -1,7 +1,7 @@
 import { type FC, useId, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 type DynamicClientRegistrationSettingProps = {
