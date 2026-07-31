@@ -55,6 +55,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 						<Link
 							href={href}
 							target={isExternal ? "_blank" : undefined}
+							showExternalIcon={isExternal}
 							className="text-[length:inherit] p-0"
 						>
 							{children}
