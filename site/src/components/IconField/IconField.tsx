@@ -1,7 +1,6 @@
 import {
-	type ChangeEventHandler,
+	type ComponentPropsWithRef,
 	type FC,
-	type FocusEventHandler,
 	lazy,
 	type ReactNode,
 	Suspense,
@@ -27,17 +26,10 @@ import { cn } from "#/utils/cn";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-type IconFieldProps = {
-	id?: string;
-	name?: string;
-	value?: string | number;
-	onChange?: ChangeEventHandler<HTMLInputElement>;
-	onBlur?: FocusEventHandler<HTMLInputElement>;
+type IconFieldProps = Omit<ComponentPropsWithRef<"input">, "type"> & {
 	label?: ReactNode;
 	error?: boolean;
 	helperText?: ReactNode;
-	disabled?: boolean;
-	placeholder?: string;
 	onPickEmoji: (value: string) => void;
 	/** Accepted for call-site compatibility with former MUI TextField usage. */
 	fullWidth?: boolean;
@@ -45,17 +37,15 @@ type IconFieldProps = {
 
 export const IconField: FC<IconFieldProps> = ({
 	id: idProp,
-	name,
 	value,
-	onChange,
-	onBlur,
 	label = "Icon",
 	error,
 	helperText,
 	disabled,
-	placeholder,
+	className,
 	onPickEmoji,
 	fullWidth: _fullWidth,
+	...inputProps
 }) => {
 	if (typeof value !== "string" && typeof value !== "undefined") {
 		throw new Error(`Invalid icon value "${typeof value}"`);
@@ -78,18 +68,15 @@ export const IconField: FC<IconFieldProps> = ({
 			) : null}
 			<InputGroup>
 				<InputGroupInput
+					{...inputProps}
 					id={id}
-					name={name}
 					value={stringValue}
-					onChange={onChange}
-					onBlur={onBlur}
-					placeholder={placeholder}
 					disabled={disabled}
 					aria-invalid={error}
 					aria-describedby={
 						helperText ? (error ? errorId : helperId) : undefined
 					}
-					className="min-w-0 placeholder:text-content-disabled"
+					className={cn("min-w-0 placeholder:text-content-disabled", className)}
 					spellCheck={false}
 				/>
 				<InputGroupAddon align="inline-end" className="gap-1.5">
