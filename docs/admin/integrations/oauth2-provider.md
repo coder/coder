@@ -71,6 +71,14 @@ curl -X POST \
 
 Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
 
+Change the setting in the web UI:
+
+1. Navigate to **Deployment Settings** → **OAuth2 Applications**
+2. Open the **Settings** tab
+3. Select **Enable** or **Disable** next to **Dynamic Client Registration**
+
+Enabling asks for confirmation. Disabling takes effect immediately.
+
 Check or change the setting with the CLI:
 
 ```sh
