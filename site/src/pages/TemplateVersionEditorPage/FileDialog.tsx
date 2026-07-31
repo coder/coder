@@ -1,7 +1,6 @@
-import { type ChangeEvent, type FC, useState } from "react";
+import { type FC, useState } from "react";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
+import { FormField } from "#/components/FormField/FormField";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
 interface CreateFileDialogProps {
@@ -21,9 +20,6 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 }) => {
 	const [pathValue, setPathValue] = useState("");
 	const [error, setError] = useState<string>();
-	const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-		setPathValue(event.target.value);
-	};
 	const handleConfirm = () => {
 		if (pathValue === "") {
 			setError("You must enter a path!");
@@ -64,27 +60,27 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 						Specify the path to a file to be created. This path can contain
 						slashes too.
 					</p>
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="file-path">File Path</Label>
-						<Input
-							autoFocus
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									handleConfirm();
-								}
-							}}
-							aria-invalid={Boolean(error)}
-							name="file-path"
-							autoComplete="off"
-							id="file-path"
-							placeholder="example.tf"
-							value={pathValue}
-							onChange={handleChange}
-						/>
-						{error && (
-							<span className="text-xs text-content-destructive">{error}</span>
-						)}
-					</div>
+					<FormField
+						label="File Path"
+						field={{
+							id: "file-path",
+							name: "file-path",
+							value: pathValue,
+							onChange: (event) => setPathValue(event.target.value),
+							onBlur: () => {},
+							error: Boolean(error),
+							helperText: error,
+						}}
+						id="file-path"
+						autoFocus
+						autoComplete="off"
+						placeholder="example.tf"
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								handleConfirm();
+							}
+						}}
+					/>
 				</div>
 			}
 		/>
@@ -140,9 +136,6 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 }) => {
 	const [pathValue, setPathValue] = useState(filename);
 	const [error, setError] = useState<string>();
-	const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-		setPathValue(event.target.value);
-	};
 	const handleConfirm = () => {
 		if (pathValue === "") {
 			setError("You must enter a path!");
@@ -189,27 +182,27 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 						Rename <strong>{filename}</strong> to something else. This path can
 						contain slashes too!
 					</p>
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="file-path">File Path</Label>
-						<Input
-							autoFocus
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									handleConfirm();
-								}
-							}}
-							aria-invalid={Boolean(error)}
-							name="file-path"
-							autoComplete="off"
-							id="file-path"
-							placeholder={filename}
-							value={pathValue}
-							onChange={handleChange}
-						/>
-						{error && (
-							<span className="text-xs text-content-destructive">{error}</span>
-						)}
-					</div>
+					<FormField
+						label="File Path"
+						field={{
+							id: "file-path",
+							name: "file-path",
+							value: pathValue,
+							onChange: (event) => setPathValue(event.target.value),
+							onBlur: () => {},
+							error: Boolean(error),
+							helperText: error,
+						}}
+						id="file-path"
+						autoFocus
+						autoComplete="off"
+						placeholder={filename}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								handleConfirm();
+							}
+						}}
+					/>
 				</div>
 			}
 		/>
