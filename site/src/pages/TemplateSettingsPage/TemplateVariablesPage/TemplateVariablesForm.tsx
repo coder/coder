@@ -12,7 +12,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	Form,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
@@ -67,7 +67,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 	);
 
 	return (
-		<HorizontalForm
+		<Form
 			onSubmit={form.handleSubmit}
 			aria-label="Template variables"
 		>
@@ -118,7 +118,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };
 

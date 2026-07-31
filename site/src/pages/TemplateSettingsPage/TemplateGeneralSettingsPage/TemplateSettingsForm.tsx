@@ -18,7 +18,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	Form,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -101,7 +101,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<HorizontalForm
+		<Form
 			onSubmit={form.handleSubmit}
 			aria-label="Template settings form"
 		>
@@ -349,6 +349,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };

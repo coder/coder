@@ -10,7 +10,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	Form,
 } from "#/components/Form/Form";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -288,7 +288,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 	};
 
 	return (
-		<HorizontalForm
+		<Form
 			onSubmit={form.handleSubmit}
 			aria-label="Template settings form"
 		>
@@ -648,6 +648,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };

@@ -1,58 +1,16 @@
-import {
-	type ComponentProps,
-	createContext,
-	type FC,
-	type HTMLProps,
-	type ReactNode,
-	useContext,
-} from "react";
+import type { ComponentProps, FC, HTMLProps, ReactNode, Ref } from "react";
 import { AlphaBadge, DeprecatedBadge } from "#/components/Badges/Badges";
 import { cn } from "#/utils/cn";
 
-type FormContextValue = { direction?: "horizontal" | "vertical" };
-
-const FormContext = createContext<FormContextValue>({
-	direction: "horizontal",
-});
-
-type FormProps = HTMLProps<HTMLFormElement> & {
-	direction?: FormContextValue["direction"];
-};
-
-export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
-	return (
-		<FormContext.Provider value={{ direction }}>
-			<form
-				{...formProps}
-				className={cn(
-					"flex flex-col gap-16",
-					direction === "horizontal" ? "md:gap-20" : "md:gap-10",
-					className,
-				)}
-			/>
-		</FormContext.Provider>
-	);
-};
-
-export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
-	children,
+export const Form: FC<HTMLProps<HTMLFormElement>> = ({
+	className,
 	...formProps
 }) => {
 	return (
-		<Form direction="horizontal" {...formProps}>
-			{children}
-		</Form>
-	);
-};
-
-export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
-	children,
-	...formProps
-}) => {
-	return (
-		<Form direction="vertical" {...formProps}>
-			{children}
-		</Form>
+		<form
+			{...formProps}
+			className={cn("flex flex-col gap-16 md:gap-10", className)}
+		/>
 	);
 };
 
@@ -67,7 +25,7 @@ interface FormSectionProps {
 	};
 	alpha?: boolean;
 	deprecated?: boolean;
-	ref?: React.Ref<HTMLElement>;
+	ref?: Ref<HTMLElement>;
 }
 
 export const FormSection: FC<FormSectionProps> = ({
@@ -79,24 +37,12 @@ export const FormSection: FC<FormSectionProps> = ({
 	deprecated = false,
 	ref,
 }) => {
-	const { direction } = useContext(FormContext);
-
 	return (
 		<section
 			ref={ref}
-			className={cn(
-				"flex items-start flex-col gap-4 lg:gap-6",
-				direction === "horizontal" && "lg:flex-row lg:gap-[120px]",
-				classes.root,
-			)}
+			className={cn("flex items-start flex-col gap-4 lg:gap-6", classes.root)}
 		>
-			<div
-				className={cn(
-					"w-full shrink-0 top-24",
-					direction === "horizontal" && "lg:sticky lg:max-w-[312px]",
-					classes.sectionInfo,
-				)}
-			>
+			<div className={cn("w-full shrink-0 top-24", classes.sectionInfo)}>
 				<header className="flex items-center gap-4">
 					<h2
 						className={cn(

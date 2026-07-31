@@ -10,7 +10,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	Form,
 } from "#/components/Form/Form";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -227,7 +227,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 		isLoading || !template.allow_user_autostop || !form.values.autostopEnabled;
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit}>
+		<Form onSubmit={form.handleSubmit}>
 			<FormSection
 				title="Autostart"
 				description="Select the time and days of week on which you want the workspace starting automatically."
@@ -434,7 +434,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };
 
