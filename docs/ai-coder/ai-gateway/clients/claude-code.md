@@ -1,9 +1,8 @@
 # Claude Code
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Claude Code can be configured using environment variables. All modes require a **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
 
@@ -82,7 +81,7 @@ module "claude-code" {
   workdir           = "/path/to/project"  # Set to your project directory
   ai_prompt         = data.coder_task.me.prompt
 
-  # Route through AI Gateway (AI Governance Add-On)
+  # Route through AI Gateway
   enable_ai_gateway = true
 }
 ```

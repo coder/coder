@@ -1,11 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import { AlertVariant, ProvisionerAlert } from "./ProvisionerAlert";
 
 const meta: Meta<typeof ProvisionerAlert> = {
 	title: "modules/provisioners/ProvisionerAlert",
 	parameters: {
-		chromatic,
 		layout: "centered",
 	},
 	component: ProvisionerAlert,

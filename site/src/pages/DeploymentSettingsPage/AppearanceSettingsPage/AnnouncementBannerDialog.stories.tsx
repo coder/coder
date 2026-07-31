@@ -39,3 +39,11 @@ export const EditsMessage: Story = {
 		);
 	},
 };
+
+export const CancelClosesDialog: Story = {
+	play: async ({ args }) => {
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("button", { name: "Cancel" }));
+		await expect(args.onCancel).toHaveBeenCalled();
+	},
+};

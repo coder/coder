@@ -63,7 +63,11 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				/>
 			</div>
 
-			<DialogContent className="max-w-[500px]" data-testid="dialog">
+			<DialogContent
+				className="max-w-[500px]"
+				data-testid="dialog"
+				aria-describedby={undefined}
+			>
 				<DialogHeader>
 					<DialogTitle>Announcement banner</DialogTitle>
 				</DialogHeader>

@@ -14,6 +14,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -158,6 +159,142 @@ func TestUpdateChatSummary(t *testing.T) {
 		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
 
 		require.Empty(t, ps.watchEvents(t))
+	})
+}
+
+func assistantReportMessage(t *testing.T, chatID uuid.UUID, id int64, text string) database.ChatMessage {
+	t.Helper()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}
+	data, err := json.Marshal(parts)
+	require.NoError(t, err)
+
+	return database.ChatMessage{
+		ID:             id,
+		ChatID:         chatID,
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        pqtype.NullRawMessage{RawMessage: data, Valid: true},
+		ContentVersion: chatprompt.ContentVersionV1,
+		Visibility:     database.ChatMessageVisibilityBoth,
+	}
+}
+
+func TestStoreSubagentReportSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PersistsFinalReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, "intermediate progress"),
+			assistantReportMessage(t, chat.ID, 2, "final report"),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "final report", Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("SkipsWhenNoVisibleReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{}, nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("TruncatesLongReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		longReport := strings.Repeat("a", subagentReportSummaryMaxRunes+100)
+		wantSummary := strings.Repeat("a", subagentReportSummaryMaxRunes-1) + "…"
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, longReport),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: wantSummary, Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("StoresSnippetOfMarkdownReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		report := "## Result\n\nFixed **the race** in `cache.go`. " +
+			"Added a regression test.\n\nLonger explanation follows here."
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, report),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary: sql.NullString{
+				String: "Fixed the race in cache.go. Added a regression test.",
+				Valid:  true,
+			},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
 	})
 }
 
@@ -961,7 +1098,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{UserID: ownerID, TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, UserID: ownerID, ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -1113,7 +1249,6 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{UserID: ownerID, TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, UserID: ownerID, ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),

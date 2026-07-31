@@ -1153,6 +1153,7 @@ func AIBridgeSessionThreads(
 	toolUsages []database.AIBridgeToolUsage,
 	userPrompts []database.AIBridgeUserPrompt,
 	modelThoughts []database.AIBridgeModelThought,
+	topDomains []database.GetAIBridgeSessionTopDomainsRow,
 ) codersdk.AIBridgeSessionThreadsResponse {
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
@@ -1242,6 +1243,24 @@ func AIBridgeSessionThreads(
 	}
 	if !session.EndedAt.IsZero() {
 		resp.EndedAt = &session.EndedAt
+	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if session.FirewallActive {
+		resp.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   session.NetworkCallsTotal,
+			Blocked: session.NetworkCallsBlocked,
+		}
+	}
+	for _, d := range topDomains {
+		resp.NetworkTopDomains = append(resp.NetworkTopDomains, codersdk.AIBridgeSessionNetworkDomain{
+			Domain: d.Domain,
+			Count:  d.Count,
+		})
+		// TotalDomains is the same on every row (a window aggregate); take it
+		// from the last row processed.
+		resp.NetworkDomainCount = d.TotalDomains
 	}
 	return resp
 }
@@ -1475,6 +1494,9 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	if row.SpendLimitMicros.Valid {
 		group.SpendLimitMicros = &row.SpendLimitMicros.Int64
 	}
+	if row.TotalSpendLimitMicros.Valid {
+		group.TotalSpendLimitMicros = &row.TotalSpendLimitMicros.Int64
+	}
 	return group
 }
 
@@ -1487,7 +1509,7 @@ func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMe
 		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
 	}
 	if row.SpendLimitMicros.Valid {
-		member.GroupBudget = &codersdk.AIGroupBudget{
+		member.GroupBudget = &codersdk.AIBudgetLimit{
 			SpendLimitMicros: row.SpendLimitMicros.Int64,
 			LimitSource:      codersdk.AIBudgetLimitSource(row.LimitSource.String),
 		}
@@ -1638,11 +1660,17 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	if err != nil {
 		return nil, err
 	}
-	// Strip internal-only fields before API responses.
+	// Strip internal-only fields before API responses. Hook context
+	// parts are model-only and must never reach clients.
+	filtered := parts[:0]
 	for i := range parts {
+		if parts[i].Type == codersdk.ChatMessagePartTypeHookContext {
+			continue
+		}
 		parts[i].StripInternal()
+		filtered = append(filtered, parts[i])
 	}
-	return parts, nil
+	return filtered, nil
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -2098,6 +2126,7 @@ func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}
@@ -2112,6 +2141,7 @@ func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}

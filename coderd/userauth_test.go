@@ -153,13 +153,19 @@ func TestUserLogin(t *testing.T) {
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Password = ""
-			r.UserLoginType = codersdk.LoginTypeNone
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		noneUser := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeNone,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: first.OrganizationID,
+			UserID:         noneUser.ID,
 		})
 
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
+		_, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    noneUser.Email,
 			Password: "SomeSecurePassword!",
 		})
 		require.Error(t, err)

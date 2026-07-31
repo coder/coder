@@ -1,8 +1,13 @@
 package coderd
 
 import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -11,10 +16,125 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// ExtractChatParam authorizes the read, then GetAIBridgeChatCost authorizes it
+// again. A denial on the second check means the ACL changed in between (a
+// read-authz race). Assert it surfaces as 404, not 500.
+func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	dbm := dbmock.NewMockStore(ctrl)
+	chat := database.Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(
+		database.GetAIBridgeChatCostRow{},
+		dbauthz.NotAuthorizedError{Err: sql.ErrNoRows},
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+chat.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// AI Gateway attributes a subagent's requests to the chat that spawned it, so
+// a subagent request must be answered with its root chat's tree cost.
+func TestGetChatCostQueriesRootChat(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	dbm := dbmock.NewMockStore(ctrl)
+	rootID := uuid.New()
+	child := database.Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		ParentChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: rootID, Valid: true},
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), rootID).Return(
+		database.GetAIBridgeChatCostRow{
+			TotalCostMicros:      250,
+			RequestCount:         2,
+			UnpricedRequestCount: 1,
+		},
+		nil,
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+child.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var cost codersdk.ChatCost
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
+	require.Equal(t, child.ID, cost.ChatID)
+	require.Equal(t, int64(250), cost.TotalCostMicros)
+	require.Equal(t, int64(2), cost.RequestCount)
+	require.Equal(t, int64(1), cost.UnpricedRequestCount)
+}
+
+func TestGetChatCostFallsBackToParentChat(t *testing.T) {
+	t.Parallel()
+
+	dbm := dbmock.NewMockStore(gomock.NewController(t))
+	parentID := uuid.New()
+	// chats.parent_chat_id and chats.root_chat_id are both ON DELETE SET NULL,
+	// so deleting a root leaves descendants with only a parent.
+	child := database.Chat{
+		ID:           uuid.New(),
+		OwnerID:      uuid.New(),
+		ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+	}
+
+	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), parentID).Return(
+		database.GetAIBridgeChatCostRow{TotalCostMicros: 125, RequestCount: 1},
+		nil,
+	)
+
+	api := &API{Options: &Options{Database: dbm}}
+	rtr := chi.NewRouter()
+	rtr.With(httpmw.ExtractChatParam(dbm)).Get("/chats/{chat}/cost", api.getChatCost)
+
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+child.ID.String()+"/cost", nil)
+	rec := httptest.NewRecorder()
+	rtr.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var cost codersdk.ChatCost
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cost))
+	require.Equal(t, int64(125), cost.TotalCostMicros)
+}
 
 func TestEnrichMissingChatAgentIDs(t *testing.T) {
 	t.Parallel()

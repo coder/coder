@@ -244,3 +244,87 @@ func TestCountSentenceTerminators(t *testing.T) {
 		"Refactored pkg.cmd.server and auth.rbac.Policy in main.go and util.go. Added coverage in foo_test.go.",
 	))
 }
+
+func TestSubagentReportSummarySnippet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		report string
+		want   string
+	}{
+		{
+			name:   "ProseLeadKeepsFirstSentences",
+			report: "Done. Both fixes are pushed as separate commits. Validation passed. Extra detail here.\n\nMore paragraphs follow.",
+			want:   "Done. Both fixes are pushed as separate commits. Validation passed.",
+		},
+		{
+			name:   "SkipsLeadingHeading",
+			report: "## Summary\n\nFixed the flaky test by pinning the clock.",
+			want:   "Fixed the flaky test by pinning the clock.",
+		},
+		{
+			name:   "StripsInlineMarkdown",
+			report: "Fixed **the race** in `cache.go`; see [the PR](https://example.com) for details.",
+			want:   "Fixed the race in cache.go; see the PR for details.",
+		},
+		{
+			name:   "JoinsWrappedLines",
+			report: "Fixed the race\nin the cache layer.\n\nDetails below.",
+			want:   "Fixed the race in the cache layer.",
+		},
+		{
+			name:   "BulletLeadReport",
+			report: "- Fixed A.\n- Fixed B.\n- Fixed C.\n- Fixed D.",
+			want:   "Fixed A. Fixed B. Fixed C.",
+		},
+		{
+			name:   "SkipsLeadingCodeFence",
+			report: "```\ngo test ./...\n```\n\nAll tests passed.",
+			want:   "All tests passed.",
+		},
+		{
+			name:   "FenceEndsParagraph",
+			report: "Ran the suite:\n```\nok 12 packages\n```\nThen more prose.",
+			want:   "Ran the suite:",
+		},
+		{
+			name:   "SkipsTableAndRule",
+			report: "| a | b |\n|---|---|\n\n---\n\nRolled out the migration.",
+			want:   "Rolled out the migration.",
+		},
+		{
+			name:   "PreservesSnakeCaseIdentifiers",
+			report: "Renamed parent_chat_id to root_chat_id in the query.",
+			want:   "Renamed parent_chat_id to root_chat_id in the query.",
+		},
+		{
+			name:   "TruncatesUnterminatedText",
+			report: strings.Repeat("a", subagentReportSummaryMaxRunes+100),
+			want:   strings.Repeat("a", subagentReportSummaryMaxRunes-1) + "…",
+		},
+		{
+			name: "DropsSentencesPastRuneCap",
+			report: "Short lead sentence. " +
+				strings.Repeat("b", subagentReportSummaryMaxRunes) + ".",
+			want: "Short lead sentence.",
+		},
+		{
+			name:   "EmptyReport",
+			report: "  \n\t\n",
+			want:   "",
+		},
+		{
+			name:   "OnlyCodeAndHeadings",
+			report: "## Log\n```\nstack trace\n```\n",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, subagentReportSummarySnippet(tt.report))
+		})
+	}
+}

@@ -22,21 +22,85 @@ var testCases = []testCase{
 	{
 		name:    "default_values",
 		fixture: "default_values",
+		// The fixture enables every optional resource, so this case covers
+		// rendering of all templates with the minimum required values.
+		apiVersions: []string{"gateway.networking.k8s.io/v1/HTTPRoute"},
+		mustNotContain: []string{
+			// Service fields that only render when their value is set.
+			"nodePort:",
+			"loadBalancerClass:",
+			"loadBalancerIP:",
+			// externalTrafficPolicy only applies to NodePort and LoadBalancer.
+			"externalTrafficPolicy:",
+			// Ingress and HTTPRoute render with required fields only.
+			"ingressClassName:",
+			"hostnames:",
+			// No secret is configured, so nothing mounts a Secret or switches
+			// the probes and listener to TLS.
+			"secretName:",
+			"CODER_AI_GATEWAY_KEY_FILE",
+			"CODER_AI_GATEWAY_TLS_CERT_FILE",
+			"CODER_CLIENT_TLS_CA_FILE",
+			"CODER_CLIENT_TLS_CERT_FILE",
+			"scheme: HTTPS",
+			// Opt-in workload settings.
+			"startupProbe:",
+			"envFrom:",
+			"imagePullSecrets:",
+			"priorityClassName:",
+			"kind: ConfigMap",
+		},
 	},
 	{
 		name:        "networking",
 		fixture:     "networking",
 		namespace:   "ai-gateway-test",
 		apiVersions: []string{"gateway.networking.k8s.io/v1/HTTPRoute"},
+		mustNotContain: []string{
+			// The Service is a LoadBalancer without an explicit nodePort, so
+			// Kubernetes allocates the port.
+			"nodePort:",
+			"loadBalancerIP:",
+			// Only the Gateway key Secret is configured.
+			"ai-gateway-listener",
+			"coder-client-ca",
+			"coder-client-tls",
+			"scheme: HTTPS",
+			"startupProbe:",
+			"envFrom:",
+		},
 	},
 	{
 		name:      "custom",
 		fixture:   "custom",
 		namespace: "ai-gateway-test",
+		mustNotContain: []string{
+			// coder.serviceAccount.disableCreate is true, so the chart uses the
+			// existing account instead of creating one.
+			"kind: ServiceAccount",
+			// Only the default ClusterIP Service renders.
+			"kind: Ingress",
+			"kind: HTTPRoute",
+			"nodePort:",
+			"loadBalancerClass:",
+			"loadBalancerIP:",
+			"externalTrafficPolicy:",
+		},
 	},
 	{
 		name:    "nodeport",
 		fixture: "nodeport",
+		mustNotContain: []string{
+			// LoadBalancer-only fields stay absent for a NodePort Service.
+			"loadBalancerClass:",
+			"loadBalancerIP:",
+			"kind: Ingress",
+			"kind: HTTPRoute",
+			"ai-gateway-listener",
+			"coder-client-ca",
+			"coder-client-tls",
+			"scheme: HTTPS",
+		},
 	},
 	{
 		name:          "missing_key_field",
@@ -54,6 +118,20 @@ var testCases = []testCase{
 	{
 		name:    "listener_tls_with_ingress",
 		fixture: "listener_tls_with_ingress",
+		mustNotContain: []string{
+			// Listener TLS does not imply client TLS to coderd.
+			"coder-client-ca",
+			"coder-client-tls",
+			"CODER_CLIENT_TLS_CA_FILE",
+			"CODER_CLIENT_TLS_CERT_FILE",
+			// The Ingress renders with required fields only.
+			"ingressClassName:",
+			"kind: HTTPRoute",
+			"nodePort:",
+			"loadBalancerClass:",
+			"loadBalancerIP:",
+			"externalTrafficPolicy:",
+		},
 	},
 	{
 		name:          "partial_client_tls",
@@ -104,6 +182,12 @@ type testCase struct {
 	namespace     string
 	expectedError string
 	apiVersions   []string
+	// mustNotContain holds substrings that must be absent from the rendered
+	// output. Golden files are rewritten wholesale by TestUpdateGoldenFiles,
+	// so absence assertions live here to keep an unintended field from being
+	// baked into the golden file. Each entry names an optional field or
+	// resource that the fixture leaves unset.
+	mustNotContain []string
 }
 
 func (tc testCase) valuesFilePath() string {
@@ -143,6 +227,9 @@ func TestRenderChart(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, output)
+			for _, absent := range tc.mustNotContain {
+				require.NotContains(t, output, absent)
+			}
 			golden, err := os.ReadFile(tc.goldenFilePath())
 			require.NoError(t, err)
 			golden = bytes.ReplaceAll(golden, []byte("\r"), nil)

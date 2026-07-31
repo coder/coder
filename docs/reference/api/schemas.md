@@ -622,22 +622,22 @@
 
 ### Properties
 
-| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
-|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
-| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
-| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
-| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
-| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                       |
+| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                              |
+|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                          |
+| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
+| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
+| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
+| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                          |
 
 ## codersdk.AIBridgeSessionNetworkCallSummary
 
@@ -654,6 +654,22 @@
 |-----------|---------|----------|--------------|-------------|
 | `blocked` | integer | false    |              |             |
 | `total`   | integer | false    |              |             |
+
+## codersdk.AIBridgeSessionNetworkDomain
+
+```json
+{
+  "count": 0,
+  "domain": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `count`  | integer | false    |              |             |
+| `domain` | string  | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -674,6 +690,17 @@
   },
   "models": [
     "string"
+  ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
+  "network_domain_count": 0,
+  "network_top_domains": [
+    {
+      "count": 0,
+      "domain": "string"
+    }
   ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
@@ -758,21 +785,24 @@
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `client`              | string                                                                                 | false    |              |             |
-| `ended_at`            | string                                                                                 | false    |              |             |
-| `id`                  | string                                                                                 | false    |              |             |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
-| `metadata`            | object                                                                                 | false    |              |             |
-| » `[any property]`    | any                                                                                    | false    |              |             |
-| `models`              | array of string                                                                        | false    |              |             |
-| `page_ended_at`       | string                                                                                 | false    |              |             |
-| `page_started_at`     | string                                                                                 | false    |              |             |
-| `providers`           | array of string                                                                        | false    |              |             |
-| `started_at`          | string                                                                                 | false    |              |             |
-| `threads`             | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                            | false    |              |             |
-| `token_usage_summary` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
+| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
+| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
+| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.          |
+| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                       |
+| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                       |
 
 ## codersdk.AIBridgeSessionThreadsTokenUsage
 
@@ -938,6 +968,22 @@
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
+## codersdk.AIBudgetLimit
+
+```json
+{
+  "limit_source": "user_override",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
+| `spend_limit_micros` | integer                                                      | false    |              |             |
+
 ## codersdk.AIBudgetLimitSource
 
 ```json
@@ -1020,7 +1066,23 @@
   },
   "chat": {
     "acquire_batch_size": 0,
-    "debug_logging_enabled": true
+    "debug_logging_enabled": true,
+    "hook_enabled": true,
+    "hook_secret": "string",
+    "hook_timeout": 0,
+    "hook_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
   }
 }
 ```
@@ -1054,22 +1116,6 @@
 | `key_prefix`        | string | false    |              |             |
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
-
-## codersdk.AIGroupBudget
-
-```json
-{
-  "limit_source": "user_override",
-  "spend_limit_micros": 0
-}
-```
-
-### Properties
-
-| Name                 | Type                                                         | Required | Restrictions | Description |
-|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
-| `spend_limit_micros` | integer                                                      | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -2393,16 +2439,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "acquire_batch_size": 0,
-  "debug_logging_enabled": true
+  "debug_logging_enabled": true,
+  "hook_enabled": true,
+  "hook_secret": "string",
+  "hook_timeout": 0,
+  "hook_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  }
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer | false    |              |             |
-| `debug_logging_enabled` | boolean | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+|-------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer                    | false    |              |             |
+| `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_enabled`          | boolean                    | false    |              |             |
+| `hook_secret`           | string                     | false    |              |             |
+| `hook_timeout`          | integer                    | false    |              |             |
+| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -2517,6 +2583,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
 | `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
 
+## codersdk.ChatCost
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "request_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `chat_id`                | string  | false    |              |             |
+| `request_count`          | integer | false    |              |             |
+| `total_cost_micros`      | integer | false    |              |             |
+| `unpriced_request_count` | integer | false    |              |             |
+
 ## codersdk.ChatDiffContents
 
 ```json
@@ -2625,9 +2711,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -2805,7 +2891,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2901,7 +2986,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "result_delta": "string",
   "result_reset": true,
-  "signature": "string",
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -2947,7 +3031,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -2970,9 +3053,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                     |
-|--------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -3072,7 +3155,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3155,7 +3237,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3385,7 +3466,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3551,7 +3631,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3632,7 +3711,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
-      "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3701,7 +3779,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
-          "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3819,7 +3896,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "result_delta": "string",
     "result_reset": true,
-    "signature": "string",
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -4185,7 +4261,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
 | `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
 | `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp`                                              |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                     |
 | `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
@@ -4337,9 +4413,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 
@@ -4521,7 +4597,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4550,6 +4625,88 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "queued": true,
   "queued_message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4603,7 +4760,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4629,12 +4785,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description |
-|------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued`         | boolean                                                  | false    |              |             |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
-| `warnings`       | array of string                                          | false    |              |             |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
+|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
 ## codersdk.CreateChatRequest
 
@@ -5109,6 +5266,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "name": "string",
@@ -5118,13 +5276,14 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.CreateUserSkillRequest
 
@@ -5733,7 +5892,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "acquire_batch_size": 0,
-        "debug_logging_enabled": true
+        "debug_logging_enabled": true,
+        "hook_enabled": true,
+        "hook_secret": "string",
+        "hook_timeout": 0,
+        "hook_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -6343,7 +6518,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "acquire_batch_size": 0,
-      "debug_logging_enabled": true
+      "debug_logging_enabled": true,
+      "hook_enabled": true,
+      "hook_secret": "string",
+      "hook_timeout": 0,
+      "hook_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
     }
   },
   "allow_workspace_renames": true,
@@ -7050,6 +7241,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "deleted_message_ids": [
+    0
+  ],
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -7102,7 +7296,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "result_delta": "string",
         "result_reset": true,
-        "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -7131,6 +7324,88 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -7139,10 +7414,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-|------------|----------------------------------------------|----------|--------------|-------------|
-| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
-| `warnings` | array of string                              | false    |              |             |
+| Name                  | Type                                                  | Required | Restrictions | Description                                                                                                                                                                       |
+|-----------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `deleted_message_ids` | array of integer                                      | false    |              | Deleted message ids holds the IDs of previously visible messages the edit removed, including stale hook notices from the edited turn. Clients should drop them from local caches. |
+| `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
+| `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
+| `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
 
 ## codersdk.Entitlement
 
@@ -7170,7 +7447,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -7181,7 +7460,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -7222,9 +7503,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7464,7 +7745,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "actual": 0,
   "enabled": true,
   "entitlement": "entitled",
+  "hard_limit": 0,
   "limit": 0,
+  "soft_limit": 0,
   "usage_period": {
     "end": "2019-08-24T14:15:22Z",
     "issued_at": "2019-08-24T14:15:22Z",
@@ -7475,15 +7758,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                            |
+|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                        |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                        |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                        |
+| `hard_limit`  | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds. |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                        |
+|`soft_limit`|integer|false||Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation.
+Only certain features set this field: - FeatureAgentRuntimeHours|
 |`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
 These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
-Only certain features set these fields: - FeatureManagedAgentLimit|
+Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgentRuntimeHours|
 
 ## codersdk.FriendlyDiagnostic
 
@@ -7730,6 +8016,30 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
 
+## codersdk.GroupAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
+
 ## codersdk.GroupMemberAISpend
 
 ```json
@@ -7749,7 +8059,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
 |----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
-| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
+| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
 | `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
 | `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -9028,6 +9338,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |-----------------|
 | `code`, `token` |
 
+## codersdk.OAuth2ProviderSettings
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Properties
+
+| Name                                  | Type    | Required | Restrictions | Description |
+|---------------------------------------|---------|----------|--------------|-------------|
+| `dynamic_client_registration_enabled` | boolean | false    |              |             |
+
 ## codersdk.OAuth2TokenEndpointAuthMethod
 
 ```json
@@ -9260,17 +9584,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "current_spend_micros": 0,
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
-| `group_id`             | string  | false    |              |                                                                                                            |
-| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
+| `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
+| `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
+| `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
 ## codersdk.OrganizationGroupsAISpend
 
@@ -9280,7 +9606,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
@@ -11005,9 +11332,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -12594,6 +12921,52 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
 | `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
 
+## codersdk.TemplateBuilderSessionEventType
+
+```json
+"wizard_entry"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                             |
+|--------------------------------------|
+| `compose_completion`, `wizard_entry` |
+
+## codersdk.TemplateBuilderSessionRequest
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "success": true
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                               | false    |              |             |
+| `duration_seconds` | number                                                                               | false    |              |             |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
+| `module_ids`       | array of string                                                                      | false    |              |             |
+| `session_id`       | string                                                                               | true     |              |             |
+| `success`          | boolean                                                                              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                             |
+|--------------|--------------------------------------|
+| `event_type` | `compose_completion`, `wizard_entry` |
+
 ## codersdk.TemplateBuilderVariableType
 
 ```json
@@ -13758,6 +14131,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "value": "string"
@@ -13766,12 +14140,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `value`       | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `env_name`    | string  | false    |              |             |
+| `file_path`   | string  | false    |              |             |
+| `value`       | string  | false    |              |             |
 
 ## codersdk.UpdateUserSkillRequest
 
@@ -13957,9 +14332,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `spend_limit_micros` | integer | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                               |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------|
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros. |
 
 ## codersdk.UpsertUserAIBudgetOverrideRequest
 
@@ -13975,7 +14350,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description                                                                                       |
 |----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
 | `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
-| `spend_limit_micros` | integer | false    |              |                                                                                                   |
+| `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros.                                         |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 
@@ -14133,26 +14508,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
-  "limit_source": "user_override",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                                    |
-|------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                              |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership. |
-| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                                                                            |
-| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                          |
-| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                        |
-| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited).                                                           |
-| `user_id`              | string                                                       | false    |              |                                                                                                                                                                                |
+| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                                            |
+|------------------------|--------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
+| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
 
@@ -14457,6 +14833,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "enabled": true,
   "env_name": "string",
   "file_path": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -14467,15 +14844,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `env_name`    | string | false    |              |             |
-| `file_path`   | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|---------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description` | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`     | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`    | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_path`   | string  | false    |              |                                                                                                                                                                                                                                      |
+| `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
 
 ## codersdk.UserSkill
 

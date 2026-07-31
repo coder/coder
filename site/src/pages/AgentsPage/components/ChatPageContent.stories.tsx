@@ -113,3 +113,36 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 		expect(rows[1]).toHaveTextContent("Done.");
 	},
 };
+
+export const MergedMessagesRenderInIDOrder: Story = {
+	render: () => {
+		const store = createChatStore();
+		// One created_at for all four, so id is the only ordering signal.
+		const batchCreatedAt = new Date(FIXTURE_NOW).toISOString();
+		const batched = (
+			id: number,
+			role: TypesGen.ChatMessageRole,
+			text: string,
+		): TypesGen.ChatMessage => ({
+			...buildMessage(id, role, [{ type: "text", text }]),
+			created_at: batchCreatedAt,
+		});
+
+		store.replaceMessages([
+			batched(3, "user", "charlie"),
+			batched(4, "assistant", "delta"),
+		]);
+		store.upsertDurableMessages([
+			batched(1, "user", "alpha"),
+			batched(2, "assistant", "bravo"),
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(
+			/alpha[\s\S]*bravo[\s\S]*charlie[\s\S]*delta/,
+		);
+	},
+};

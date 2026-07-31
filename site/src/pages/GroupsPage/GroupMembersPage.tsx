@@ -47,7 +47,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
@@ -78,14 +78,14 @@ const GroupMembersPage: FC = () => {
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
+	const { permissions: sitePermissions } = useAuthenticated();
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	// Setting a user's AI budget override updates both the user and the group
+	// its spend is charged to, so it needs permission on both.
+	const canUpdateBudgetOverride = canUpdateGroup && sitePermissions.updateUsers;
 	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
@@ -237,6 +237,7 @@ const GroupMembersPage: FC = () => {
 					user={budgetUser}
 					currentGroup={groupData}
 					effectiveGroupId={budgetUser.spend?.effective_group_id}
+					canUpdate={canUpdateBudgetOverride}
 				/>
 			)}
 		</div>

@@ -1,14 +1,13 @@
 import type { FC, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
+	DialogActions,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { Spinner } from "#/components/Spinner/Spinner";
 
 type ConfirmDialogType = "delete" | "info" | "success";
 
@@ -39,17 +38,19 @@ export interface ConfirmDialogProps {
 	readonly title: string;
 	readonly open: boolean;
 	readonly onClose: () => void;
-	readonly description?: ReactNode;
+	readonly description: ReactNode;
 	readonly cancelText?: string;
 	readonly confirmText?: ReactNode;
 	readonly confirmLoading?: boolean;
 	readonly disabled?: boolean;
+	/**
+	 * When omitted, `onClose` doubles as the confirm handler, so a `delete`
+	 * dialog without `onConfirm` closes without deleting anything.
+	 */
 	readonly onConfirm?: () => void;
 	readonly type?: ConfirmDialogType;
 	/**
-	 * When undefined:
-	 *   - cancel is hidden for "info" and "success" dialogs
-	 *   - cancel is shown for "delete" dialogs
+	 * Defaults to shown for "delete", hidden for "info"/"success".
 	 */
 	readonly hideCancel?: boolean;
 }
@@ -87,40 +88,26 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
-				{...(!description ? { "aria-describedby": undefined } : {})}
 			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
-					{description && (
-						<DialogDescription asChild>
-							<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
-								{description}
-							</div>
-						</DialogDescription>
-					)}
+					<DialogDescription asChild>
+						<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
+							{description}
+						</div>
+					</DialogDescription>
 				</DialogHeader>
 
 				<DialogFooter>
-					{!shouldHideCancel && (
-						<Button
-							type="button"
-							variant="outline"
-							disabled={confirmLoading}
-							onClick={onClose}
-						>
-							{cancelText}
-						</Button>
-					)}
-					<Button
-						type="button"
-						variant={type === "delete" ? "destructive" : undefined}
-						disabled={confirmLoading || disabled}
-						onClick={handleConfirm}
-						data-testid="confirm-button"
-					>
-						<Spinner loading={confirmLoading} />
-						{resolvedConfirmText}
-					</Button>
+					<DialogActions
+						cancelText={cancelText}
+						onCancel={shouldHideCancel ? undefined : onClose}
+						confirmText={resolvedConfirmText}
+						confirmLoading={confirmLoading}
+						confirmDisabled={disabled}
+						confirmVariant={type === "delete" ? "destructive" : undefined}
+						onConfirm={handleConfirm}
+					/>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
