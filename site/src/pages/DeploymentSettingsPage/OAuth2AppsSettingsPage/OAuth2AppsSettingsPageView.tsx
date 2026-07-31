@@ -39,6 +39,7 @@ type OAuth2AppsSettingsProps = {
 	canCreateApp: boolean;
 	canViewSettings: boolean;
 	canEditSettings: boolean;
+	settingsError: unknown;
 	isLoadingSettings: boolean;
 	isUpdatingSettings: boolean;
 	dynamicClientRegistrationEnabled: boolean | undefined;
@@ -61,6 +62,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	canCreateApp,
 	canViewSettings,
 	canEditSettings,
+	settingsError,
 	isLoadingSettings,
 	isUpdatingSettings,
 	dynamicClientRegistrationEnabled,
@@ -129,19 +131,40 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</Table>
 				</TabsContent>
 
-				{canViewSettings && (
-					<TabsContent value="settings" className="pt-6">
-						{isLoadingSettings && <Loader label="Loading settings" />}
-						{dynamicClientRegistrationEnabled !== undefined && (
-							<DynamicClientRegistrationSetting
-								enabled={dynamicClientRegistrationEnabled}
-								canEdit={canEditSettings}
-								isUpdating={isUpdatingSettings}
-								onChange={onDynamicClientRegistrationChange}
-							/>
-						)}
-					</TabsContent>
-				)}
+				{/*
+				 * No permission check here. `activeTab` above already falls back to
+				 * applications without `canViewSettings`, and TabsContent renders
+				 * nothing unless its value matches, so a check here could never be
+				 * observed and only implies the fallback is untrustworthy.
+				 */}
+				<TabsContent value="settings" className="pt-6">
+					{isLoadingSettings ? (
+						<Loader label="Loading settings" />
+					) : (
+						<div className="flex flex-col gap-4">
+							{Boolean(settingsError) && <ErrorAlert error={settingsError} />}
+							{dynamicClientRegistrationEnabled !== undefined && (
+								<DynamicClientRegistrationSetting
+									enabled={dynamicClientRegistrationEnabled}
+									canEdit={canEditSettings}
+									isUpdating={isUpdatingSettings}
+									onChange={onDynamicClientRegistrationChange}
+								/>
+							)}
+							{/*
+							 * The value is optional on the wire, so a response that omits
+							 * it would otherwise leave this tab blank with nothing to
+							 * explain why.
+							 */}
+							{!settingsError &&
+								dynamicClientRegistrationEnabled === undefined && (
+									<p className="text-sm text-content-secondary m-0">
+										Settings are unavailable.
+									</p>
+								)}
+						</div>
+					)}
+				</TabsContent>
 			</Tabs>
 		</div>
 	);

@@ -11,6 +11,7 @@ const meta: Meta<typeof OAuth2AppsSettingsPageView> = {
 		canCreateApp: true,
 		canViewSettings: true,
 		canEditSettings: true,
+		settingsError: undefined,
 		isLoadingSettings: false,
 		isUpdatingSettings: false,
 		dynamicClientRegistrationEnabled: false,
@@ -85,6 +86,70 @@ export const SettingsTabHiddenWithoutPermission: Story = {
 		await expect(
 			canvas.queryByRole("tab", { name: "Settings" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * A settings failure is scoped to the settings tab. The applications empty
+ * state still renders, because the apps request succeeded and only the `error`
+ * prop gates that message.
+ */
+export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
+	args: {
+		isLoading: false,
+		apps: [],
+		settingsError: "settings boom",
+		dynamicClientRegistrationEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("No OAuth2 applications configured"),
+		).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+		await expect(canvas.getByText("settings boom")).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: "Enable" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * A failed update leaves the setting on screen with the error above it, so the
+ * admin can see the current value and retry.
+ */
+export const SettingsUpdateErrorKeepsSettingVisible: Story = {
+	args: {
+		isLoading: false,
+		apps: MockOAuth2ProviderApps,
+		settingsError: "update boom",
+		dynamicClientRegistrationEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
+		await expect(canvas.getByText("update boom")).toBeVisible();
+		await expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible();
+	},
+};
+
+/**
+ * The value is optional on the wire. A response that omits it must not leave
+ * the tab silently blank.
+ */
+export const SettingsValueOmitted: Story = {
+	args: {
+		isLoading: false,
+		dynamicClientRegistrationEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
+		await expect(canvas.getByText("Settings are unavailable.")).toBeVisible();
 	},
 };
 

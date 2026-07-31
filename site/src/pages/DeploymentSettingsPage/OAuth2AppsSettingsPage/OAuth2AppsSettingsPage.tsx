@@ -32,12 +32,14 @@ const OAuth2AppsSettingsPage: FC = () => {
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}
 				isLoading={appsQuery.isLoading}
-				error={
-					appsQuery.error ?? settingsQuery.error ?? updateSettingsMutation.error
-				}
+				// Only the apps error. The view gates the applications empty state on
+				// this prop, so a settings failure here would claim the apps list is
+				// unknown when it loaded fine.
+				error={appsQuery.error}
 				canCreateApp={canCreateApp}
 				canViewSettings={canViewSettings}
 				canEditSettings={canEditSettings}
+				settingsError={settingsQuery.error ?? updateSettingsMutation.error}
 				isLoadingSettings={settingsQuery.isLoading}
 				isUpdatingSettings={updateSettingsMutation.isPending}
 				dynamicClientRegistrationEnabled={
