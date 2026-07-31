@@ -2483,6 +2483,15 @@ WHERE c.owner_id = @user_id::uuid
   AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
 
+-- name: GetTotalChatMessageRuntimeMsInRange :one
+-- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+-- soft-deleted messages and messages from all chats.
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.runtime_ms IS NOT NULL;
+
 -- name: CountEnabledModelsWithoutPricing :one
 -- Counts enabled, non-deleted model configs that lack both input and
 -- output pricing in their JSONB options.cost configuration.

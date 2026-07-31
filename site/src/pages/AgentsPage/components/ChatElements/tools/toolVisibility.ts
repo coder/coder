@@ -5,7 +5,6 @@ import {
 	asString,
 	parseArgs,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 export type ExecuteTranscriptBlock = {
@@ -19,8 +18,6 @@ type ExecuteRenderData = {
 	errorText: string;
 	durationMs?: number;
 	isBackgrounded: boolean;
-	authenticateURL: string;
-	providerLabel: string;
 };
 
 /**
@@ -52,14 +49,6 @@ export const getExecuteRenderData = (
 	const isBackgrounded = Boolean(
 		rec && asString(rec.background_process_id).trim(),
 	);
-	const authenticateURL = rec?.auth_required
-		? asString(rec.authenticate_url).trim()
-		: "";
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
 
 	return {
 		command,
@@ -67,13 +56,7 @@ export const getExecuteRenderData = (
 		errorText,
 		durationMs,
 		isBackgrounded,
-		authenticateURL,
-		providerLabel,
 	};
-};
-
-const shouldRenderExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length > 0 || Boolean(data.authenticateURL);
 };
 
 const shouldRenderSubagentLifecycleTool = ({
@@ -122,7 +105,7 @@ export const shouldRenderTool = ({
 	result?: unknown;
 }): boolean => {
 	if (name === "execute") {
-		return shouldRenderExecuteTool(getExecuteRenderData(args, result));
+		return getExecuteRenderData(args, result).command.trim().length > 0;
 	}
 
 	return shouldRenderSubagentLifecycleTool({ name, status, args, result });

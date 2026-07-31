@@ -16,6 +16,7 @@ import (
 	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
@@ -147,6 +148,14 @@ func NewPiped(t *testing.T) (*Expecter, io.Writer) {
 		e.Close("test end")
 	})
 	return e, w
+}
+
+func NewAttachedToSSHSession(t *testing.T, session *ssh.Session) *Expecter {
+	e, w := NewPiped(t)
+	e.Rename("sshout")
+	session.Stdout = w
+	session.Stderr = w
+	return e
 }
 
 type Expecter struct {
