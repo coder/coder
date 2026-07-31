@@ -1,10 +1,6 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	getApps,
-	getOAuth2ProviderSettings,
-	putOAuth2ProviderSettings,
-} from "#/api/queries/oauth2";
+import { getApps, getSettings, putSettings } from "#/api/queries/oauth2";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
@@ -14,12 +10,10 @@ const OAuth2AppsSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const appsQuery = useQuery(getApps());
 	const settingsQuery = useQuery({
-		...getOAuth2ProviderSettings(),
+		...getSettings(),
 		enabled: permissions.viewDeploymentConfig,
 	});
-	const updateSettingsMutation = useMutation(
-		putOAuth2ProviderSettings(queryClient),
-	);
+	const updateSettingsMutation = useMutation(putSettings(queryClient));
 
 	const canCreateApp = permissions.createOAuth2App;
 	const canViewSettings = permissions.viewDeploymentConfig;
@@ -31,10 +25,10 @@ const OAuth2AppsSettingsPage: FC = () => {
 
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}
-				isLoading={appsQuery.isLoading}
-				// Only the apps error. The view gates the applications empty state on
-				// this prop, so a settings failure here would claim the apps list is
-				// unknown when it loaded fine.
+				isLoadingApps={appsQuery.isLoading}
+				// The view gates the applications empty state on this prop, so a
+				// settings failure here would claim the apps list is unknown when it
+				// loaded fine.
 				error={appsQuery.error}
 				canCreateApp={canCreateApp}
 				settings={

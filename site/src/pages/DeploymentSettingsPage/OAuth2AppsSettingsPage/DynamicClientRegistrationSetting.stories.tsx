@@ -299,8 +299,7 @@ export const SurvivesExternalEnabledChanges: Story = {
 	},
 };
 
-// Disabling skips the confirmation dialog, unlike enabling.
-export const Disable: Story = {
+export const DisableSkipsConfirmationDialog: Story = {
 	args: {
 		enabled: true,
 	},

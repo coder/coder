@@ -2,14 +2,15 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const oauth2ProviderAppsKey = ["oauth2-provider", "apps"];
+const oauth2ProviderKey = ["oauth2-provider"];
+const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
 export const oauth2ProviderAppKey = (appId: string) =>
 	oauth2ProviderAppsKey.concat(appId);
 export const oauth2ProviderAppSecretsKey = (appId: string) =>
 	oauth2ProviderAppKey(appId).concat("secrets");
 
 const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
-const settingsKey = ["oauth2-provider", "settings"];
+const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
 
 export const getGitHubDevice = () => {
 	return {
@@ -123,19 +124,19 @@ export const revokeApp = (queryClient: QueryClient, userId: string) => {
 	};
 };
 
-export const getOAuth2ProviderSettings = () => {
+export const getSettings = () => {
 	return {
-		queryKey: settingsKey,
+		queryKey: oauth2ProviderSettingsKey,
 		queryFn: () => API.getOAuth2ProviderSettings(),
 	};
 };
 
-export const putOAuth2ProviderSettings = (queryClient: QueryClient) => {
+export const putSettings = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.putOAuth2ProviderSettings,
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: settingsKey,
+				queryKey: oauth2ProviderSettingsKey,
 			});
 		},
 	};

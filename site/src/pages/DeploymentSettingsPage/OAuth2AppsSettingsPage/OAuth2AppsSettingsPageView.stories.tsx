@@ -29,27 +29,27 @@ type Story = StoryObj<typeof OAuth2AppsSettingsPageView>;
 
 export const Loading: Story = {
 	args: {
-		isLoading: true,
+		isLoadingApps: true,
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		error: "some error",
 	},
 };
 
 export const Apps: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		apps: MockOAuth2ProviderApps,
 	},
 };
 
 export const Empty: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 	},
 };
 
@@ -59,11 +59,9 @@ export const NoCreatePermissions: Story = {
 	},
 };
 
-// The setting's own behavior is covered by
-// DynamicClientRegistrationSetting.stories.tsx. This story covers the wiring
-// between the two: rendering "Disable" proves the enabled state is threaded
-// through, and clicking it proves the change handler is connected.
-export const SettingsTabRendersDynamicClientRegistration: Story = {
+// Setting behavior is covered in DynamicClientRegistrationSetting.stories.tsx;
+// this covers only the wiring.
+export const SettingsTabWiresDynamicClientRegistration: Story = {
 	args: {
 		settings: { ...MockSettingsTab, dynamicClientRegistrationEnabled: true },
 	},
@@ -101,7 +99,7 @@ export const SettingsTabHiddenWithoutPermission: Story = {
  */
 export const AddApplicationIsScopedToApplicationsTab: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		apps: MockOAuth2ProviderApps,
 	},
 	play: async ({ canvasElement }) => {
@@ -128,7 +126,7 @@ export const AddApplicationIsScopedToApplicationsTab: Story = {
  */
 export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		apps: [],
 		settings: {
 			...MockSettingsTab,
@@ -157,7 +155,7 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
  */
 export const SettingsUpdateErrorKeepsSettingVisible: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		apps: MockOAuth2ProviderApps,
 		settings: { ...MockSettingsTab, error: "update boom" },
 	},
@@ -176,7 +174,7 @@ export const SettingsUpdateErrorKeepsSettingVisible: Story = {
  */
 export const SettingsValueOmitted: Story = {
 	args: {
-		isLoading: false,
+		isLoadingApps: false,
 		settings: {
 			...MockSettingsTab,
 			dynamicClientRegistrationEnabled: undefined,
@@ -207,8 +205,6 @@ export const SettingsTabFromUrl: Story = {
 	},
 };
 
-// An unpermitted deep link selects the applications tab rather than leaving no
-// tab selected at all.
 export const UnpermittedTabFromUrlFallsBack: Story = {
 	args: {
 		settings: undefined,
@@ -233,8 +229,7 @@ export const UnpermittedTabFromUrlFallsBack: Story = {
 	},
 };
 
-// The tab is present from first paint so it does not shift into the tab bar
-// once the settings request resolves.
+// So the tab does not pop into the tab bar when the request resolves.
 export const SettingsTabLoading: Story = {
 	args: {
 		settings: {

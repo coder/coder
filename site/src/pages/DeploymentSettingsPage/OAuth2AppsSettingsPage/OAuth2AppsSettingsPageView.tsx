@@ -48,7 +48,7 @@ type SettingsTab = {
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
-	isLoading: boolean;
+	isLoadingApps: boolean;
 	error: unknown;
 	canCreateApp: boolean;
 	settings?: SettingsTab;
@@ -65,7 +65,7 @@ const AddApplicationButton: FC = () => (
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
-	isLoading,
+	isLoadingApps,
 	error,
 	canCreateApp,
 	settings,
@@ -74,8 +74,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 		key: "tab",
 		defaultValue: "applications",
 	});
-	// Unknown values, and the settings tab for users who cannot view it, fall
-	// back to the applications tab rather than selecting nothing.
+	// A value matching no trigger would leave no tab selected.
 	const activeTab =
 		tabState.value === "settings" && settings ? "settings" : "applications";
 
@@ -83,8 +82,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 		<div>
 			{/*
 			 * The header sits outside the tabs, so a tab-specific action here would
-			 * promise to act on content it navigates away from. Adding an
-			 * application belongs to the applications tab alone.
+			 * promise to act on content it navigates away from.
 			 */}
 			<SettingsHeader
 				actions={
@@ -124,7 +122,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 							</TableRow>
 						</TableHeader>
 						<TableBody size="lg">
-							{isLoading ? (
+							{isLoadingApps ? (
 								<TableLoader />
 							) : !error && (!apps || apps.length === 0) ? (
 								<TableEmpty
