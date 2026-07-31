@@ -113,8 +113,16 @@ export const CancelEnable: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
 
 		const body = within(canvasElement.ownerDocument.body);
+		const title = "Enable Dynamic Client Registration?";
+		await waitFor(() => expect(body.getByText(title)).toBeVisible());
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
+		// Cancelling closing the dialog is the only thing this story protects.
+		// `onChange` is unreachable from a cancel click, so asserting it was not
+		// called would hold even against an `onClose` that does nothing.
+		await waitFor(() =>
+			expect(body.queryByText(title)).not.toBeInTheDocument(),
+		);
 		await expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
@@ -123,10 +131,18 @@ export const Updating: Story = {
 	args: {
 		isUpdating: true,
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", { name: "Enable" });
 
-		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
+		// Inert but still focusable, unlike the read-only case: an in-flight
+		// request must not blur the element the admin is standing on.
+		await expect(button).toHaveAttribute("aria-disabled", "true");
+		button.focus();
+		await expect(button).toHaveFocus();
+		await userEvent.keyboard("{Enter}");
+		await expect(args.onChange).not.toHaveBeenCalled();
+
 		// Disabled mid-request is self-evident and momentary. Only a permission
 		// problem earns an explanation.
 		await expect(
@@ -140,12 +156,65 @@ export const UpdatingWhileEnabled: Story = {
 		enabled: true,
 		isUpdating: true,
 	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", { name: "Disable" });
+
+		await expect(button).toHaveAttribute("aria-disabled", "true");
+		button.focus();
+		await expect(button).toHaveFocus();
+		await userEvent.keyboard("{Enter}");
+		await expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+/**
+ * Flipping the setting must not cost a keyboard user their place. The button
+ * goes inert while the request is in flight rather than disabled, so focus
+ * stays on it through the transition and the label change.
+ */
+export const KeepsFocusWhileUpdating: Story = {
+	args: {
+		enabled: true,
+	},
+	render: function Harness(args) {
+		const [enabled, setEnabled] = useState(true);
+		const [isUpdating, setIsUpdating] = useState(false);
+
+		return (
+			<DynamicClientRegistrationSetting
+				{...args}
+				enabled={enabled}
+				isUpdating={isUpdating}
+				onChange={(next) => {
+					setIsUpdating(true);
+					// Stands in for the mutation round trip, which is the window where
+					// a natively disabled button would blur.
+					setTimeout(() => {
+						setEnabled(next);
+						setIsUpdating(false);
+					}, 50);
+				}}
+			/>
+		);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", { name: "Disable" });
 
-		await expect(
-			canvas.getByRole("button", { name: "Disable" }),
-		).toBeDisabled();
+		button.focus();
+		await userEvent.keyboard("{Enter}");
+
+		// Mid-request. A `disabled` attribute here would have blurred to <body>.
+		await expect(button).toHaveAttribute("aria-disabled", "true");
+		await expect(button).toHaveFocus();
+
+		// The same element becomes the opposite action once the request lands, and
+		// focus rides along rather than resetting to the top of the document.
+		await waitFor(() =>
+			expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible(),
+		);
+		await expect(button).toHaveFocus();
 	},
 };
 

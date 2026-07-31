@@ -61,24 +61,32 @@ export const DynamicClientRegistrationSetting: FC<
 					)}
 				</div>
 
-				{enabled ? (
-					<Button
-						variant="outline"
-						disabled={!canEdit || isUpdating}
-						onClick={() => onChange(false)}
-					>
-						<Spinner loading={isUpdating} aria-hidden />
-						Disable
-					</Button>
-				) : (
-					<Button
-						disabled={!canEdit || isUpdating}
-						onClick={() => setIsEnableDialogOpen(true)}
-					>
-						<Spinner loading={isUpdating} aria-hidden />
-						Enable
-					</Button>
-				)}
+				{/*
+				 * Lacking permission is permanent, so the button is genuinely
+				 * unavailable and takes the native attribute. An in-flight request is
+				 * momentary and the button is where focus already is, so it goes inert
+				 * without leaving the tab order: disabling a focused element blurs it,
+				 * which drops a keyboard user back to the top of the document mid-flip.
+				 */}
+				<Button
+					variant={enabled ? "outline" : "default"}
+					disabled={!canEdit}
+					aria-disabled={isUpdating}
+					className="aria-disabled:pointer-events-none"
+					onClick={() => {
+						if (isUpdating) {
+							return;
+						}
+						if (enabled) {
+							onChange(false);
+						} else {
+							setIsEnableDialogOpen(true);
+						}
+					}}
+				>
+					<Spinner loading={isUpdating} aria-hidden />
+					{enabled ? "Disable" : "Enable"}
+				</Button>
 			</section>
 
 			<ConfirmDialog
