@@ -31,7 +31,7 @@ const badgeVariants = cva(
 			},
 			size: {
 				xs: "border-0 text-2xs font-normal h-[18px] rounded",
-				sm: "text-2xs font-normal h-5.5 py-1",
+				sm: "text-2xs font-normal py-1",
 				md: "text-xs font-normal py-1",
 			},
 			svgSize: {
@@ -41,7 +41,7 @@ const badgeVariants = cva(
 			},
 			hover: {
 				false: null,
-				true: "no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "no-underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 			},
 		},
 		compoundVariants: [

@@ -33,7 +33,7 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 			collisionPadding={16}
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
-				text-content-primary shadow-md outline-none
+				text-content-primary shadow-md outline-hidden
 				max-h-[var(--radix-popper-available-height)] overflow-y-auto
 				data-[state=open]:animate-in data-[state=closed]:animate-out
 				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0

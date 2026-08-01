@@ -35,7 +35,7 @@ const DialogOverlay: React.FC<
 const dialogVariants = cva(
 	`fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-full max-w-lg gap-6 overflow-y-auto
 	border border-solid bg-surface-primary p-8 shadow-lg duration-200 sm:rounded-lg
-	translate-x-[-50%] translate-y-[-50%] outline-none
+	translate-x-[-50%] translate-y-[-50%] outline-hidden
 	data-[state=open]:animate-in data-[state=closed]:animate-out
 	data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
 	data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95
