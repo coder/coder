@@ -112,7 +112,6 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 
 					{templates.map((tpl) => {
 						const value = castNotificationMethod(tpl.method || defaultMethod);
-						const labelId = `notification-template-${tpl.id}`;
 
 						return (
 							<div
@@ -120,12 +119,10 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 								data-testid="notification-template-row"
 								className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid"
 							>
-								<span id={labelId} className="font-medium text-sm">
-									{tpl.name}
-								</span>
+								<span className="font-medium text-sm">{tpl.name}</span>
 								<MethodSelect
 									templateId={tpl.id}
-									labelId={labelId}
+									templateName={tpl.name}
 									options={availableMethods}
 									value={value}
 									canEdit={canEdit}
@@ -148,7 +145,7 @@ function requiredFieldsArePresent(
 
 type MethodSelectProps = {
 	templateId: string;
-	labelId: string;
+	templateName: string;
 	options: NotificationMethod[];
 	value: NotificationMethod;
 	canEdit: boolean;
@@ -158,7 +155,7 @@ const MethodSelect: FC<MethodSelectProps> = ({
 	value,
 	options,
 	templateId,
-	labelId,
+	templateName,
 	canEdit,
 }) => {
 	const queryClient = useQueryClient();
@@ -192,8 +189,7 @@ const MethodSelect: FC<MethodSelectProps> = ({
 			}}
 		>
 			<SelectTrigger
-				aria-label="Notification method"
-				aria-describedby={labelId}
+				aria-label={`Notification method for ${templateName}`}
 				className="h-8 w-auto min-w-32 gap-2 [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:line-clamp-none"
 			>
 				<SelectValue>
