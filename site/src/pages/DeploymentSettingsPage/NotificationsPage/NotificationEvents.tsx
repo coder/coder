@@ -193,8 +193,7 @@ const MethodSelect: FC<MethodSelectProps> = ({
 		>
 			<SelectTrigger
 				aria-label="Notification method"
-				aria-labelledby={`${labelId} ${labelId}-method`}
-				id={`${labelId}-method`}
+				aria-describedby={labelId}
 				className="h-8 w-auto min-w-32 gap-2 [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:line-clamp-none"
 			>
 				<SelectValue>
