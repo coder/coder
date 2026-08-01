@@ -20,12 +20,9 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
-	chatCostKey,
-	chatDiffContentsKey,
-	chatKey,
+	chatKeys,
 	chatModelConfigs,
 	chatModels,
-	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
@@ -42,6 +39,7 @@ import {
 	userChatPersonalModelOverrides,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
+import { workspaceBuildsArchiveResolverKey } from "#/api/queries/workspaceBuilds";
 import {
 	invalidateWorkspaceMutationQueries,
 	workspaceById,
@@ -304,11 +302,11 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
+				queryKey: chatKeys.detail(chatId),
 				exact: true,
 			});
 			void queryClient.invalidateQueries({
-				queryKey: chatsByWorkspaceKeyPrefix,
+				queryKey: chatKeys.byWorkspacePrefix(),
 			});
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
@@ -410,7 +408,7 @@ const AgentsPageLayout: FC = () => {
 			return;
 		}
 		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
 		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
@@ -441,12 +439,13 @@ const AgentsPageLayout: FC = () => {
 				archivedChatId,
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
+				// parent's detail cache is removed). This must be read at
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-							?.root_chat_id
+					? queryClient.getQueryData<TypesGen.Chat>(
+							chatKeys.detail(activeChatId),
+						)?.root_chat_id
 					: undefined,
 			)
 		) {
@@ -470,11 +469,7 @@ const AgentsPageLayout: FC = () => {
 				// aren't in the returned slice.
 				() =>
 					queryClient.fetchQuery({
-						queryKey: [
-							"workspaceBuilds",
-							workspaceId,
-							"archive-and-delete-resolver",
-						],
+						queryKey: workspaceBuildsArchiveResolverKey(workspaceId),
 						queryFn: () => API.getWorkspaceBuilds(workspaceId),
 					}),
 				() =>
@@ -617,7 +612,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatKeys.detail(updatedChat.id),
 							exact: true,
 						});
 						return;
@@ -625,9 +620,9 @@ const AgentsPageLayout: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
-						// chatKey and infinite-list caches below.
+						// chat detail and infinite-list caches below.
 						void queryClient.invalidateQueries({
-							queryKey: chatDiffContentsKey(updatedChat.id),
+							queryKey: chatKeys.diffContents(updatedChat.id),
 							exact: true,
 						});
 					}
@@ -648,9 +643,9 @@ const AgentsPageLayout: FC = () => {
 					// reverts the query to pending/idle with no data
 					// and no retry, which AgentChatPage shows as
 					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+					if (queryClient.getQueryData(chatKeys.detail(updatedChat.id))) {
 						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatKeys.detail(updatedChat.id),
 							exact: true,
 						});
 					}
@@ -683,7 +678,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						if (costChatId) {
 							void queryClient.invalidateQueries({
-								queryKey: chatCostKey(costChatId),
+								queryKey: chatKeys.cost(costChatId),
 								exact: true,
 							});
 						}
@@ -695,7 +690,7 @@ const AgentsPageLayout: FC = () => {
 							// active chat has an observer, so other chats are
 							// merely marked stale.
 							void queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
+								queryKey: chatKeys.detail(updatedChat.id),
 								exact: true,
 							});
 						}

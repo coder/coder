@@ -11,7 +11,7 @@ import {
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
-import { chatDiffContentsKey } from "#/api/queries/chats";
+import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -408,7 +408,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
 			void queryClient.invalidateQueries({
-				queryKey: chatDiffContentsKey(agentId),
+				queryKey: chatKeys.diffContents(agentId),
 				exact: true,
 			});
 		}

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
-import { chatKey } from "#/api/queries/chats";
+import { chatKeys } from "#/api/queries/chats";
 import { invalidateWorkspaceMutationQueries } from "#/api/queries/workspaces";
 import { type ChatStore, useChatSelector } from "./chatStore";
 import type { StreamState } from "./types";
@@ -87,8 +87,11 @@ export function useChatToolInvalidations({
 		}
 
 		if (shouldInvalidateChat) {
+			// A workspace binding writes chat fields only. Messages and the other
+			// per-chat sub-resources are unaffected, so stay off their keys.
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatID),
+				queryKey: chatKeys.detail(chatID),
+				exact: true,
 			});
 		}
 

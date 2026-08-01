@@ -1,10 +1,8 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
+import { chatKeys } from "#/api/queries/chats";
 
-// The infinite query key used by useInfiniteQuery(infiniteChats())
-// is [...chatsKey, undefined] = ["chats", undefined].
-const infiniteChatsTestKey = [...chatsKey, undefined];
+const infiniteChatsTestKey = chatKeys.list();
 
 type InfiniteData = {
 	pages: TypesGen.Chat[][];
@@ -728,7 +726,7 @@ describe("useChatStore", () => {
 				},
 			},
 		});
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [
 				{
 					messages: [...initialMessages].reverse(),
@@ -799,7 +797,7 @@ describe("useChatStore", () => {
 		const cached = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			1,
 		]);
@@ -827,7 +825,7 @@ describe("useChatStore", () => {
 				},
 			},
 		});
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [
 				{
 					messages: [...initialMessages].reverse(),
@@ -902,7 +900,7 @@ describe("useChatStore", () => {
 		const cached = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			2, 1,
 		]);
@@ -1488,7 +1486,7 @@ describe("useChatStore", () => {
 		};
 		// The cache is InfiniteData<ChatMessagesResponse> after the
 		// migration to useInfiniteQuery for chat messages.
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [initialChatMessagesData],
 			pageParams: [undefined],
 		});
@@ -1533,7 +1531,7 @@ describe("useChatStore", () => {
 		const cachedData = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
@@ -1559,7 +1557,7 @@ describe("useChatStore", () => {
 			queued_messages: [queuedMessage],
 			has_more: false,
 		};
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [initialChatMessagesData],
 			pageParams: [undefined],
 		});
@@ -1608,7 +1606,7 @@ describe("useChatStore", () => {
 		const cachedData = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
@@ -1633,7 +1631,7 @@ describe("useChatStore", () => {
 			queued_messages: [],
 			has_more: false,
 		};
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [initialChatMessagesData],
 			pageParams: [undefined],
 		});
@@ -1681,13 +1679,13 @@ describe("useChatStore", () => {
 		const cachedData = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		const cachedMessages = cachedData?.pages[0]?.messages ?? [];
 		// Verifies insertion, preservation, and DESC order.
 		expect(cachedMessages.map((m) => m.id)).toEqual([2, 1]);
 		// Emitting the same message again should not change the
 		// cache reference (reference stability).
-		const refBefore = queryClient.getQueryData(chatMessagesKey(chatID));
+		const refBefore = queryClient.getQueryData(chatKeys.messages(chatID));
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -1695,7 +1693,7 @@ describe("useChatStore", () => {
 				message: newMessage,
 			});
 		});
-		const refAfter = queryClient.getQueryData(chatMessagesKey(chatID));
+		const refAfter = queryClient.getQueryData(chatKeys.messages(chatID));
 		expect(refAfter).toBe(refBefore);
 
 		// Emitting the same message ID with different content should
@@ -1711,7 +1709,7 @@ describe("useChatStore", () => {
 		const updatedCache = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
+		}>(chatKeys.messages(chatID));
 		const updatedFirst = updatedCache?.pages[0]?.messages[0];
 		expect(updatedFirst?.content).toEqual([{ type: "text", text: "revised" }]);
 	});
@@ -5033,7 +5031,7 @@ describe("store/cache desync protection", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [
 				{
 					messages: [msg2, msg1],
@@ -5122,7 +5120,7 @@ describe("store/cache desync protection", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatMessagesKey(chatID), {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
 			pages: [
 				{
 					messages: [msg3, msg2, msg1],

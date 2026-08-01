@@ -39,6 +39,10 @@ export const workspaceBuildsKey = (workspaceId: string) => [
 	workspaceId,
 ];
 
+// Nested under workspaceBuildsKey so the existing build invalidations reach it.
+export const workspaceBuildsArchiveResolverKey = (workspaceId: string) =>
+	[...workspaceBuildsKey(workspaceId), "archive-and-delete-resolver"] as const;
+
 export const infiniteWorkspaceBuilds = (
 	workspaceId: string,
 	req?: WorkspaceBuildsRequest,

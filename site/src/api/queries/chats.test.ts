@@ -1,4 +1,4 @@
-import { QueryClient } from "react-query";
+import { hashKey, QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -11,26 +11,19 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	canonicalizeChatListFilters,
 	chatACL,
-	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
 	chatCost,
-	chatCostKey,
 	chatCostSummary,
-	chatCostSummaryKey,
-	chatDebugRunsKey,
-	chatDiffContentsKey,
-	chatKey,
-	chatMessagesKey,
+	chatKeys,
 	chatSearch,
-	chatsKey,
 	createChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	infiniteChats,
-	infiniteChatsKey,
 	interruptChat,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
@@ -77,9 +70,9 @@ vi.mock("#/api/api", () => ({
 	},
 }));
 
-type InfiniteChatsTestOptions = Parameters<typeof infiniteChatsKey>[0];
+type InfiniteChatsTestOptions = Parameters<typeof chatKeys.list>[0];
 
-const infiniteChatsTestKey = infiniteChatsKey();
+const infiniteChatsTestKey = chatKeys.list();
 
 type InfiniteData = {
 	pages: TypesGen.Chat[][];
@@ -92,7 +85,7 @@ const seedInfiniteChats = (
 	chats: TypesGen.Chat[],
 	opts?: InfiniteChatsTestOptions,
 ) => {
-	queryClient.setQueryData<InfiniteData>(infiniteChatsKey(opts), {
+	queryClient.setQueryData<InfiniteData>(chatKeys.list(opts), {
 		pages: [chats],
 		pageParams: [0],
 	});
@@ -103,7 +96,7 @@ const readInfiniteChats = (
 	queryClient: QueryClient,
 	opts?: InfiniteChatsTestOptions,
 ): TypesGen.Chat[] | undefined => {
-	const data = queryClient.getQueryData<InfiniteData>(infiniteChatsKey(opts));
+	const data = queryClient.getQueryData<InfiniteData>(chatKeys.list(opts));
 	return data?.pages.flat();
 };
 
@@ -193,22 +186,21 @@ describe("advisor config query factories", () => {
 });
 
 describe("invalidateChatListQueries", () => {
-	it("invalidates flat and infinite chat list queries", async () => {
+	it("invalidates infinite chat list queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
 		// Sidebar queries.
-		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
-		queryClient.setQueryData(infiniteChatsKey({ archived: false }), {
+		queryClient.setQueryData(chatKeys.list({ archived: false }), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
 		// Per-chat queries that should NOT be touched.
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.messages(chatId), []);
+		queryClient.setQueryData(chatKeys.diffContents(chatId), {});
 		queryClient.setQueryData(
-			chatCostSummaryKey("me", undefined),
+			chatKeys.costSummary("me", undefined),
 			{} as TypesGen.ChatCostSummary,
 		);
 
@@ -216,39 +208,35 @@ describe("invalidateChatListQueries", () => {
 
 		// Sidebar queries should be invalidated.
 		expect(
-			queryClient.getQueryState(chatsKey)?.isInvalidated,
-			"flat chats should be invalidated",
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(infiniteChatsKey({ archived: false }))
+			queryClient.getQueryState(chatKeys.list({ archived: false }))
 				?.isInvalidated,
 			"infinite chats should be invalidated",
 		).toBe(true);
 
 		// Per-chat queries should NOT be invalidated.
 		expect(
-			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
-			"chatKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.detail(chatId))?.isInvalidated,
+			"the chat detail should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
+			"chat messages should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
-			"chatDiffContentsKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.diffContents(chatId))?.isInvalidated,
+			"chat diff contents should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatCostSummaryKey("me", undefined))
+			queryClient.getQueryState(chatKeys.costSummary("me", undefined))
 				?.isInvalidated,
-			"chatCostSummaryKey should NOT be invalidated",
+			"the cost summary should NOT be invalidated",
 		).not.toBe(true);
 	});
 
 	it("invalidates the infinite query with undefined opts", async () => {
 		const queryClient = createTestQueryClient();
 
-		queryClient.setQueryData(infiniteChatsKey(), {
+		queryClient.setQueryData(chatKeys.list(), {
 			pages: [[makeChat("chat-1")]],
 			pageParams: [0],
 		});
@@ -256,29 +244,30 @@ describe("invalidateChatListQueries", () => {
 		await invalidateChatListQueries(queryClient);
 
 		expect(
-			queryClient.getQueryState(infiniteChatsKey())?.isInvalidated,
+			queryClient.getQueryState(chatKeys.list())?.isInvalidated,
 			"infinite chats with undefined opts should be invalidated",
 		).toBe(true);
 	});
 
 	it("does not invalidate a different chat's queries", async () => {
 		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
 		const otherChatId = "chat-2";
 
-		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
-		queryClient.setQueryData(chatKey(otherChatId), makeChat(otherChatId));
-		queryClient.setQueryData(chatMessagesKey(otherChatId), []);
+		queryClient.setQueryData(
+			chatKeys.detail(otherChatId),
+			makeChat(otherChatId),
+		);
+		queryClient.setQueryData(chatKeys.messages(otherChatId), []);
 
 		await invalidateChatListQueries(queryClient);
 
 		expect(
-			queryClient.getQueryState(chatKey(otherChatId))?.isInvalidated,
-			"other chat's chatKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.detail(otherChatId))?.isInvalidated,
+			"other chat's detail should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(otherChatId))?.isInvalidated,
-			"other chat's chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.messages(otherChatId))?.isInvalidated,
+			"other chat's messages should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -331,7 +320,7 @@ describe("updateChatTitle cache update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { title: "Old" }),
 		);
 		seedInfiniteChats(queryClient, [
@@ -348,7 +337,7 @@ describe("updateChatTitle cache update", () => {
 		mutation.onSuccess(undefined, { chatId, title: "New" });
 
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.title,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))?.title,
 		).toBe("New");
 		expect(
 			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
@@ -375,10 +364,10 @@ describe("updateChatTitle cache update", () => {
 
 		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
@@ -408,14 +397,16 @@ describe("archiveChat optimistic update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
 
 		vi.mocked(API.experimental.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
 
-		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
+		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKeys.detail(chatId),
+		);
 		expect(cachedChat?.archived).toBe(true);
 	});
 
@@ -454,7 +445,7 @@ describe("archiveChat optimistic update", () => {
 			{ archived: false },
 		);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { pin_order: 2 }),
 		);
 
@@ -467,7 +458,7 @@ describe("archiveChat optimistic update", () => {
 			),
 		).toEqual(["chat-2"]);
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
 		).toMatchObject({
 			archived: true,
 			pin_order: 0,
@@ -493,7 +484,7 @@ describe("archiveChat optimistic update", () => {
 		const chatId = "chat-1";
 		const initialChats = [makeChat(chatId)];
 		seedInfiniteChats(queryClient, initialChats);
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
 		const mutation = archiveChat(queryClient);
@@ -507,7 +498,7 @@ describe("archiveChat optimistic update", () => {
 		mutation.onError(new Error("server error"), chatId, context);
 
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 	});
 
@@ -515,18 +506,21 @@ describe("archiveChat optimistic update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
 
 		const mutation = archiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
 
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.archived,
 		).toBe(true);
 
 		mutation.onError(new Error("server error"), chatId, context);
 
-		const rolledBack = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
+		const rolledBack = queryClient.getQueryData<TypesGen.Chat>(
+			chatKeys.detail(chatId),
+		);
 		expect(rolledBack?.archived).toBe(false);
 	});
 
@@ -545,7 +539,7 @@ describe("archiveChat optimistic update", () => {
 
 		// The handler should still invalidate to trigger a refetch.
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 	});
 
@@ -553,7 +547,7 @@ describe("archiveChat optimistic update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
-		// Deliberately do NOT set chatKey(chatId) data.
+		// Deliberately do NOT set chatKeys.detail(chatId) data.
 
 		const mutation = archiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
@@ -579,10 +573,10 @@ describe("archiveChat optimistic update", () => {
 
 		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
@@ -606,7 +600,7 @@ describe("unarchiveChat optimistic update", () => {
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })]);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { archived: true }),
 		);
 
@@ -614,7 +608,8 @@ describe("unarchiveChat optimistic update", () => {
 		await mutation.onMutate(chatId);
 
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.archived,
 		).toBe(false);
 	});
 
@@ -630,7 +625,7 @@ describe("unarchiveChat optimistic update", () => {
 			{ archived: true },
 		);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { archived: true }),
 		);
 
@@ -643,7 +638,7 @@ describe("unarchiveChat optimistic update", () => {
 			),
 		).toEqual(["chat-2"]);
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
 		).toMatchObject({
 			archived: false,
 		});
@@ -654,7 +649,7 @@ describe("unarchiveChat optimistic update", () => {
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })]);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { archived: true }),
 		);
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -665,7 +660,8 @@ describe("unarchiveChat optimistic update", () => {
 		// Verify optimistic update.
 		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(false);
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.archived,
 		).toBe(false);
 
 		// Roll back.
@@ -673,11 +669,12 @@ describe("unarchiveChat optimistic update", () => {
 
 		// The chats list is rolled back via invalidation.
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		// The individual chat cache is restored directly.
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.archived,
 		).toBe(true);
 	});
 
@@ -696,10 +693,10 @@ describe("unarchiveChat optimistic update", () => {
 
 		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
@@ -715,11 +712,11 @@ describe("pinChat optimistic update", () => {
 			makeChat(chatId),
 			makeChat("chat-pinned-2", { pin_order: 2 }),
 		]);
-		queryClient.setQueryData(infiniteChatsKey({ archived: true }), {
+		queryClient.setQueryData(chatKeys.list({ archived: true }), {
 			pages: [[makeChat("chat-pinned-archived", { pin_order: 4 })]],
 			pageParams: [0],
 		});
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
 
 		const mutation = pinChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -729,7 +726,8 @@ describe("pinChat optimistic update", () => {
 				?.pin_order,
 		).toBe(5);
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.pin_order,
 		).toBe(5);
 	});
 });
@@ -751,7 +749,7 @@ describe("unpinChat optimistic update", () => {
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 2 })]);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { pin_order: 2 }),
 		);
 
@@ -759,7 +757,8 @@ describe("unpinChat optimistic update", () => {
 		await mutation.onMutate(chatId);
 
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.pin_order,
 		).toBe(0);
 	});
 
@@ -768,7 +767,7 @@ describe("unpinChat optimistic update", () => {
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
 		queryClient.setQueryData(
-			chatKey(chatId),
+			chatKeys.detail(chatId),
 			makeChat(chatId, { pin_order: 3 }),
 		);
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -779,7 +778,8 @@ describe("unpinChat optimistic update", () => {
 		// Verify optimistic update.
 		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.pin_order,
 		).toBe(0);
 
 		// Roll back.
@@ -787,11 +787,12 @@ describe("unpinChat optimistic update", () => {
 
 		// The chats list is rolled back via invalidation.
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		// The individual chat cache is restored directly.
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId))
+				?.pin_order,
 		).toBe(3);
 	});
 
@@ -804,10 +805,10 @@ describe("unpinChat optimistic update", () => {
 		await mutation.onSettled(undefined, undefined, chatId);
 
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 	});
@@ -827,20 +828,20 @@ describe("reorderPinnedChat", () => {
 		await mutation.onSettled?.(undefined, undefined, { chatId, pinOrder: 2 });
 
 		expect(cancelSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 		expect(API.experimental.updateChat).toHaveBeenCalledWith(chatId, {
 			pin_order: 2,
 		});
 		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
+			expect.objectContaining({ queryKey: chatKeys.lists() }),
 		);
 		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 	});
@@ -859,13 +860,13 @@ describe("chat cost query factories", () => {
 
 		const query = chatCostSummary(user, params);
 
-		expect(chatCostSummaryKey(user, params)).toEqual([
+		expect(chatKeys.costSummary(user, params)).toEqual([
 			"chats",
-			"costSummary",
+			"cost-summary",
 			user,
 			params,
 		]);
-		expect(query.queryKey).toEqual(["chats", "costSummary", user, params]);
+		expect(query.queryKey).toEqual(["chats", "cost-summary", user, params]);
 		await query.queryFn();
 		expect(API.experimental.getChatCostSummary).toHaveBeenCalledWith(
 			user,
@@ -881,8 +882,8 @@ describe("chat cost query factories", () => {
 
 		const query = chatCost(chatId);
 
-		expect(chatCostKey(chatId)).toEqual(["chats", chatId, "cost"]);
-		expect(query.queryKey).toEqual(["chats", chatId, "cost"]);
+		expect(chatKeys.cost(chatId)).toEqual(["chats", "detail", chatId, "cost"]);
+		expect(query.queryKey).toEqual(["chats", "detail", chatId, "cost"]);
 		await query.queryFn();
 		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
 	});
@@ -909,7 +910,7 @@ describe("chat cost query factories", () => {
 
 		// queryKey includes the payload and page number.
 		const key = result.queryKey({ ...pageParams, payload });
-		expect(key).toEqual(["chats", "costUsers", payload, 2]);
+		expect(key).toEqual(["chats", "cost-users", payload, 2]);
 
 		// queryFn coerces empty username to undefined.
 		// Cast needed because PaginatedQueryFnContext includes
@@ -929,7 +930,7 @@ describe("chat cost query factories", () => {
 describe("mutation invalidation scope", () => {
 	// These tests assert the CORRECT (narrow) invalidation behaviour.
 	// Each mutation should only invalidate the queries it actually
-	// needs to refresh, not the entire ["chats"] prefix tree. The
+	// needs to refresh, not the entire chatKeys.all prefix tree. The
 	// WebSocket stream already delivers real-time updates for
 	// messages, status changes, and sidebar ordering, so broad
 	// prefix invalidation causes a burst of redundant HTTP requests
@@ -938,24 +939,16 @@ describe("mutation invalidation scope", () => {
 	/** Populate the QueryClient with every query key that is actively
 	 *  observed on the /agents/:id detail page. */
 	const seedAllActiveQueries = (queryClient: QueryClient, chatId: string) => {
-		// Infinite sidebar list: ["chats", { archived: false }]
-		queryClient.setQueryData(infiniteChatsKey({ archived: false }), {
+		queryClient.setQueryData(chatKeys.list({ archived: false }), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
-		// Flat chats list: ["chats"]
-		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
-		// Individual chat: ["chats", chatId]
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		// Messages: ["chats", chatId, "messages"]
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		// Debug runs: ["chats", chatId, "debug-runs"]
-		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
-		// Diff contents: ["chats", chatId, "diff-contents"]
-		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
-		// Cost summary: ["chats", "costSummary", "me", undefined]
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.messages(chatId), []);
+		queryClient.setQueryData(chatKeys.debugRuns(chatId), []);
+		queryClient.setQueryData(chatKeys.diffContents(chatId), { files: [] });
 		queryClient.setQueryData(
-			chatCostSummaryKey("me", undefined),
+			chatKeys.costSummary("me", undefined),
 			{} as TypesGen.ChatCostSummary,
 		);
 	};
@@ -963,8 +956,8 @@ describe("mutation invalidation scope", () => {
 	/** Keys that should NEVER be invalidated by chat message mutations
 	 *  because they are completely unrelated to the message flow. */
 	const unrelatedKeys = (chatId: string) => [
-		{ label: "diff-contents", key: chatDiffContentsKey(chatId) },
-		{ label: "cost-summary", key: chatCostSummaryKey("me", undefined) },
+		{ label: "diff-contents", key: chatKeys.diffContents(chatId) },
+		{ label: "cost-summary", key: chatKeys.costSummary("me", undefined) },
 	];
 
 	it("createChatMessage does not invalidate unrelated queries", async () => {
@@ -993,19 +986,20 @@ describe("mutation invalidation scope", () => {
 		await mutation.onSuccess?.();
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
+			queryClient.getQueryState(chatKeys.debugRuns(chatId))?.isInvalidated,
+			"debug runs should be invalidated",
 		).toBe(true);
 
-		const chatState = queryClient.getQueryState(chatKey(chatId));
-		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
-			true,
-		);
+		const chatState = queryClient.getQueryState(chatKeys.detail(chatId));
+		expect(
+			chatState?.isInvalidated,
+			"the chat detail should be invalidated",
+		).toBe(true);
 
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		const messagesState = queryClient.getQueryState(chatKeys.messages(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
+			"chat messages should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -1041,23 +1035,24 @@ describe("mutation invalidation scope", () => {
 		// Chat metadata and debug runs should be invalidated because
 		// editing changes the chat's updated_at and can start a new
 		// debug run.
-		const chatState = queryClient.getQueryState(chatKey(chatId));
-		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
-			true,
-		);
+		const chatState = queryClient.getQueryState(chatKeys.detail(chatId));
+		expect(
+			chatState?.isInvalidated,
+			"the chat detail should be invalidated",
+		).toBe(true);
 
 		// Messages are NOT invalidated. The per-chat WebSocket handles
 		// post-edit message delivery, making REST invalidation
 		// unnecessary.
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		const messagesState = queryClient.getQueryState(chatKeys.messages(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should not be invalidated",
+			"chat messages should not be invalidated",
 		).not.toBe(true);
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
+			queryClient.getQueryState(chatKeys.debugRuns(chatId))?.isInvalidated,
+			"debug runs should be invalidated",
 		).toBe(true);
 	});
 
@@ -1066,7 +1061,7 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1085,10 +1080,10 @@ describe("mutation invalidation scope", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		const messagesState = queryClient.getQueryState(chatKeys.messages(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated on error",
+			"chat messages should be invalidated on error",
 		).toBe(true);
 	});
 
@@ -1146,7 +1141,7 @@ describe("mutation invalidation scope", () => {
 			requireMessage(messages, 3),
 		);
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1158,7 +1153,9 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			3, 2, 1,
 		]);
@@ -1177,7 +1174,7 @@ describe("mutation invalidation scope", () => {
 		);
 		const queuedMessages = [makeQueuedMessage(chatId, 11)];
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [
 				{
 					messages,
@@ -1195,7 +1192,9 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.queued_messages).toEqual([]);
 	});
 
@@ -1207,7 +1206,7 @@ describe("mutation invalidation scope", () => {
 			requireMessage(messages, 3),
 		);
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1220,7 +1219,7 @@ describe("mutation invalidation scope", () => {
 		});
 
 		expect(
-			queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId))?.pages[0]
+			queryClient.getQueryData<InfMessages>(chatKeys.messages(chatId))?.pages[0]
 				?.messages,
 		).toHaveLength(3);
 
@@ -1230,7 +1229,9 @@ describe("mutation invalidation scope", () => {
 			context,
 		);
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			5, 4, 3, 2, 1,
 		]);
@@ -1253,7 +1254,7 @@ describe("mutation invalidation scope", () => {
 			role: "assistant" as const,
 		};
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1265,7 +1266,7 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 		queryClient.setQueryData<InfMessages | undefined>(
-			chatMessagesKey(chatId),
+			chatKeys.messages(chatId),
 			(current) => {
 				if (!current) {
 					return current;
@@ -1287,7 +1288,9 @@ describe("mutation invalidation scope", () => {
 			{ messageId: 3, optimisticMessage, req: editReq },
 		);
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			10, 9, 2, 1,
 		]);
@@ -1307,7 +1310,7 @@ describe("mutation invalidation scope", () => {
 		});
 
 		expect(context.previousData).toBeUndefined();
-		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeUndefined();
+		expect(queryClient.getQueryData(chatKeys.messages(chatId))).toBeUndefined();
 	});
 
 	it("editChatMessage onError handles undefined context gracefully", async () => {
@@ -1315,7 +1318,7 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1331,14 +1334,16 @@ describe("mutation invalidation scope", () => {
 		);
 
 		// Cache should be untouched: no crash, no corruption.
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
 
 		await new Promise((r) => setTimeout(r, 0));
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		const messagesState = queryClient.getQueryState(chatKeys.messages(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated even without context",
+			"chat messages should be invalidated even without context",
 		).toBe(true);
 	});
 
@@ -1351,7 +1356,7 @@ describe("mutation invalidation scope", () => {
 		const page1 = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
 		const optimisticMessage = buildOptimisticMessage(requireMessage(page0, 7));
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [
 				{ messages: page0, queued_messages: [], has_more: true },
 				{ messages: page1, queued_messages: [], has_more: false },
@@ -1366,7 +1371,9 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			7, 6,
 		]);
@@ -1383,7 +1390,7 @@ describe("mutation invalidation scope", () => {
 			requireMessage(messages, 1),
 		);
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1395,7 +1402,9 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([1]);
 		expect(data?.pages[0]?.queued_messages).toEqual([]);
 		expect(data?.pages[0]?.has_more).toBe(false);
@@ -1409,7 +1418,7 @@ describe("mutation invalidation scope", () => {
 			requireMessage(messages, 5),
 		);
 
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -1421,7 +1430,9 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
 		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			5, 4, 3, 2, 1,
 		]);
@@ -1439,8 +1450,8 @@ describe("mutation invalidation scope", () => {
 		await mutation.onSuccess?.();
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
+			queryClient.getQueryState(chatKeys.debugRuns(chatId))?.isInvalidated,
+			"debug runs should be invalidated",
 		).toBe(true);
 
 		for (const { label, key } of unrelatedKeys(chatId)) {
@@ -1461,8 +1472,8 @@ describe("mutation invalidation scope", () => {
 		await mutation.onSuccess?.();
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
+			queryClient.getQueryState(chatKeys.debugRuns(chatId))?.isInvalidated,
+			"debug runs should be invalidated",
 		).toBe(true);
 
 		for (const { label, key } of unrelatedKeys(chatId)) {
@@ -1487,18 +1498,17 @@ describe("mutation invalidation scope", () => {
 			await mutation.onSettled(undefined, error, chatId);
 
 			expect(
-				queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-				"chatDebugRunsKey should be invalidated",
+				queryClient.getQueryState(chatKeys.debugRuns(chatId))?.isInvalidated,
+				"debug runs should be invalidated",
 			).toBe(true);
 
 			for (const { label, key } of [
-				{ label: "flat chats", key: chatsKey },
 				{
 					label: "infinite chats",
-					key: infiniteChatsKey({ archived: false }),
+					key: chatKeys.list({ archived: false }),
 				},
-				{ label: "chat detail", key: chatKey(chatId) },
-				{ label: "messages", key: chatMessagesKey(chatId) },
+				{ label: "chat detail", key: chatKeys.detail(chatId) },
+				{ label: "messages", key: chatKeys.messages(chatId) },
 				...unrelatedKeys(chatId),
 			]) {
 				const state = queryClient.getQueryState(key);
@@ -1522,11 +1532,7 @@ describe("mutation invalidation scope", () => {
 
 		// Sidebar lists SHOULD be invalidated.
 		expect(
-			queryClient.getQueryState(chatsKey)?.isInvalidated,
-			"flat chats should be invalidated",
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(infiniteChatsKey({ archived: false }))
+			queryClient.getQueryState(chatKeys.list({ archived: false }))
 				?.isInvalidated,
 			"infinite chats should be invalidated",
 		).toBe(true);
@@ -1539,12 +1545,12 @@ describe("mutation invalidation scope", () => {
 			).not.toBe(true);
 		}
 		expect(
-			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
-			"chatKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.detail(chatId))?.isInvalidated,
+			"the chat detail should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
+			"chat messages should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -1558,12 +1564,12 @@ describe("mutation invalidation scope", () => {
 
 		// These two should be invalidated (exact match).
 		expect(
-			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
-			"chatKey should be invalidated",
+			queryClient.getQueryState(chatKeys.detail(chatId))?.isInvalidated,
+			"the chat detail should be invalidated",
 		).toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should be invalidated",
+			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
+			"chat messages should be invalidated",
 		).toBe(true);
 
 		// Unrelated queries should NOT be touched.
@@ -1576,21 +1582,141 @@ describe("mutation invalidation scope", () => {
 
 		// Sidebar list should NOT be touched.
 		expect(
-			queryClient.getQueryState(chatsKey)?.isInvalidated,
-			"flat chats should NOT be invalidated",
+			queryClient.getQueryState(chatKeys.list({ archived: false }))
+				?.isInvalidated,
+			"infinite chats should NOT be invalidated",
 		).not.toBe(true);
 	});
 });
 
-describe("infiniteChatsKey shape", () => {
-	it("places the filter object one slot after the chatsKey prefix", () => {
-		// archivedFilterForChatListKey reads the archived filter from the
-		// slot immediately after the chatsKey prefix. If this layout ever
-		// changes, that helper silently stops removing chats from
-		// conflicting filtered lists, so keep the two in sync.
-		const key = infiniteChatsKey({ archived: true });
-		expect(key.length).toBe(chatsKey.length + 1);
-		expect(key[chatsKey.length]).toEqual({ archived: true });
+describe("chatKeys", () => {
+	it("composes every key from a literal in slot 1", () => {
+		const chatId = "chat-1";
+
+		expect(chatKeys.all).toEqual(["chats"]);
+		expect(chatKeys.lists()).toEqual(["chats", "list"]);
+		expect(chatKeys.list({ archived: true })).toEqual([
+			"chats",
+			"list",
+			{ filters: { archived: true } },
+		]);
+		expect(chatKeys.details()).toEqual(["chats", "detail"]);
+		expect(chatKeys.detail(chatId)).toEqual(["chats", "detail", chatId]);
+		expect(chatKeys.messages(chatId)).toEqual([
+			"chats",
+			"detail",
+			chatId,
+			"messages",
+		]);
+		expect(chatKeys.debugRun(chatId, "run-1")).toEqual([
+			"chats",
+			"detail",
+			chatId,
+			"debug-runs",
+			"run-1",
+		]);
+		expect(chatKeys.search("title:fix")).toEqual([
+			"chats",
+			"search",
+			{ q: "title:fix" },
+		]);
+		expect(chatKeys.byWorkspacePrefix()).toEqual(["chats", "by-workspace"]);
+	});
+
+	it("sorts workspace ids so argument order cannot fork the cache", () => {
+		expect(hashKey(chatKeys.byWorkspace(["ws-2", "ws-1"]))).toBe(
+			hashKey(chatKeys.byWorkspace(["ws-1", "ws-2"])),
+		);
+	});
+
+	it("hashes every empty filter input to one cache entry", () => {
+		const expected = hashKey(chatKeys.list());
+
+		expect(hashKey(chatKeys.list({}))).toBe(expected);
+		expect(hashKey(chatKeys.list({ prStatuses: [] }))).toBe(expected);
+		expect(hashKey(chatKeys.list({ sources: [] }))).toBe(expected);
+		expect(hashKey(chatKeys.list({ chatStatus: undefined }))).toBe(expected);
+	});
+
+	it("keeps archived:false, which is a real filter value", () => {
+		expect(hashKey(chatKeys.list({ archived: false }))).not.toBe(
+			hashKey(chatKeys.list({})),
+		);
+	});
+
+	it("hashes array order variants together and requests the same q", () => {
+		const ascending = infiniteChats({
+			prStatuses: ["open", "draft"],
+			sources: ["shared_with_me", "created_by_me"],
+		});
+		const descending = infiniteChats({
+			prStatuses: ["draft", "open"],
+			sources: ["created_by_me", "shared_with_me"],
+		});
+
+		expect(hashKey(ascending.queryKey)).toBe(hashKey(descending.queryKey));
+
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		ascending.queryFn({ pageParam: 0 });
+		descending.queryFn({ pageParam: 0 });
+		const [firstCall, secondCall] = vi.mocked(API.experimental.getChats).mock
+			.calls;
+		expect(firstCall[0]?.q).toBe(
+			"pr_status:draft,open source:created_by_me,shared_with_me",
+		);
+		expect(secondCall[0]?.q).toBe(firstCall[0]?.q);
+	});
+
+	it("matches only infinite lists under the lists() prefix", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		queryClient.setQueryData(chatKeys.list({ archived: false }), {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatKeys.search("fix"), [makeChat(chatId)]);
+		queryClient.setQueryData(chatKeys.byWorkspace(["ws-1"]), {
+			"ws-1": chatId,
+		});
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.messages(chatId), []);
+		queryClient.setQueryData(
+			chatKeys.costSummary("me"),
+			{} as TypesGen.ChatCostSummary,
+		);
+
+		const matched = queryClient
+			.getQueryCache()
+			.findAll({ queryKey: chatKeys.lists() })
+			.map((query) => query.queryKey);
+
+		expect(matched).toEqual([chatKeys.list({ archived: false })]);
+	});
+});
+
+describe("canonicalizeChatListFilters", () => {
+	it("drops absent fields and empty arrays", () => {
+		expect(
+			canonicalizeChatListFilters({
+				archived: false,
+				chatStatus: undefined,
+				prStatuses: [],
+				sources: [],
+			}),
+		).toEqual({ archived: false });
+	});
+
+	it("orders array values", () => {
+		expect(
+			canonicalizeChatListFilters({
+				prStatuses: ["closed", "draft"],
+				sources: ["shared_with_me", "created_by_me"],
+			}),
+		).toEqual({
+			prStatuses: ["draft", "closed"],
+			sources: ["created_by_me", "shared_with_me"],
+		});
 	});
 });
 
@@ -1718,70 +1844,73 @@ describe("diff_status_change invalidation scope", () => {
 	// invalidate only the individual chat detail and diff-contents
 	// queries, NOT the chat list (sidebar) or messages.
 
-	it("exact chatKey invalidation does not cascade to messages or diff-contents", async () => {
+	it("exact detail invalidation does not cascade to messages or diff-contents", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
 		// Seed all the queries that are active on the /agents/:id page.
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
-		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.messages(chatId), []);
+		queryClient.setQueryData(chatKeys.diffContents(chatId), { files: [] });
+		queryClient.setQueryData(chatKeys.list(), {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
 
 		// This is what the fixed handler does, exact: true.
 		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
 
-		// chatKey itself should be invalidated.
+		// The chat detail itself should be invalidated.
 		expect(
-			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
-			"chatKey should be invalidated",
+			queryClient.getQueryState(chatKeys.detail(chatId))?.isInvalidated,
+			"the chat detail should be invalidated",
 		).toBe(true);
 
 		// Messages should NOT be invalidated.
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated by exact chatKey",
+			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
+			"chat messages should NOT be invalidated by an exact detail filter",
 		).not.toBe(true);
 
 		// Diff-contents should NOT be invalidated.
 		expect(
-			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
-			"chatDiffContentsKey should NOT be invalidated by exact chatKey",
+			queryClient.getQueryState(chatKeys.diffContents(chatId))?.isInvalidated,
+			"chat diff contents should NOT be invalidated by an exact detail filter",
 		).not.toBe(true);
 
 		// Chat list should NOT be invalidated.
 		expect(
-			queryClient.getQueryState(chatsKey)?.isInvalidated,
-			"chatsKey should NOT be invalidated by exact chatKey",
+			queryClient.getQueryState(chatKeys.list())?.isInvalidated,
+			"infinite chats should NOT be invalidated by an exact detail filter",
 		).not.toBe(true);
 	});
 
-	it("without exact: true, chatKey invalidation cascades to messages and diff-contents (the old bug)", async () => {
+	it("without exact: true, detail invalidation cascades to messages and diff-contents (the old bug)", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+		queryClient.setQueryData(chatKeys.detail(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatKeys.messages(chatId), []);
+		queryClient.setQueryData(chatKeys.diffContents(chatId), { files: [] });
 
 		// This is what the OLD (broken) handler did, no exact: true.
 		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
+			queryKey: chatKeys.detail(chatId),
 		});
 
-		// Without exact: true, ALL queries starting with ["chats", chatId]
-		// get invalidated, including messages and diff-contents.
+		// Without exact: true, every sub-resource of the chat detail key
+		// gets invalidated, including messages and diff-contents.
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey IS invalidated without exact: true (old bug)",
+			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
+			"chat messages ARE invalidated without exact: true (old bug)",
 		).toBe(true);
 
 		expect(
-			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
-			"chatDiffContentsKey IS invalidated without exact: true (old bug)",
+			queryClient.getQueryState(chatKeys.diffContents(chatId))?.isInvalidated,
+			"chat diff contents ARE invalidated without exact: true (old bug)",
 		).toBe(true);
 	});
 });
@@ -2637,7 +2766,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 
 		seedInfiniteChats(queryClient, [cachedChat]);
-		queryClient.setQueryData(chatKey(chatId), cachedChat);
+		queryClient.setQueryData(chatKeys.detail(chatId), cachedChat);
 
 		mergeWatchedChatIntoCaches(queryClient, watchedChat, {
 			eventKind: "status_change",
@@ -2649,7 +2778,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
 		).toMatchObject({
 			status: "running",
 			last_model_config_id: "model-new",
@@ -2677,7 +2806,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 
 		seedInfiniteChats(queryClient, [parent]);
-		queryClient.setQueryData(chatKey(childId), cachedChild);
+		queryClient.setQueryData(chatKeys.detail(childId), cachedChild);
 
 		mergeWatchedChatIntoCaches(queryClient, watchedChild, {
 			eventKind: "status_change",
@@ -2689,7 +2818,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(childId)),
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(childId)),
 		).toMatchObject({
 			status: "running",
 			last_model_config_id: "model-new",
@@ -2718,7 +2847,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 
 		seedInfiniteChats(queryClient, [cachedChat]);
-		queryClient.setQueryData(chatKey(chatId), cachedChat);
+		queryClient.setQueryData(chatKeys.detail(chatId), cachedChat);
 
 		mergeWatchedChatIntoCaches(queryClient, staleWatchChat, {
 			eventKind: "status_change",
@@ -2733,7 +2862,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
 		).toMatchObject({
 			status: "waiting",
 			title: "Fresh title",
@@ -2829,8 +2958,8 @@ describe("chat ACL query factories", () => {
 
 		const query = chatACL(chatId);
 
-		expect(chatACLKey(chatId)).toEqual(["chats", chatId, "acl"]);
-		expect(query.queryKey).toEqual(chatACLKey(chatId));
+		expect(chatKeys.acl(chatId)).toEqual(["chats", "detail", chatId, "acl"]);
+		expect(query.queryKey).toEqual(chatKeys.acl(chatId));
 		await expect(query.queryFn()).resolves.toEqual(acl);
 		expect(API.experimental.getChatACL).toHaveBeenCalledWith(chatId);
 	});
@@ -2838,7 +2967,7 @@ describe("chat ACL query factories", () => {
 	it("sets one chat user role and invalidates the ACL", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		queryClient.setQueryData(chatKeys.acl(chatId), { users: [], groups: [] });
 		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
 
 		const mutation = setChatUserRole(queryClient);
@@ -2849,7 +2978,7 @@ describe("chat ACL query factories", () => {
 		});
 
 		await mutation.onSuccess?.(undefined, variables);
-		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+		expect(queryClient.getQueryState(chatKeys.acl(chatId))?.isInvalidated).toBe(
 			true,
 		);
 	});
@@ -2857,7 +2986,7 @@ describe("chat ACL query factories", () => {
 	it("sets one chat group role and invalidates the ACL", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		queryClient.setQueryData(chatKeys.acl(chatId), { users: [], groups: [] });
 		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
 
 		const mutation = setChatGroupRole(queryClient);
@@ -2868,7 +2997,7 @@ describe("chat ACL query factories", () => {
 		});
 
 		await mutation.onSuccess?.(undefined, variables);
-		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+		expect(queryClient.getQueryState(chatKeys.acl(chatId))?.isInvalidated).toBe(
 			true,
 		);
 	});

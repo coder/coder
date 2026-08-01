@@ -2,7 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { expect, userEvent, within } from "storybook/test";
-import { chatUsageLimitStatusKey } from "#/api/queries/chats";
+import { chatKeys } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type {
@@ -23,7 +23,7 @@ import { UsageIndicator } from "./UsageIndicator";
 
 const withUsageLimitStatus = (status: ChatUsageLimitStatus) => (Story: FC) => {
 	const queryClient = useQueryClient();
-	queryClient.setQueryData(chatUsageLimitStatusKey, status);
+	queryClient.setQueryData(chatKeys.usageLimitStatus(), status);
 	return <Story />;
 };
 

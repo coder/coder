@@ -11,11 +11,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
-import {
-	chatMessagesKey,
-	chatPromptsKey,
-	updateInfiniteChatsCache,
-} from "#/api/queries/chats";
+import { chatKeys, updateInfiniteChatsCache } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -43,7 +39,7 @@ const writeQueuedMessagesToCache = (
 	const nextQueuedMessages = queuedMessages ?? [];
 	queryClient.setQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatID), (currentData) => {
+	>(chatKeys.messages(chatID), (currentData) => {
 		if (!currentData?.pages?.length) {
 			return currentData;
 		}
@@ -72,7 +68,7 @@ const readQueuedMessagesFromCache = (
 	}
 	return queryClient.getQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
+	>(chatKeys.messages(chatID))?.pages[0]?.queued_messages;
 };
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
@@ -200,7 +196,7 @@ export const useChatStore = (
 			}
 			queryClient.setQueryData<
 				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
+			>(chatKeys.messages(chatID), (currentData) => {
 				if (!currentData?.pages?.length) {
 					return currentData;
 				}
@@ -237,7 +233,7 @@ export const useChatStore = (
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
 				void queryClient.invalidateQueries({
-					queryKey: chatPromptsKey(chatID),
+					queryKey: chatKeys.prompts(chatID),
 					exact: true,
 				});
 			}
@@ -252,7 +248,7 @@ export const useChatStore = (
 			}
 			queryClient.setQueryData<
 				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
+			>(chatKeys.messages(chatID), (currentData) => {
 				if (!currentData?.pages?.length) {
 					return currentData;
 				}

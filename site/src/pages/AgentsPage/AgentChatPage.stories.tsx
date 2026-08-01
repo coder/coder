@@ -10,13 +10,9 @@ import {
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
-	chatDiffContentsKey,
-	chatKey,
-	chatMessagesKey,
+	chatKeys,
 	chatModelConfigs,
 	chatModelsKey,
-	chatPromptsKey,
-	chatsKey,
 	mcpServerConfigsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -270,20 +266,19 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatKeys.detail(CHAT_ID), data: chatWithDiffStatus },
 		{
-			key: chatMessagesKey(CHAT_ID),
+			key: chatKeys.messages(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
 		},
 		{
-			key: chatPromptsKey(CHAT_ID),
+			key: chatKeys.prompts(CHAT_ID),
 			data: {
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
-			key: chatDiffContentsKey(CHAT_ID),
+			key: chatKeys.diffContents(CHAT_ID),
 			data: {
 				chat_id: CHAT_ID,
 				diff: opts?.diffUrl ? sampleDiff : undefined,
@@ -2983,9 +2978,9 @@ export const SendResponseAfterChatSwitch: Story = {
 				{ messages: [], queued_messages: [], has_more: false },
 				{ diffUrl: undefined },
 			),
-			{ key: chatKey(SWITCHED_CHAT_ID), data: switchedChat },
+			{ key: chatKeys.detail(SWITCHED_CHAT_ID), data: switchedChat },
 			{
-				key: chatMessagesKey(SWITCHED_CHAT_ID),
+				key: chatKeys.messages(SWITCHED_CHAT_ID),
 				data: {
 					pages: [
 						{
@@ -2998,11 +2993,11 @@ export const SendResponseAfterChatSwitch: Story = {
 				},
 			},
 			{
-				key: chatPromptsKey(SWITCHED_CHAT_ID),
+				key: chatKeys.prompts(SWITCHED_CHAT_ID),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
 			{
-				key: chatDiffContentsKey(SWITCHED_CHAT_ID),
+				key: chatKeys.diffContents(SWITCHED_CHAT_ID),
 				data: { chat_id: SWITCHED_CHAT_ID } satisfies TypesGen.ChatDiffContents,
 			},
 		],
