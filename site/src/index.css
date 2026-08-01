@@ -3,9 +3,20 @@
 	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
 */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+	Tailwind v4 entrypoint. We import the theme and utilities layers only and
+	intentionally omit `tailwindcss/preflight` so Tailwind does not inject its
+	base reset. MUI ships its own CssBaseline, and adding Tailwind's preflight
+	on top of it changes the rendered output. This mirrors the v3
+	`corePlugins.preflight: false` setting, which v4 no longer supports.
+
+	The legacy JS config (theme, plugins, content, darkMode, important) is still
+	loaded via `@config` so class generation is identical to v3.
+*/
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@config "../tailwind.config.js";
 
 @font-face {
 	font-family: "seti";
@@ -435,6 +446,81 @@
 @layer utilities {
 	.text-xs-mono {
 		@apply text-xs font-mono font-medium;
+	}
+}
+
+/*
+	Tailwind v4 compatibility shims.
+
+	Tailwind v4 rebased several default utilities. The rules below restore the
+	v3 output so this upgrade is visually a no-op while MUI is still in play.
+	They live at the end of `@layer utilities`, so they override Tailwind's
+	generated utilities of the same name by source order at equal specificity.
+	Remove each shim once its usages migrate to the native v4 utility noted
+	inline. (`ring` width and `drop-shadow-md` are shimmed in tailwind.config.js
+	instead, and custom-color opacity via the `<alpha-value>` token there.)
+*/
+@layer utilities {
+	/* v4 `shadow-sm` == v3 `shadow` (medium). v3 `shadow-sm` was smaller.
+	   Native v4 equivalent: `shadow-xs`. */
+	.shadow-sm {
+		--tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+		box-shadow:
+			var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+			var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+	}
+
+	/* v4 `outline-none` only sets `outline-style: none`. v3 drew a transparent
+	   outline so a visible focus ring appears under forced-colors mode.
+	   Native v4 equivalent: `outline-hidden`. */
+	.outline-none {
+		outline: 2px solid transparent;
+		outline-offset: 2px;
+	}
+
+	/* v4 `backdrop-blur-sm` is 8px; v3 was 4px. Only the token is overridden so
+	   the generated backdrop-filter chain still applies.
+	   Native v4 equivalent: `backdrop-blur-xs`. */
+	.backdrop-blur-sm {
+		--tw-backdrop-blur: blur(4px);
+	}
+
+	/* v4 dropped `-webkit-background-clip` from `bg-clip-text`, which WebKit and
+	   Blink still require for gradient/clipped text. */
+	.bg-clip-text {
+		-webkit-background-clip: text;
+	}
+
+	/* v4 `container` no longer applies the responsive max-widths that the v3
+	   core plugin generated. Restore the v3 breakpoints (no centering/padding,
+	   matching the v3 defaults this project relied on). */
+	.container {
+		width: 100%;
+	}
+	@media (min-width: 640px) {
+		.container {
+			max-width: 640px;
+		}
+	}
+	@media (min-width: 768px) {
+		.container {
+			max-width: 768px;
+		}
+	}
+	@media (min-width: 1024px) {
+		.container {
+			max-width: 1024px;
+		}
+	}
+	@media (min-width: 1280px) {
+		.container {
+			max-width: 1280px;
+		}
+	}
+	@media (min-width: 1536px) {
+		.container {
+			max-width: 1536px;
+		}
 	}
 }
 
