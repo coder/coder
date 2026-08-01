@@ -17,6 +17,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type {
 	SelectedBaseMeta,
@@ -30,6 +31,23 @@ interface TemplateCustomizationsStepProps {
 		value: string,
 	) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
+}
+
+/**
+ * Returns true when required customization fields are set and the selected
+ * organization has provisioners (or provisioner status is still unknown).
+ */
+export function customizationsComplete(
+	state: Pick<
+		TemplateBuilderWizardState,
+		"name" | "organizationId" | "hasProvisioners"
+	>,
+): boolean {
+	return (
+		state.name.trim() !== "" &&
+		Boolean(state.organizationId) &&
+		state.hasProvisioners !== false
+	);
 }
 
 export const TemplateCustomizationsStep: FC<
@@ -86,8 +104,12 @@ export const TemplateCustomizationsStep: FC<
 
 				{/* Two-column form grid */}
 				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
-					{/* Left column */}
-					<div className="flex flex-col gap-2">
+					<div
+						className={cn(
+							"flex flex-col gap-2",
+							orgOptions.length <= 1 && "col-span-2",
+						)}
+					>
 						<Label htmlFor="template-display-name">Display name</Label>
 						<Input
 							id="template-display-name"
@@ -97,8 +119,8 @@ export const TemplateCustomizationsStep: FC<
 						/>
 					</div>
 
-					{/* Right column */}
-					{orgOptions.length > 0 && (
+					{/* Only ask when the user has a real choice. */}
+					{orgOptions.length > 1 && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="organization">
 								Organization
@@ -116,7 +138,6 @@ export const TemplateCustomizationsStep: FC<
 						</div>
 					)}
 
-					{/* Left column */}
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="template-description">Description</Label>
 						<Textarea
@@ -140,7 +161,6 @@ export const TemplateCustomizationsStep: FC<
 						/>
 					</div>
 
-					{/* Right column */}
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="template-name">
 							ID

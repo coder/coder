@@ -45,7 +45,10 @@ import {
 	WIZARD_STEPS,
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
-import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
+import {
+	customizationsComplete,
+	TemplateCustomizationsStep,
+} from "./TemplateCustomizationsStep";
 import {
 	initWizardState,
 	type SelectedBaseMeta,
@@ -358,7 +361,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "" && state.hasProvisioners !== false;
+			return customizationsComplete(state);
 		default:
 			return true;
 	}
