@@ -52,7 +52,13 @@ export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 					for more information.
 				</p>
 			</div>
-			<Button size="icon" variant="subtle" onClick={onDismiss} className="-m-2">
+			<Button
+				aria-label="Dismiss"
+				size="icon"
+				variant="subtle"
+				onClick={onDismiss}
+				className="-m-2"
+			>
 				<XIcon />
 			</Button>
 		</div>

@@ -4,6 +4,9 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { buildInfoKey } from "#/api/queries/buildInfo";
+import { deploymentStatsQueryKey } from "#/api/queries/deployment";
+import { updateCheckQueryKey } from "#/api/queries/updateCheck";
 import type { UpdateCheckResponse } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -23,6 +26,7 @@ import {
 import { DashboardFullPage, DashboardLayout } from "./DashboardLayout";
 
 const outdatedUpdateCheck: UpdateCheckResponse = {
+	...MockUpdateCheck,
 	current: false,
 	version: "v0.12.9",
 	url: "https://github.com/coder/coder/releases/tag/v0.12.9",
@@ -49,9 +53,9 @@ const meta: Meta<typeof DashboardLayout> = {
 			routing: reactRouterOutlet({ path: "/" }, pageContent),
 		}),
 		queries: [
-			{ key: ["buildInfo"], data: MockBuildInfo },
-			{ key: ["updateCheck"], data: MockUpdateCheck },
-			{ key: ["deployment", "stats"], data: MockDeploymentStats },
+			{ key: buildInfoKey, data: MockBuildInfo },
+			{ key: updateCheckQueryKey, data: MockUpdateCheck },
+			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
 		],
 	},
 };
@@ -90,9 +94,9 @@ export const ForMember: Story = {
 export const UpdateAvailable: Story = {
 	parameters: {
 		queries: [
-			{ key: ["buildInfo"], data: MockBuildInfo },
-			{ key: ["updateCheck"], data: outdatedUpdateCheck },
-			{ key: ["deployment", "stats"], data: MockDeploymentStats },
+			{ key: buildInfoKey, data: MockBuildInfo },
+			{ key: updateCheckQueryKey, data: outdatedUpdateCheck },
+			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
 		],
 	},
 	beforeEach: () => {
