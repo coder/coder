@@ -162,7 +162,7 @@
 		"autoprefixer": "10.5.0",
 		"babel-plugin-react-compiler": "1.0.0",
 		"dpdm": "3.15.1",
-		"express": "4.21.2",
+		"express": "4.22.2",
 		"jest-canvas-mock": "2.5.2",
 		"jest-websocket-mock": "2.5.0",
 		"jsdom": "27.2.0",
