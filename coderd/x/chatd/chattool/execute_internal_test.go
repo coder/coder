@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -97,4 +98,69 @@ func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
 	var result ExecuteResult
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	return result
+}
+
+func TestIdempotencyKeyFromContext(t *testing.T) {
+	t.Parallel()
+
+	key := func(assistantMessageID int64, toolCallID string) string {
+		ctx := WithDispatchIdentity(context.Background(), uuid.New(), assistantMessageID)
+		return idempotencyKeyFromContext(WithToolCallID(ctx, toolCallID))
+	}
+
+	t.Run("Format", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, "42-toolu_abc", key(42, "toolu_abc"))
+	})
+
+	t.Run("ChatIsNotPartOfTheKey", func(t *testing.T) {
+		t.Parallel()
+
+		keyForChat := func(chatID uuid.UUID) string {
+			ctx := WithDispatchIdentity(context.Background(), chatID, 42)
+			return idempotencyKeyFromContext(WithToolCallID(ctx, "toolu_abc"))
+		}
+		require.Equal(t, keyForChat(uuid.New()), keyForChat(uuid.New()))
+	})
+
+	t.Run("Unidentified", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, idempotencyKeyFromContext(context.Background()))
+		require.Empty(t, key(0, "toolu_abc"))
+		require.Empty(t, key(42, ""))
+	})
+
+	// The message ID is decimal digits, so the first "-" always splits
+	// the pair back apart even when the tool call ID contains one.
+	t.Run("DistinctPairsCannotCollide", func(t *testing.T) {
+		t.Parallel()
+
+		seen := make(map[string]struct{})
+		for _, tc := range []struct {
+			id         int64
+			toolCallID string
+		}{
+			{4, "2-x"},
+			{42, "-x"},
+			{42, "x"},
+			{4, "2x"},
+			{1, "1-1"},
+			{11, "1"},
+			{11, "-1"},
+		} {
+			got := key(tc.id, tc.toolCallID)
+			require.NotContains(t, seen, got)
+			seen[got] = struct{}{}
+		}
+	})
+
+	// Tool call IDs are provider-supplied, so the key must survive
+	// characters that need escaping in a URL or a shell.
+	t.Run("UnusualToolCallIDs", func(t *testing.T) {
+		t.Parallel()
+
+		for _, toolCallID := range []string{"a/b", "a b", "a%b", "a?b#c", "..", "ünïcøde"} {
+			require.Equal(t, "7-"+toolCallID, key(7, toolCallID))
+		}
+	})
 }
