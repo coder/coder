@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
 const meta: Meta<typeof DynamicClientRegistrationSetting> = {
@@ -177,40 +184,60 @@ export const KeepsFocusWhileUpdating: Story = {
 	render: function Harness(args) {
 		const [enabled, setEnabled] = useState(true);
 		const [isUpdating, setIsUpdating] = useState(false);
+		const [pending, setPending] = useState<boolean | undefined>(undefined);
 
 		return (
-			<DynamicClientRegistrationSetting
-				{...args}
-				enabled={enabled}
-				isUpdating={isUpdating}
-				onChange={(next) => {
-					setIsUpdating(true);
-					// Stands in for the mutation round trip, which is the window where
-					// a natively disabled button would blur.
-					setTimeout(() => {
-						setEnabled(next);
-						setIsUpdating(false);
-					}, 50);
-				}}
-			/>
+			<div className="flex flex-col gap-6">
+				{/*
+				 * The request ends when the story says so, not when a timer says so.
+				 * A timer would race the assertions that require the in-flight state,
+				 * and this suite is documented to stall under CPU contention.
+				 */}
+				<button
+					type="button"
+					onClick={() => {
+						if (pending !== undefined) {
+							setEnabled(pending);
+							setPending(undefined);
+							setIsUpdating(false);
+						}
+					}}
+				>
+					Finish request
+				</button>
+
+				<DynamicClientRegistrationSetting
+					{...args}
+					enabled={enabled}
+					isUpdating={isUpdating}
+					onChange={(next) => {
+						setIsUpdating(true);
+						setPending(next);
+					}}
+				/>
+			</div>
 		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button", { name: "Disable" });
+		const finish = canvas.getByRole("button", { name: "Finish request" });
 
 		button.focus();
 		await userEvent.keyboard("{Enter}");
 
-		// Mid-request. A `disabled` attribute here would have blurred to <body>.
+		// Mid-request, and it stays mid-request until the click below. A `disabled`
+		// attribute here would have blurred to <body>.
 		await expect(button).toHaveAttribute("aria-disabled", "true");
 		await expect(button).toHaveFocus();
 
+		// `fireEvent`, not `userEvent`: clicking with a pointer would move focus to
+		// the harness button and destroy the state under test.
+		fireEvent.click(finish);
+
 		// The same element becomes the opposite action once the request lands, and
 		// focus rides along rather than resetting to the top of the document.
-		await waitFor(() =>
-			expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible(),
-		);
+		await expect(canvas.getByText("Enable")).toBeVisible();
 		await expect(button).toHaveFocus();
 	},
 };
@@ -221,9 +248,10 @@ export const KeepsFocusWhileUpdating: Story = {
  * open, the dialog stays put and the admin closes it themselves. It must
  * never open, close, or reopen on its own as `enabled` changes underneath.
  *
- * The external change is armed on a timer rather than driven by a control
- * clicked mid-dialog. The dialog is modal, so any pointer interaction outside
- * it dismisses it, which would destroy the state under test.
+ * The external change is driven by the story rather than a timer, and applied
+ * with `fireEvent` so no `pointerdown` reaches Radix's dismiss layer. A real
+ * pointer click outside a modal dialog closes it, which would destroy the state
+ * under test.
  */
 export const SurvivesExternalEnabledChanges: Story = {
 	render: function Harness(args) {
@@ -231,20 +259,14 @@ export const SurvivesExternalEnabledChanges: Story = {
 
 		return (
 			<div className="flex flex-col gap-6">
-				<button
-					type="button"
-					onClick={() => {
-						// Lands while the dialog is open, standing in for another admin
-						// enabling the setting and this tab refetching.
-						setTimeout(() => setEnabled(true), 150);
-					}}
-				>
-					Arm external enable
-				</button>
-
-				<button type="button" onClick={() => setEnabled(false)}>
-					Set externally disabled
-				</button>
+				<div className="flex flex-row gap-4">
+					<button type="button" onClick={() => setEnabled(true)}>
+						Enable externally
+					</button>
+					<button type="button" onClick={() => setEnabled(false)}>
+						Disable externally
+					</button>
+				</div>
 
 				<DynamicClientRegistrationSetting
 					{...args}
@@ -262,25 +284,23 @@ export const SurvivesExternalEnabledChanges: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const title = "Enable Dynamic Client Registration?";
 
-		// The dialog animates in and out, so it is present but transparent on the
-		// way in and still opaque on the way out. Anything asserting that the
-		// dialog did not close has to outlast that window, or a dialog already
-		// animating out still reads as visible.
-		const settleTransition = () =>
-			new Promise((resolve) => setTimeout(resolve, 400));
+		// Role queries skip the story root once the modal marks it aria-hidden, so
+		// these are found by text and captured before the dialog opens.
+		const enableExternally = canvas.getByText("Enable externally");
+		const disableExternally = canvas.getByText("Disable externally");
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Arm external enable" }),
-		);
 		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
 		await waitFor(() => expect(body.getByText(title)).toBeVisible());
 		const dialog = body.getByTestId("dialog");
 
-		// The armed change lands here. The dialog ignores it: the admin's intent
-		// to confirm is theirs to resolve, not the server's.
-		await settleTransition();
-		await expect(body.getByText(title)).toBeVisible();
-		// Still the same node, so it was never torn down and rebuilt.
+		// The external change lands here, with the dialog open. The dialog ignores
+		// it: the admin's intent to confirm is theirs to resolve, not the server's.
+		fireEvent.click(enableExternally);
+
+		// Radix flips `data-state` to "closed" the moment something closes the
+		// dialog, so this needs no waiting and cannot be fooled by an animation
+		// still in progress.
+		await expect(dialog).toHaveAttribute("data-state", "open");
 		await expect(body.getByTestId("dialog")).toBe(dialog);
 
 		// Cancelling is the admin's own action, so it closes.
@@ -290,10 +310,7 @@ export const SurvivesExternalEnabledChanges: Story = {
 		);
 
 		// Going back to disabled is the transition that used to resurrect it.
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Set externally disabled" }),
-		);
-		await settleTransition();
+		fireEvent.click(disableExternally);
 		await expect(body.queryByText(title)).not.toBeInTheDocument();
 		await expect(args.onChange).not.toHaveBeenCalled();
 	},
