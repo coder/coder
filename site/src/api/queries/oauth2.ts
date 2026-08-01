@@ -134,7 +134,12 @@ export const getSettings = () => {
 export const putSettings = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.putOAuth2ProviderSettings,
-		onSuccess: async () => {
+		// Seed from the response before invalidating. Invalidating resolves
+		// whether or not the refetch succeeds, and a failed refetch keeps the
+		// last successful data, which would render the pre-save value under an
+		// error alert for a save that worked.
+		onSuccess: async (settings: TypesGen.OAuth2ProviderSettings) => {
+			queryClient.setQueryData(oauth2ProviderSettingsKey, settings);
 			await queryClient.invalidateQueries({
 				queryKey: oauth2ProviderSettingsKey,
 			});

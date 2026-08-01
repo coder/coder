@@ -56,11 +56,31 @@ describe("putSettings", () => {
 		});
 		queryClient.setQueryData(appQueryKey, { id: "app-1" });
 
-		await putSettings(queryClient).onSuccess();
+		await putSettings(queryClient).onSuccess(settings);
 
 		expect(queryClient.getQueryState(settingsQueryKey)?.isInvalidated).toBe(
 			true,
 		);
 		expect(queryClient.getQueryState(appQueryKey)?.isInvalidated).toBe(false);
+	});
+
+	// Invalidating resolves whether or not the refetch that follows succeeds, and
+	// a failed refetch keeps the query's last successful data. Seeding the cache
+	// from the response the server just returned is what stops a successful save
+	// from rendering the pre-save value under an error alert.
+	it("writes the saved value into the cache", async () => {
+		const queryClient = createTestQueryClient();
+		const settingsQueryKey = getSettings().queryKey;
+		queryClient.setQueryData(settingsQueryKey, {
+			dynamic_client_registration_enabled: false,
+		});
+
+		await putSettings(queryClient).onSuccess({
+			dynamic_client_registration_enabled: true,
+		});
+
+		expect(queryClient.getQueryData(settingsQueryKey)).toEqual({
+			dynamic_client_registration_enabled: true,
+		});
 	});
 });
