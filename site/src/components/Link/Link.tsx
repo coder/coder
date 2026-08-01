@@ -6,7 +6,7 @@ import { cn } from "#/utils/cn";
 const linkVariants = cva(
 	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
 	 after:hover:content-[''] after:hover:absolute after:hover:left-0 after:hover:w-full after:hover:h-px after:hover:bg-current after:hover:bottom-px
-	 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm
 	 visited:text-content-link pl-0.5`, //pl-0.5 adjusts the underline spacing to align with the icon on the right.
 	{

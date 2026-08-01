@@ -300,7 +300,7 @@ export function Autocomplete<TOption>({
 							`flex h-10 w-full items-center rounded-md border border-border border-solid
 							bg-transparent px-3 py-2 text-sm shadow-sm transition-colors
 							placeholder:text-content-secondary text-content-primary
-							focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 							disabled:cursor-not-allowed disabled:opacity-50`,
 							className,
 						)}
@@ -381,7 +381,7 @@ export function Autocomplete<TOption>({
 						rounded-md border border-border border-solid bg-transparent px-3 py-2
 						text-sm shadow-sm transition-colors
 						placeholder:text-content-secondary
-						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+						focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 						disabled:cursor-not-allowed disabled:opacity-50`,
 						className,
 					)}

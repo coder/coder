@@ -333,7 +333,7 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 						<button
 							type="button"
 							aria-label="About reasoning effort"
-							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						>
 							<InfoIcon aria-hidden="true" className="size-3" />
 						</button>

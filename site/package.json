@@ -111,7 +111,7 @@
 		"sonner": "2.0.7",
 		"streamdown": "2.5.0",
 		"tailwind-merge": "2.6.1",
-		"tailwindcss-animate": "1.0.7",
+		"tw-animate-css": "1.4.0",
 		"tzdata": "1.0.46",
 		"ua-parser-js": "1.0.41",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
@@ -135,6 +135,7 @@
 		"@storybook/addon-themes": "10.3.3",
 		"@storybook/addon-vitest": "10.3.3",
 		"@storybook/react-vite": "10.3.3",
+		"@tailwindcss/postcss": "4.3.3",
 		"@tailwindcss/typography": "0.5.19",
 		"@testing-library/jest-dom": "6.9.1",
 		"@testing-library/react": "14.3.1",
@@ -159,7 +160,6 @@
 		"@types/uuid": "9.0.2",
 		"@vitejs/plugin-react": "6.0.1",
 		"@vitest/browser-playwright": "4.1.7",
-		"autoprefixer": "10.5.0",
 		"babel-plugin-react-compiler": "1.0.0",
 		"dpdm": "3.15.1",
 		"express": "4.21.2",
@@ -176,7 +176,7 @@
 		"ssh2": "1.17.0",
 		"storybook": "10.3.3",
 		"storybook-addon-remix-react-router": "6.0.0",
-		"tailwindcss": "3.4.18",
+		"tailwindcss": "4.3.3",
 		"ts-proto": "1.181.2",
 		"typescript": "6.0.2",
 		"vite": "8.0.10",
@@ -184,9 +184,9 @@
 		"vitest": "4.1.5"
 	},
 	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
+		"chrome 111",
+		"firefox 113",
+		"safari 16.2"
 	],
 	"resolutions": {
 		"optionator": "0.9.3",

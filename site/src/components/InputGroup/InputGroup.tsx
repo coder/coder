@@ -12,7 +12,7 @@ export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 			role="group"
 			className={cn(
 				// Base styles
-				"group/input-group relative flex h-10 w-full min-w-0 items-center rounded-md border border-solid border-border bg-transparent transition-colors outline-none",
+				"group/input-group relative flex h-10 w-full min-w-0 items-center rounded-md border border-solid border-border bg-transparent transition-colors outline-hidden",
 				// Focus-visible ring when input inside is focused
 				"has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-content-link",
 				// Invalid state

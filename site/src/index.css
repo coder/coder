@@ -3,9 +3,36 @@
 	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
 */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+	Tailwind v4 entrypoint. We import the theme and utilities layers only and
+	intentionally omit `tailwindcss/preflight` so Tailwind does not inject its
+	base reset. MUI ships its own CssBaseline, and adding Tailwind's preflight
+	on top of it changes the rendered output. This mirrors the v3
+	`corePlugins.preflight: false` setting.
+
+	The legacy JS config (theme, plugins, content, darkMode, important) is still
+	loaded via `@config` so class generation is identical to v3.
+*/
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+/*
+	v4-native replacement for `tailwindcss-animate` (what shadcn/ui uses on v4).
+	It drives the same `animate-in`/`fade-*`/`zoom-*`/`slide-*` utilities but via
+	v4's `translate`/`scale`/`rotate` properties, so enter/exit animations compose
+	correctly with translate-based centering (e.g. Dialog, Popover). `@import`
+	rules must precede other at-rules, so this sits above `@config`.
+*/
+@import "tw-animate-css";
+@config "../tailwind.config.js";
+
+/*
+	v4 gates the `hover:` variant behind `@media (hover: hover)` so hover styles
+	apply only on hover-capable pointers. v3 emitted `hover:` unconditionally.
+	Redefine the variant to the v3 behaviour so this migration is a no-op; drop
+	this to adopt v4's pointer-aware hover.
+*/
+@custom-variant hover (&:hover);
 
 @font-face {
 	font-family: "seti";
@@ -357,6 +384,23 @@
 		@apply border-border;
 	}
 
+	/*
+		Preflight is disabled to keep MUI's baseline authoritative, so there is
+		no global `border-style: solid`. In v3 the width utilities (`border`,
+		`border-b`, ...) set only `border-width`, so a bare width utility painted
+		nothing until `border-solid` (used ~340 places) supplied the style. v4's
+		width utilities also emit `border-style: var(--tw-border-style)`, whose
+		registered initial value is `solid`, which would paint borders the v3
+		build left invisible. Defaulting the token to `none` restores v3: width
+		utilities stay invisible until `border-solid`/`border-dashed`/etc. set a
+		style on the element.
+	*/
+	*,
+	::before,
+	::after {
+		--tw-border-style: none;
+	}
+
 	html,
 	body,
 	#root,
@@ -435,6 +479,55 @@
 @layer utilities {
 	.text-xs-mono {
 		@apply text-xs font-mono font-medium;
+	}
+}
+
+/*
+	Accepted v4 behavioural differences (intentionally not shimmed):
+
+	- `space-*` / `divide-*`: v4 changed the generated selector, margin
+	  direction (last-child vs sibling) and specificity (0,3,0 -> 0,0,0).
+	  Rendering is identical for normal stacks, which is all this app uses, so
+	  we accept v4's implementation rather than shim 100+ call sites.
+	- Custom-color opacity compiles to `color-mix(...)` behind an `@supports`
+	  guard. The browserslist floor was raised to the `color-mix` baseline
+	  (Chrome 111 / Firefox 113 / Safari 16.2) so the opaque fallback never
+	  applies to a supported browser.
+*/
+
+/*
+	Tailwind v4 compatibility shims.
+
+	Tailwind v4 rebased several default utilities. The rules below restore the
+	v3 output so this upgrade is visually a no-op while MUI is still in play.
+	They live at the end of `@layer utilities`, so they override Tailwind's
+	generated utilities of the same name by source order at equal specificity.
+	Remove each shim once its usages migrate to the native v4 utility noted
+	inline. (`ring` width and `drop-shadow-md` are shimmed in tailwind.config.js
+	instead, custom-color opacity via the `<alpha-value>` token there, and
+	`outline-none` was migrated to the native `outline-hidden` utility.)
+*/
+@layer utilities {
+	/* v4 `shadow-sm` == v3 `shadow` (medium). v3 `shadow-sm` was smaller.
+	   Native v4 equivalent: `shadow-xs`. */
+	.shadow-sm {
+		--tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+		box-shadow:
+			var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+			var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+	}
+
+	/* v4 `backdrop-blur-sm` is 8px; v3 was 4px. Only the token is overridden so
+	   the generated backdrop-filter chain still applies.
+	   Native v4 equivalent: `backdrop-blur-xs`. */
+	.backdrop-blur-sm {
+		--tw-backdrop-blur: blur(4px);
+	}
+
+	/* v4 dropped `-webkit-background-clip` from `bg-clip-text`, which WebKit and
+	   Blink still require for gradient/clipped text. */
+	.bg-clip-text {
+		-webkit-background-clip: text;
 	}
 }
 

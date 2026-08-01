@@ -10,7 +10,7 @@ const fileReferenceChipVariants = cva(
 	{
 		variants: {
 			interactive: {
-				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				false: "cursor-default",
 			},
 			selected: {
@@ -30,7 +30,7 @@ const fileReferenceTriggerVariants = cva(
 	{
 		variants: {
 			interactive: {
-				true: "cursor-pointer focus-visible:outline-none",
+				true: "cursor-pointer focus-visible:outline-hidden",
 				false: "cursor-default",
 			},
 		},
