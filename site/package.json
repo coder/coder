@@ -56,7 +56,6 @@
 		"@lexical/utils": "0.48.0",
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
-		"@mui/system": "5.18.0",
 		"@novnc/novnc": "^1.5.0",
 		"@pierre/diffs": "1.2.7",
 		"@pierre/trees": "1.0.0-beta.4",
