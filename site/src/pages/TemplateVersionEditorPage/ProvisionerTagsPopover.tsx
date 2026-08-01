@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import useTheme from "@mui/system/useTheme";
 import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -22,8 +21,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	tags,
 	onTagsChange,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
@@ -36,13 +33,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 				align="end"
 				className="w-[300px] bg-surface-secondary border-surface-quaternary"
 			>
-				<div
-					css={{
-						color: theme.palette.text.secondary,
-						padding: 20,
-						borderBottom: `1px solid ${theme.palette.divider}`,
-					}}
-				>
+				<div className="text-content-secondary p-5">
 					<VerticalForm>
 						<FormSection
 							classes={{
