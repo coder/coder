@@ -19,6 +19,14 @@
 @config "../tailwind.config.js";
 
 /*
+	v4-native replacement for `tailwindcss-animate` (what shadcn/ui uses on v4).
+	It drives the same `animate-in`/`fade-*`/`zoom-*`/`slide-*` utilities but via
+	v4's `translate`/`scale`/`rotate` properties, so enter/exit animations compose
+	correctly with translate-based centering (e.g. Dialog, Popover).
+*/
+@import "tw-animate-css";
+
+/*
 	v4 gates the `hover:` variant behind `@media (hover: hover)` so hover styles
 	apply only on hover-capable pointers. v3 emitted `hover:` unconditionally.
 	Redefine the variant to the v3 behaviour so this migration is a no-op; drop
@@ -473,6 +481,19 @@
 		@apply text-xs font-mono font-medium;
 	}
 }
+
+/*
+	Accepted v4 behavioural differences (intentionally not shimmed):
+
+	- `space-*` / `divide-*`: v4 changed the generated selector, margin
+	  direction (last-child vs sibling) and specificity (0,3,0 -> 0,0,0).
+	  Rendering is identical for normal stacks, which is all this app uses, so
+	  we accept v4's implementation rather than shim 100+ call sites.
+	- Custom-color opacity compiles to `color-mix(...)` behind an `@supports`
+	  guard. The browserslist floor was raised to the `color-mix` baseline
+	  (Chrome 111 / Firefox 113 / Safari 16.2) so the opaque fallback never
+	  applies to a supported browser.
+*/
 
 /*
 	Tailwind v4 compatibility shims.
