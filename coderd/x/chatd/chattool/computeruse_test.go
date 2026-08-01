@@ -392,6 +392,54 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 	assert.Empty(t, attachments)
 }
 
+func TestComputerUseTool_Run_HoldKeyDurationClamped(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	screenshot := base64.StdEncoding.EncodeToString([]byte("after-hold"))
+
+	mockConn.EXPECT().ExecuteDesktopAction(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		assert.Equal(t, "hold_key", action.Action)
+		// An oversized model-supplied duration is clamped before
+		// being forwarded to the agent, which blocks for it.
+		require.NotNil(t, action.Duration)
+		assert.Equal(t, 30000, *action.Duration)
+		return workspacesdk.DesktopActionResponse{Output: "hold_key action performed"}, nil
+	})
+	mockConn.EXPECT().ExecuteDesktopAction(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		assert.Equal(t, "screenshot", action.Action)
+		return workspacesdk.DesktopActionResponse{
+			Output:           "screenshot",
+			ScreenshotData:   screenshot,
+			ScreenshotWidth:  geometry.DeclaredWidth,
+			ScreenshotHeight: geometry.DeclaredHeight,
+		}, nil
+	})
+
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+		return mockConn, nil
+	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
+
+	call := fantasy.ToolCall{
+		ID:   "test-hold-clamp",
+		Name: "computer",
+		// 10 hours in milliseconds.
+		Input: `{"action":"hold_key","text":"shift","duration":36000000}`,
+	}
+
+	resp, err := tool.Run(context.Background(), call)
+	require.NoError(t, err)
+	assert.Equal(t, "image", resp.Type)
+}
+
 func TestComputerUseTool_Run_Wait(t *testing.T) {
 	t.Parallel()
 
@@ -440,6 +488,60 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+func TestComputerUseTool_Run_WaitClamped(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	mClock := quartz.NewMock(t)
+	followUpScreenshot := base64.StdEncoding.EncodeToString([]byte("after-wait"))
+
+	mockConn.EXPECT().ExecuteDesktopAction(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).Return(workspacesdk.DesktopActionResponse{
+		Output:           "screenshot",
+		ScreenshotData:   followUpScreenshot,
+		ScreenshotWidth:  geometry.DeclaredWidth,
+		ScreenshotHeight: geometry.DeclaredHeight,
+	}, nil).Times(1)
+
+	trap := mClock.Trap().NewTimer("computeruse", "wait")
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+		return mockConn, nil
+	}, nil, mClock, slogtest.Make(t, nil))
+
+	type toolResult struct {
+		resp fantasy.ToolResponse
+		err  error
+	}
+	resultCh := make(chan toolResult, 1)
+	go func() {
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:   "test-wait-clamp",
+			Name: "computer",
+			// 10 hours in milliseconds.
+			Input: `{"action":"wait","duration":36000000}`,
+		})
+		resultCh <- toolResult{resp: resp, err: err}
+	}()
+
+	// An oversized model-supplied wait is clamped to the per-call
+	// cap instead of blocking the tool batch for hours.
+	call := trap.MustWait(ctx)
+	assert.Equal(t, 30*time.Second, call.Duration)
+	call.MustRelease(ctx)
+	trap.Close()
+	mClock.Advance(30 * time.Second).MustWait(ctx)
+
+	result := testutil.RequireReceive(ctx, t, resultCh)
+	require.NoError(t, result.err)
+	assert.Equal(t, "image", result.resp.Type)
+	assert.False(t, result.resp.IsError)
 }
 
 func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
