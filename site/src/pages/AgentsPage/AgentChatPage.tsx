@@ -83,10 +83,12 @@ import {
 import {
 	type ChatStore,
 	type ChatStoreState,
-	selectChatStatus,
-	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import {
+	useDurableChatStatus,
+	useDurableMessageCount,
+} from "./components/ChatConversation/durableChat";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -1222,7 +1224,9 @@ const AgentChatPage: FC = () => {
 		aiGatewayDisabled,
 	});
 	const liveChatStatus =
-		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+		useDurableChatStatus({ store, chatId: agentId }) ??
+		chatRecord?.status ??
+		null;
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
@@ -1496,7 +1500,7 @@ const AgentChatPage: FC = () => {
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
+	const storeMessageCount = useDurableMessageCount({ store, chatId: agentId });
 	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
 		if (

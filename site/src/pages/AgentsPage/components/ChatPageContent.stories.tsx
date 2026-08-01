@@ -49,7 +49,13 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
 		const store = buildThinkingSpacerStore();
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return (
+			<ChatPageTimeline
+				store={store}
+				chatId={CHAT_ID}
+				persistedError={undefined}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -76,7 +82,11 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-				<ChatPageTimeline store={store} persistedError={undefined} />
+				<ChatPageTimeline
+					store={store}
+					chatId={CHAT_ID}
+					persistedError={undefined}
+				/>
 			</ChatWorkspaceContext>
 		);
 	},
@@ -99,7 +109,13 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return (
+			<ChatPageTimeline
+				store={store}
+				chatId={CHAT_ID}
+				persistedError={undefined}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -137,7 +153,13 @@ export const MergedMessagesRenderInIDOrder: Story = {
 			batched(2, "assistant", "bravo"),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return (
+			<ChatPageTimeline
+				store={store}
+				chatId={CHAT_ID}
+				persistedError={undefined}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

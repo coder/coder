@@ -7,7 +7,6 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
-	selectIsAwaitingFirstStreamChunk,
 	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
@@ -16,6 +15,7 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "./chatStore";
+import { useIsAwaitingFirstStreamChunk } from "./durableChat";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";
@@ -113,6 +113,7 @@ export const LiveStreamTailContent = ({
 
 interface LiveStreamTailProps {
 	store: ChatStoreHandle;
+	chatId?: string;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
 	subagentTitles: Map<string, string>;
@@ -123,6 +124,7 @@ interface LiveStreamTailProps {
 
 export const LiveStreamTail = ({
 	store,
+	chatId,
 	persistedError,
 	isTranscriptEmpty,
 	subagentTitles,
@@ -134,10 +136,10 @@ export const LiveStreamTail = ({
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
-	const isAwaitingFirstStreamChunk = useChatSelector(
+	const isAwaitingFirstStreamChunk = useIsAwaitingFirstStreamChunk({
 		store,
-		selectIsAwaitingFirstStreamChunk,
-	);
+		chatId,
+	});
 	const subagentStatusOverrides = useChatSelector(
 		store,
 		selectSubagentStatusOverrides,

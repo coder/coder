@@ -37,7 +37,6 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
-	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -49,6 +48,12 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./chatStore";
+import {
+	useDurableChatStatus,
+	useDurableMessageList,
+	useDurableQueuedMessages,
+	useIsAwaitingFirstStreamChunk,
+} from "./durableChat";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -757,15 +762,14 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					messagesByID: useChatSelector(store, selectMessagesByID),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
 		);
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 		});
 
 		act(() => {
@@ -787,8 +791,8 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1]);
-			expect(result.current.messagesByID.get(1)?.content).toEqual(
+			expect(result.current.messages.map((m) => m.id)).toEqual([1]);
+			expect(result.current.messages.find((m) => m.id === 1)?.content).toEqual(
 				replacementMessage.content,
 			);
 			expect(result.current.streamState).toBeNull();
@@ -1350,7 +1354,10 @@ describe("useChatStore", () => {
 			(options: Parameters<typeof useChatStore>[0]) => {
 				const { store } = useChatStore(options);
 				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{
@@ -3819,7 +3826,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason: vi.fn(),
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 				};
 			},
 			{
@@ -4064,8 +4071,11 @@ describe("thinking indicator event ordering", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					chatStatus: useChatSelector(store, selectChatStatus),
-					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
+					isAwaiting: useIsAwaitingFirstStreamChunk({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{ wrapper },
@@ -4147,8 +4157,11 @@ describe("thinking indicator event ordering", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					chatStatus: useChatSelector(store, selectChatStatus),
-					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
+					isAwaiting: useIsAwaitingFirstStreamChunk({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{ wrapper },
@@ -4225,7 +4238,7 @@ describe("thinking indicator event ordering", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -4765,8 +4778,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
-					messagesByID: useChatSelector(store, selectMessagesByID),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -4810,8 +4822,10 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		// The durable message must be present AND streamState
 		// must be null in the same snapshot.
 		await waitFor(() => {
-			expect(result.current.orderedIDs).toContain(2);
-			expect(result.current.messagesByID.get(2)?.role).toBe("assistant");
+			expect(result.current.messages.map((m) => m.id)).toContain(2);
+			expect(result.current.messages.find((m) => m.id === 2)?.role).toBe(
+				"assistant",
+			);
 			expect(result.current.streamState).toBeNull();
 		});
 	});
@@ -4849,8 +4863,8 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					clearChatErrorReason: vi.fn(),
 				});
 				const streamState = useChatSelector(store, selectStreamState);
-				const messagesByID = useChatSelector(store, selectMessagesByID);
-				const hasDurableAssistant = Array.from(messagesByID.values()).some(
+				const messages = useDurableMessageList({ store, chatId: chatID });
+				const hasDurableAssistant = messages.some(
 					(m) => m.role === "assistant",
 				);
 
@@ -4859,7 +4873,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					hasDurableAssistant,
 				});
 
-				return { streamState, messagesByID };
+				return { streamState, messages };
 			},
 			{ wrapper },
 		);
@@ -4895,7 +4909,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.messagesByID.has(2)).toBe(true);
+			expect(result.current.messages.some((m) => m.id === 2)).toBe(true);
 		});
 
 		// No snapshot should ever have BOTH a durable assistant

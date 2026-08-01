@@ -26,10 +26,8 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import {
-	createChatStore,
-	useChatSelector,
-} from "./components/ChatConversation/chatStore";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import { useDurableMessageCount } from "./components/ChatConversation/durableChat";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -122,13 +120,11 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
 	const store = overrides.store ?? defaultStoreRef.current;
-	const messageCount = useChatSelector(
-		store,
-		(state) => state.messagesByID.size,
-	);
+	const agentId = overrides.agentId ?? AGENT_ID;
+	const messageCount = useDurableMessageCount({ store, chatId: agentId });
 
 	const props = {
-		agentId: AGENT_ID,
+		agentId,
 		sendShortcut: "enter" as const,
 		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",

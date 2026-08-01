@@ -913,6 +913,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline
 									store={store}
+									chatId={agentId}
 									persistedError={persistedError}
 									onEditUserMessage={
 										isOtherUserReadOnly
