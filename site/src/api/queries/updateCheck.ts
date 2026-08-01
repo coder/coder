@@ -1,8 +1,10 @@
 import { API } from "#/api/api";
 
+export const updateCheckQueryKey = ["updateCheck"];
+
 export const updateCheck = () => {
 	return {
-		queryKey: ["updateCheck"],
+		queryKey: updateCheckQueryKey,
 		queryFn: () => API.getUpdateCheck(),
 	};
 };
