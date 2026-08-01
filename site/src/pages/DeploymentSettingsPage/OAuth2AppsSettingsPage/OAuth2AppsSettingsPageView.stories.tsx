@@ -10,7 +10,8 @@ const MockSettingsTab = {
 	canEdit: true,
 	isLoading: false,
 	isUpdating: false,
-	error: undefined,
+	loadError: undefined,
+	updateError: undefined,
 	dynamicClientRegistrationEnabled: false,
 	onDynamicClientRegistrationChange: fn(),
 };
@@ -130,7 +131,7 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 		apps: [],
 		settings: {
 			...MockSettingsTab,
-			error: "settings boom",
+			loadError: "settings boom",
 			dynamicClientRegistrationEnabled: undefined,
 		},
 	},
@@ -157,13 +158,43 @@ export const SettingsUpdateErrorKeepsSettingVisible: Story = {
 	args: {
 		isLoadingApps: false,
 		apps: MockOAuth2ProviderApps,
-		settings: { ...MockSettingsTab, error: "update boom" },
+		settings: { ...MockSettingsTab, updateError: "update boom" },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
 
 		await expect(canvas.getByText("update boom")).toBeVisible();
+		await expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible();
+	},
+};
+
+/**
+ * A load failure that left a usable value behind must not hide the failure of
+ * the save the admin just attempted. This is the state a failed post-save
+ * refetch produces, and the older error used to win it.
+ */
+export const UpdateErrorOutranksStaleLoadError: Story = {
+	args: {
+		isLoadingApps: false,
+		apps: MockOAuth2ProviderApps,
+		settings: {
+			...MockSettingsTab,
+			loadError: "stale refetch failure",
+			updateError: "forbidden: your role changed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
+		await expect(
+			canvas.getByText("forbidden: your role changed"),
+		).toBeVisible();
+		await expect(
+			canvas.queryByText("stale refetch failure"),
+		).not.toBeInTheDocument();
+		// The value is still valid, so the control stays and the admin can retry.
 		await expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible();
 	},
 };

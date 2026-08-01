@@ -37,7 +37,8 @@ const OAuth2AppsSettingsPage: FC = () => {
 								canEdit: canEditSettings,
 								isLoading: settingsQuery.isLoading,
 								isUpdating: updateSettingsMutation.isPending,
-								error: settingsQuery.error ?? updateSettingsMutation.error,
+								loadError: settingsQuery.error,
+								updateError: updateSettingsMutation.error,
 								dynamicClientRegistrationEnabled:
 									settingsQuery.data?.dynamic_client_registration_enabled,
 								onDynamicClientRegistrationChange: (enabled) => {

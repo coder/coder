@@ -41,7 +41,16 @@ type SettingsTab = {
 	canEdit: boolean;
 	isLoading: boolean;
 	isUpdating: boolean;
-	error: unknown;
+	/**
+	 * Kept apart because the two need opposite treatment. A load failure means
+	 * there is no value to act on, so the control must not render. An update
+	 * failure leaves the value valid, so the control stays and the admin can
+	 * retry. Merging them also let the older one hide the newer.
+	 */
+	loadError: unknown;
+	updateError: unknown;
+	// Stays optional: an offline query is `fetchStatus: "paused"`, so `isLoading`
+	// is false with no data and no error.
 	dynamicClientRegistrationEnabled: boolean | undefined;
 	onDynamicClientRegistrationChange: (enabled: boolean) => void;
 };
@@ -52,6 +61,41 @@ type OAuth2AppsSettingsProps = {
 	error: unknown;
 	canCreateApp: boolean;
 	settings?: SettingsTab;
+};
+
+/**
+ * Four states, decided in order. Whether the control renders depends on whether
+ * there is a value to act on, never on which error happens to be set, and the
+ * update error wins the alert because it reports the action the admin just took.
+ */
+const SettingsTabBody: FC<{ settings: SettingsTab }> = ({ settings }) => {
+	if (settings.isLoading) {
+		return <Loader label="Loading settings" />;
+	}
+
+	if (settings.dynamicClientRegistrationEnabled === undefined) {
+		if (settings.loadError) {
+			return <ErrorAlert error={settings.loadError} />;
+		}
+		return (
+			<p className="text-sm text-content-secondary m-0">
+				Settings are unavailable.
+			</p>
+		);
+	}
+
+	const alertError = settings.updateError ?? settings.loadError;
+	return (
+		<div className="flex flex-col gap-4">
+			{Boolean(alertError) && <ErrorAlert error={alertError} />}
+			<DynamicClientRegistrationSetting
+				enabled={settings.dynamicClientRegistrationEnabled}
+				canEdit={settings.canEdit}
+				isUpdating={settings.isUpdating}
+				onChange={settings.onDynamicClientRegistrationChange}
+			/>
+		</div>
+	);
 };
 
 const AddApplicationButton: FC = () => (
@@ -139,34 +183,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 
 				{settings && (
 					<TabsContent value="settings" className="pt-6">
-						{settings.isLoading ? (
-							<Loader label="Loading settings" />
-						) : (
-							<div className="flex flex-col gap-4">
-								{Boolean(settings.error) && (
-									<ErrorAlert error={settings.error} />
-								)}
-								{settings.dynamicClientRegistrationEnabled !== undefined && (
-									<DynamicClientRegistrationSetting
-										enabled={settings.dynamicClientRegistrationEnabled}
-										canEdit={settings.canEdit}
-										isUpdating={settings.isUpdating}
-										onChange={settings.onDynamicClientRegistrationChange}
-									/>
-								)}
-								{/*
-								 * The value is optional on the wire, so a response that omits
-								 * it would otherwise leave this tab blank with nothing to
-								 * explain why.
-								 */}
-								{!settings.error &&
-									settings.dynamicClientRegistrationEnabled === undefined && (
-										<p className="text-sm text-content-secondary m-0">
-											Settings are unavailable.
-										</p>
-									)}
-							</div>
-						)}
+						<SettingsTabBody settings={settings} />
 					</TabsContent>
 				)}
 			</Tabs>
