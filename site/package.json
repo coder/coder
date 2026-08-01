@@ -176,7 +176,7 @@
 		"ssh2": "1.17.0",
 		"storybook": "10.3.3",
 		"storybook-addon-remix-react-router": "6.0.0",
-		"tailwindcss": "3.4.18",
+		"tailwindcss": "3.4.19",
 		"ts-proto": "1.181.2",
 		"typescript": "6.0.2",
 		"vite": "8.0.10",
