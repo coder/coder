@@ -16,15 +16,15 @@
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
-@config "../tailwind.config.js";
-
 /*
 	v4-native replacement for `tailwindcss-animate` (what shadcn/ui uses on v4).
 	It drives the same `animate-in`/`fade-*`/`zoom-*`/`slide-*` utilities but via
 	v4's `translate`/`scale`/`rotate` properties, so enter/exit animations compose
-	correctly with translate-based centering (e.g. Dialog, Popover).
+	correctly with translate-based centering (e.g. Dialog, Popover). `@import`
+	rules must precede other at-rules, so this sits above `@config`.
 */
 @import "tw-animate-css";
+@config "../tailwind.config.js";
 
 /*
 	v4 gates the `hover:` variant behind `@media (hover: hover)` so hover styles
