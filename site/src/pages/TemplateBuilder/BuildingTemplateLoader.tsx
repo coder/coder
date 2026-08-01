@@ -45,7 +45,7 @@ export const BuildingTemplateLoader: FC = () => {
 				{ICONS.map(({ name, icon: Icon, x, y, delay }) => (
 					<motion.div
 						key={name}
-						className="absolute rounded-md border border-solid border-border bg-surface-secondary p-3"
+						className="absolute flex size-12 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary"
 						style={{
 							left: `calc(50% + ${x}%)`,
 							top: `calc(50% + ${y}%)`,
@@ -62,7 +62,7 @@ export const BuildingTemplateLoader: FC = () => {
 							times: [0, 0.25, 0.55, 0.7, 0.8, 1],
 						}}
 					>
-						<Icon className="size-6 text-content-primary" />
+						<Icon className="size-6 shrink-0 text-content-primary" />
 					</motion.div>
 				))}
 			</div>
