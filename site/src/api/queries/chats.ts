@@ -19,7 +19,7 @@ import {
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
 
-type InfiniteChatsFilters = Readonly<{
+export type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
@@ -182,35 +182,6 @@ export const updateInfiniteChatsCache = (
 };
 
 /**
- * Prepends a new chat to the first page of every infinite chats query
- * in the cache, but only if the chat doesn't already exist in any
- * page. This avoids the per-page duplication that would occur if
- * a prepend updater were passed to updateInfiniteChatsCache, which
- * runs independently on each page.
- */
-export const prependToInfiniteChatsCache = (
-	queryClient: QueryClient,
-	chat: TypesGen.Chat,
-) => {
-	queryClient.setQueriesData<InfiniteChatsCacheData>(
-		{ queryKey: chatKeys.lists() },
-		(prev) => {
-			if (!prev?.pages) return prev;
-			// Check across ALL pages to avoid duplicates.
-			const exists = prev.pages.some((page) =>
-				page.some((c) => c.id === chat.id),
-			);
-			if (exists) return prev;
-			// Only prepend to the first page.
-			const nextPages = prev.pages.map((page, i) =>
-				i === 0 ? [chat, ...page] : page,
-			);
-			return { ...prev, pages: nextPages };
-		},
-	);
-};
-
-/**
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
@@ -315,12 +286,17 @@ export const removeChildFromParentInCache = (
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
-// Inverse of chatKeys.list, which appends a single { filters } wrapper to the
-// chatKeys.lists() prefix. The length and shape checks narrow the readonly
-// unknown[] the query cache hands back, and reject any other list-prefixed key.
-const archivedFilterFromListKey = (
+/**
+ * Inverse of chatKeys.list, which appends a single { filters } wrapper to the
+ * chatKeys.lists() prefix. The length and shape checks narrow the readonly
+ * unknown[] the query cache hands back, and reject any other list-prefixed
+ * key. Returns the canonical filters a cached list was fetched with, so
+ * event handlers can decide which variants an event can change membership
+ * of instead of invalidating every list.
+ */
+export const listFiltersFromKey = (
 	queryKey: readonly unknown[],
-): boolean | undefined => {
+): InfiniteChatsFilters | undefined => {
 	if (queryKey.length !== chatKeys.lists().length + 1) {
 		return undefined;
 	}
@@ -328,9 +304,23 @@ const archivedFilterFromListKey = (
 	if (!isPlainObject(wrapper) || !isPlainObject(wrapper.filters)) {
 		return undefined;
 	}
-	const archived = wrapper.filters.archived;
-	return typeof archived === "boolean" ? archived : undefined;
+	const { archived, chatStatus, prStatuses, sources } = wrapper.filters;
+	return canonicalizeChatListFilters({
+		archived: typeof archived === "boolean" ? archived : undefined,
+		chatStatus:
+			chatStatus === "read" || chatStatus === "unread" ? chatStatus : undefined,
+		prStatuses: Array.isArray(prStatuses)
+			? canonicalizeChatListPRStatuses(prStatuses)
+			: undefined,
+		sources: Array.isArray(sources)
+			? canonicalizeChatListSources(sources)
+			: undefined,
+	});
 };
+
+const archivedFilterFromListKey = (
+	queryKey: readonly unknown[],
+): boolean | undefined => listFiltersFromKey(queryKey)?.archived;
 
 const isInfiniteChatsCacheData = (
 	data: unknown,
@@ -425,6 +415,66 @@ export const applyChatArchiveStateToCaches = (
 	}
 };
 
+/**
+ * Applies the optimistic read state for the chat the user just opened.
+ * A list filtered to unread chats no longer contains the chat, so it is
+ * dropped from those variants rather than patched; every other loaded
+ * variant keeps the chat with has_unread cleared. Deliberately does not
+ * invalidate: a refetch racing the server-side read marker returns
+ * has_unread:true and undoes the clear. The finite list staleTime and the
+ * focus refetch reconcile a failed server write instead.
+ */
+export const clearChatUnreadInCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatKeys.lists(),
+	});
+
+	for (const [queryKey, data] of queries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		const isUnreadOnlyList =
+			listFiltersFromKey(queryKey)?.chatStatus === "unread";
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
+			if (!isInfiniteChatsCacheData(prev)) {
+				return prev;
+			}
+
+			let changed = false;
+			const pages = prev.pages.map((page) => {
+				let pageChanged = false;
+				const nextPage: TypesGen.Chat[] = [];
+				for (const chat of page) {
+					if (chat.id !== chatId) {
+						nextPage.push(chat);
+						continue;
+					}
+					if (isUnreadOnlyList) {
+						pageChanged = true;
+						continue;
+					}
+					if (!chat.has_unread) {
+						nextPage.push(chat);
+						continue;
+					}
+					pageChanged = true;
+					nextPage.push({ ...chat, has_unread: false });
+				}
+				if (pageChanged) {
+					changed = true;
+					return nextPage;
+				}
+				return page;
+			});
+
+			return changed ? { ...prev, pages } : prev;
+		});
+	}
+};
+
 const parseUpdatedAtInstant = (updatedAt: string) => {
 	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
 	if (!match) {
@@ -454,6 +504,48 @@ const compareUpdatedAtInstants = (a: string, b: string): number => {
 	}
 	return parsedA.fractionalNanos - parsedB.fractionalNanos;
 };
+
+/**
+ * Mirrors the sidebar ordering the list endpoint applies
+ * (`(pin_order > 0) DESC, -pin_order DESC, updated_at DESC, id DESC`,
+ * GetChats in chats.sql). WebSocket merges patch a cached chat in place,
+ * so without this the sidebar keeps the ordering of the last fetch until
+ * a refetch reorders it.
+ */
+export const compareSidebarChats = (
+	a: TypesGen.Chat,
+	b: TypesGen.Chat,
+): number => {
+	const aPinned = a.pin_order > 0 ? 1 : 0;
+	const bPinned = b.pin_order > 0 ? 1 : 0;
+	if (aPinned !== bPinned) {
+		return bPinned - aPinned;
+	}
+	if (aPinned === 1 && a.pin_order !== b.pin_order) {
+		// -pin_order DESC puts the lowest pin_order first.
+		return a.pin_order - b.pin_order;
+	}
+	const byUpdatedAt = compareUpdatedAtInstants(b.updated_at, a.updated_at);
+	if (byUpdatedAt !== 0) {
+		return byUpdatedAt;
+	}
+	if (a.id === b.id) {
+		return 0;
+	}
+	return a.id < b.id ? 1 : -1;
+};
+
+/**
+ * Flattens the paginated sidebar list and restores the server ordering at
+ * the render layer. Sorting the cache instead would either be limited to a
+ * single page (updateInfiniteChatsCache maps per page) or desync the client
+ * page boundaries from the server offset windows. Only loaded chats can be
+ * promoted; a chat past the last loaded page enters the window on the next
+ * refetch.
+ */
+export const selectSortedChatList = (
+	data: InfiniteData<TypesGen.Chat[]>,
+): TypesGen.Chat[] => data.pages.flat().toSorted(compareSidebarChats);
 
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
@@ -656,6 +748,60 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
+ * Invalidates only the list variants filtered by pull request status.
+ * A diff_status_change can move a chat in or out of those result sets;
+ * no other list filter depends on diff status, and the chat's own
+ * diff_status field is merged into every cached list from the event
+ * payload.
+ */
+export const invalidatePRStatusChatListQueries = (queryClient: QueryClient) => {
+	return queryClient.invalidateQueries({
+		queryKey: chatKeys.lists(),
+		predicate: (query) => {
+			const prStatuses = listFiltersFromKey(query.queryKey)?.prStatuses;
+			return prStatuses !== undefined && prStatuses.length > 0;
+		},
+	});
+};
+
+/** Window a burst of list invalidations collapses into. */
+export const CHAT_LIST_INVALIDATE_COALESCE_MS = 500;
+
+/**
+ * Collapses a burst of chat list invalidations into a single trailing
+ * refetch. A running agent emits status events continuously and each one
+ * bumps updated_at, which every list sorts by, so the list still has to be
+ * invalidated; the window bounds that to one refetch per interval instead
+ * of one per event. The first request opens the window and later requests
+ * ride along, so an invalidation always lands within the window rather
+ * than being pushed back indefinitely by a sustained burst.
+ */
+export const createCoalescedChatListInvalidator = (
+	queryClient: QueryClient,
+	delayMs: number = CHAT_LIST_INVALIDATE_COALESCE_MS,
+) => {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	return {
+		schedule: () => {
+			if (timeout !== undefined) {
+				return;
+			}
+			timeout = setTimeout(() => {
+				timeout = undefined;
+				void invalidateChatListQueries(queryClient);
+			}, delayMs);
+		},
+		cancel: () => {
+			if (timeout === undefined) {
+				return;
+			}
+			clearTimeout(timeout);
+			timeout = undefined;
+		},
+	};
+};
+
+/**
  * Predicate that matches chat-list queries performing a regular
  * refetch (window-focus, invalidation, mount) but not a
  * fetchNextPage or fetchPreviousPage. During pagination fetches
@@ -708,6 +854,18 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
+
+/**
+ * How long a fetched chat summary stays fresh. The watch socket pushes
+ * status, title, summary, and diff status, but PATCH-only fields
+ * (pin_order, plan_mode, labels, mcp_server_ids, workspace_id) and
+ * has_unread have no push path, so these caches must still be
+ * refetchable. Two minutes is short enough that a rename or pin from
+ * another tab converges on the next window focus, and long enough that
+ * mounting the page or navigating between chats no longer refetches every
+ * loaded page.
+ */
+export const CHAT_SUMMARY_STALE_MS = 2 * 60 * 1000;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -774,6 +932,11 @@ export const infiniteChats = (filters?: InfiniteChatsFilters) => {
 			});
 		},
 		refetchOnWindowFocus: true as const,
+		// refetchOnWindowFocus only fires for a stale query, so a finite
+		// staleTime turns focus into the bounded catch-up path for the
+		// fields the watch socket does not push.
+		staleTime: CHAT_SUMMARY_STALE_MS,
+		select: selectSortedChatList,
 		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
@@ -791,6 +954,11 @@ export const chatSearch = (q: string) =>
 export const chat = (chatId: string) => ({
 	queryKey: chatKeys.detail(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+	// Same freshness policy as the sidebar list: the open chat's detail
+	// carries the same non-pushed fields, plus files, context, and
+	// children that the watch payloads do not fully cover.
+	staleTime: CHAT_SUMMARY_STALE_MS,
+	refetchOnWindowFocus: true,
 });
 
 export const chatACL = (chatId: string) => ({
@@ -826,6 +994,14 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+	// The per-chat socket is authoritative for messages: on every connect
+	// it replays messages after the client's cursor, emits history_reset
+	// with the replacement history for edits and deletions below it, and
+	// sends an authoritative queue_update snapshot (including an empty
+	// array once the queue drains). A background refetch would only
+	// re-download pages the socket already reconciled, and default gcTime
+	// evicts the cache once the chat is inactive.
+	staleTime: Number.POSITIVE_INFINITY,
 });
 
 // Cap requested prompts to keep the response small; well under the server-side maximum.

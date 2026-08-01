@@ -1,5 +1,5 @@
 import { hashKey, QueryClient } from "react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -10,6 +10,7 @@ import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
 	archiveChat,
+	CHAT_SUMMARY_STALE_MS,
 	cancelChatListRefetches,
 	canonicalizeChatListFilters,
 	chatACL,
@@ -17,24 +18,30 @@ import {
 	chatAdvisorConfigKey,
 	chatCost,
 	chatCostSummary,
+	chat as chatDetail,
 	chatKeys,
+	chatMessagesForInfiniteScroll,
 	chatSearch,
+	clearChatUnreadInCaches,
 	createChat,
 	createChatMessage,
+	createCoalescedChatListInvalidator,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	invalidatePRStatusChatListQueries,
+	listFiltersFromKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
 	pinChat,
-	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	selectSortedChatList,
 	setChatGroupRole,
 	setChatUserRole,
 	TERMINAL_RUN_STATUSES,
@@ -269,21 +276,6 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState(chatKeys.messages(otherChatId))?.isInvalidated,
 			"other chat's messages should NOT be invalidated",
 		).not.toBe(true);
-	});
-
-	it("prepends new root chats to filtered list caches", () => {
-		const queryClient = createTestQueryClient();
-		const activeChat = makeChat("active-created", { archived: false });
-
-		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
-			archived: false,
-		});
-
-		prependToInfiniteChatsCache(queryClient, activeChat);
-
-		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
-			activeChat,
-		);
 	});
 });
 
@@ -3000,5 +2992,299 @@ describe("chat ACL query factories", () => {
 		expect(queryClient.getQueryState(chatKeys.acl(chatId))?.isInvalidated).toBe(
 			true,
 		);
+	});
+});
+
+describe("chat query freshness policy", () => {
+	it("keeps the sidebar list finitely fresh and refetching on focus", () => {
+		const query = infiniteChats({ archived: false });
+
+		expect(query.staleTime).toBe(CHAT_SUMMARY_STALE_MS);
+		expect(CHAT_SUMMARY_STALE_MS).toBeGreaterThan(0);
+		expect(Number.isFinite(CHAT_SUMMARY_STALE_MS)).toBe(true);
+		expect(query.refetchOnWindowFocus).toBe(true);
+	});
+
+	it("gives the chat detail the same finite freshness and focus refetch", () => {
+		const query = chatDetail("chat-1");
+
+		expect(query.staleTime).toBe(CHAT_SUMMARY_STALE_MS);
+		expect(query.refetchOnWindowFocus).toBe(true);
+	});
+
+	it("never marks the per-chat message pages stale", () => {
+		const query = chatMessagesForInfiniteScroll("chat-1");
+
+		expect(query.staleTime).toBe(Number.POSITIVE_INFINITY);
+	});
+
+	it("leaves the shared chats prefix free of freshness overrides", () => {
+		// staleTime lives on the three WebSocket-backed factories, not on
+		// chatKeys.all, which also parents search, cost, and ACL queries.
+		expect(chatSearch("title:fix")).not.toHaveProperty("staleTime");
+		expect(chatACL("chat-1")).not.toHaveProperty("staleTime");
+	});
+});
+
+describe(selectSortedChatList.name, () => {
+	const chatAt = (id: string, updatedAt: string, pinOrder = 0): TypesGen.Chat =>
+		makeChat(id, { updated_at: updatedAt, pin_order: pinOrder });
+
+	it("orders pinned chats first by ascending pin_order", () => {
+		const sorted = selectSortedChatList({
+			pages: [
+				[
+					chatAt("unpinned", "2025-01-03T00:00:00.000Z"),
+					chatAt("pinned-second", "2025-01-01T00:00:00.000Z", 2),
+					chatAt("pinned-first", "2025-01-02T00:00:00.000Z", 1),
+				],
+			],
+			pageParams: [0],
+		});
+
+		expect(sorted.map((chat) => chat.id)).toEqual([
+			"pinned-first",
+			"pinned-second",
+			"unpinned",
+		]);
+	});
+
+	it("promotes a chat whose updated_at moved across a page boundary", () => {
+		const sorted = selectSortedChatList({
+			pages: [
+				[
+					chatAt("page-1-newest", "2025-01-05T00:00:00.000Z"),
+					chatAt("page-1-oldest", "2025-01-04T00:00:00.000Z"),
+				],
+				[chatAt("page-2-bumped", "2025-01-06T00:00:00.000Z")],
+			],
+			pageParams: [0, 2],
+		});
+
+		expect(sorted.map((chat) => chat.id)).toEqual([
+			"page-2-bumped",
+			"page-1-newest",
+			"page-1-oldest",
+		]);
+	});
+
+	it("breaks updated_at ties on descending id and leaves the cache pages alone", () => {
+		const pages = [
+			[
+				chatAt("chat-a", "2025-01-01T00:00:00.000Z"),
+				chatAt("chat-b", "2025-01-01T00:00:00.000Z"),
+			],
+		];
+		const cached = { pages, pageParams: [0] };
+
+		const sorted = selectSortedChatList(cached);
+
+		expect(sorted.map((chat) => chat.id)).toEqual(["chat-b", "chat-a"]);
+		expect(cached.pages[0].map((chat) => chat.id)).toEqual([
+			"chat-a",
+			"chat-b",
+		]);
+	});
+
+	it("orders sub-second updated_at values by their fractional part", () => {
+		const sorted = selectSortedChatList({
+			pages: [
+				[
+					chatAt("older", "2025-01-01T00:00:00.000001Z"),
+					chatAt("newer", "2025-01-01T00:00:00.000002Z"),
+				],
+			],
+			pageParams: [0],
+		});
+
+		expect(sorted.map((chat) => chat.id)).toEqual(["newer", "older"]);
+	});
+});
+
+describe(listFiltersFromKey.name, () => {
+	it("round-trips the canonical filters a list key was built from", () => {
+		const filters = {
+			archived: false,
+			prStatuses: ["open", "draft"] as const,
+			chatStatus: "unread" as const,
+			sources: ["created_by_me"] as const,
+		};
+
+		expect(listFiltersFromKey(chatKeys.list(filters))).toEqual(
+			canonicalizeChatListFilters(filters),
+		);
+	});
+
+	it("returns empty filters for the unfiltered list key", () => {
+		expect(listFiltersFromKey(chatKeys.list())).toEqual({});
+	});
+
+	it("rejects keys that are not a single list variant", () => {
+		expect(listFiltersFromKey(chatKeys.lists())).toBeUndefined();
+		expect(listFiltersFromKey(chatKeys.detail("chat-1"))).toBeUndefined();
+		expect(listFiltersFromKey(chatKeys.search("q"))).toBeUndefined();
+	});
+});
+
+describe(invalidatePRStatusChatListQueries.name, () => {
+	it("invalidates only the lists filtered by pull request status", async () => {
+		const queryClient = createTestQueryClient();
+		const prFiltered = { archived: false, prStatuses: ["open"] as const };
+		const unfiltered = { archived: false };
+
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], prFiltered);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], unfiltered);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+
+		await invalidatePRStatusChatListQueries(queryClient);
+
+		expect(
+			queryClient.getQueryState(chatKeys.list(prFiltered))?.isInvalidated,
+			"pr_status filtered lists should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatKeys.list(unfiltered))?.isInvalidated,
+			"lists without a pr_status filter should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatKeys.list())?.isInvalidated,
+			"the unfiltered list should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidates every cached pr_status variant", async () => {
+		const queryClient = createTestQueryClient();
+		const openOnly = { prStatuses: ["open"] as const };
+		const mergedOnly = { archived: true, prStatuses: ["merged"] as const };
+
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], openOnly);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], mergedOnly);
+
+		await invalidatePRStatusChatListQueries(queryClient);
+
+		expect(
+			queryClient.getQueryState(chatKeys.list(openOnly))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatKeys.list(mergedOnly))?.isInvalidated,
+		).toBe(true);
+	});
+});
+
+describe(createCoalescedChatListInvalidator.name, () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("collapses a burst of requests into one invalidation", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const invalidator = createCoalescedChatListInvalidator(queryClient, 500);
+
+		invalidator.schedule();
+		vi.advanceTimersByTime(100);
+		invalidator.schedule();
+		vi.advanceTimersByTime(100);
+		invalidator.schedule();
+
+		expect(invalidateSpy).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(300);
+
+		expect(invalidateSpy).toHaveBeenCalledTimes(1);
+		expect(queryClient.getQueryState(chatKeys.list())?.isInvalidated).toBe(
+			true,
+		);
+	});
+
+	it("opens a new window after the previous one fired", () => {
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const invalidator = createCoalescedChatListInvalidator(queryClient, 500);
+
+		invalidator.schedule();
+		vi.advanceTimersByTime(500);
+		invalidator.schedule();
+		vi.advanceTimersByTime(500);
+
+		expect(invalidateSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("drops a pending invalidation when cancelled", () => {
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const invalidator = createCoalescedChatListInvalidator(queryClient, 500);
+
+		invalidator.schedule();
+		invalidator.cancel();
+		vi.advanceTimersByTime(1000);
+
+		expect(invalidateSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe(clearChatUnreadInCaches.name, () => {
+	it("removes the chat from unread-filtered lists", () => {
+		const queryClient = createTestQueryClient();
+		const unreadOnly = { archived: false, chatStatus: "unread" as const };
+		seedInfiniteChats(
+			queryClient,
+			[
+				makeChat("chat-1", { has_unread: true }),
+				makeChat("chat-2", { has_unread: true }),
+			],
+			unreadOnly,
+		);
+
+		clearChatUnreadInCaches(queryClient, "chat-1");
+
+		expect(
+			readInfiniteChats(queryClient, unreadOnly)?.map((chat) => chat.id),
+		).toEqual(["chat-2"]);
+	});
+
+	it("clears has_unread in the other loaded variants", () => {
+		const queryClient = createTestQueryClient();
+		const readOnly = { chatStatus: "read" as const };
+		seedInfiniteChats(queryClient, [makeChat("chat-1", { has_unread: true })]);
+		seedInfiniteChats(
+			queryClient,
+			[makeChat("chat-1", { has_unread: true })],
+			readOnly,
+		);
+
+		clearChatUnreadInCaches(queryClient, "chat-1");
+
+		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+		expect(readInfiniteChats(queryClient, readOnly)?.[0].has_unread).toBe(
+			false,
+		);
+	});
+
+	it("does not invalidate the lists it patched", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1", { has_unread: true })]);
+
+		clearChatUnreadInCaches(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatKeys.list())?.isInvalidated,
+			"a refetch here can return has_unread:true and undo the clear",
+		).not.toBe(true);
+	});
+
+	it("leaves unrelated chats and untouched caches by reference", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-2", { has_unread: true })]);
+		const before = queryClient.getQueryData(chatKeys.list());
+
+		clearChatUnreadInCaches(queryClient, "chat-1");
+
+		expect(queryClient.getQueryData(chatKeys.list())).toBe(before);
 	});
 });

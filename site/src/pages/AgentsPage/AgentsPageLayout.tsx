@@ -23,11 +23,13 @@ import {
 	chatKeys,
 	chatModelConfigs,
 	chatModels,
+	clearChatUnreadInCaches,
+	createCoalescedChatListInvalidator,
 	infiniteChats,
 	invalidateChatListQueries,
+	invalidatePRStatusChatListQueries,
 	mergeWatchedChatIntoCaches,
 	pinChat,
-	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
 	removeChildFromParentInCache,
@@ -387,7 +389,10 @@ const AgentsPageLayout: FC = () => {
 		chatModelsQuery.data,
 		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
-	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	// infiniteChats selects the flattened list already sorted the way the
+	// list endpoint orders it, so in-place WebSocket patches reorder the
+	// sidebar without refetching the loaded pages.
+	const chatList = chatsQuery.data ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -556,26 +561,21 @@ const AgentsPageLayout: FC = () => {
 
 	// Optimistically clear the unread indicator for the active
 	// chat. The server marks chats as read on stream connect
-	// and disconnect, but the list cache is not refetched until
-	// window focus. Without this, navigating away from a chat
-	// causes its cached has_unread to reappear as a stale dot.
+	// and disconnect, but publishes no event for it, so the
+	// cached has_unread would reappear as a stale dot when
+	// navigating away from a chat.
 	useEffect(() => {
 		if (!agentId) {
 			return;
 		}
-		updateInfiniteChatsCache(queryClient, (chats) => {
-			let changed = false;
-			const next = chats.map((c) => {
-				if (c.id !== agentId || !c.has_unread) return c;
-				changed = true;
-				return { ...c, has_unread: false };
-			});
-			return changed ? next : chats;
-		});
-		void invalidateChatListQueries(queryClient);
+		clearChatUnreadInCaches(queryClient, agentId);
 	}, [agentId, queryClient]);
 	useEffect(() => {
-		return createReconnectingWebSocket({
+		// A running agent emits status events continuously, so the list
+		// invalidation they trigger is collapsed into one trailing refetch.
+		const coalescedListInvalidate =
+			createCoalescedChatListInvalidator(queryClient);
+		const disposeWebSocket = createReconnectingWebSocket({
 			connect() {
 				const ws = watchChats();
 
@@ -661,7 +661,9 @@ const AgentsPageLayout: FC = () => {
 								updatedChat.parent_chat_id,
 							);
 						} else {
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							// Only the server knows which filtered lists the
+							// new chat belongs to, so refetch instead of
+							// prepending it into every cached variant.
 							void invalidateChatListQueries(queryClient);
 						}
 					} else {
@@ -670,7 +672,16 @@ const AgentsPageLayout: FC = () => {
 							activeChatId: activeChatIDRef.current,
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
-							void invalidateChatListQueries(queryClient);
+							if (chatEvent.kind === "diff_status_change") {
+								// Only PR-status-filtered lists can gain or lose
+								// the chat; the merge above already wrote
+								// diff_status into every cached variant.
+								void invalidatePRStatusChatListQueries(queryClient);
+							} else {
+								// Every list sorts by updated_at, which a
+								// status_change bumps.
+								coalescedListInvalidate.schedule();
+							}
 						}
 						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
@@ -702,6 +713,10 @@ const AgentsPageLayout: FC = () => {
 				void invalidateChatListQueries(queryClient);
 			},
 		});
+		return () => {
+			coalescedListInvalidate.cancel();
+			disposeWebSocket();
+		};
 	}, [queryClient]);
 
 	useAgentsPageKeybindings({

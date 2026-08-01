@@ -1,6 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import {
+	chatKeys,
+	infiniteChats,
+	invalidateChatListQueries,
+	readInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	chatCostIdToInvalidate,
 	shouldInvalidateFilteredChatList,
@@ -13,6 +22,11 @@ import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,
 } from "./hooks/useFileAttachments";
+import {
+	_resetForTesting,
+	maybePlayChime,
+	setChimeEnabled,
+} from "./utils/chime";
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {
@@ -1052,5 +1066,98 @@ describe(chatCostIdToInvalidate.name, () => {
 		},
 	])("$name", ({ updatedChat, eventKind, expected }) => {
 		expect(chatCostIdToInvalidate(updatedChat, eventKind)).toBe(expected);
+	});
+});
+
+// The `created` watch event no longer prepends the chat into every cached
+// list variant; it invalidates and lets the server decide membership. The
+// completion chime reads the previous status from the list cache, so it has
+// to keep working off the refetched list the invalidation produces.
+describe("chime for a chat created in another tab", () => {
+	class MockLockManager {
+		async request(
+			name: string,
+			_options: LockOptions,
+			callback: (lock: Lock | null) => Promise<void>,
+		): Promise<void> {
+			await callback({ name, mode: "exclusive" } as Lock);
+		}
+	}
+
+	const createdChat: TypesGen.Chat = {
+		...MockChat,
+		id: "chat-created-elsewhere",
+		archived: false,
+		pin_order: 0,
+		has_unread: false,
+		status: "running",
+		updated_at: "2025-01-01T00:00:00.000Z",
+	};
+
+	let playSpy: ReturnType<typeof vi.spyOn>;
+
+	beforeEach(() => {
+		localStorage.clear();
+		_resetForTesting();
+		setChimeEnabled(true);
+		Object.defineProperty(navigator, "locks", {
+			value: new MockLockManager(),
+			writable: true,
+			configurable: true,
+		});
+		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+		playSpy = vi
+			.spyOn(HTMLMediaElement.prototype, "play")
+			.mockResolvedValue(undefined);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("chimes on completion after the created invalidation refetches the list", async () => {
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const filters = { archived: false };
+		queryClient.setQueryData(chatKeys.list(filters), {
+			pages: [[]],
+			pageParams: [0],
+		});
+		const getChatsSpy = vi
+			.spyOn(API.experimental, "getChats")
+			.mockResolvedValue([createdChat]);
+
+		// The `created` handler only invalidates; the sidebar's own query
+		// refetches and the server decides list membership.
+		await invalidateChatListQueries(queryClient);
+		const { queryKey, queryFn, initialPageParam, getNextPageParam } =
+			infiniteChats(filters);
+		await queryClient.fetchInfiniteQuery({
+			queryKey,
+			queryFn,
+			initialPageParam,
+			getNextPageParam,
+		});
+		expect(getChatsSpy).toHaveBeenCalled();
+
+		// A later status_change reads the previous status out of that
+		// refetched list, exactly as the watch handler does.
+		const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+			(chat) => chat.id === createdChat.id,
+		)?.status;
+		expect(prevStatus).toBe("running");
+
+		maybePlayChime(prevStatus, "waiting", createdChat.id, undefined);
+		await vi.waitFor(() => {
+			expect(playSpy).toHaveBeenCalledTimes(1);
+		});
 	});
 });
