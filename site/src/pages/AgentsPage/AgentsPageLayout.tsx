@@ -102,7 +102,11 @@ export interface AgentsPageOutletContext {
 	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
-	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	requestReorderPinnedAgent?: (
+		chatId: string,
+		pinOrder: number,
+		pinnedChats: readonly TypesGen.Chat[],
+	) => void;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
@@ -370,9 +374,11 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const reorderPinnedChatBase = reorderPinnedChat(queryClient);
 	const reorderPinnedChatMutation = useMutation({
-		...reorderPinnedChat(queryClient),
-		onError: (error) => {
+		...reorderPinnedChatBase,
+		onError: (error, variables, context) => {
+			reorderPinnedChatBase.onError(error, variables, context);
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
 		},
 	});
@@ -532,8 +538,20 @@ const AgentsPageLayout: FC = () => {
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
 	};
-	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
-		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
+	const requestReorderPinnedAgent = (
+		chatId: string,
+		pinOrder: number,
+		pinnedChats: readonly TypesGen.Chat[],
+	) => {
+		// The pinned set comes from the sidebar's rendered order rather
+		// than the cache, so a filtered variant without pinned chats
+		// cannot decide the new ordering, and a drag that lands before
+		// this component rerenders still renumbers what the user saw.
+		reorderPinnedChatMutation.mutate({
+			chatId,
+			pinOrder,
+			visibleChats: pinnedChats,
+		});
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);

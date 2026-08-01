@@ -39,10 +39,10 @@ import {
 	editChatMessage,
 	interruptChat,
 	mcpServerConfigs,
+	patchChatEverywhere,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
-	updateInfiniteChatsCache,
 	userChatDebugLogging,
 	userChatProviderConfigs,
 	userCompactionThresholds,
@@ -1181,15 +1181,8 @@ const AgentChatPage: FC = () => {
 		chatId: string,
 		planMode?: TypesGen.ChatPlanMode,
 	) => {
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
-			),
-		);
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
-			(previousChat) =>
-				previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.plan_mode === planMode ? chat : { ...chat, plan_mode: planMode },
 		);
 	};
 

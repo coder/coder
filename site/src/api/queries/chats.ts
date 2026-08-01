@@ -332,6 +332,126 @@ const isInfiniteChatsCacheData = (
 	return Array.isArray(maybeData.pages) && Array.isArray(maybeData.pageParams);
 };
 
+/**
+ * Applies a patch to one chat in every cache layer that can hold it: the
+ * detail cache, every cached list variant, and any parent's embedded
+ * `children`. Writing a single layer leaves the others showing the old
+ * value until a refetch.
+ *
+ * `patch` must return the chat it was given when it changes nothing, so
+ * untouched caches keep their reference and skip a rerender.
+ */
+export const patchChatEverywhere = (
+	queryClient: QueryClient,
+	chatId: string,
+	patch: (chat: TypesGen.Chat) => TypesGen.Chat,
+) => {
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKeys.detail(chatId),
+		(chat) => (chat ? patch(chat) : chat),
+	);
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((chat) => {
+			if (chat.id !== chatId) {
+				return chat;
+			}
+			const patched = patch(chat);
+			if (patched !== chat) {
+				changed = true;
+			}
+			return patched;
+		});
+		return changed ? next : chats;
+	});
+	updateChildInParentCache(queryClient, patch, chatId);
+};
+
+/** Matches only queries that already hold data. */
+const hasLoadedData = (query: { state: { data: unknown } }): boolean =>
+	query.state.data !== undefined;
+
+/**
+ * Cancels the in-flight sidebar list and chat detail fetches that a
+ * mutation's optimistic write would otherwise race, in parallel.
+ *
+ * Unlike cancelChatListRefetches this deliberately cancels pagination
+ * fetches too: fetchNextPage captured its page snapshot before the
+ * mutation, so letting it land would overwrite the optimistic update.
+ * Queries that have never loaded are left alone, because reverting a
+ * first-ever fetch wedges the query at pending/idle with no data and no
+ * automatic recovery.
+ */
+export const cancelChatMutationRefetches = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	Promise.all([
+		queryClient.cancelQueries({
+			queryKey: chatKeys.lists(),
+			predicate: hasLoadedData,
+		}),
+		queryClient.cancelQueries({
+			queryKey: chatKeys.detail(chatId),
+			exact: true,
+			predicate: hasLoadedData,
+		}),
+	]);
+
+/**
+ * Reads a chat from whichever cache layer holds it: the detail cache
+ * first, then every cached list variant, then parents' embedded
+ * children. Sidebar mutations routinely run against a chat the user
+ * never opened, so the detail cache alone cannot supply the prior field
+ * value an inverse-patch rollback needs.
+ */
+export const findChatInCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+): TypesGen.Chat | undefined => {
+	const cachedDetail = queryClient.getQueryData<TypesGen.Chat>(
+		chatKeys.detail(chatId),
+	);
+	if (cachedDetail) {
+		return cachedDetail;
+	}
+
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatKeys.lists(),
+	});
+
+	for (const [, data] of queries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		for (const page of data.pages) {
+			for (const chat of page) {
+				if (chat.id === chatId) {
+					return chat;
+				}
+			}
+		}
+	}
+
+	// Children are searched last: a top-level row is the authoritative
+	// summary, an embedded child snapshot only a fallback.
+	for (const [, data] of queries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		for (const page of data.pages) {
+			for (const chat of page) {
+				const child = chat.children?.find((c) => c.id === chatId);
+				if (child) {
+					return child;
+				}
+			}
+		}
+	}
+
+	return undefined;
+};
+
 const patchChatArchiveState = (
 	chat: TypesGen.Chat,
 	archived: boolean,
@@ -1017,56 +1137,48 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+type ChatArchiveContext = {
+	previousArchived: boolean;
+	previousPinOrder: number;
+	found: boolean;
+};
+
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
-	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
+	onMutate: async (chatId: string): Promise<ChatArchiveContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		// The sidebar can archive a chat that was never opened, so the
+		// prior state has to come from whichever cache holds it.
+		const previousChat = findChatInCaches(queryClient, chatId);
+		// Reuse patchChatArchiveState so the optimistic state matches the
+		// confirmed onSuccess state, including the pin_order reset the
+		// server applies when archiving.
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			patchChatArchiveState(chat, true),
 		);
-		// Flip the archived flag in every cached list; strip the
-		// chat from any parent's embedded children (individual
-		// child archive). Reuse patchChatArchiveState so the
-		// optimistic snapshot matches the confirmed onSuccess state,
-		// including the pin_order reset for an archived chat.
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? patchChatArchiveState(chat, true) : chat,
-			),
-		);
-		removeChildFromParentInCache(queryClient, chatId);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				patchChatArchiveState(previousChat, true),
-			);
-		}
-		return { previousChat };
+		return {
+			previousArchived: previousChat?.archived ?? false,
+			previousPinOrder: previousChat?.pin_order ?? 0,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		context: ChatArchiveContext | undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				context.previousChat,
-			);
+		if (!context?.found) {
+			return;
 		}
+		const { previousArchived, previousPinOrder } = context;
+		// Inverse patch, guarded on the optimistic values still being in
+		// place, so a WebSocket write that landed mid-flight is not undone.
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.archived && chat.pin_order === 0
+				? { ...chat, archived: previousArchived, pin_order: previousPinOrder }
+				: chat,
+		);
 	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
@@ -1086,49 +1198,32 @@ export const archiveChat = (queryClient: QueryClient) => ({
 export const unarchiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: false }),
-	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
+	onMutate: async (chatId: string): Promise<ChatArchiveContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		const previousChat = findChatInCaches(queryClient, chatId);
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			patchChatArchiveState(chat, false),
 		);
-		// Reuse patchChatArchiveState so the optimistic snapshot
-		// matches the confirmed onSuccess state.
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? patchChatArchiveState(chat, false) : chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				patchChatArchiveState(previousChat, false),
-			);
-		}
-		return { previousChat };
+		return {
+			previousArchived: previousChat?.archived ?? true,
+			// Unarchiving leaves pin_order alone, so there is nothing to
+			// restore for it.
+			previousPinOrder: previousChat?.pin_order ?? 0,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		context: ChatArchiveContext | undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				context.previousChat,
-			);
+		if (!context?.found) {
+			return;
 		}
+		const { previousArchived } = context;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.archived ? chat : { ...chat, archived: previousArchived },
+		);
 	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, false);
@@ -1145,65 +1240,64 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
+type UpdateChatPlanModeContext = {
+	previousPlanMode: TypesGen.ChatPlanMode | undefined;
+	found: boolean;
+};
+
 export const updateChatPlanMode = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
 		API.experimental.updateChat(chatId, {
 			plan_mode: toChatPlanModePayload(planMode),
 		}),
-	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
+	onMutate: async ({
+		chatId,
+		planMode,
+	}: UpdateChatPlanModeVariables): Promise<UpdateChatPlanModeContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		const previousChat = findChatInCaches(queryClient, chatId);
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.plan_mode === planMode ? chat : { ...chat, plan_mode: planMode },
 		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(chatId), {
-				...previousChat,
-				plan_mode: planMode,
-			});
-		}
-		return { previousChat };
+		return {
+			// undefined is a real plan mode (cleared), so the `found` flag
+			// rather than the value decides whether a rollback can run.
+			previousPlanMode: previousChat?.plan_mode,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
-		{ chatId }: UpdateChatPlanModeVariables,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		{ chatId, planMode }: UpdateChatPlanModeVariables,
+		context: UpdateChatPlanModeContext | undefined,
 	) => {
-		void invalidateChatListQueries(queryClient);
-		const previousChat = context?.previousChat;
-		if (!previousChat) {
+		if (!context?.found) {
 			return;
 		}
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId
-					? {
-							...chat,
-							plan_mode: previousChat.plan_mode,
-						}
-					: chat,
-			),
-		);
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
-			previousChat,
+		const { previousPlanMode } = context;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.plan_mode === planMode
+				? { ...chat, plan_mode: previousPlanMode }
+				: chat,
 		);
 	},
+	onSettled: (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatKeys.detail(chatId),
+			exact: true,
+		});
+	},
 });
+
+type UpdateChatWorkspaceContext = {
+	previousWorkspaceId: string | undefined;
+	found: boolean;
+};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
@@ -1213,233 +1307,301 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 				// The API uses the nil UUID to clear the workspace association.
 				"00000000-0000-0000-0000-000000000000",
 		}),
-	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
+	onMutate: async ({
+		chatId,
+		workspaceId,
+	}: UpdateChatWorkspaceVariables): Promise<UpdateChatWorkspaceContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		const previousChat = findChatInCaches(queryClient, chatId);
+		const optimisticWorkspaceId = workspaceId ?? undefined;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.workspace_id === optimisticWorkspaceId
+				? chat
+				: { ...chat, workspace_id: optimisticWorkspaceId },
 		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId
-					? { ...chat, workspace_id: workspaceId ?? undefined }
-					: chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(chatId), {
-				...previousChat,
-				workspace_id: workspaceId ?? undefined,
-			});
-		}
-		return { previousChat };
+		return {
+			previousWorkspaceId: previousChat?.workspace_id,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
-		{ chatId }: UpdateChatWorkspaceVariables,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		{ chatId, workspaceId }: UpdateChatWorkspaceVariables,
+		context: UpdateChatWorkspaceContext | undefined,
 	) => {
-		void invalidateChatListQueries(queryClient);
-		const previousChat = context?.previousChat;
-		if (previousChat) {
-			updateInfiniteChatsCache(queryClient, (chats) =>
-				chats.map((chat) =>
-					chat.id === chatId
-						? {
-								...chat,
-								workspace_id: previousChat.workspace_id,
-							}
-						: chat,
-				),
-			);
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				previousChat,
-			);
+		if (!context?.found) {
+			return;
 		}
+		const { previousWorkspaceId } = context;
+		const optimisticWorkspaceId = workspaceId ?? undefined;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.workspace_id === optimisticWorkspaceId
+				? { ...chat, workspace_id: previousWorkspaceId }
+				: chat,
+		);
 	},
-	onSettled: async (
+	onSettled: (
 		_data: unknown,
 		_error: unknown,
 		{ chatId }: UpdateChatWorkspaceVariables,
 	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
+		void queryClient.invalidateQueries({
 			queryKey: chatKeys.byWorkspacePrefix(),
 		});
 	},
 });
 
+/**
+ * Shared mutation key for the pin, unpin, and reorder mutations. They
+ * all renumber the same pin_order sequence, so each one's settle
+ * invalidation has to know whether another is still in flight.
+ */
+const CHAT_PIN_MUTATION_KEY = [...chatKeys.all, "pin"] as const;
+
+/**
+ * How many pin-family mutations the client still counts as pending. A
+ * mutation is still counted while its own onError and onSettled handlers
+ * run, so one means "I am the only one left"; zero only happens when a
+ * handler is invoked outside a mutation.
+ */
+const pendingPinMutationCount = (queryClient: QueryClient): number =>
+	queryClient.isMutating({ mutationKey: CHAT_PIN_MUTATION_KEY });
+
+/**
+ * True when no other pin-family mutation is still pending. Anything
+ * higher than the settling mutation itself means a later optimistic
+ * write is outstanding and a refetch now would overwrite it.
+ */
+const isLastPinMutation = (queryClient: QueryClient): boolean =>
+	pendingPinMutationCount(queryClient) <= 1;
+
+/**
+ * True when another pin-family mutation is still pending, so this one's
+ * optimistic write is no longer the top layer in the cache.
+ */
+const isPinMutationSuperseded = (queryClient: QueryClient): boolean =>
+	pendingPinMutationCount(queryClient) > 1;
+
+type ChatPinOrderContext = {
+	previousPinOrder: number;
+	optimisticPinOrder: number;
+	found: boolean;
+};
+
+/**
+ * Terminal reconciliation for the pin family. Pinning, unpinning, and
+ * reordering all renumber neighbouring chats server side, so the target
+ * chat is never the only one whose pin_order goes stale: every loaded
+ * chat detail has to be reconciled, not just this mutation's target.
+ *
+ * The whole thing stays behind the last-settle gate because an earlier
+ * refetch would land on top of a later mutation's optimistic write.
+ */
+const settlePinMutation = (queryClient: QueryClient) => {
+	if (!isLastPinMutation(queryClient)) {
+		return;
+	}
+	void invalidateChatListQueries(queryClient);
+	void queryClient.invalidateQueries({
+		queryKey: chatKeys.details(),
+		// Base chat details only. The nested messages, prompts, and acl
+		// caches share the prefix but hold nothing a pin_order change can
+		// invalidate.
+		predicate: (query) =>
+			query.queryKey.length === chatKeys.details().length + 1 &&
+			hasLoadedData(query),
+	});
+};
+
 export const pinChat = (queryClient: QueryClient) => ({
+	mutationKey: CHAT_PIN_MUTATION_KEY,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
-	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
-		);
+	onMutate: async (chatId: string): Promise<ChatPinOrderContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		const previousChat = findChatInCaches(queryClient, chatId);
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
-			),
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.pin_order === optimisticPinOrder
+				? chat
+				: { ...chat, pin_order: optimisticPinOrder },
 		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(chatId), {
-				...previousChat,
-				pin_order: optimisticPinOrder,
-			});
-		}
-		return { previousChat };
+		return {
+			previousPinOrder: previousChat?.pin_order ?? 0,
+			optimisticPinOrder,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		context: ChatPinOrderContext | undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				context.previousChat,
-			);
+		if (!context?.found) {
+			return;
 		}
+		const { previousPinOrder, optimisticPinOrder } = context;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.pin_order === optimisticPinOrder
+				? { ...chat, pin_order: previousPinOrder }
+				: chat,
+		);
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
+	onSettled: (_data: unknown, _error: unknown, _chatId: string) => {
+		settlePinMutation(queryClient);
 	},
 });
 
 export const unpinChat = (queryClient: QueryClient) => ({
+	mutationKey: CHAT_PIN_MUTATION_KEY,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 0 }),
-	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
+	onMutate: async (chatId: string): Promise<ChatPinOrderContext> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
+		const previousChat = findChatInCaches(queryClient, chatId);
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.pin_order === 0 ? chat : { ...chat, pin_order: 0 },
 		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(chatId), {
-				...previousChat,
-				pin_order: 0,
-			});
-		}
-		return { previousChat };
+		return {
+			previousPinOrder: previousChat?.pin_order ?? 0,
+			optimisticPinOrder: 0,
+			found: previousChat !== undefined,
+		};
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		context: ChatPinOrderContext | undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(
-				chatKeys.detail(chatId),
-				context.previousChat,
-			);
+		if (!context?.found) {
+			return;
 		}
+		const { previousPinOrder } = context;
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.pin_order === 0 ? { ...chat, pin_order: previousPinOrder } : chat,
+		);
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
+	onSettled: (_data: unknown, _error: unknown, _chatId: string) => {
+		settlePinMutation(queryClient);
 	},
 });
 
+type ReorderPinnedChatVariables = {
+	chatId: string;
+	pinOrder: number;
+	/**
+	 * The pinned chats the sidebar is currently rendering, in render
+	 * order, including a drag the parent has not rerendered with yet.
+	 * The pinned set is derived from this rather than from the first
+	 * cached list variant, which can be an archived or filtered list
+	 * that holds no pinned chats at all.
+	 */
+	visibleChats: readonly TypesGen.Chat[];
+};
+
+type ReorderPinnedChatContext = {
+	previousOrders: Map<string, number>;
+	optimisticOrders: Map<string, number>;
+};
+
+const applyPinOrders = (
+	queryClient: QueryClient,
+	resolveOrder: (chat: TypesGen.Chat) => number | undefined,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((chat) => {
+			const order = resolveOrder(chat);
+			if (order === undefined || order === chat.pin_order) {
+				return chat;
+			}
+			changed = true;
+			return { ...chat, pin_order: order };
+		});
+		return changed ? next : chats;
+	});
+};
+
 export const reorderPinnedChat = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, pinOrder }: { chatId: string; pinOrder: number }) =>
+	mutationKey: CHAT_PIN_MUTATION_KEY,
+	// Overlapping drags share one scope so their PATCHes run one at a
+	// time. onMutate still runs immediately for every drag, before the
+	// scope gate pauses mutationFn, so the sidebar never drops a drop.
+	scope: { id: "chat-reorder" },
+	mutationFn: ({ chatId, pinOrder }: ReorderPinnedChatVariables) =>
 		API.experimental.updateChat(chatId, { pin_order: pinOrder }),
 	onMutate: async ({
 		chatId,
 		pinOrder,
-	}: {
-		chatId: string;
-		pinOrder: number;
-	}) => {
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.lists(),
-		});
-		await queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
+		visibleChats,
+	}: ReorderPinnedChatVariables): Promise<
+		ReorderPinnedChatContext | undefined
+	> => {
+		await cancelChatMutationRefetches(queryClient, chatId);
 
-		// Optimistically reorder pinned chats in the cache so the
-		// sidebar reflects the new order immediately without waiting
-		// for the server round-trip.
-		const allChats = readInfiniteChatsCache(queryClient) ?? [];
-		const pinned = allChats
-			.filter((c) => c.pin_order > 0)
-			.sort((a, b) => a.pin_order - b.pin_order);
-		const oldIdx = pinned.findIndex((c) => c.id === chatId);
-		if (oldIdx !== -1) {
-			const moved = pinned.splice(oldIdx, 1)[0];
-			pinned.splice(pinOrder - 1, 0, moved);
-			const newOrders = new Map(pinned.map((c, i) => [c.id, i + 1]));
-			updateInfiniteChatsCache(queryClient, (chats) =>
-				chats.map((c) => {
-					const order = newOrders.get(c.id);
-					return order !== undefined ? { ...c, pin_order: order } : c;
-				}),
-			);
+		// Mirror the server's deterministic renumbering so the sidebar
+		// shows the new order immediately. The panel's local drag order
+		// is cleared by any chats reference change, and a running agent
+		// changes that reference constantly, so the cache has to already
+		// hold the new order when the handoff happens.
+		const pinned = visibleChats.filter((chat) => chat.pin_order > 0);
+		const oldIdx = pinned.findIndex((chat) => chat.id === chatId);
+		if (oldIdx === -1) {
+			return undefined;
 		}
+
+		const reordered = [...pinned];
+		const [moved] = reordered.splice(oldIdx, 1);
+		reordered.splice(pinOrder - 1, 0, moved);
+
+		const previousOrders = new Map(
+			pinned.map((chat) => [chat.id, chat.pin_order]),
+		);
+		const optimisticOrders = new Map(
+			reordered.map((chat, index) => [chat.id, index + 1]),
+		);
+		applyPinOrders(queryClient, (chat) => optimisticOrders.get(chat.id));
+		return { previousOrders, optimisticOrders };
 	},
-	onSettled: async (
+	onError: (
+		_error: unknown,
+		_variables: ReorderPinnedChatVariables,
+		context: ReorderPinnedChatContext | undefined,
+	) => {
+		if (!context) {
+			return;
+		}
+		if (isPinMutationSuperseded(queryClient)) {
+			// A later pin-family mutation has already written its own order
+			// on top of this one. Optimistic layers are last-writer-wins,
+			// and the value guard below cannot tell a pin_order this
+			// mutation assigned from the same value a later mutation
+			// assigned, so rolling back here would corrupt the newer order.
+			// Skipping is safe: the last pin-family mutation to settle
+			// refetches the list and every loaded chat detail, so the
+			// server's order always lands.
+			return;
+		}
+		const { previousOrders, optimisticOrders } = context;
+		// Restore each chat only where it still holds the pin_order this
+		// mutation assigned it, so a later reorder is left in place.
+		applyPinOrders(queryClient, (chat) =>
+			chat.pin_order === optimisticOrders.get(chat.id)
+				? previousOrders.get(chat.id)
+				: undefined,
+		);
+	},
+	onSettled: (
 		_data: unknown,
 		_error: unknown,
-		{ chatId }: { chatId: string; pinOrder: number },
+		_variables: ReorderPinnedChatVariables,
 	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-		});
+		settlePinMutation(queryClient);
 	},
 });
 
@@ -1465,12 +1627,12 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		API.experimental.updateChat(chatId, { title }),
 
 	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
-		queryClient.setQueryData<TypesGen.Chat | undefined>(
-			chatKeys.detail(chatId),
-			(chat) => (chat ? { ...chat, title } : chat),
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		// The endpoint answers 204, so there is no entity to write back.
+		// Mirror the server's own TrimSpaces so the optimistic title cannot
+		// differ from what the next fetch returns.
+		const trimmedTitle = title.trim();
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.title === trimmedTitle ? chat : { ...chat, title: trimmedTitle },
 		);
 	},
 
@@ -1716,25 +1878,15 @@ export const refreshChatContext = (
 ) => ({
 	mutationFn: () => API.experimental.refreshChatContext(chatId),
 	onSuccess: (updatedChat: TypesGen.Chat) => {
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKeys.detail(chatId),
-			(cached) =>
-				cached ? { ...cached, context: updatedChat.context } : updatedChat,
+		// Only `context` is authoritative on this response: the endpoint
+		// computes Context.Resources the same way getChat does, but omits
+		// diff_status, files, and children. Merge that one field rather
+		// than writing the entity.
+		patchChatEverywhere(queryClient, chatId, (chat) =>
+			chat.context === updatedChat.context
+				? chat
+				: { ...chat, context: updatedChat.context },
 		);
-		const applyContext = (chat: TypesGen.Chat): TypesGen.Chat =>
-			chat.id === chatId ? { ...chat, context: updatedChat.context } : chat;
-		updateInfiniteChatsCache(queryClient, (chats) => {
-			let changed = false;
-			const next = chats.map((chat) => {
-				const updated = applyContext(chat);
-				if (updated !== chat) {
-					changed = true;
-				}
-				return updated;
-			});
-			return changed ? next : chats;
-		});
-		updateChildInParentCache(queryClient, applyContext, chatId);
 	},
 });
 

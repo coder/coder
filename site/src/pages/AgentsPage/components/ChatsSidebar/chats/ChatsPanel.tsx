@@ -9,7 +9,6 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import {
-	arrayMove,
 	SortableContext,
 	sortableKeyboardCoordinates,
 	verticalListSortingStrategy,
@@ -59,6 +58,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { resolvePinnedChatDrop } from "./pinnedChatDrag";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -78,7 +78,11 @@ interface ChatsPanelProps {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	readonly onReorderPinnedAgent?: (
+		chatId: string,
+		pinOrder: number,
+		pinnedChats: readonly Chat[],
+	) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
@@ -236,15 +240,19 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 
 		lastDragEndedAtRef.current = performance.now();
 		if (!over || active.id === over.id) return;
-		const activeId = String(active.id);
-		const overId = String(over.id);
-		const oldIndex = pinnedChatIds.indexOf(activeId);
-		const newIndex = pinnedChatIds.indexOf(overId);
-		if (oldIndex === -1 || newIndex === -1) return;
+		const drop = resolvePinnedChatDrop({
+			pinnedChats: sortedPinnedChats,
+			hasLocalOrder: localPinOrder !== null,
+			activeId: String(active.id),
+			overId: String(over.id),
+		});
+		if (!drop) return;
 
-		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
-		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		setLocalPinOrder(drop.localOrder);
+		// The drop ran against this panel's own order, which already
+		// includes an earlier drop the parent has not rerendered with yet,
+		// so the mutation renumbers what the user actually saw.
+		onReorderPinnedAgent?.(drop.chatId, drop.pinOrder, drop.mutationChats);
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.

@@ -22,7 +22,11 @@ interface ChatsSidebarProps {
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
-	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onReorderPinnedAgent?: (
+		chatId: string,
+		pinOrder: number,
+		pinnedChats: readonly Chat[],
+	) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	/**
