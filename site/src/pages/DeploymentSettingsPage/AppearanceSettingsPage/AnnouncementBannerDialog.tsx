@@ -101,9 +101,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 										? messageHelperId
 										: undefined
 							}
-							className={cn(
-								messageField.error && "border-border-destructive",
-							)}
+							className={cn(messageField.error && "border-border-destructive")}
 						/>
 						{messageField.error ? (
 							<span
