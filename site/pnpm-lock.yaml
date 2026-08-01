@@ -75,8 +75,8 @@ importers:
         specifier: 5.2.8
         version: 5.2.8
       '@fontsource/source-code-pro':
-        specifier: 5.2.7
-        version: 5.2.7
+        specifier: 5.3.0
+        version: 5.3.0
       '@lexical/react':
         specifier: 0.44.0
         version: 0.44.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(yjs@13.6.29)
@@ -1020,8 +1020,8 @@ packages:
   '@fontsource/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==, tarball: https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.2.8.tgz}
 
-  '@fontsource/source-code-pro@5.2.7':
-    resolution: {integrity: sha512-7papq9TH94KT+S5VSY8cU7tFmwuGkIe3qxXRMscuAXH6AjMU+KJI75f28FzgBVDrlMfA0jjlTV4/x5+H5o/5EQ==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.2.7.tgz}
+  '@fontsource/source-code-pro@5.3.0':
+    resolution: {integrity: sha512-JxaCODU69HDS3mVra9u96nyBF911La6IvtGLgpQD+PZLxJ1i9IxooNfLR6Y37kx06IFjVGkvoUmg3WPwh/8gBg==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.3.0.tgz}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==, tarball: https://registry.npmjs.org/@iconify/types/-/types-2.0.0.tgz}
@@ -7074,7 +7074,7 @@ snapshots:
 
   '@fontsource/jetbrains-mono@5.2.8': {}
 
-  '@fontsource/source-code-pro@5.2.7': {}
+  '@fontsource/source-code-pro@5.3.0': {}
 
   '@iconify/types@2.0.0': {}
 
