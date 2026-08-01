@@ -81,8 +81,8 @@ importers:
         specifier: 0.44.0
         version: 0.44.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(yjs@13.6.29)
       '@lexical/utils':
-        specifier: 0.44.0
-        version: 0.44.0
+        specifier: 0.48.0
+        version: 0.48.0(typescript@6.0.2)
       '@monaco-editor/react':
         specifier: 4.7.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1117,6 +1117,14 @@ packages:
   '@lexical/html@0.44.0':
     resolution: {integrity: sha512-5X6eGsgwtqPxABsuShUxF7ZfyB/U4GwSEyeonvwH1Vc/5Q2uQVjlB+FAYd+MNwWMHMh4d4+yZ3l70AtIuhr5eg==, tarball: https://registry.npmjs.org/@lexical/html/-/html-0.44.0.tgz}
 
+  '@lexical/internal@0.48.0':
+    resolution: {integrity: sha512-sRwg53K7N0ZQ7KNAvcCY38LSwGizbXP1zlR1lIojZp0GoqHWNvR+vL49t1wYXu1nXx3Osf4ilHHm+aGcwq5hTw==, tarball: https://registry.npmjs.org/@lexical/internal/-/internal-0.48.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   '@lexical/link@0.44.0':
     resolution: {integrity: sha512-uvEqEol/mLEzGVQd8Rok9I48RgYPKokM/nsclI9nYcEdccVOM2Nri4ntoRwodhbccFLtjMPl8OBldwXbfc77tQ==, tarball: https://registry.npmjs.org/@lexical/link/-/link-0.44.0.tgz}
 
@@ -1151,6 +1159,14 @@ packages:
   '@lexical/selection@0.44.0':
     resolution: {integrity: sha512-AEyeZJFFr5YRLeqVR+X0QAW19c4Fk4MFAQu52z2gxAyDGTj9xwVJxjfepVpfUp4P9K+sPtJ/yaqfMXH506ksSQ==, tarball: https://registry.npmjs.org/@lexical/selection/-/selection-0.44.0.tgz}
 
+  '@lexical/selection@0.48.0':
+    resolution: {integrity: sha512-Uc0wTrEtHcYK6z/aHHjkgH3vX/R4Bf8mO+qH3VbxfSAKYzNYktM0j+ZGdq5kIEL4frnw/9SulNCXlH7xpjuDgA==, tarball: https://registry.npmjs.org/@lexical/selection/-/selection-0.48.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   '@lexical/table@0.44.0':
     resolution: {integrity: sha512-5Uq0O/fBCxcZp9y17fXUONY7dU9lVo/mB5JHy23laIiKzBKP5IzzTLMU9ikZTppIXbMNxYXd+R2pmy7PYTLyvw==, tarball: https://registry.npmjs.org/@lexical/table/-/table-0.44.0.tgz}
 
@@ -1159,6 +1175,14 @@ packages:
 
   '@lexical/utils@0.44.0':
     resolution: {integrity: sha512-/D2ptztNevfBJgtkj4uaiYBeRcvSy+1mQj6pNYaCFZIoPJIwl6H5fXwWAvpvr11vcQKP9DEEoXR+V4qkMOA+EA==, tarball: https://registry.npmjs.org/@lexical/utils/-/utils-0.44.0.tgz}
+
+  '@lexical/utils@0.48.0':
+    resolution: {integrity: sha512-W4k4P+y6jmRfna8+ad4X+iMd5h8es5PC3bUw5tbi7MRApxaaFG/0w+uJiZVSwbT2Q6JnA2xhBaqzPgt/Gn6djg==, tarball: https://registry.npmjs.org/@lexical/utils/-/utils-0.48.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@lexical/yjs@0.44.0':
     resolution: {integrity: sha512-b3QTub9J/3LuwSSdooynb6GbMHBRyBT4xUbXzXqNPbDHgYe6CDrqf/uJIHRihIjAhOnPaHYqo9XUzitl++N1DQ==, tarball: https://registry.npmjs.org/@lexical/yjs/-/yjs-0.44.0.tgz}
@@ -1282,6 +1306,13 @@ packages:
     peerDependencies:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
+
+  '@napi-rs/wasm-runtime@1.2.2':
+    resolution: {integrity: sha512-JfB4kuJQjaoHuCTseIINHtHWeJnvgEcxjwA5t/Y00ZgaOO1Crz3fjT/p8kT28zA/Caz7oiUMn3d6H2yOVCVwuw==, tarball: https://registry.npmjs.org/@napi-rs/wasm-runtime/-/wasm-runtime-1.2.2.tgz}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=23.5.0}
+    peerDependencies:
+      '@emnapi/core': ^1.7.1 || ^2.0.0-alpha.3
+      '@emnapi/runtime': ^1.7.1 || ^2.0.0-alpha.3
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==, tarball: https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz}
@@ -4491,6 +4522,14 @@ packages:
   lexical@0.44.0:
     resolution: {integrity: sha512-ReDUjRlFgkGoPWzvdjr7s16PUVpHATN+2NH2NiZs+PLlISTaIFFgKil2P467oP3Vg+XgmpDsUgmWZsFJTztYjg==, tarball: https://registry.npmjs.org/lexical/-/lexical-0.44.0.tgz}
 
+  lexical@0.48.0:
+    resolution: {integrity: sha512-KK4Tyr/cPsleoZ7XvhGRiRmcrZidSmoFUdIXK9nPubIifoC+80Dc5THyc4xtGKtsW24S1TsHzk5gmfBU+TxmEg==, tarball: https://registry.npmjs.org/lexical/-/lexical-0.48.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   lib0@0.2.117:
     resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==, tarball: https://registry.npmjs.org/lib0/-/lib0-0.2.117.tgz}
     engines: {node: '>=16'}
@@ -7209,6 +7248,10 @@ snapshots:
       '@lexical/utils': 0.44.0
       lexical: 0.44.0
 
+  '@lexical/internal@0.48.0(typescript@6.0.2)':
+    optionalDependencies:
+      typescript: 6.0.2
+
   '@lexical/link@0.44.0':
     dependencies:
       '@lexical/extension': 0.44.0
@@ -7286,6 +7329,13 @@ snapshots:
     dependencies:
       lexical: 0.44.0
 
+  '@lexical/selection@0.48.0(typescript@6.0.2)':
+    dependencies:
+      '@lexical/internal': 0.48.0(typescript@6.0.2)
+      lexical: 0.48.0(typescript@6.0.2)
+    optionalDependencies:
+      typescript: 6.0.2
+
   '@lexical/table@0.44.0':
     dependencies:
       '@lexical/clipboard': 0.44.0
@@ -7301,6 +7351,14 @@ snapshots:
     dependencies:
       '@lexical/selection': 0.44.0
       lexical: 0.44.0
+
+  '@lexical/utils@0.48.0(typescript@6.0.2)':
+    dependencies:
+      '@lexical/internal': 0.48.0(typescript@6.0.2)
+      '@lexical/selection': 0.48.0(typescript@6.0.2)
+      lexical: 0.48.0(typescript@6.0.2)
+    optionalDependencies:
+      typescript: 6.0.2
 
   '@lexical/yjs@0.44.0(yjs@13.6.29)':
     dependencies:
@@ -7432,6 +7490,13 @@ snapshots:
     optional: true
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
+    dependencies:
+      '@emnapi/core': 1.10.0
+      '@emnapi/runtime': 1.10.0
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
+  '@napi-rs/wasm-runtime@1.2.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
@@ -8415,7 +8480,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
-      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
+      '@napi-rs/wasm-runtime': 1.2.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
     optional: true
 
   '@rolldown/binding-win32-arm64-msvc@1.0.0-rc.17':
@@ -10789,6 +10854,12 @@ snapshots:
     optional: true
 
   lexical@0.44.0: {}
+
+  lexical@0.48.0(typescript@6.0.2):
+    dependencies:
+      '@lexical/internal': 0.48.0(typescript@6.0.2)
+    optionalDependencies:
+      typescript: 6.0.2
 
   lib0@0.2.117:
     dependencies:
