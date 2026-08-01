@@ -292,6 +292,13 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		})
 	}
 
+	// Every event above is derived from this database snapshot, so stamp
+	// them all with the snapshot version. Clients use it to order chat
+	// updates against REST responses and the global watch stream.
+	for i := range events {
+		events[i].SnapshotVersion = chat.SnapshotVersion
+	}
+
 	l.state.snapshotVersion = chat.SnapshotVersion
 	l.state.historyVersion = chat.HistoryVersion
 	l.state.queueVersion = chat.QueueVersion

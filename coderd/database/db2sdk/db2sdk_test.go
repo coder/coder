@@ -716,6 +716,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		Summary:             sql.NullString{String: "summarized the whole chat", Valid: true},
 		CreatedAt:           now,
 		UpdatedAt:           now,
+		SnapshotVersion:     7,
 		Archived:            true,
 		UserACL:             database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
 		PinOrder:            1,
@@ -754,6 +755,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	got := db2sdk.Chat(input, diffStatus, fileRows)
 
 	require.Equal(t, &lastErrorPayload, got.LastError)
+	require.Equal(t, input.SnapshotVersion, got.SnapshotVersion)
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()

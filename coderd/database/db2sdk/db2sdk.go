@@ -1770,6 +1770,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		PinOrder:          c.PinOrder,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
+		SnapshotVersion:   c.SnapshotVersion,
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),

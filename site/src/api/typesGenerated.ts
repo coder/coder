@@ -1915,6 +1915,12 @@ export interface Chat {
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * SnapshotVersion is a monotonic per-chat version of the full chat
+	 * snapshot. Clients use it to order chat payloads received from REST,
+	 * the per-chat stream, and the global watch stream.
+	 */
+	readonly snapshot_version: number;
 	readonly archived: boolean;
 	/**
 	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
@@ -3414,6 +3420,12 @@ export interface ChatStreamEvent {
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	/**
+	 * SnapshotVersion is the chat snapshot version the event was derived
+	 * from. It is omitted for events that carry no database snapshot, such
+	 * as transport errors, which are not authoritative for ordering.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go

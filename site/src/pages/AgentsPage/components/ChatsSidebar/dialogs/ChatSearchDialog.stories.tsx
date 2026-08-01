@@ -32,6 +32,7 @@ const mockChat: Chat = {
 	summary: "Investigated and fixed a race condition in the auth middleware.",
 	created_at: "2026-05-20T05:00:00.000Z",
 	updated_at: "2026-05-20T07:30:00.000Z",
+	snapshot_version: 1,
 	archived: false,
 	shared: false,
 	pin_order: 0,

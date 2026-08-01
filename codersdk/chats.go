@@ -128,7 +128,14 @@ type Chat struct {
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	// SnapshotVersion is a monotonic per-chat version of the chat's durable
+	// execution state, incremented under the chat row lock on every
+	// ChatMachine.Update, so version order equals commit order. Clients use it
+	// to order chat status payloads received from REST, the per-chat stream,
+	// and the global watch stream. Metadata mutations (title, archive,
+	// summary, context) may not advance it.
+	SnapshotVersion int64 `json:"snapshot_version"`
+	Archived        bool  `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -1929,6 +1936,10 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	// SnapshotVersion is the chat snapshot version the event was derived
+	// from. It is omitted for events that carry no database snapshot, such
+	// as transport errors, which are not authoritative for ordering.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.

@@ -77,6 +77,7 @@ export const WithParentChat: Story = {
 			summary: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
+			snapshot_version: 1,
 			archived: false,
 			shared: false,
 			pin_order: 0,

@@ -17326,6 +17326,10 @@ const docTemplate = `{
                     "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
                     "type": "boolean"
                 },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is a monotonic per-chat version of the full chat\nsnapshot. Clients use it to order chat payloads received from REST,\nthe per-chat stream, and the global watch stream.",
+                    "type": "integer"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
@@ -18318,6 +18322,10 @@ const docTemplate = `{
                 },
                 "retry": {
                     "$ref": "#/definitions/codersdk.ChatStreamRetry"
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat snapshot version the event was derived\nfrom. It is omitted for events that carry no database snapshot, such\nas transport errors, which are not authoritative for ordering.",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStreamStatus"

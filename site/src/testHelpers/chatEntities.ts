@@ -23,6 +23,7 @@ export const MockChat: Chat = {
 	summary: null,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
+	snapshot_version: 1,
 	archived: false,
 	shared: false,
 	pin_order: 0,

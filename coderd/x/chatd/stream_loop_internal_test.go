@@ -215,6 +215,10 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 	)
 	require.Equal(t, chatError.Message, events[2].Error.Message)
 	require.Equal(t, retry.Attempt, events[3].Retry.Attempt)
+	for i, event := range events {
+		require.Equal(t, int64(2), event.SnapshotVersion,
+			"event %d (%s) must carry the snapshot version it was derived from", i, event.Type)
+	}
 
 	actionLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
 	actionEvents := actionLoop.applyDBSnapshot(streamDBSnapshot{
@@ -232,6 +236,10 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 		codersdk.ChatStreamEventTypePreviewReset,
 	)
 	require.Equal(t, "call-1", actionEvents[1].ActionRequired.ToolCalls[0].ToolCallID)
+	for i, event := range actionEvents {
+		require.Equal(t, int64(1), event.SnapshotVersion,
+			"event %d (%s) must carry the snapshot version it was derived from", i, event.Type)
+	}
 }
 
 func TestStreamLoopActionRequiredFromHistory(t *testing.T) {

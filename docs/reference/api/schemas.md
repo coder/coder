@@ -2209,6 +2209,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2303,6 +2304,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2345,6 +2347,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `snapshot_version`      | integer                                                         | false    |              | Snapshot version is a monotonic per-chat version of the full chat snapshot. Clients use it to order chat payloads received from REST, the per-chat stream, and the global watch stream.                                                                                    |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3806,6 +3809,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -3815,17 +3819,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
-| `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                             |
+|--------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                         |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                         |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                         |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                         |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                         |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                                                                                                                                         |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                         |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is the chat snapshot version the event was derived from. It is omitted for events that carry no database snapshot, such as transport errors, which are not authoritative for ordering. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                         |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                         |
 
 ## codersdk.ChatStreamEventType
 
@@ -4120,6 +4125,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
+    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
