@@ -243,6 +243,31 @@ export const KeepsFocusWhileUpdating: Story = {
 };
 
 /**
+ * The enable path opens a dialog, and closing one returns focus to whatever
+ * opened it. `ConfirmDialog` renders no Radix trigger, so Radix has nothing to
+ * restore to and focus would otherwise land on `<body>`, which is the same loss
+ * the in-flight handling above exists to prevent.
+ */
+export const KeepsFocusAfterConfirming: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const button = canvas.getByRole("button", { name: "Enable" });
+
+		button.focus();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => expect(body.getByTestId("dialog")).toBeVisible());
+
+		await userEvent.click(body.getByTestId("confirm-button"));
+		await waitFor(() =>
+			expect(body.queryByTestId("dialog")).not.toBeInTheDocument(),
+		);
+
+		await expect(button).toHaveFocus();
+	},
+};
+
+/**
  * The dialog's visibility follows only the admin's own intent, never the
  * server value. When the setting is enabled elsewhere while the dialog is
  * open, the dialog stays put and the admin closes it themselves. It must

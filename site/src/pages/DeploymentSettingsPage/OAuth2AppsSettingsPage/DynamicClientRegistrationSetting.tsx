@@ -1,4 +1,4 @@
-import { type FC, useId, useState } from "react";
+import { type FC, useId, useRef, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -16,6 +16,7 @@ export const DynamicClientRegistrationSetting: FC<
 > = ({ enabled, canEdit, isUpdating, onChange }) => {
 	const headingId = useId();
 	const [isEnableDialogOpen, setIsEnableDialogOpen] = useState(false);
+	const buttonRef = useRef<HTMLButtonElement>(null);
 
 	return (
 		<>
@@ -69,6 +70,7 @@ export const DynamicClientRegistrationSetting: FC<
 				 * which drops a keyboard user back to the top of the document mid-flip.
 				 */}
 				<Button
+					ref={buttonRef}
 					variant={enabled ? "outline" : "default"}
 					disabled={!canEdit}
 					aria-disabled={isUpdating}
@@ -97,6 +99,14 @@ export const DynamicClientRegistrationSetting: FC<
 					onChange(true);
 				}}
 				onClose={() => setIsEnableDialogOpen(false)}
+				// Radix returns focus to its trigger on close, and this dialog has
+				// none, so focus would land on <body>. Focusing from the handlers
+				// above does not survive: Radix moves focus again when the exit
+				// animation ends.
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					buttonRef.current?.focus();
+				}}
 				title="Enable Dynamic Client Registration?"
 				confirmText="Enable"
 				description="Any client that can reach this deployment will be able to register itself as an OAuth2 application, with no Coder account and no administrator approval. Disabling later blocks new registrations but does not revoke clients that already registered."
