@@ -84,6 +84,10 @@ type Options struct {
 	Logger            slog.Logger
 	HideAITasks       bool
 	AIGatewayEnabled  bool
+	// SentryDSN enables dashboard client error reporting when non-empty.
+	// Internal and unsupported; used only by Coder-operated deployments.
+	SentryDSN         string
+	SentryEnvironment string
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -130,6 +134,17 @@ func New(opts *Options) (*Handler, error) {
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
 
+	if opts.SentryDSN != "" {
+		sentryConfigResponse, err := json.Marshal(sentryConfig{
+			DSN:         opts.SentryDSN,
+			Environment: opts.SentryEnvironment,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("failed to marshal sentry config: %w", err)
+		}
+		handler.sentryConfigJSON = html.EscapeString(string(sentryConfigResponse))
+	}
+
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
@@ -145,7 +160,10 @@ type Handler struct {
 	handler       http.HandlerFunc
 	htmlTemplates *template.Template
 	buildInfoJSON string
-	installScript []byte
+	// sentryConfigJSON is the pre-escaped sentry-config metadata payload,
+	// or empty when client error reporting is disabled.
+	sentryConfigJSON string
+	installScript    []byte
 
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
@@ -170,6 +188,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		CSRF:      csrfState{Token: nosurf.Token(r)},
 		BuildInfo: h.buildInfoJSON,
 		DocsURL:   h.opts.DocsURL,
+		// Empty for deployments that have not opted in to client error
+		// reporting, in which case the dashboard loads no reporting code.
+		SentryConfig: h.sentryConfigJSON,
 	}
 
 	// First check if it's a file we have in our templates
@@ -269,12 +290,20 @@ type htmlState struct {
 
 	TasksTabVisible  string
 	AIGatewayEnabled string
+	SentryConfig     string
 	Permissions      string
 	Organizations    string
 }
 
 type csrfState struct {
 	Token string
+}
+
+// sentryConfig is the payload of the sentry-config metadata tag consumed
+// by the dashboard to initialize client error reporting.
+type sentryConfig struct {
+	DSN         string `json:"dsn"`
+	Environment string `json:"environment,omitempty"`
 }
 
 func ShouldCacheFile(reqFile string) bool {

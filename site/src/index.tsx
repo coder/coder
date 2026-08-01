@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
+import { defaultMetadataManager } from "./hooks/useEmbeddedMetadata";
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -30,6 +31,20 @@ window.addEventListener("vite:preloadError", () => {
 const element = document.getElementById("root");
 if (element === null) {
 	throw new Error("root element is null");
+}
+
+// Client error reporting is opt-in per deployment. The Sentry chunk is
+// only fetched when the server rendered a sentry-config metadata tag;
+// every other deployment loads no reporting code at all.
+const embeddedMetadata = defaultMetadataManager.getMetadata();
+const clientErrorReportingConfig = embeddedMetadata["sentry-config"].value;
+if (clientErrorReportingConfig) {
+	const buildInfo = embeddedMetadata["build-info"].value;
+	void import("./telemetry/sentry")
+		.then((sentry) => sentry.init(clientErrorReportingConfig, buildInfo))
+		.catch(() => {
+			// Reporting is best-effort and must never block boot.
+		});
 }
 
 // The service worker handles push notifications.

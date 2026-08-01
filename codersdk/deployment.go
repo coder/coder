@@ -732,6 +732,8 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	DashboardSentryDSN                      serpent.String                       `json:"dashboard_sentry_dsn,omitempty" typescript:",notnull"`
+	DashboardSentryEnvironment              serpent.String                       `json:"dashboard_sentry_environment,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -4309,6 +4311,28 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.HideAITasks,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
+		},
+		{
+			Name:        "Dashboard Sentry DSN",
+			Description: "Internal and unsupported: Sentry DSN for dashboard client error reporting. When empty, client error reporting is disabled and no reporting code is loaded by the dashboard.",
+			Flag:        "dashboard-sentry-dsn",
+			Env:         "CODER_DASHBOARD_SENTRY_DSN",
+			Default:     "",
+			Value:       &c.DashboardSentryDSN,
+			Group:       &deploymentGroupClient,
+			YAML:        "dashboardSentryDSN",
+			Hidden:      true,
+		},
+		{
+			Name:        "Dashboard Sentry Environment",
+			Description: "Internal and unsupported: Sentry environment tag for dashboard client error reporting. Has no effect unless a dashboard Sentry DSN is configured.",
+			Flag:        "dashboard-sentry-environment",
+			Env:         "CODER_DASHBOARD_SENTRY_ENVIRONMENT",
+			Default:     "",
+			Value:       &c.DashboardSentryEnvironment,
+			Group:       &deploymentGroupClient,
+			YAML:        "dashboardSentryEnvironment",
+			Hidden:      true,
 		},
 		// Chat Options
 		{

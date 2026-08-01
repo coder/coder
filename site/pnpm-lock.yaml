@@ -101,6 +101,9 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.4
         version: 1.0.0-beta.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@sentry/react':
+        specifier: 10.64.0
+        version: 10.64.0(react@19.2.6)
       '@tanstack/react-query-devtools':
         specifier: 5.77.0
         version: 5.77.0(@tanstack/react-query@5.77.0(react@19.2.6))(react@19.2.6)
@@ -2400,6 +2403,40 @@ packages:
     peerDependenciesMeta:
       rollup:
         optional: true
+
+  '@sentry/browser-utils@10.64.0':
+    resolution: {integrity: sha512-qXvUpsZdE0+6SovhDZvjN4JkqQEpzeYsrOF5g63wMsqJWWv2vW/pQZIlJs0F6C0t4q5AHZL4fl5rNkvpVqFdKA==, tarball: https://registry.npmjs.org/@sentry/browser-utils/-/browser-utils-10.64.0.tgz}
+    engines: {node: '>=18'}
+
+  '@sentry/browser@10.64.0':
+    resolution: {integrity: sha512-CHZ7+79evh8knBtVHjW/XqV3mRaWs2TdjX7i55zpFe9vcNngQHV++0ss8ird/xfMY1mfCDtbyAN+Z6XY2o5aJA==, tarball: https://registry.npmjs.org/@sentry/browser/-/browser-10.64.0.tgz}
+    engines: {node: '>=18'}
+
+  '@sentry/conventions@0.15.1':
+    resolution: {integrity: sha512-ZLP8bRdMON3prWE2tJyImuYscCxdcJeIPIhrOs/rgyFm3C1nCh1B6gdvPj3AZ5zW08oSFFCsq7T+tYEW3h8MNA==, tarball: https://registry.npmjs.org/@sentry/conventions/-/conventions-0.15.1.tgz}
+    engines: {node: '>=14'}
+
+  '@sentry/core@10.64.0':
+    resolution: {integrity: sha512-HjojJcXD1l2qZ1AXje2s0XY/nYsaUt00wsM1HMBImA8vAClyPisFE/CC0/UD6pEvsGFhVgi8Dcxo7EN41uyeFw==, tarball: https://registry.npmjs.org/@sentry/core/-/core-10.64.0.tgz}
+    engines: {node: '>=18'}
+
+  '@sentry/feedback@10.64.0':
+    resolution: {integrity: sha512-YrmKwRoAto+nwo26DoAhnpNmhkrVkuQFIAXqlTD8ipERjhcSNUYJAkAB+nH4w1KIgm9QQZE1sTq3iNQdPl1XMQ==, tarball: https://registry.npmjs.org/@sentry/feedback/-/feedback-10.64.0.tgz}
+    engines: {node: '>=18'}
+
+  '@sentry/react@10.64.0':
+    resolution: {integrity: sha512-oShEKcosBKdm0kgan8suFb6Jj8poccEyDz2qiflonq/5/hUDyzdVeKfFzf0b1MmdjWSn9k3hfrLNFfPNCuEt7Q==, tarball: https://registry.npmjs.org/@sentry/react/-/react-10.64.0.tgz}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: ^16.14.0 || 17.x || 18.x || 19.x
+
+  '@sentry/replay-canvas@10.64.0':
+    resolution: {integrity: sha512-EioBwcnnhtPiXzTZJTbZKaMEg3qNM5YZlX1VanoXomPATqfJD62cb/M27zhgiWXXJ7e8/NGVHvwNDYGrqsN39g==, tarball: https://registry.npmjs.org/@sentry/replay-canvas/-/replay-canvas-10.64.0.tgz}
+    engines: {node: '>=18'}
+
+  '@sentry/replay@10.64.0':
+    resolution: {integrity: sha512-q8nke2GDSwEiu1zYoctDDvnSNTjHWoVAKo2JXTleD0nwOO6IlAgUYmsm3qEQiSW7BVla9W1TRbW6ChFAUXYZbw==, tarball: https://registry.npmjs.org/@sentry/replay/-/replay-10.64.0.tgz}
+    engines: {node: '>=18'}
 
   '@shikijs/core@3.23.0':
     resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==, tarball: https://registry.npmjs.org/@shikijs/core/-/core-3.23.0.tgz}
@@ -8450,6 +8487,44 @@ snapshots:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
       picomatch: 4.0.4
+
+  '@sentry/browser-utils@10.64.0':
+    dependencies:
+      '@sentry/core': 10.64.0
+
+  '@sentry/browser@10.64.0':
+    dependencies:
+      '@sentry/browser-utils': 10.64.0
+      '@sentry/core': 10.64.0
+      '@sentry/feedback': 10.64.0
+      '@sentry/replay': 10.64.0
+      '@sentry/replay-canvas': 10.64.0
+
+  '@sentry/conventions@0.15.1': {}
+
+  '@sentry/core@10.64.0':
+    dependencies:
+      '@sentry/conventions': 0.15.1
+
+  '@sentry/feedback@10.64.0':
+    dependencies:
+      '@sentry/core': 10.64.0
+
+  '@sentry/react@10.64.0(react@19.2.6)':
+    dependencies:
+      '@sentry/browser': 10.64.0
+      '@sentry/core': 10.64.0
+      react: 19.2.6
+
+  '@sentry/replay-canvas@10.64.0':
+    dependencies:
+      '@sentry/core': 10.64.0
+      '@sentry/replay': 10.64.0
+
+  '@sentry/replay@10.64.0':
+    dependencies:
+      '@sentry/browser-utils': 10.64.0
+      '@sentry/core': 10.64.0
 
   '@shikijs/core@3.23.0':
     dependencies:

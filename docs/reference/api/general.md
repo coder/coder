@@ -271,6 +271,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
+    "dashboard_sentry_dsn": "string",
+    "dashboard_sentry_environment": "string",
     "derp": {
       "config": {
         "block_direct": true,

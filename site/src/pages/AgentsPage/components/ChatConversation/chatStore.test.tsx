@@ -36,6 +36,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { reportClientError } from "#/utils/clientErrorReporting";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
@@ -56,6 +57,10 @@ vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
 }));
 
+vi.mock("#/utils/clientErrorReporting", () => ({
+	reportClientError: vi.fn(),
+}));
+
 type MessageListener = (
 	payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 ) => void;
@@ -69,7 +74,7 @@ type MockSocketHelpers = {
 	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
-	emitParseError: () => void;
+	emitParseError: (rawFrame?: string) => void;
 	emitError: () => void;
 	emitClose: () => void;
 };
@@ -165,9 +170,9 @@ const createMockSocket = (): MockSocket => {
 				listener(payload);
 			}
 		},
-		emitParseError: () => {
+		emitParseError: (rawFrame?: string) => {
 			const payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]> = {
-				sourceEvent: {} as MessageEvent<string>,
+				sourceEvent: { data: rawFrame } as MessageEvent<string>,
 				parseError: new Error("bad json"),
 				parsedMessage: undefined,
 			};
@@ -5478,5 +5483,64 @@ describe("parse errors", () => {
 			kind: "generic",
 			message: "Failed to parse chat stream update.",
 		});
+	});
+
+	it("reports parse errors with the raw frame for investigation", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-parse-report";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitParseError("{ not valid json");
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Failed to parse chat stream update.",
+			});
+		});
+
+		expect(reportClientError).toHaveBeenLastCalledWith(
+			expect.objectContaining({ message: "bad json" }),
+			{
+				chatId: chatID,
+				frameSnippet: "{ not valid json",
+				frameLength: "16",
+			},
+		);
 	});
 });

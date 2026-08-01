@@ -263,6 +263,49 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
+func TestDashboardSentryCSP(t *testing.T) {
+	t.Parallel()
+
+	fetchCSP := func(t *testing.T, client *codersdk.Client) string {
+		res, err := client.Request(context.Background(), http.MethodGet, "/", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		return res.Header.Get("Content-Security-Policy")
+	}
+
+	t.Run("DisabledByDefault", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		csp := fetchCSP(t, client)
+		require.NotEmpty(t, csp)
+		require.NotContains(t, csp, "sentry")
+	})
+
+	t.Run("ConnectSrcIncludesIngestOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.DashboardSentryDSN = "https://key@o1.ingest.sentry.example/1"
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+
+		csp := fetchCSP(t, client)
+		require.Contains(t, csp, "https://o1.ingest.sentry.example")
+		connectSrc := ""
+		for _, directive := range strings.Split(csp, ";") {
+			if strings.Contains(directive, "connect-src") {
+				connectSrc = directive
+				break
+			}
+		}
+		require.Contains(t, connectSrc, "https://o1.ingest.sentry.example",
+			"ingest origin must be part of connect-src")
+	})
+}
+
 // TestAIGatewayDisabledStartupAndShutdown verifies the server starts and
 // shuts down cleanly when the AI Gateway is disabled, leaving api.chatDaemon
 // nil. It exercises the startup path (git sync worker callback binding, see

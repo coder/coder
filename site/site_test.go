@@ -161,6 +161,61 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+func TestInjectionSentryConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		dsn         string
+		environment string
+		want        string
+	}{
+		{
+			name: "DisabledByDefault",
+			want: "",
+		},
+		{
+			name:        "DSNAndEnvironment",
+			dsn:         "https://key@ingest.sentry.example/1",
+			environment: "dogfood",
+			want:        `{"dsn":"https://key@ingest.sentry.example/1","environment":"dogfood"}`,
+		},
+		{
+			name: "DSNOnlyOmitsEnvironment",
+			dsn:  "https://key@ingest.sentry.example/1",
+			want: `{"dsn":"https://key@ingest.sentry.example/1"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte("{{ .SentryConfig }}"),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				Database:          db,
+				SiteFS:            siteFS,
+				SentryDSN:         tt.dsn,
+				SentryEnvironment: tt.environment,
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, tt.want, html.UnescapeString(rw.Body.String()))
+		})
+	}
+}
+
 func TestInjectionUserAppearance(t *testing.T) {
 	t.Parallel()
 

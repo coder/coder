@@ -4,6 +4,7 @@ import {
 	MockAIGatewayEnabled,
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockClientErrorReportingConfig,
 	MockEntitlements,
 	MockExperiments,
 	MockOrganization,
@@ -47,6 +48,7 @@ const mockDataForTags = {
 	regions: MockRegions,
 	"tasks-tab-visible": MockTasksTabVisible,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
+	"sentry-config": MockClientErrorReportingConfig,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -85,6 +87,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"ai-gateway-enabled": {
+		available: false,
+		value: undefined,
+	},
+	"sentry-config": {
 		available: false,
 		value: undefined,
 	},
@@ -134,6 +140,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"ai-gateway-enabled": {
 		available: true,
 		value: MockAIGatewayEnabled,
+	},
+	"sentry-config": {
+		available: true,
+		value: MockClientErrorReportingConfig,
 	},
 	permissions: {
 		available: true,

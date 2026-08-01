@@ -650,6 +650,10 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 
 export const MockTasksTabVisible: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
+export const MockClientErrorReportingConfig = {
+	dsn: "https://mock-key@mock.ingest.sentry.example/1",
+	environment: "mock",
+} as const;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,

@@ -78,3 +78,54 @@ func TestChatDaemonPublishDiffStatusChangeFunc(t *testing.T) {
 	fn := chatDaemonPublishDiffStatusChangeFunc(nil)
 	require.Nil(t, fn, "func value must be a true nil, not a bound method on a nil receiver")
 }
+
+func TestSentryIngestOrigin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		dsn     string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "HTTPSWithKey",
+			dsn:  "https://abc123@o450.ingest.sentry.example/42",
+			want: "https://o450.ingest.sentry.example",
+		},
+		{
+			name: "HTTPSelfHosted",
+			dsn:  "http://key@sentry.internal:9000/1",
+			want: "http://sentry.internal:9000",
+		},
+		{
+			name:    "NonHTTPScheme",
+			dsn:     "ftp://key@host/1",
+			wantErr: true,
+		},
+		{
+			name:    "NoHost",
+			dsn:     "https:///1",
+			wantErr: true,
+		},
+		{
+			name:    "NotAURL",
+			dsn:     "::not-a-url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := sentryIngestOrigin(tt.dsn)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

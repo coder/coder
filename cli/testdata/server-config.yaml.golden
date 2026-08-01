@@ -600,6 +600,15 @@ client:
   # Hide AI tasks from the dashboard.
   # (default: false, type: bool)
   hideAITasks: false
+  # Internal and unsupported: Sentry DSN for dashboard client error reporting. When
+  # empty, client error reporting is disabled and no reporting code is loaded by the
+  # dashboard.
+  # (default: <unset>, type: string)
+  dashboardSentryDSN: ""
+  # Internal and unsupported: Sentry environment tag for dashboard client error
+  # reporting. Has no effect unless a dashboard Sentry DSN is configured.
+  # (default: <unset>, type: string)
+  dashboardSentryEnvironment: ""
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []

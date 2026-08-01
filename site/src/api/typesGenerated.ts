@@ -4902,6 +4902,8 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
+	readonly dashboard_sentry_dsn?: string;
+	readonly dashboard_sentry_environment?: string;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;

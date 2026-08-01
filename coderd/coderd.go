@@ -761,6 +761,8 @@ func New(options *Options) *API {
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		SentryDSN:         options.DeploymentValues.DashboardSentryDSN.String(),
+		SentryEnvironment: options.DeploymentValues.DashboardSentryEnvironment.String(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -2229,6 +2231,20 @@ func New(options *Options) *API {
 	additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
 		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
 	)
+	// Allow the dashboard to deliver client error reports to the configured
+	// Sentry ingest origin. Deployments without a DSN keep the default CSP,
+	// which blocks any such egress.
+	if dsn := api.DeploymentValues.DashboardSentryDSN.String(); dsn != "" {
+		if origin, err := sentryIngestOrigin(dsn); err != nil {
+			api.Logger.Error(context.Background(),
+				"parsing dashboard Sentry DSN for CSP, client error reports may be blocked",
+				slog.Error(err))
+		} else {
+			additionalCSPHeaders[httpmw.CSPDirectiveConnectSrc] = append(
+				additionalCSPHeaders[httpmw.CSPDirectiveConnectSrc], origin,
+			)
+		}
+	}
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspProxyHosts := func() []*proxyhealth.ProxyHost {
@@ -2526,6 +2542,23 @@ func compressHandler(h http.Handler) http.Handler {
 	}
 
 	return cmp.Handler(h)
+}
+
+// sentryIngestOrigin returns the scheme and host of a Sentry DSN so it can
+// be added to the connect-src CSP directive. A DSN has the shape
+// https://<key>@<host>/<project-id>; events are delivered to the host.
+func sentryIngestOrigin(dsn string) (string, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", xerrors.Errorf("parse DSN: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", xerrors.Errorf("DSN scheme %q is not http or https", u.Scheme)
+	}
+	if u.Host == "" {
+		return "", xerrors.New("DSN has no host")
+	}
+	return u.Scheme + "://" + u.Host, nil
 }
 
 type MemoryProvisionerDaemonOption func(*memoryProvisionerDaemonOptions)

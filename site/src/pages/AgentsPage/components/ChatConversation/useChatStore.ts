@@ -17,6 +17,7 @@ import {
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { reportClientError } from "#/utils/clientErrorReporting";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
@@ -506,6 +507,20 @@ export const useChatStore = (
 				return;
 			}
 			if (payload.parseError || !payload.parsedMessage) {
+				console.error("Failed to parse chat stream update", payload.parseError);
+				// The event data is typed as string, but binary frames
+				// surface as Blob at runtime; normalize for reporting.
+				const frame: unknown = payload.sourceEvent.data;
+				const frameText = typeof frame === "string" ? frame : String(frame);
+				reportClientError(
+					payload.parseError ??
+						new Error("chat stream frame parsed to a falsy value"),
+					{
+						chatId: chatID,
+						frameSnippet: frameText,
+						frameLength: String(frameText.length),
+					},
+				);
 				store.setStreamError({
 					kind: "generic",
 					message: "Failed to parse chat stream update.",

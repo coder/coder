@@ -19942,6 +19942,12 @@ const docTemplate = `{
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
                 },
+                "dashboard_sentry_dsn": {
+                    "type": "string"
+                },
+                "dashboard_sentry_environment": {
+                    "type": "string"
+                },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },

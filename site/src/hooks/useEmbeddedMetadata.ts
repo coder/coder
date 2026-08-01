@@ -13,6 +13,16 @@ import type { Permissions } from "#/modules/permissions";
 export const DEFAULT_METADATA_KEY = "property";
 
 /**
+ * Configuration for dashboard client error reporting, rendered by the Go
+ * server only when a deployment explicitly opts in. Absent for all other
+ * deployments, in which case no reporting code is loaded.
+ */
+export interface ClientErrorReportingConfig {
+	readonly dsn: string;
+	readonly environment?: string;
+}
+
+/**
  * This is the set of values that are currently being exposed to the React
  * application during production. These values are embedded via the Go server,
  * so they will never exist when using a JavaScript runtime for the backend
@@ -33,6 +43,7 @@ type AvailableMetadata = Readonly<{
 	"build-info": BuildInfoResponse;
 	"tasks-tab-visible": boolean;
 	"ai-gateway-enabled": boolean;
+	"sentry-config": ClientErrorReportingConfig;
 	permissions: Permissions;
 	organizations: Organization[];
 }>;
@@ -98,6 +109,8 @@ export class MetadataManager implements MetadataManagerApi {
 			regions: this.registerRegionValue(),
 			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
 			"ai-gateway-enabled": this.registerValue<boolean>("ai-gateway-enabled"),
+			"sentry-config":
+				this.registerValue<ClientErrorReportingConfig>("sentry-config"),
 			permissions: this.registerValue<Permissions>("permissions"),
 			organizations: this.registerValue<Organization[]>("organizations"),
 		};
