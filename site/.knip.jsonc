@@ -24,6 +24,10 @@
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
 		"@types/react-virtualized-auto-sizer",
+		// tw-animate-css is consumed via `@import "tw-animate-css"` in
+		// src/index.css. knip only analyzes JS/TS imports, so it cannot see
+		// the CSS usage and would report it as unused.
+		"tw-animate-css",
 		"ts-proto"
 	]
 }
