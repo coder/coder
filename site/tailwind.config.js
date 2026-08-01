@@ -87,6 +87,9 @@ module.exports = {
 					purple: "hsl(var(--border-purple) / <alpha-value>)",
 					magenta: "hsl(var(--border-magenta) / <alpha-value>)",
 				},
+				// `overlay` intentionally omits the `<alpha-value>` token: the
+				// `--overlay-default` custom property already bakes in its own alpha
+				// (`... / 80%`) and it is never used with an opacity modifier.
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input) / <alpha-value>)",
 				ring: "hsl(var(--ring) / <alpha-value>)",

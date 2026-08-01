@@ -18,6 +18,14 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @config "../tailwind.config.js";
 
+/*
+	v4 gates the `hover:` variant behind `@media (hover: hover)` so hover styles
+	apply only on hover-capable pointers. v3 emitted `hover:` unconditionally.
+	Redefine the variant to the v3 behaviour so this migration is a no-op; drop
+	this to adopt v4's pointer-aware hover.
+*/
+@custom-variant hover (&:hover);
+
 @font-face {
 	font-family: "seti";
 	src: url("/seti.woff") format("woff");
@@ -499,38 +507,6 @@
 	   Blink still require for gradient/clipped text. */
 	.bg-clip-text {
 		-webkit-background-clip: text;
-	}
-
-	/* v4 `container` no longer applies the responsive max-widths that the v3
-	   core plugin generated. Restore the v3 breakpoints (no centering/padding,
-	   matching the v3 defaults this project relied on). */
-	.container {
-		width: 100%;
-	}
-	@media (min-width: 640px) {
-		.container {
-			max-width: 640px;
-		}
-	}
-	@media (min-width: 768px) {
-		.container {
-			max-width: 768px;
-		}
-	}
-	@media (min-width: 1024px) {
-		.container {
-			max-width: 1024px;
-		}
-	}
-	@media (min-width: 1280px) {
-		.container {
-			max-width: 1280px;
-		}
-	}
-	@media (min-width: 1536px) {
-		.container {
-			max-width: 1536px;
-		}
 	}
 }
 
