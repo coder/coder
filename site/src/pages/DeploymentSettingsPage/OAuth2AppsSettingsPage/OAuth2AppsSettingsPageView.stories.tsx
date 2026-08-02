@@ -12,6 +12,7 @@ const MockSettingsTab = {
 	isUpdating: false,
 	loadError: undefined,
 	updateError: undefined,
+	onRetry: fn(),
 	dynamicClientRegistrationEnabled: false,
 	onDynamicClientRegistrationChange: fn(),
 };
@@ -158,7 +159,7 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 			dynamicClientRegistrationEnabled: undefined,
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 
 		await expect(
@@ -173,8 +174,10 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 		// One condition, one explanation. The fallback copy is for a value that is
 		// absent without an error, not for an error.
 		await expect(
-			canvas.queryByText("Settings are unavailable."),
+			canvas.queryByText(/did not return a value/),
 		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		await expect(args.settings?.onRetry).toHaveBeenCalled();
 	},
 };
 
@@ -239,11 +242,20 @@ export const SettingsValueOmitted: Story = {
 			dynamicClientRegistrationEnabled: undefined,
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
 
-		await expect(canvas.getByText("Settings are unavailable.")).toBeVisible();
+		// Names the cause and offers a way out. Nothing else recovers this state:
+		// retries are off, refetch-on-focus is off, and the control that would
+		// trigger an invalidation is the thing that is missing.
+		await expect(
+			canvas.getByText(
+				/did not return a value for Dynamic Client Registration/,
+			),
+		).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		await expect(args.settings?.onRetry).toHaveBeenCalled();
 	},
 };
 

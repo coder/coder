@@ -51,6 +51,13 @@ type SettingsTab = {
 	 */
 	loadError: unknown;
 	updateError: unknown;
+	/**
+	 * Both terminal states below are dead ends without it: `retry: false` and
+	 * `refetchOnWindowFocus: false` are set globally, the query outlives a tab
+	 * switch, and the control that would trigger an invalidation is exactly what
+	 * is not rendered.
+	 */
+	onRetry: () => void;
 	// Stays optional: an offline query is `fetchStatus: "paused"`, so `isLoading`
 	// is false with no data and no error.
 	dynamicClientRegistrationEnabled: boolean | undefined;
@@ -76,13 +83,21 @@ const SettingsTabBody: FC<{ settings: SettingsTab }> = ({ settings }) => {
 	}
 
 	if (settings.dynamicClientRegistrationEnabled === undefined) {
-		if (settings.loadError) {
-			return <ErrorAlert error={settings.loadError} />;
-		}
 		return (
-			<p className="text-sm text-content-secondary m-0">
-				Settings are unavailable.
-			</p>
+			<div className="flex flex-col items-start gap-4">
+				{settings.loadError ? (
+					<ErrorAlert error={settings.loadError} />
+				) : (
+					<p className="text-sm text-content-secondary m-0">
+						Coder did not return a value for Dynamic Client Registration. This
+						can happen while the browser is offline. Retry, or check the setting
+						with <code className="text-xs">coder oauth2-provider dcr</code>.
+					</p>
+				)}
+				<Button variant="outline" size="sm" onClick={settings.onRetry}>
+					Retry
+				</Button>
+			</div>
 		);
 	}
 

@@ -38,6 +38,7 @@ const OAuth2AppsSettingsPage: FC = () => {
 								isLoading: settingsQuery.isLoading,
 								isUpdating: updateSettingsMutation.isPending,
 								loadError: settingsQuery.error,
+								onRetry: () => void settingsQuery.refetch(),
 								updateError: updateSettingsMutation.error,
 								dynamicClientRegistrationEnabled:
 									settingsQuery.data?.dynamic_client_registration_enabled,
