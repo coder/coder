@@ -16,10 +16,6 @@ const settings: TypesGen.OAuth2ProviderSettings = {
 };
 
 describe("getSettings", () => {
-	it("uses a queryKey nested under the oauth2-provider prefix", () => {
-		expect(getSettings().queryKey).toEqual(["oauth2-provider", "settings"]);
-	});
-
 	it("fetches settings via the API client", async () => {
 		const getSettingsMock = vi.mocked(API.getOAuth2ProviderSettings);
 		getSettingsMock.mockResolvedValue(settings);

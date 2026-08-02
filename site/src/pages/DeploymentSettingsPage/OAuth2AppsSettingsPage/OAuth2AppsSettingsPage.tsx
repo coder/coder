@@ -8,16 +8,21 @@ import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 const OAuth2AppsSettingsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
+
+	const canCreateApp = permissions.createOAuth2App;
+	// Gates the query and the prop below. Spelled once because a disabled query
+	// reports `isLoading: false` with no data, so the two drifting apart would
+	// render the tab permanently on its absent-value branch, with no spinner and
+	// no error to explain it.
+	const canViewSettings = permissions.viewDeploymentConfig;
+	const canEditSettings = permissions.editDeploymentConfig;
+
 	const appsQuery = useQuery(getApps());
 	const settingsQuery = useQuery({
 		...getSettings(),
-		enabled: permissions.viewDeploymentConfig,
+		enabled: canViewSettings,
 	});
 	const updateSettingsMutation = useMutation(putSettings(queryClient));
-
-	const canCreateApp = permissions.createOAuth2App;
-	const canViewSettings = permissions.viewDeploymentConfig;
-	const canEditSettings = permissions.editDeploymentConfig;
 
 	return (
 		<>
@@ -26,10 +31,7 @@ const OAuth2AppsSettingsPage: FC = () => {
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}
 				isLoadingApps={appsQuery.isLoading}
-				// The view gates the applications empty state on this prop, so a
-				// settings failure here would claim the apps list is unknown when it
-				// loaded fine.
-				error={appsQuery.error}
+				appsError={appsQuery.error}
 				canCreateApp={canCreateApp}
 				settings={
 					canViewSettings

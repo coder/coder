@@ -43,7 +43,7 @@ export const Loading: Story = {
 export const WithError: Story = {
 	args: {
 		isLoadingApps: false,
-		error: "some error",
+		appsError: "some error",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -112,6 +112,23 @@ export const SettingsTabUpdating: Story = {
 	},
 };
 
+/**
+ * The description is header content, outside the tabs, so it has to describe
+ * what the page actually offers this viewer. Its second clause belongs to the
+ * settings tab and goes with it.
+ */
+export const DescriptionCoversSettingsWhenPermitted: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(
+				"Register applications to use Coder as an OAuth2 provider, and configure how this deployment behaves as one.",
+			),
+		).toBeVisible();
+	},
+};
+
 export const SettingsTabHiddenWithoutPermission: Story = {
 	args: {
 		settings: undefined,
@@ -125,6 +142,11 @@ export const SettingsTabHiddenWithoutPermission: Story = {
 		await expect(
 			canvas.queryByRole("tab", { name: "Settings" }),
 		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByText(
+				"Register applications to use Coder as an OAuth2 provider.",
+			),
+		).toBeVisible();
 	},
 };
 

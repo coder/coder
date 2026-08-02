@@ -67,7 +67,7 @@ type SettingsTab = {
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
 	isLoadingApps: boolean;
-	error: unknown;
+	appsError: unknown;
 	canCreateApp: boolean;
 	settings?: SettingsTab;
 };
@@ -127,7 +127,7 @@ const AddApplicationButton: FC = () => (
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
 	isLoadingApps,
-	error,
+	appsError,
 	canCreateApp,
 	settings,
 }) => {
@@ -161,9 +161,14 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				}
 			>
 				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
+				{/*
+				 * The second clause describes the settings tab, which is absent for a
+				 * viewer who cannot read deployment config. Promising it to someone
+				 * with no control for it on the page sends them looking for one.
+				 */}
 				<SettingsHeaderDescription>
-					Register applications to use Coder as an OAuth2 provider, and
-					configure how this deployment behaves as one.
+					Register applications to use Coder as an OAuth2 provider
+					{settings && ", and configure how this deployment behaves as one"}.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -179,9 +184,9 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					 * error belongs with the content it describes. Outside, an apps
 					 * failure sat above the settings panel and read as that panel's.
 					 */}
-					{Boolean(error) && (
+					{Boolean(appsError) && (
 						<div className="mb-4">
-							<ErrorAlert error={error} />
+							<ErrorAlert error={appsError} />
 						</div>
 					)}
 					<Table className="table-fixed" aria-label="OAuth2 applications">
@@ -197,7 +202,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 						<TableBody size="lg">
 							{isLoadingApps ? (
 								<TableLoader />
-							) : !error && (!apps || apps.length === 0) ? (
+							) : !appsError && (!apps || apps.length === 0) ? (
 								<TableEmpty
 									message="No OAuth2 applications configured"
 									description="Add an application to use Coder as an OAuth2 provider."
