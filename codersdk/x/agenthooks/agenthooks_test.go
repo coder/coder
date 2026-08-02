@@ -582,7 +582,7 @@ func TestHTTPHandlerSignsResponses(t *testing.T) {
 func TestSignResponsesWrapsRawHandler(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		_, _ = rw.Write([]byte(`{"user_message":"raw"}`))
 	})))
@@ -612,7 +612,7 @@ func TestSignResponsesWrapsRawHandler(t *testing.T) {
 func TestSignResponsesCommitsFirstStatus(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		// Sloppy middleware might keep writing after the failure; a real
 		// ResponseWriter ignores both of these status changes.
@@ -633,7 +633,7 @@ func TestSignResponsesCommitsFirstStatus(t *testing.T) {
 func TestSignResponsesImplicit200(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		_, _ = rw.Write([]byte(`{}`))
 		// Too late: the first Write committed the implicit 200.
 		rw.WriteHeader(http.StatusForbidden)
@@ -663,7 +663,7 @@ func TestSignResponsesBodylessStatus(t *testing.T) {
 	t.Parallel()
 
 	var writeErr error
-	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		rw.WriteHeader(http.StatusNoContent)
 		_, writeErr = rw.Write([]byte(`{}`))
 	})))
@@ -688,11 +688,64 @@ func TestSignResponsesBodylessStatus(t *testing.T) {
 	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
 }
 
+// TestSignResponsesRefusesTamperedBody pins that the wrapper cannot be
+// used as a signing oracle: a captured bearer token replayed with a
+// different body is rejected before the wrapped handler runs, because the
+// token's body_sha256 claim no longer matches the bytes on the wire.
+func TestSignResponsesRefusesTamperedBody(t *testing.T) {
+	t.Parallel()
+
+	inner := 0
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		inner++
+	})))
+	t.Cleanup(server.Close)
+
+	body, token := signedEvent(t, testAudience, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	// Trailing whitespace keeps the body valid JSON while changing the
+	// bytes the claims were bound to.
+	tampered := append(append([]byte(nil), body...), ' ')
+
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, bytes.NewReader(tampered))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	require.Empty(t, response.Header.Get(agenthooks.SignatureHeader))
+	require.Zero(t, inner, "a tampered body must never reach the wrapped handler")
+}
+
+// TestSignResponsesRefusesWrongAudience pins that a token minted for a
+// different consumer URL cannot obtain a signature from this one, matching
+// NewHTTPHandler's audience pinning.
+func TestSignResponsesRefusesWrongAudience(t *testing.T) {
+	t.Parallel()
+
+	inner := 0
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		inner++
+	})))
+	t.Cleanup(server.Close)
+
+	body, token := signedEvent(t, "https://other-consumer.example.com", agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, bytes.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	require.Empty(t, response.Header.Get(agenthooks.SignatureHeader))
+	require.Zero(t, inner)
+}
+
 func TestSignResponsesRejectsUnauthenticatedRequests(t *testing.T) {
 	t.Parallel()
 
 	inner := 0
-	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		inner++
 	})))
 	t.Cleanup(server.Close)

@@ -63,39 +63,8 @@ func NewHTTPHandler(secret []byte, expectedAudience string, hooks Hooks, opts ..
 	}
 	audience := canonicalAudience(expectedAudience)
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			rw.Header().Set("Allow", http.MethodPost)
-			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		claims, err := Verify(r.Header.Get("Authorization"), secret)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusUnauthorized)
-			return
-		}
-		if options.expectedIssuer != "" && claims.Issuer != options.expectedIssuer {
-			http.Error(rw, "unexpected issuer", http.StatusUnauthorized)
-			return
-		}
-		r.Body = http.MaxBytesReader(rw, r.Body, MaxRequestBodyBytes)
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			var maxBytesErr *http.MaxBytesError
-			if errors.As(err, &maxBytesErr) {
-				http.Error(rw, "request body too large", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(rw, "read request body", http.StatusBadRequest)
-			return
-		}
-		var request Request
-		if err := json.Unmarshal(body, &request); err != nil {
-			http.Error(rw, "decode request body", http.StatusBadRequest)
-			return
-		}
-		if err := verifyBody(body, claims, request, audience); err != nil {
-			http.Error(rw, err.Error(), http.StatusBadRequest)
+		claims, _, request, ok := verifyHookRequest(rw, r, secret, audience, options.expectedIssuer)
+		if !ok {
 			return
 		}
 		response, err := dispatch(r.Context(), hooks, request)
@@ -125,23 +94,80 @@ func NewHTTPHandler(secret []byte, expectedAudience string, hooks Hooks, opts ..
 	})
 }
 
+// verifyHookRequest authenticates one dispatcher request for a handler:
+// POST-only, bearer token, optional issuer pin, size-capped body read, and
+// the verifyBody binding of the exact bytes and their metadata (dispatch
+// ID, event type, chat, audience) to the token claims. It writes the error
+// response itself and reports ok=false when the request must not reach any
+// hook logic.
+func verifyHookRequest(rw http.ResponseWriter, r *http.Request, secret []byte, audience, expectedIssuer string) (Claims, []byte, Request, bool) {
+	if r.Method != http.MethodPost {
+		rw.Header().Set("Allow", http.MethodPost)
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return Claims{}, nil, Request{}, false
+	}
+	claims, err := Verify(r.Header.Get("Authorization"), secret)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusUnauthorized)
+		return Claims{}, nil, Request{}, false
+	}
+	if expectedIssuer != "" && claims.Issuer != expectedIssuer {
+		http.Error(rw, "unexpected issuer", http.StatusUnauthorized)
+		return Claims{}, nil, Request{}, false
+	}
+	r.Body = http.MaxBytesReader(rw, r.Body, MaxRequestBodyBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(rw, "request body too large", http.StatusRequestEntityTooLarge)
+			return Claims{}, nil, Request{}, false
+		}
+		http.Error(rw, "read request body", http.StatusBadRequest)
+		return Claims{}, nil, Request{}, false
+	}
+	var request Request
+	if err := json.Unmarshal(body, &request); err != nil {
+		http.Error(rw, "decode request body", http.StatusBadRequest)
+		return Claims{}, nil, Request{}, false
+	}
+	if err := verifyBody(body, claims, request, audience); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return Claims{}, nil, Request{}, false
+	}
+	return claims, body, request, true
+}
+
 // SignResponses wraps a consumer's own hook handler so every 2xx response
-// carries the SignatureHeader token the dispatcher requires. The wrapper
-// authenticates the request token itself because the response token echoes
-// its claims; NewHTTPHandler signs inline and does not need it.
-func SignResponses(secret []byte, next http.Handler) http.Handler {
+// carries the SignatureHeader token the dispatcher requires. It
+// authenticates each request exactly like NewHTTPHandler (bearer token,
+// audience, and the claims' binding to the exact body bytes) before
+// invoking next: signing on the token alone would let anyone who observed
+// a valid request replay its token with a different body and use the
+// wrapper as a signing oracle for decisions the dispatcher trusts. next
+// reads the verified body. Like NewHTTPHandler, expectedAudience must be
+// the URL Coder dispatches to; an empty audience rejects every request.
+func SignResponses(secret []byte, expectedAudience string, next http.Handler) http.Handler {
+	if expectedAudience == "" {
+		return http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			http.Error(rw, "hook audience is not configured", http.StatusInternalServerError)
+		})
+	}
+	audience := canonicalAudience(expectedAudience)
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		claims, err := Verify(r.Header.Get("Authorization"), secret)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusUnauthorized)
+		claims, body, _, ok := verifyHookRequest(rw, r, secret, audience, "")
+		if !ok {
 			return
 		}
+		// Hand the handler the verified bytes, not the network stream.
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		r.ContentLength = int64(len(body))
 		buffer := &bufferedResponse{header: make(http.Header)}
 		next.ServeHTTP(buffer, r)
 		buffer.commitStatus()
-		body := buffer.body.Bytes()
+		responseBody := buffer.body.Bytes()
 		if buffer.status >= http.StatusOK && buffer.status < http.StatusMultipleChoices {
-			signature, err := SignResponse(secret, claims, body)
+			signature, err := SignResponse(secret, claims, responseBody)
 			if err != nil {
 				http.Error(rw, "sign response", http.StatusInternalServerError)
 				return
@@ -152,7 +178,7 @@ func SignResponses(secret []byte, next http.Handler) http.Handler {
 			rw.Header()[key] = values
 		}
 		rw.WriteHeader(buffer.status)
-		_, _ = rw.Write(body)
+		_, _ = rw.Write(responseBody)
 	})
 }
 

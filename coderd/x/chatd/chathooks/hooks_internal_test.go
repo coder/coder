@@ -23,6 +23,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// newSignedConsumer starts a hook-consumer server whose handler is wrapped
+// in agenthooks.SignResponses, using the server's own URL as the audience
+// the test dispatcher signs into each request.
+func newSignedConsumer(t testing.TB, secret []byte, handler http.Handler) *httptest.Server {
+	t.Helper()
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.SignResponses(secret, "http://"+server.Listener.Addr().String(), handler)
+	server.Start()
+	return server
+}
+
 func TestSessionStartDispatchSources(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +44,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		data    agenthooks.SessionStartData
 	}
 	receivedCh := make(chan received, 2)
-	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(secret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(secret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(secret))
@@ -43,7 +54,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		receivedCh <- received{request: request, claims: claims, data: data}
 		_, err = w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	})))
+	}))
 	t.Cleanup(consumer.Close)
 
 	db, _ := dbtestutil.NewDB(t)
@@ -96,7 +107,7 @@ func TestRejectDuplicateToolUseIDs(t *testing.T) {
 
 func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 	t.Helper()
-	consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), handler))
+	consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), handler)
 	t.Cleanup(consumer.Close)
 	return NewTrigger(dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),

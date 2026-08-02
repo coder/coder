@@ -23,6 +23,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// newSignedConsumer starts a hook-consumer server whose handler is wrapped
+// in agenthooks.SignResponses, using the server's own URL as the audience
+// the test dispatcher signs into each request.
+func newSignedConsumer(t testing.TB, secret []byte, handler http.Handler) *httptest.Server {
+	t.Helper()
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.SignResponses(secret, "http://"+server.Listener.Addr().String(), handler)
+	server.Start()
+	return server
+}
+
 func TestSessionStartTrackerRetriesIncompleteDispatch(t *testing.T) {
 	t.Parallel()
 	tracker := &sessionStartTracker{}
@@ -52,9 +63,9 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
-	consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-	})))
+	}))
 	t.Cleanup(consumer.Close)
 	dispatcher := dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),

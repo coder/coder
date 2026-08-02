@@ -602,7 +602,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 				return chattest.OpenAIStreamingResponse(chunk)
 			})
 			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-			consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				if request.Type != agenthooks.EventPreToolUse {
@@ -616,7 +616,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 				}
 				_, err := w.Write([]byte(tt.response))
 				require.NoError(t, err)
-			})))
+			}))
 			t.Cleanup(consumer.Close)
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -675,7 +675,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	var secondCalls atomic.Int32
 	var failSecond atomic.Bool
 	failSecond.Store(true)
-	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -700,7 +700,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 		default:
 			t.Fatalf("unexpected tool use ID %q", data.ToolUseID)
 		}
-	})))
+	}))
 	t.Cleanup(consumer.Close)
 
 	ctrl := gomock.NewController(t)
@@ -1159,7 +1159,7 @@ func requireModelOnlyTextCount(ctx context.Context, t *testing.T, db database.St
 
 func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
 	t.Helper()
-	consumer := httptest.NewServer(agenthooks.SignResponses([]byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -1171,7 +1171,7 @@ func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) s
 		var err error
 		_, err = w.Write([]byte(response(data)))
 		require.NoError(t, err)
-	})))
+	}))
 	t.Cleanup(consumer.Close)
 	return consumer
 }

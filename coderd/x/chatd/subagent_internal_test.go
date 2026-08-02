@@ -39,7 +39,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -291,7 +290,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 
-		consumer := httptest.NewServer(agenthooks.SignResponses([]byte("test-hook-secret-32-bytes-minimum!!"), handler))
+		consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), handler)
 		t.Cleanup(consumer.Close)
 		server := &Server{
 			db:          db,
