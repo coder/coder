@@ -95,10 +95,11 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, true, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    modelConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     modelConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: modelConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, true, xerrors.Errorf(

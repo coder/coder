@@ -503,6 +503,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groupsByOrganization)
+			r.Route("/ai/spend", func(r chi.Router) {
+				// AI cost controls are a paid feature (AI Governance add-on).
+				r.Use(
+					api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				)
+				r.Get("/", api.organizationGroupsAISpend)
+			})
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
@@ -510,7 +517,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 				r.Get("/", api.groupByOrganization)
 				r.Get("/members", api.groupMembersByOrganization)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpendByOrganization)
+				})
 			})
+		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/export", api.exportOrganizationAISpend)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(
@@ -595,6 +618,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpend)
+				})
+				r.Route("/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupAISpend)
+				})
 				r.Route("/ai/budget", func(r chi.Router) {
 					// AI cost controls are a paid feature (AI Governance add-on).
 					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
@@ -645,13 +682,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/users/{user}/ai", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
-				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Route("/budget", func(r chi.Router) {
+			r.Route("/budget/override", func(r chi.Router) {
 				r.Get("/", api.userAIBudgetOverride)
 				r.Put("/", api.upsertUserAIBudgetOverride)
 				r.Delete("/", api.deleteUserAIBudgetOverride)
@@ -692,6 +727,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 	if mountScimError != nil {
 		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
+	}
+
+	// The NATS pubsub, if enabled, used the Replica Manager for clustering. It's a layering violation if the pubsub
+	// for the Replica Manager *is* the NATS pubsub, because then we have a dependency loop.
+	if _, isNats := options.ReplicaSyncPubsub.(*nats.Pubsub); isNats {
+		return nil, xerrors.Errorf("replica sync pubsub cannot be the NATS pubsub")
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
@@ -904,7 +945,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Database,
+			ctx, api.Logger, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
 				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
@@ -920,7 +961,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
 				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-			})
+			},
+			api.AGPL.HTTPAuth.Authorizer,
+			api.AGPL.Experiments,
+		)
 		if err != nil {
 			return codersdk.Entitlements{}, err
 		}
@@ -1024,7 +1068,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
-						for _, replica := range api.replicaManager.Regional() {
+						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
 							// Don't add replicas with an empty relay address.
 							if replica.RelayAddress == "" {
 								continue

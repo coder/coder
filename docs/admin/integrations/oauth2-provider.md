@@ -22,13 +22,13 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 
 Add the `oauth2` experiment flag to your Coder server:
 
-```bash
+```sh
 coder server --experiments oauth2
 ```
 
 Or set the environment variable:
 
-```env
+```dotenv
 CODER_EXPERIMENTS=oauth2
 ```
 
@@ -47,7 +47,7 @@ CODER_EXPERIMENTS=oauth2
 
 Create an application using the Coder API:
 
-```bash
+```sh
 curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
@@ -61,11 +61,41 @@ curl -X POST \
 
 Generate a client secret:
 
-```bash
+```sh
 curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
+
+## Dynamic Client Registration
+
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Check or change the setting with the CLI:
+
+```sh
+coder oauth2-provider dcr enable
+coder oauth2-provider dcr disable
+```
+
+Or with the management API:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dynamic_client_registration_enabled": true}' \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+```sh
+curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+Disabling only blocks *new* self-registrations. Applications that already
+registered while it was enabled keep authorizing and exchanging tokens
+normally; disabling does not revoke or otherwise affect them.
 
 ## Integration Patterns
 
@@ -86,7 +116,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
 1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
 
-   ```url
+   ```txt
    https://coder.example.com/oauth2/authorize?
      client_id=your-client-id&
      response_type=code&
@@ -98,7 +128,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
    **Option A: HTTP Basic authentication (`client_secret_basic`, recommended)**
 
-   ```bash
+   ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
@@ -110,7 +140,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
    **Option B: Form parameters (`client_secret_post`)**
 
-   ```bash
+   ```sh
    curl -X POST \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
@@ -123,7 +153,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
 3. **API Access**: Use the access token to call Coder's API:
 
-   ```bash
+   ```sh
    curl -H "Authorization: Bearer $ACCESS_TOKEN" \
      "$CODER_URL/api/v2/users/me"
    ```
@@ -141,14 +171,14 @@ confidential clients must include PKCE parameters:
 
 1. Generate a code verifier and challenge:
 
-   ```bash
+   ```sh
    CODE_VERIFIER=$(openssl rand -base64 96 | tr -d "=+/" | cut -c1-128)
    CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=+/" | cut -c1-43)
    ```
 
 2. Include PKCE parameters in the authorization request:
 
-   ```url
+   ```txt
    https://coder.example.com/oauth2/authorize?
      client_id=your-client-id&
      response_type=code&
@@ -159,7 +189,7 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
-   ```bash
+   ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
@@ -187,7 +217,7 @@ Refresh an expired access token.
 
 **Option A: HTTP Basic authentication (`client_secret_basic`)**
 
-```bash
+```sh
 curl -X POST \
   -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -198,7 +228,7 @@ curl -X POST \
 
 **Option B: Form parameters (`client_secret_post`)**
 
-```bash
+```sh
 curl -X POST \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=refresh_token" \
@@ -212,7 +242,7 @@ curl -X POST \
 
 Revoke all tokens for an application:
 
-```bash
+```sh
 curl -X DELETE \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
@@ -222,7 +252,7 @@ curl -X DELETE \
 
 Coder provides comprehensive test scripts for OAuth2 development:
 
-```bash
+```sh
 # Navigate to the OAuth2 test scripts
 cd scripts/oauth2/
 

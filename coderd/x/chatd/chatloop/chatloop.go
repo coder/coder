@@ -47,6 +47,10 @@ var (
 	// StopAfterTools produces a successful result, indicating
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
+	// ErrContentFiltered is returned when the provider's safety
+	// classifiers blocked the response and the model produced no
+	// content, e.g. Anthropic's stop_reason "refusal".
+	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -270,9 +274,18 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
+
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
 
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
@@ -427,6 +440,14 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	// A content-filter finish without user-visible output means the
+	// provider's safety classifiers blocked the whole response (e.g.
+	// Anthropic stop_reason "refusal"). The refusal can arrive after
+	// reasoning has already streamed, so reasoning alone must not
+	// count as output.
+	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
+		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -459,6 +480,33 @@ func wrapProviderStreamError(provider string, err error) error {
 		}
 	}
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
+
+// hasUserVisibleContent reports whether any content part carries output the
+// user can see. Reasoning parts do not count: they stream transiently and are
+// not a substitute for a response.
+func hasUserVisibleContent(content []fantasy.Content) bool {
+	for _, part := range content {
+		switch part.(type) {
+		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
+	classified := chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindContentFilter,
+		Provider:  provider,
+		Retryable: false,
+	}
+	if refusal := fantasyanthropic.GetRefusalMetadata(metadata); refusal != nil {
+		classified.Message = chaterror.ContentFilterMessage(provider, refusal.Category)
+		classified.Detail = strings.TrimSpace(refusal.Explanation)
+	}
+	return chaterror.WithClassification(ErrContentFiltered, classified)
 }
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It

@@ -227,13 +227,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const compressionThresholdValid =
 		!form.values.compressionThreshold.trim() ||
 		parseThresholdInteger(form.values.compressionThreshold) !== null;
+	const hasProviderChange =
+		isEditing &&
+		!!editingModel &&
+		!!selectedProviderState?.providerConfig &&
+		selectedProviderState.providerConfig.id !== editingModel.ai_provider_id;
 	const canSubmit =
 		!isSaving &&
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
 		contextLimitValid &&
 		compressionThresholdValid &&
-		(!isEditing || form.dirty);
+		(!isEditing || form.dirty || hasProviderChange);
 
 	const handleConfirmReplaceDefault = () => {
 		replaceDefaultConfirmedRef.current = true;
@@ -257,12 +262,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 								selectedProviderKey={selectedProviderKey}
 								onProviderChange={onProviderChange}
 								disabled={isDuplicating || providerStates.length === 0}
+								isEditing={isEditing}
 							/>
 							{selectedProviderState && (
 								<p className="text-sm text-content-secondary m-0">
 									{!selectedProviderState.providerConfig
 										? "Create a managed provider before adding models."
-										: "Set an API key for this provider before adding models."}
+										: selectedProviderState.providerConfig.enabled === false
+											? `${selectedProviderState.label} is disabled. Enable it before adding models.`
+											: "Set an API key for this provider before adding models."}
 								</p>
 							)}
 						</div>

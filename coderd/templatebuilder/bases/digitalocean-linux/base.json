@@ -2,5 +2,24 @@
 	"id": "digitalocean-linux",
 	"display_name": "DigitalOcean Droplet (Linux)",
 	"os": "linux",
-	"default_context": {}
+	"default_context": {},
+	"variables": [
+		{
+			"name": "project_uuid",
+			"type": "string",
+			"description": "Which DigitalOcean project should your workspace live in? Find it with `doctl projects list`.",
+			"required": true,
+			"sensitive": false,
+			"computed": false
+		},
+		{
+			"name": "ssh_key_id",
+			"type": "number",
+			"description": "(Optional) DigitalOcean SSH key ID, required by some Droplet images such as Fedora. Set to 0 for no key. Find it with `doctl compute ssh-key list`.",
+			"default": 0,
+			"required": false,
+			"sensitive": false,
+			"computed": false
+		}
+	]
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -25,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -38,7 +38,9 @@ func TestAcquirer_Store(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
-	_ = provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), db, ps)
+	_ = provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), db, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 }
 
 func TestAcquirer_Single(t *testing.T) {
@@ -48,7 +50,9 @@ func TestAcquirer_Single(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	orgID := uuid.New()
 	workerID := uuid.New()
@@ -75,7 +79,9 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	acquirees := make([]*testAcquiree, 0, 10)
 	jobIDs := make(map[uuid.UUID]bool)
@@ -121,7 +127,9 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	orgID := uuid.New()
 	workerID := uuid.New()
@@ -173,7 +181,9 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	orgID := uuid.New()
 	workerID := uuid.New()
@@ -193,11 +203,8 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 
 	// First call to DB is in progress.  Send in posting
 	postJob(t, ps, database.ProvisionerTypeEcho, provisionerdserver.Tags{})
-	// there is a race between the posting being processed and the DB call
-	// returning.  In either case we should retry, but we're trying to hit the
-	// case where the posting is processed first, so sleep a little bit to give
-	// it a chance.
-	time.Sleep(testutil.IntervalMedium)
+	// MemoryPubsub.Publish waits for the listener to finish, so the pending
+	// notification has been processed before the first database call returns.
 
 	// Now, when first DB call returns ErrNoRows we retry.
 	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
@@ -217,6 +224,9 @@ func TestAcquirer_DifferentDomains(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	orgID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
@@ -234,8 +244,6 @@ func TestAcquirer_DifferentDomains(t *testing.T) {
 	fs.jobs = []database.ProvisionerJob{
 		{ID: jobID, Provisioner: database.ProvisionerTypeEcho, Tags: database.StringMap{"worker": "1"}},
 	}
-
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
 	ctx0, cancel0 := context.WithCancel(ctx)
 	defer cancel0()
@@ -264,9 +272,11 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := testutil.Logger(t)
+	clock := quartz.NewMock(t)
+	tickerTrap := clock.Trap().NewTicker("acquirer", "backup_poll")
 	uut := provisionerdserver.NewAcquirer(
 		ctx, logger.Named("acquirer"), fs, ps,
-		provisionerdserver.TestingBackupPollDuration(testutil.IntervalMedium),
+		provisionerdserver.WithClock(clock),
 	)
 
 	workerID := uuid.New()
@@ -282,6 +292,15 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
+	select {
+	case <-fs.callStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for initial database call")
+	}
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	_, waiter := clock.AdvanceNext()
+	waiter.MustWait(ctx)
 	job := acquiree.success(ctx)
 	require.Equal(t, jobID, job.ID)
 }
@@ -307,7 +326,9 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	acquiree1 := newTestAcquiree(t, orgID, worker1, pt, tags)
 	jobID := uuid.New()
 
-	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
+	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps,
+		provisionerdserver.WithClock(quartz.NewMock(t)),
+	)
 
 	// queue up 2 responses --- we may not need both, since acquiree0 will
 	// usually cancel before calling, but cancel is async, so it might call.
@@ -498,20 +519,43 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			})
 			require.NoError(t, err)
 			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
-			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps)
-
 			acquireOrgID := org.ID
 			if tt.unmatchedOrg {
 				acquireOrgID = uuid.New()
 			}
-			aj, err := acq.AcquireJob(ctx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
+
 			if tt.expectAcquire {
+				acq := provisionerdserver.NewAcquirer(ctx, log, db, ps,
+					provisionerdserver.WithClock(quartz.NewMock(t)),
+				)
+				aj, err := acq.AcquireJob(ctx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
 				assert.NoError(t, err)
 				assert.Equal(t, pj.ID, aj.ID)
-			} else {
-				assert.Empty(t, aj, "should not have acquired job")
-				assert.ErrorIs(t, err, context.DeadlineExceeded, "should have timed out")
+				return
 			}
+
+			store := &acquirerStoreSpy{
+				Store:         db,
+				callCompleted: make(chan struct{}, 1),
+			}
+			acq := provisionerdserver.NewAcquirer(ctx, log, store, ps,
+				provisionerdserver.WithClock(quartz.NewMock(t)),
+			)
+			acquireCtx, acquireCancel := context.WithCancel(ctx)
+			acquiree := newTestAcquiree(t, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
+			acquiree.startAcquire(acquireCtx, acq)
+			select {
+			case <-store.callCompleted:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for initial database call")
+			}
+			acquireCancel()
+			acquiree.requireCanceled(ctx)
+
+			job, err := db.GetProvisionerJobByID(ctx, pj.ID)
+			require.NoError(t, err)
+			require.False(t, job.StartedAt.Valid)
+			require.False(t, job.WorkerID.Valid)
 		})
 	}
 
@@ -562,11 +606,28 @@ func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags p
 	require.NoError(t, err)
 }
 
+type acquirerStoreSpy struct {
+	database.Store
+	callCompleted chan struct{}
+}
+
+func (s *acquirerStoreSpy) AcquireProvisionerJob(
+	ctx context.Context, params database.AcquireProvisionerJobParams,
+) (database.ProvisionerJob, error) {
+	job, err := s.Store.AcquireProvisionerJob(ctx, params)
+	select {
+	case s.callCompleted <- struct{}{}:
+	default:
+	}
+	return job, err
+}
+
 // fakeOrderedStore is a fake store that lets tests send AcquireProvisionerJob
 // results in order over a channel, and tests for overlapped calls.
 type fakeOrderedStore struct {
-	jobs   chan database.ProvisionerJob
-	errors chan error
+	jobs        chan database.ProvisionerJob
+	errors      chan error
+	callStarted chan struct{}
 
 	mu     sync.Mutex
 	params []database.AcquireProvisionerJobParams
@@ -581,9 +642,10 @@ func newFakeOrderedStore() *fakeOrderedStore {
 	return &fakeOrderedStore{
 		// buffer the channels so that we can queue up lots of responses to
 		// occur nearly simultaneously
-		jobs:     make(chan database.ProvisionerJob, 100),
-		errors:   make(chan error, 100),
-		inflight: make(map[uuid.UUID]bool),
+		jobs:        make(chan database.ProvisionerJob, 100),
+		errors:      make(chan error, 100),
+		callStarted: make(chan struct{}, 100),
+		inflight:    make(map[uuid.UUID]bool),
 	}
 }
 
@@ -599,6 +661,10 @@ func (s *fakeOrderedStore) AcquireProvisionerJob(
 	}
 	s.inflight[params.WorkerID.UUID] = true
 	s.mu.Unlock()
+	select {
+	case s.callStarted <- struct{}{}:
+	default:
+	}
 
 	job := <-s.jobs
 	err := <-s.errors

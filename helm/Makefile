@@ -13,7 +13,7 @@ all: lint
 lint: lint/helm
 .PHONY: lint
 
-lint/helm: lint/helm/coder lint/helm/provisioner
+lint/helm: lint/helm/coder lint/helm/provisioner lint/helm/ai-gateway
 .PHONY: lint/helm
 
 lint/helm/coder:
@@ -25,3 +25,11 @@ lint/helm/provisioner:
 	helm dependency update --skip-refresh provisioner/
 	helm lint --strict --set coder.image.tag=v0.0.1 provisioner/
 .PHONY: lint/helm/provisioner
+
+lint/helm/ai-gateway:
+	helm dependency update --skip-refresh ai-gateway/
+	helm lint --strict \
+		--set coder.image.tag=v0.0.1 \
+		--set aigateway.keySecret.name=test \
+		ai-gateway/
+.PHONY: lint/helm/ai-gateway

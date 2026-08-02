@@ -136,6 +136,148 @@ export const AddBedrock: Story = {
 	},
 };
 
+// Mantle is a passthrough protocol selected via the Protocol dropdown. It
+// does not configure model fields (the client sends the model), and the
+// endpoint hint points at the mantle host.
+export const AddBedrockMantle: Story = {
+	args: {
+		initialValues: { type: "bedrock", protocol: "mantle" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByLabelText(/^small-fast model\s*\*?$/i),
+		).not.toBeInTheDocument();
+		await expect(canvas.findByText(/bedrock-mantle/i)).resolves.toBeVisible();
+	},
+};
+
+// Switching the Protocol selector from InvokeModel to Mantle hides the model
+// fields and swaps the endpoint hint to the mantle host.
+export const AddBedrockSwitchToMantle: Story = {
+	args: {
+		initialValues: { type: "bedrock" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are present for the default InvokeModel protocol.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+
+		const trigger = canvas.getByRole("combobox", { name: /protocol/i });
+		await userEvent.click(trigger);
+		const mantleOption = await screen.findByRole("option", {
+			name: /mantle/i,
+		});
+		await userEvent.click(mantleOption);
+
+		await waitFor(() =>
+			expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument(),
+		);
+		expect(
+			canvas.queryByLabelText(/^small-fast model\s*\*?$/i),
+		).not.toBeInTheDocument();
+		await expect(canvas.findByText(/bedrock-mantle/i)).resolves.toBeVisible();
+	},
+};
+
+// Switching protocol must not leave a stale endpoint validation error that
+// keeps Save disabled. Protocol and base URL are updated atomically, so after
+// switching a fully valid config keeps the submit button enabled.
+export const AddBedrockProtocolSwitchKeepsSaveEnabled: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock",
+			baseUrl: "https://bedrock-runtime.eu-west-1.amazonaws.com",
+			model: "anthropic.claude-sonnet-4-5",
+			smallFastModel: "anthropic.claude-haiku-4-5",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const submit = canvas.getByRole("button", { name: /add provider/i });
+
+		// Switch InvokeModel -> Mantle.
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /mantle/i }),
+		);
+
+		// The endpoint is rewritten to a valid mantle URL and the model fields
+		// drop out, so the form stays valid and Save is not disabled by a stale
+		// endpoint error.
+		await waitFor(() => {
+			expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+			);
+			expect(submit).toBeEnabled();
+		});
+	},
+};
+
+// Reverse switch: Mantle -> InvokeModel restores the model fields and rewrites
+// the endpoint back to the InvokeModel host, preserving the region the user
+// already entered.
+export const AddBedrockSwitchToInvokeModel: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock",
+			protocol: "mantle",
+			baseUrl: "https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are hidden under Mantle.
+		expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /invokemodel/i }),
+		);
+
+		// The model fields return and the endpoint is rewritten to the
+		// InvokeModel host, keeping the eu-west-1 region.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+		await canvas.findByLabelText(/^small-fast model\s*\*?$/i);
+		await waitFor(() =>
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-runtime.eu-west-1.amazonaws.com",
+			),
+		);
+	},
+};
+
+// When the current endpoint has no parseable region (e.g. a blank field),
+// switching protocol falls back to us-east-1 rather than producing an
+// invalid URL.
+export const AddBedrockProtocolSwitchRegionFallback: Story = {
+	args: {
+		initialValues: { type: "bedrock", baseUrl: "" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are present for the default InvokeModel protocol.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /mantle/i }),
+		);
+
+		// The blank endpoint has no region, so the rewrite falls back to
+		// us-east-1.
+		await waitFor(() =>
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			),
+		);
+	},
+};
+
 // Regression coverage for CODAGT-626. The create form must accept Bedrock
 // configurations whose credentials come from the AWS environment (IAM
 // role, instance profile, AWS_PROFILE) instead of static access keys.
@@ -208,6 +350,29 @@ export const AddBedrockHalfCredentialPairBlocked: Story = {
 		const submitButton = canvas.getByRole("button", {
 			name: /add provider/i,
 		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};
+
+// Under mantle, the endpoint must match the mantle host. An InvokeModel-shaped
+// URL is rejected by the schema, so Save stays disabled and onSubmit never
+// fires. Guards the protocol-conditional baseUrl validation.
+export const AddBedrockMantleRejectsInvokeUrl: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock-mantle",
+			protocol: "mantle",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			model: "",
+			smallFastModel: "",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
 		await waitFor(() => expect(submitButton).toBeDisabled());
 		expect(args.onSubmit).not.toHaveBeenCalled();
 	},

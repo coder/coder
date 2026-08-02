@@ -249,7 +249,6 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 			MessageID: secondUserID,
 			CreatedBy: f.User.ID,
 			Content:   editedContent,
-			APIKeyID:  f.apiKeyID(),
 		})
 		return err
 	}))

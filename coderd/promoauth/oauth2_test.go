@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
@@ -50,6 +51,7 @@ func TestInstrument(t *testing.T) {
 		InstrumentedOAuth2Config: factory.New(id, idp.OIDCConfig(t, []string{})),
 		ID:                       "test",
 		ValidateURL:              must[*url.URL](t)(idp.IssuerURL().Parse("/oauth2/userinfo")).String(),
+		RefreshGroup:             new(singleflight.Group),
 	}
 
 	// 0 Requests before we start

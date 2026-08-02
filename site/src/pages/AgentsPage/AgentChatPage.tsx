@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 
+import type { QueryClient } from "react-query";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -31,6 +32,8 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatQueueConvergence,
+	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -45,6 +48,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
@@ -69,7 +73,7 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
@@ -85,6 +89,7 @@ import {
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -105,8 +110,15 @@ import {
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
+	COMPACT_SLASH_COMMAND,
+	chatSlashCommandTriggerText,
+	resolveChatSlashCommandAvailability,
+} from "./utils/slashCommands";
+import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "./utils/usageLimitMessage";
 
@@ -114,6 +126,8 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+class CompactCommandPendingError extends Error {}
+
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -220,6 +234,108 @@ export const runPromoteQueuedMessage = async (params: {
 		handleUsageLimitError(error);
 		throw error;
 	}
+};
+
+const buildPromotedQueueReconciliation = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+	hasObservedQueuedMessageID: (id: number) => boolean,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	if (promotedHeadID === undefined) {
+		return undefined;
+	}
+	if (!insertedMessages.some((message) => message.role === "user")) {
+		return undefined;
+	}
+	const remaining = queuedMessages.filter(
+		(message) => message.id !== promotedHeadID,
+	);
+	const tailPending =
+		queuedTail !== undefined &&
+		!remaining.some((message) => message.id === queuedTail.id) &&
+		!hasObservedQueuedMessageID(queuedTail.id);
+	return tailPending ? [...remaining, queuedTail] : remaining;
+};
+
+// Prefer an inactive chat's cached queue so messages queued during the send
+// are not dropped; fall back when no cache exists.
+export const buildInactiveChatQueueReconciliation = (
+	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined =>
+	buildPromotedQueueReconciliation(
+		cachedQueuedMessages ?? queuedMessagesBeforeSend,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		() => false,
+	);
+
+// Queue updates may rotate the head before the response arrives.
+export const reconcilePromotedQueueHead = (
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "getSnapshot"
+		| "setQueuedMessages"
+		| "markQueuedMessagePromoted"
+		| "hasObservedQueuedMessageID"
+	>,
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	const next = buildPromotedQueueReconciliation(
+		store.getSnapshot().queuedMessages,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		store.hasObservedQueuedMessageID,
+	);
+	if (!next || promotedHeadID === undefined) {
+		return next;
+	}
+	store.batch(() => {
+		// The promoted user row proves the server deleted its queue row.
+		store.markQueuedMessagePromoted(promotedHeadID);
+		store.setQueuedMessages(next);
+	});
+	return next;
+};
+
+const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
+	queryClient.fetchQuery(chatQueueConvergence(chatID));
+
+// A promoted head is suppressed locally, but another tab can queue or
+// promote concurrently, so only the server knows the resulting queue.
+export const settlePromotedQueueHead = async (
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
+	>,
+	chatID: string,
+	promotedHeadID: number,
+	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
+): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
+	const baselineFence = store.getQueueConvergenceFence();
+	let response: TypesGen.ChatMessagesResponse;
+	try {
+		response = await fetchMessages(chatID);
+	} catch {
+		// Convergence is best effort; a later authoritative update can correct it.
+		return undefined;
+	}
+	return store.applyPromoteRefetchQueuedMessages(
+		chatID,
+		promotedHeadID,
+		response.queued_messages ?? [],
+		baselineFence,
+	);
 };
 
 export async function submitEditAndScroll({
@@ -541,6 +657,9 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
+			if (error instanceof CompactCommandPendingError) {
+				return;
+			}
 			rollback?.();
 			throw error;
 		}
@@ -557,7 +676,7 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
-		// history or queued message — the original draft (possibly
+		// history or queued message, the original draft (possibly
 		// containing file-reference chips) is saved in React state
 		// and should survive a cancel.
 		if (editingMessageId !== null || editingQueuedMessageID !== null) {
@@ -570,7 +689,7 @@ export function useConversationEditingState(deps: {
 				try {
 					localStorage.setItem(draftStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(draftStorageKey);
@@ -722,7 +841,7 @@ const AgentChatPage: FC = () => {
 		onToggleSidebarCollapsed,
 		onChatReady,
 		scrollContainerRef,
-	} = useOutletContext<AgentsOutletContext>();
+	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const { organizations, experiments } = useDashboard();
@@ -1014,6 +1133,21 @@ const AgentChatPage: FC = () => {
 	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
+	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
+		compactChat(queryClient, agentId ?? ""),
+	);
+	// A skill named "compact" takes precedence over built-in /compact. Until
+	// both skill sources resolve, exact submissions wait to avoid shadowing it.
+	const personalSkillsQuery = useQuery({
+		...userSkills(),
+		staleTime: 60_000,
+	});
+	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
+	const compactCommandResolution = resolveChatSlashCommandAvailability(
+		COMPACT_SLASH_COMMAND,
+		personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
+		chatWorkspaceSkills,
+	);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
@@ -1074,10 +1208,18 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
+	const {
+		store,
+		acceptServerChatStatus,
+		clearStreamError,
+		setCacheQueuedMessages,
+		getCacheQueuedMessages,
+		upsertCacheMessages,
+	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
+		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -1181,7 +1323,7 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending;
+		isSendPending || isEditPending || isInterruptPending || isCompactPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
@@ -1225,8 +1367,13 @@ const AgentChatPage: FC = () => {
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
 			const detail = error.response?.data?.detail?.trim() || undefined;
+			const kind = isChatHookDeniedResponse(error.response?.data)
+				? "hook_denied"
+				: isChatHookDispatchFailedResponse(error.response?.data)
+					? "hook_dispatch_failed"
+					: "generic";
 			const reason: ChatDetailError = {
-				kind: "generic",
+				kind,
 				message: getErrorMessage(error, "An unexpected error occurred."),
 				...(detail ? { detail } : {}),
 			};
@@ -1468,6 +1615,53 @@ const AgentChatPage: FC = () => {
 			pendingWorkspaceSyncRef.current,
 		]);
 
+		// "/compact" on its own (no attachments or file references)
+		// requests a manual context compaction instead of sending a
+		// message. Only new sends are intercepted; history and queued
+		// edits keep their original meaning, and a personal or workspace
+		// skill named "compact" takes precedence so the command cannot shadow it.
+		const isExactCompactSubmission =
+			editedMessageID === undefined &&
+			editing.editingQueuedMessageID === null &&
+			content.length === 1 &&
+			content[0].type === "text" &&
+			content[0].text?.trim() ===
+				chatSlashCommandTriggerText(COMPACT_SLASH_COMMAND);
+		if (isExactCompactSubmission && compactCommandResolution === "pending") {
+			toast.info(
+				"Checking whether /compact is available. Try again in a moment.",
+			);
+			throw new CompactCommandPendingError();
+		}
+		if (isExactCompactSubmission && compactCommandResolution === "available") {
+			// Optimistically show the running state before awaiting so
+			// a fast compaction cannot race this write: the worker's
+			// authoritative waiting status may arrive over the stream
+			// before the POST resolves and must not be overwritten.
+			const previousSnapshot = store.getSnapshot();
+			clearChatErrorReason(agentId);
+			clearStreamError();
+			store.clearStreamState();
+			store.setChatStatus("running");
+			scrollToBottomRef.current?.();
+			try {
+				await compact();
+			} catch (error) {
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				if (
+					isApiError(error) &&
+					error.response?.status === 409 &&
+					isChatUsageLimitExceededResponse(error.response.data)
+				) {
+					handleUsageLimitError(error);
+				} else {
+					toast.error(getErrorMessage(error, "Failed to compact chat."));
+				}
+				throw error;
+			}
+			return;
+		}
+
 		if (editedMessageID !== undefined) {
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
@@ -1521,6 +1715,12 @@ const AgentChatPage: FC = () => {
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
+					// Hook dispatch failures can park an idle chat in error before returning the request error.
+					acceptServerChatStatus();
+					void queryClient.invalidateQueries({
+						queryKey: chatKey(agentId),
+						exact: true,
+					});
 				},
 			});
 			if (editSelectedModelConfigID) {
@@ -1552,6 +1752,11 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
+		// An errored-chat send may promote the queue head that existed when the request began.
+		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
+		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
+		const statusVersionBeforeSend = store.getServerChatStatusVersion();
+
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
@@ -1561,13 +1766,17 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
+			// Hook dispatch failures can park an idle chat in error before returning the request error.
+			acceptServerChatStatus();
+			void queryClient.invalidateQueries({
+				queryKey: chatKey(agentId),
+				exact: true,
+			});
 			throw error;
 		}
-		// When the server accepts the message immediately (not
-		// queued), clear the stream and insert the user's message
-		// so it appears in the timeline without waiting for the
-		// WebSocket stream.
-		if (!response.queued) {
+		const isActiveChat = store.getActiveChatID() === agentId;
+		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
+		if (!response.queued && isActiveChat) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
 			// Thinking indicator appears immediately.
@@ -1578,9 +1787,55 @@ const AgentChatPage: FC = () => {
 			// to error/pending instead, the WebSocket event
 			// overrides this optimistic value.
 			store.setChatStatus("running");
-			if (response.message) {
-				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
+		}
+		// Upsert the full batch because a queued send can insert a promoted head below
+		// the highest cached ID, which a reconnect would skip.
+		const insertedMessages =
+			response.messages ?? (response.message ? [response.message] : []);
+		if (insertedMessages.length > 0) {
+			upsertCacheMessages(insertedMessages);
+			if (isActiveChat) {
+				store.upsertDurableMessages(insertedMessages);
+			}
+			if (response.queued) {
+				const reconciledQueue = isActiveChat
+					? reconcilePromotedQueueHead(
+							store,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+						)
+					: buildInactiveChatQueueReconciliation(
+							getCacheQueuedMessages(),
+							queuedMessagesBeforeSend,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+						);
+				if (reconciledQueue) {
+					setCacheQueuedMessages(reconciledQueue);
+					// A promoted head starts a turn, but any server status received during the
+					// request is newer and must win.
+					if (
+						isActiveChat &&
+						store.getServerChatStatusVersion() === statusVersionBeforeSend
+					) {
+						store.clearStreamState();
+						store.setChatStatus("running");
+					}
+					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
+						void settlePromotedQueueHead(
+							store,
+							agentId,
+							queueHeadIDBeforeSend,
+							fetchChatMessages(queryClient),
+						).then((settled) => {
+							if (settled) {
+								setCacheQueuedMessages(settled);
+							}
+						});
+					}
+				}
 			}
 		}
 		if (selectedModelConfigID) {
@@ -1756,13 +2011,14 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);
 };
 
 // Keyed wrapper so that navigating between agents (changing the
 // :agentId param) fully remounts the component, resetting all
-// internal state — drafts, editing, queries — cleanly.
+// internal state (drafts, editing, queries) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	return <AgentChatPage key={agentId} />;

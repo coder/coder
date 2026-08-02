@@ -172,15 +172,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
@@ -188,7 +179,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// We need the technical row to present the correct count on every page.
 	filter.WithSummary = true
 
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	// GetWorkspaces authorizes the query itself, so we don't prepare a SQL
+	// filter here.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -880,8 +873,8 @@ func createWorkspace(
 // at build time uses the owner's external auth links, so the owner is the
 // subject of the check even when another user initiates the build.
 func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
-	//nolint:gocritic // System access is required to validate the workspace owner's external auth links because admins and API clients may create workspaces for other users.
-	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsSystemRestricted(ctx), templateVersion, ownerID)
+	//nolint:gocritic // Reads/refreshes the external auth links. Necessary when admins create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsExternalAuthCoordinator(ctx), templateVersion, ownerID)
 	if err != nil {
 		return err
 	}

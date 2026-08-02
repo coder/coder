@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
   -H 'Accept: application/json' \
@@ -56,7 +56,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
   -H 'Content-Type: application/json' \
@@ -104,7 +104,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   -H 'Content-Type: application/json' \
@@ -231,7 +231,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
   -H 'Accept: application/json' \
@@ -288,5 +288,47 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
 | Status | Meaning                                                 | Description | Schema                                                                                       |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateBuilderModulesResponse](schemas.md#codersdktemplatebuildermodulesresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Report a template builder session event
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/templatebuilder/sessions`
+
+> Body parameter
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "success": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description   |
+|--------|------|--------------------------------------------------------------------------------------------|----------|---------------|
+| `body` | body | [codersdk.TemplateBuilderSessionRequest](schemas.md#codersdktemplatebuildersessionrequest) | true     | Session event |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

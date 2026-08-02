@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -38,6 +39,9 @@ type buildCommitStepMessagesInput struct {
 type stepMessagesForCommit struct {
 	Messages       []chatstate.Message
 	VisibleIndexes []int
+	// ConsumeCompactionRequest clears the manual compaction marker
+	// atomically with the commit. Set on compaction commits.
+	ConsumeCompactionRequest bool
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {
@@ -255,7 +259,6 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 
 type buildCompactionMessagesInput struct {
 	modelConfigID  uuid.UUID
-	activeAPIKeyID string
 	toolCallID     string
 	toolName       string
 	compaction     compactionOutcome
@@ -281,8 +284,12 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction system summary: %w", err)
 	}
+	source := input.compaction.Source
+	if source == "" {
+		source = chatloop.CompactionSourceAutomatic
+	}
 	args, err := json.Marshal(map[string]any{
-		"source":            "automatic",
+		"source":            source,
 		"threshold_percent": input.compaction.ThresholdPercent,
 	})
 	if err != nil {
@@ -296,7 +303,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              input.compaction.SummaryReport,
-		"source":               "automatic",
+		"source":               source,
 		"threshold_percent":    input.compaction.ThresholdPercent,
 		"usage_percent":        input.compaction.UsagePercent,
 		"context_tokens":       input.compaction.ContextTokens,
@@ -319,7 +326,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			Visibility:     database.ChatMessageVisibilityModel,
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
-			APIKeyID:       sql.NullString{String: input.activeAPIKeyID, Valid: input.activeAPIKeyID != ""},
 		},
 		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
@@ -330,19 +336,28 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
-func currentTurnStepCount(messages []database.ChatMessage) int {
-	latestUser := -1
+// Hook model-context messages use the user role but must not reset
+// per-turn guards.
+func lastUserPromptIndex(messages []database.ChatMessage) int {
+	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
-			latestUser = i
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+			index = i
 		}
 	}
+	return index
+}
+
+func currentTurnStartIndex(messages []database.ChatMessage) int {
+	return lastUserPromptIndex(messages) + 1
+}
+
+func currentTurnStepCount(messages []database.ChatMessage) int {
 	count := 0
-	for i := latestUser + 1; i < len(messages); i++ {
-		msg := messages[i]
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
@@ -471,16 +486,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 	if len(stopAfterTools) == 0 {
 		return false, nil
 	}
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
-	for _, msg := range messages[start:] {
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}

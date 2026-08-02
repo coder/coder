@@ -327,16 +327,13 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm helm actionlint aqua:crate-ci/typos"
+          install-args: "go node pnpm helm aqua:crate-ci/typos"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -413,7 +410,10 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "actionlint zizmor"
+          install-args: "go zizmor"
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
@@ -444,9 +444,6 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
@@ -505,9 +502,6 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
@@ -571,7 +565,6 @@ jobs:
           persist-credentials: false
 
       - name: Setup Go Paths
-        id: go-paths
         uses: ./.github/actions/setup-go-paths
 
       - name: Setup GNU tools (macOS)
@@ -582,12 +575,8 @@ jobs:
         with:
           install-args: "go terraform"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-        with:
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
-
       - name: Install Go mise tools
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
@@ -762,9 +751,6 @@ jobs:
         with:
           install-args: "go terraform"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
@@ -835,9 +821,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go terraform"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
@@ -920,9 +903,6 @@ jobs:
         with:
           install-args: "go"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       # Used by some integration tests.
       - name: Install Nginx
         run: sudo apt-get update && sudo apt-get install -y nginx
@@ -993,23 +973,33 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       # Assume that the checked-in versions are up-to-date
       - run: make gen/mark-fresh
         name: make gen
-
-      - run: make site/e2e/bin/coder
-        name: make coder
 
       - run: pnpm build
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
 
+      - run: make site/e2e/bin/coder
+        name: make coder
+
       - run: pnpm playwright:install
         working-directory: site
+
+      # Cache the Coder release binaries downloaded by the outdatedCLI /
+      # outdatedAgent e2e tests so most runs skip the flaky GitHub release
+      # download entirely. The cache key is keyed off the file that pins the
+      # downloaded versions, so it invalidates when those versions change.
+      - name: Restore e2e Coder release binary cache
+        id: coder-e2e-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/constants.ts') }}
+          restore-keys: |
+            coder-e2e-cache-${{ runner.os }}-
 
       # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
@@ -1026,6 +1016,16 @@ jobs:
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
+
+      - name: Save e2e Coder release binary cache
+        # Only the default branch is trusted to write the cache, so PR runs
+        # cannot poison the cache that subsequent runs restore from. Skip when
+        # the cache already had an exact key hit (no new content).
+        if: always() && github.ref == 'refs/heads/main' && steps.coder-e2e-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: ${{ steps.coder-e2e-cache.outputs.cache-primary-key }}
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -1090,6 +1090,7 @@ jobs:
         name: Snapshot
         env:
           PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+          PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
     name: offlinedocs
@@ -1119,9 +1120,6 @@ jobs:
         uses: ./.github/actions/pnpm-install
         with:
           directory: offlinedocs
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
@@ -1224,9 +1222,6 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
@@ -1287,16 +1282,13 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       - name: Install rcodesign
         run: |
           set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
           sudo tar -xzf /tmp/rcodesign.tar.gz \
             -C /usr/bin \
             --strip-components=1 \
@@ -1316,7 +1308,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -1330,7 +1322,7 @@ jobs:
           touch /tmp/ev_cert.pem
           chmod 600 /tmp/ev_cert.pem
           echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
@@ -1645,9 +1637,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc

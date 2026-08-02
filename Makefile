@@ -542,7 +542,7 @@ push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
 .PHONY: push/$(CODER_MAIN_IMAGE)
 
 # Helm charts that are available
-charts = coder provisioner
+charts = coder provisioner ai-gateway
 
 # Shortcut for Helm chart package.
 $(foreach chart,$(charts),build/$(chart)_helm.tgz): build/%_helm.tgz: build/%_helm_$(VERSION).tgz
@@ -790,7 +790,7 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	mise exec actionlint -- actionlint
+	mise exec "go:github.com/rhysd/actionlint/cmd/actionlint" -- actionlint
 .PHONY: lint/actions/actionlint
 
 # zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
@@ -1060,6 +1060,7 @@ gen/golden-files: \
 	enterprise/tailnet/testdata/.gen-golden \
 	helm/coder/tests/testdata/.gen-golden \
 	helm/provisioner/tests/testdata/.gen-golden \
+	helm/ai-gateway/tests/testdata/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden
 .PHONY: gen/golden-files
@@ -1396,6 +1397,7 @@ clean/golden-files:
 		enterprise/tailnet/testdata \
 		helm/coder/tests/testdata \
 		helm/provisioner/tests/testdata \
+		helm/ai-gateway/tests/testdata \
 		provisioner/terraform/testdata \
 		tailnet/testdata \
 		-type f -name '*.golden' -delete
@@ -1435,6 +1437,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 	else
 		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
 	fi
+	touch "$@"
+
+helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/testdata/*.yaml) $(wildcard helm/ai-gateway/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/ai-gateway/tests/*_test.go)
+	TZ=UTC go test ./helm/ai-gateway/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
@@ -1683,6 +1689,40 @@ test-tailnet-integration:
 			./tailnet/test/integration
 .PHONY: test-tailnet-integration
 
+test-timings:
+	@tmp_json="$$(mktemp)"; \
+	trap 'rm -f "$$tmp_json"' EXIT; \
+	set +e; \
+	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		$(GOTEST_FLAGS); \
+	test_status=$$?; \
+	jq -r -s '
+		[
+			["package", "test", "status", "elapsed_ms"],
+			(
+				map(select(
+					(.Test // "") != "" and
+					(.Action == "pass" or .Action == "fail" or .Action == "skip")
+				))
+				| sort_by([.Package, .Test])
+				| group_by([.Package, .Test])
+				| map(last)
+				| sort_by([(-(.Elapsed // 0)), .Package, .Test])
+				| .[]
+				| [.Package, .Test, .Action, ((.Elapsed // 0) * 1000)]
+			)
+		]
+		| .[]
+		| @tsv
+	' "$$tmp_json" > "$(or $(TEST_TIMINGS_OUTPUT),test-timings.tsv)"; \
+	report_status=$$?; \
+	if [[ $$test_status -ne 0 ]]; then exit $$test_status; fi; \
+	exit $$report_status
+.PHONY: test-timings
+
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
 # instead. Keeping it here for convenience.
@@ -1690,9 +1730,9 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html
 	go build -o $@ \
-		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		-tags embed,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html

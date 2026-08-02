@@ -10,6 +10,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -20,7 +21,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -37,6 +42,7 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
@@ -66,6 +72,7 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
+import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -77,6 +84,7 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
@@ -184,6 +192,7 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
@@ -197,6 +206,9 @@ interface AgentChatInputProps {
 	// AI Gateway is disabled deployment-wide, independent of provider/model
 	// configuration. Forces the setup notice regardless of the counts above.
 	aiGatewayDisabled?: boolean;
+	// Built-in commands offered by the "/" trigger menu ahead of
+	// personal skills.
+	slashCommands?: readonly ChatSlashCommand[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -392,6 +404,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspaceSkills,
 	workspace,
 	workspaceAgent,
 	chatId,
@@ -403,6 +416,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelCount,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
+	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice =
@@ -428,6 +442,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
 	const mcpPopupRef = useRef<Window | null>(null);
+	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
+		useState<TypesGen.MCPServerConfig | null>(null);
+	const queryClient = useQueryClient();
+	const mcpDisconnectMutation = useMutation(
+		disconnectMCPServerOAuth2(queryClient),
+	);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
@@ -553,6 +573,34 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			"width=900,height=600",
 		);
 	};
+
+	const handleMcpDisconnectConfirm = () => {
+		if (!mcpDisconnectTarget) {
+			return;
+		}
+		const name = mcpDisconnectTarget.display_name;
+		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
+			onSuccess: (response) => {
+				setMcpDisconnectTarget(null);
+				if (response.token_revocation_error) {
+					toast.warning(`Disconnected ${name}.`, {
+						description: response.token_revocation_error,
+					});
+				} else {
+					toast.success(`Disconnected ${name}.`);
+				}
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
+			},
+		});
+	};
+
+	// Only a chat-bound workspace counts: an unbound selection (new chat
+	// form, or a picked workspace before the first send) has no pinned
+	// context to resolve, so treating it as a workspace would leave the
+	// menu in the loading state forever.
+	const hasSkillsWorkspace = Boolean(attachedWorkspace?.id ?? workspace?.id);
 
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
@@ -1182,7 +1230,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
+					hasWorkspace={hasSkillsWorkspace}
+					workspaceSkills={workspaceSkills}
 					autoFocus
+					slashCommands={slashCommands}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1400,15 +1451,32 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	Auth
 																</Button>
 															) : (
-																<Switch
-																	size="sm"
-																	checked={isSelected}
-																	onCheckedChange={(checked) =>
-																		handleMcpToggle(server.id, checked)
-																	}
-																	disabled={isDisabled || isForceOn}
-																	aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-																/>
+																<>
+																	{server.auth_type === "oauth2" && (
+																		<Button
+																			variant="subtle"
+																			size="icon"
+																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+																			onClick={() => {
+																				setPlusMenuOpen(false);
+																				setMcpDisconnectTarget(server);
+																			}}
+																			disabled={isDisabled}
+																			aria-label={`Disconnect ${server.display_name}`}
+																		>
+																			<UnlinkIcon />
+																		</Button>
+																	)}
+																	<Switch
+																		size="sm"
+																		checked={isSelected}
+																		onCheckedChange={(checked) =>
+																			handleMcpToggle(server.id, checked)
+																		}
+																		disabled={isDisabled || isForceOn}
+																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																	/>
+																</>
 															)}
 														</div>
 													);
@@ -1648,6 +1716,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
+			<ConfirmDialog
+				open={mcpDisconnectTarget !== null}
+				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
+				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
+				type="delete"
+				confirmText="Disconnect"
+				confirmLoading={mcpDisconnectMutation.isPending}
+				onConfirm={handleMcpDisconnectConfirm}
+				onClose={() => setMcpDisconnectTarget(null)}
+			/>
 		</>
 	);
 };

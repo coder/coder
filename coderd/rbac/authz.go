@@ -75,7 +75,8 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
-	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker" // #nosec G101, not a credential.
+	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"  // #nosec G101, not a credential.
+	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter" // #nosec G101, not a credential.
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
@@ -87,6 +88,7 @@ const (
 	SubjectTypeChatd                        SubjectType = "chatd"
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
+	SubjectTypeExternalAuthCoordinator      SubjectType = "external_auth_coordinator"
 )
 
 const (

@@ -169,6 +169,15 @@
 					"input_type": "json",
 					"visible_when": "web_search_enabled",
 					"conflicts_with": ["allowed_domains"]
+				},
+				{
+					"json_name": "context_1m_enabled",
+					"go_name": "Context1MEnabled",
+					"type": "boolean",
+					"description": "Send the anthropic-beta context-1m-2025-08-07 header to unlock the 1M token context window on supported Claude models. Pair with a matching Context Limit. Long-context pricing and higher latency may apply above 200K tokens.",
+					"label": "1M Context Window",
+					"required": false,
+					"input_type": "select"
 				}
 			]
 		},

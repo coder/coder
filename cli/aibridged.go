@@ -90,7 +90,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 // and the standalone gateway (WebSocket RPC, retried at startup) so the fetch,
 // build, replace, and reload-metric accounting live in one place.
 type poolRPCReloader struct {
-	pool            *aibridged.CachedBridgePool
+	pool            aibridged.Pooler
 	client          aibridged.ClientFuncWithContext
 	cfg             codersdk.AIBridgeConfig
 	logger          slog.Logger
@@ -104,7 +104,7 @@ type poolRPCReloader struct {
 // Reload's context, so a blocking acquisition unblocks when that context is
 // canceled.
 func NewPoolRPCReloader(
-	pool *aibridged.CachedBridgePool,
+	pool aibridged.Pooler,
 	client aibridged.ClientFuncWithContext,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,

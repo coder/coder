@@ -6,7 +6,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { updateOrganization } from "#/api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "#/api/queries/roles";
 import type { Role } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	SettingsHeader,

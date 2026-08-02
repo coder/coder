@@ -154,9 +154,15 @@ const CoderAgentsPage: FC = () => {
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				providerInfoByID={providerInfoByID}
-				modelConfigsError={modelConfigsQuery.error}
-				isLoadingModelConfigs={modelConfigsQuery.isLoading}
-				isFetchingModelConfigs={modelConfigsQuery.isFetching}
+				modelConfigsError={
+					modelConfigsQuery.error ?? providerConfigsQuery.error
+				}
+				isLoadingModelConfigs={
+					modelConfigsQuery.isLoading || providerConfigsQuery.isLoading
+				}
+				isFetchingModelConfigs={
+					modelConfigsQuery.isFetching || providerConfigsQuery.isFetching
+				}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending

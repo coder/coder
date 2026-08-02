@@ -29,6 +29,24 @@ const (
 		"Summarize the conversation so a new assistant can seamlessly " +
 		"continue the work in progress.\n\n" +
 		"Include:\n" +
+		// The constraints bullet below is deliberately verbose: offline replay
+		// of production chats showed compaction summaries dropping or softening
+		// user-stated constraints, and this wording measurably improved their
+		// survival (see PR #27230). Reword only with re-validation.
+		"- User constraints, corrections, and prohibitions: rules, " +
+		"scope limits, style rules, and process corrections stated by " +
+		"the user. Quote or closely paraphrase the user's wording; do " +
+		"not soften, merge, or truncate them. Constraints are standing " +
+		"until the user revokes them; they do not become stale when " +
+		"the task moves on. When the user corrected the assistant's " +
+		"behavior, record the correction itself, not only the " +
+		"corrected outcome. Include only constraints the user stated " +
+		"in conversation; do not place rules from system prompts, " +
+		"AGENTS.md, or other configuration files in this section. " +
+		"Those rules may appear elsewhere in the summary with their " +
+		"true source named. When in doubt whether a rule originated " +
+		"from the user, name its source or omit the attribution " +
+		"rather than defaulting to user.\n" +
 		"- The user's overall goal and current task\n" +
 		"- Key decisions made and their rationale\n" +
 		"- Concrete technical details: file paths, function names, " +
@@ -54,10 +72,22 @@ const (
 		"the context was compacted. Continue the work described below:"
 )
 
+// CompactionSource identifies what triggered a compaction. It is
+// recorded in the persisted chat_summarized tool JSON and the
+// streamed synthetic parts so clients can render manual compactions
+// distinctly.
+type CompactionSource string
+
+const (
+	CompactionSourceAutomatic CompactionSource = "automatic"
+	CompactionSourceManual    CompactionSource = "manual"
+)
+
 type CompactionOptions struct {
 	ThresholdPercent    int32
 	ContextLimit        int64
 	SummaryPrompt       string
+	SummaryHint         string
 	SystemSummaryPrefix string
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
@@ -70,6 +100,14 @@ type CompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 	ProviderOptions  fantasy.ProviderOptions
+
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
 
 	// ToolCallID and ToolName identify the synthetic tool call
 	// used to represent compaction in the message stream.
@@ -87,6 +125,7 @@ type CompactionOptions struct {
 type CompactionResult struct {
 	SystemSummary    string
 	SummaryReport    string
+	Source           CompactionSource
 	ThresholdPercent int32
 	UsagePercent     float64
 	ContextTokens    int64
@@ -95,6 +134,8 @@ type CompactionResult struct {
 
 // GenerateCompaction generates one context summary and returns it without
 // persisting. It publishes compaction progress parts when configured.
+// Threshold gating (including the threshold=100 disable and the
+// zero-usage early return) is skipped when opts.Force is set.
 func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (CompactionResult, error) {
 	if opts.Model == nil {
 		return CompactionResult{}, xerrors.New("chat model is required")
@@ -105,7 +146,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	}
 
 	contextTokens := contextTokensFromUsage(opts.StepUsage)
-	if contextTokens <= 0 {
+	if contextTokens <= 0 && !config.Force {
 		return CompactionResult{}, nil
 	}
 	metadataLimit := extractContextLimit(opts.StepMetadata)
@@ -119,7 +160,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		contextLimit,
 		config.ThresholdPercent,
 	)
-	if !compact {
+	if !compact && !config.Force {
 		return CompactionResult{}, nil
 	}
 
@@ -145,6 +186,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 			config.SystemSummaryPrefix + "\n\n" + summary,
 		),
 		SummaryReport:    summary,
+		Source:           config.Source,
 		ThresholdPercent: config.ThresholdPercent,
 		UsagePercent:     usagePercent,
 		ContextTokens:    contextTokens,
@@ -153,7 +195,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
 			"summary":              summary,
-			"source":               "automatic",
+			"source":               config.Source,
 			"threshold_percent":    config.ThresholdPercent,
 			"usage_percent":        usagePercent,
 			"context_tokens":       contextTokens,
@@ -172,6 +214,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ThresholdPercent:    opts.ThresholdPercent,
 		ContextLimit:        opts.ContextLimit,
 		SummaryPrompt:       opts.SummaryPrompt,
+		SummaryHint:         opts.SummaryHint,
 		SystemSummaryPrefix: opts.SystemSummaryPrefix,
 		DebugSvc:            opts.DebugSvc,
 		ChatID:              opts.ChatID,
@@ -180,6 +223,8 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedModel:       opts.ResolvedModel,
 		ModelConfigID:       opts.ModelConfigID,
 		ProviderOptions:     opts.ProviderOptions,
+		Force:               opts.Force,
+		Source:              opts.Source,
 		ToolCallID:          opts.ToolCallID,
 		ToolName:            opts.ToolName,
 		PublishMessagePart:  opts.PublishMessagePart,
@@ -190,11 +235,16 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
 		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
 	}
+	if config.Source == "" {
+		config.Source = CompactionSourceAutomatic
+	}
 	if config.ThresholdPercent < minCompactionThresholdPercent ||
 		config.ThresholdPercent > maxCompactionThresholdPercent {
 		config.ThresholdPercent = defaultCompactionThresholdPercent
 	}
-	if config.ThresholdPercent == maxCompactionThresholdPercent {
+	// threshold=100 disables automatic compaction; a forced run
+	// still proceeds because the user asked explicitly.
+	if config.ThresholdPercent == maxCompactionThresholdPercent && !config.Force {
 		return CompactionOptions{}, false
 	}
 	return config, true
@@ -368,11 +418,13 @@ func generateCompactionSummary(
 ) (summary string, err error) {
 	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
+	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
+	if strings.TrimSpace(options.SummaryHint) != "" {
+		summaryParts = append(summaryParts, fantasy.TextPart{Text: options.SummaryHint})
+	}
 	summaryPrompt = append(summaryPrompt, fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: options.SummaryPrompt},
-		},
+		Role:    fantasy.MessageRoleUser,
+		Content: summaryParts,
 	})
 	toolChoice := fantasy.ToolChoiceNone
 

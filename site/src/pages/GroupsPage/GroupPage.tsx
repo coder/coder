@@ -9,7 +9,6 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteGroup,
@@ -17,12 +16,12 @@ import {
 	groupMembers,
 	groupPermissions,
 } from "#/api/queries/groups";
-import type { Group } from "#/api/typesGenerated";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";
@@ -39,7 +38,7 @@ import { AIBudgetPeriod } from "./AIBudgetPeriod";
 
 export type GroupPageOutletContext = {
 	group: Group;
-	members: readonly GroupMemberWithAICostControl[];
+	members: readonly ReducedUser[];
 	permissions: { canUpdateGroup: boolean };
 	organization: string;
 	groupQuery: ReturnType<typeof useQuery>;

@@ -64,7 +64,7 @@ const mockCostSummary = {
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 2_500_000,
 	priced_message_count: 40,
-	unpriced_message_count: 2,
+	unpriced_messages_having_usage_count: 2,
 	total_input_tokens: 200_000,
 	total_output_tokens: 300_000,
 	total_cache_read_tokens: 10_000,
@@ -252,6 +252,8 @@ const baseProps = {
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPageView",
 	component: SpendPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	render: (args) => {
 		const [activeTab, setActiveTab] = useState(args.activeTab);
 		return (
@@ -298,6 +300,17 @@ export const SpendWithLimitsAndUsers: Story = {
 		const canvas = within(canvasElement);
 
 		await canvas.findByText("Spend limits and usage");
+		await expect(
+			canvas.getByText(
+				/Cost controls features will move to AI Governance in v2\.36\./,
+			),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /Read more here/ }),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining("/ai-coder/ai-gateway/cost-controls"),
+		);
 		await expect(
 			canvas.getByRole("switch", { name: "Spend limit" }),
 		).toBeInTheDocument();

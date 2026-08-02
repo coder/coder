@@ -6,13 +6,13 @@
 
 ## Enable the experiment
 
-```shell
+```sh
 coder server --experiments=chat-advisor
 ```
 
 Or set the environment variable:
 
-```shell
+```sh
 CODER_EXPERIMENTS=chat-advisor
 ```
 

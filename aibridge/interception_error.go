@@ -62,7 +62,7 @@ func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorT
 		switch keyPoolErr.Kind {
 		case keypool.ErrorKindRateLimited:
 			return recorder.ErrorTypeRateLimited, msg
-		case keypool.ErrorKindPermanent:
+		case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
 			return recorder.ErrorTypeUnauthorized, msg
 		default:
 			return recorder.ErrorTypeUnknown, msg

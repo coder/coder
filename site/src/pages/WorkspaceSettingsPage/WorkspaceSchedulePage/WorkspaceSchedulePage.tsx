@@ -10,13 +10,14 @@ import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -71,12 +72,15 @@ const WorkspaceSchedulePage: FC = () => {
 	});
 
 	return (
-		<>
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspaceName, "Schedule")}</title>
 
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
-			</PageHeader>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Schedule</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure when this workspace starts and stops automatically.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{error && <ErrorAlert error={error} />}
 
@@ -162,7 +166,7 @@ const WorkspaceSchedulePage: FC = () => {
 					navigate(`/@${username}/${workspaceName}`);
 				}}
 			/>
-		</>
+		</div>
 	);
 };
 

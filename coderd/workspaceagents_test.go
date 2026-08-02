@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -42,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -916,6 +918,77 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
+	t.Parallel()
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client"),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+	require.True(t, conn.AwaitReachable(ctx))
+
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			OrganizationID:   user.OrganizationID,
+			WorkspaceOwnerID: user.UserID,
+			WorkspaceID:      r.Workspace.ID,
+			WorkspaceName:    r.Workspace.Name,
+			AgentName:        resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code: sql.NullInt32{
+				Int32: http.StatusSwitchingProtocols,
+				Valid: true,
+			},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			UserID: uuid.NullUUID{
+				UUID:  user.UserID,
+				Valid: true,
+			},
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = conn.Close()
+	require.NoError(t, err)
+
+	// A second handshake within the audit session stale interval is a
+	// reconnection and must be deduplicated rather than producing a
+	// second row.
+	conn2, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client2"),
+		})
+	require.NoError(t, err)
+	defer conn2.Close()
+	// The connection log write happens in the coordinate handler
+	// before any coordination traffic is served, so once the tunnel is
+	// reachable the second handshake has already been processed.
+	require.True(t, conn2.AwaitReachable(ctx))
+
+	tunnelRows := 0
+	for _, cl := range connLogger.ConnectionLogs() {
+		if cl.Type == database.ConnectionTypeTunnel {
+			tunnelRows++
+		}
+	}
+	require.Equal(t, 1, tunnelRows)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
@@ -3736,6 +3809,7 @@ func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
 				Regex: regexp.MustCompile(`.*`),
 				Type:  codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				// ValidateURL intentionally omitted: tokens are always valid.
+				RefreshGroup: new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, ownerClient)
