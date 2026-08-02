@@ -93,6 +93,25 @@ export const SettingsTabWiresDynamicClientRegistration: Story = {
 	},
 };
 
+/**
+ * An in-flight save reaches the control only through this view. Container
+ * stories cover the permission props by rendering the whole page, but they
+ * cannot hold a mutation pending, so the passthrough is pinned here.
+ */
+export const SettingsTabUpdating: Story = {
+	args: {
+		settings: { ...MockSettingsTab, isUpdating: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+
+		await expect(
+			canvas.getByRole("button", { name: "Enable" }),
+		).toHaveAttribute("aria-disabled", "true");
+	},
+};
+
 export const SettingsTabHiddenWithoutPermission: Story = {
 	args: {
 		settings: undefined,

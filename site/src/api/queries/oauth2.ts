@@ -3,14 +3,14 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
 const oauth2ProviderKey = ["oauth2-provider"];
-const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
+export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
 export const oauth2ProviderAppKey = (appId: string) =>
 	oauth2ProviderAppsKey.concat(appId);
 export const oauth2ProviderAppSecretsKey = (appId: string) =>
 	oauth2ProviderAppKey(appId).concat("secrets");
 
 const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
-const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
+export const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
 
 export const getGitHubDevice = () => {
 	return {
