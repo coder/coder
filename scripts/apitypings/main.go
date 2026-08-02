@@ -174,6 +174,9 @@ func AgentHookRawMessages(ts *guts.Typescript) {
 		"AgentHookPreToolUseData":  {"tool_input": &unknown},
 		"AgentHookPostToolUseData": {"tool_response": &unknown},
 		"AgentHookPermission":      {"input_override": &unknown},
+		// A tool's input schema is an arbitrary JSON Schema document
+		// (nested objects, arrays, booleans), not a flat string map.
+		"DynamicTool": {"input_schema": &unknown},
 	}
 	for typeName, overrides := range fields {
 		node, ok := ts.Node(typeName)

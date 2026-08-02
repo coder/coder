@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -305,4 +306,60 @@ func TestQueuedAdmissionSnapshotsPromotePerMessage(t *testing.T) {
 	stored, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Contains(t, stored.AdmittedCustomPrompt.String, "second admission marker")
+}
+
+// TestHookBypassingTurnClearsAdmittedSnapshot pins that a turn admitted
+// while hooks are disabled stamps a NULL snapshot instead of preserving an
+// earlier admitted turn's value. Without this, re-enabling hooks before
+// the bypassing turn generates (replicas can briefly run different rollout
+// configurations) would inject stale admitted instructions into a turn
+// whose admission never saw them.
+func TestHookBypassingTurnClearsAdmittedSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	_, err := db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           user.ID,
+		ChatCustomPrompt: "hooked admission marker",
+	})
+	require.NoError(t, err)
+
+	consumer, _ := newUserPromptSubmitRecorder(t)
+	hookedServer := newHookTestServer(t, db, ps, consumer)
+	chat, err := hookedServer.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "hook bypass",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hi")},
+	})
+	require.NoError(t, err)
+	stored, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, stored.AdmittedCustomPrompt.Valid)
+
+	// Move the chat out of the created running state so the next send
+	// inserts directly instead of queueing.
+	machine := chatstate.NewChatMachine(db, ps, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	// A send on a hooks-disabled replica bypasses admission entirely, so
+	// it must clear the snapshot rather than inherit the earlier one.
+	plainServer := newTestServer(t, db, ps, uuid.New())
+	_, err = plainServer.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("unadmitted send")},
+	})
+	require.NoError(t, err)
+	stored, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, stored.AdmittedCustomPrompt.Valid,
+		"a hook-bypassing send must stamp NULL, not preserve an earlier admitted snapshot")
 }

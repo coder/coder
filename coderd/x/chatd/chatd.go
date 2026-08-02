@@ -1959,13 +1959,15 @@ func (p *Server) EditMessage(
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
 		// Commit the admitted custom prompt with the edit it was admitted
 		// for so the regenerated turn injects the value the policy saw.
-		if admittedCustomPrompt.Valid {
-			if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
-				ID:                   opts.ChatID,
-				AdmittedCustomPrompt: admittedCustomPrompt,
-			}); err != nil {
-				return xerrors.Errorf("update admitted custom prompt: %w", err)
-			}
+		// Stamped unconditionally: an edit made while hooks are disabled
+		// records NULL, so an earlier admitted turn's snapshot cannot
+		// leak into the regenerated turn if hooks are re-enabled before
+		// it generates.
+		if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
+			ID:                   opts.ChatID,
+			AdmittedCustomPrompt: admittedCustomPrompt,
+		}); err != nil {
+			return xerrors.Errorf("update admitted custom prompt: %w", err)
 		}
 		// Capture the post-edit chat inside the same transaction so
 		// the returned chat and the debug-cleanup cutoff use the

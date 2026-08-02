@@ -460,11 +460,12 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
 	// The message enters history now, so its admission snapshot becomes
-	// the chat-level value the next generation injects.
-	if input.AdmittedCustomPrompt.Valid {
-		if err := tx.recordAdmittedCustomPrompt(input.AdmittedCustomPrompt); err != nil {
-			return SendMessageResult{}, err
-		}
+	// the chat-level value the next generation injects. Stamped
+	// unconditionally: a send admitted without hooks records NULL, so a
+	// snapshot from an earlier admitted turn cannot leak into this turn
+	// if hooks are re-enabled before it generates.
+	if err := tx.recordAdmittedCustomPrompt(input.AdmittedCustomPrompt); err != nil {
+		return SendMessageResult{}, err
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,

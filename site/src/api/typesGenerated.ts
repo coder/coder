@@ -5066,7 +5066,7 @@ export interface DynamicTool {
 	 * SDK consistency, deviating from the camelCase "inputSchema"
 	 * convention used by MCP.
 	 */
-	readonly input_schema: Record<string, string>;
+	readonly input_schema: unknown;
 }
 
 // From codersdk/chats.go
