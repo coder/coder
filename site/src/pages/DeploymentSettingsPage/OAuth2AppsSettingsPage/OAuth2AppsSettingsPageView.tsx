@@ -142,12 +142,6 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{Boolean(error) && (
-				<div className="mb-4">
-					<ErrorAlert error={error} />
-				</div>
-			)}
-
 			<Tabs value={activeTab} onValueChange={tabState.setValue}>
 				<TabsList>
 					<TabsTrigger value="applications">Applications</TabsTrigger>
@@ -155,6 +149,16 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				</TabsList>
 
 				<TabsContent value="applications" className="pt-6">
+					{/*
+					 * Inside the tab, for the same reason the settings error is: an
+					 * error belongs with the content it describes. Outside, an apps
+					 * failure sat above the settings panel and read as that panel's.
+					 */}
+					{Boolean(error) && (
+						<div className="mb-4">
+							<ErrorAlert error={error} />
+						</div>
+					)}
 					<Table className="table-fixed" aria-label="OAuth2 applications">
 						<TableHeader>
 							<TableRow>

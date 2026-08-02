@@ -108,11 +108,19 @@ export const EnableShowsConfirmationDialog: Story = {
 
 		await userEvent.click(body.getByTestId("confirm-button"));
 		await expect(args.onChange).toHaveBeenCalledWith(true);
+		// Closing is asserted twice on the cancel path and was asserted nowhere on
+		// this one, which is the direction that opens the endpoint. A modal left
+		// standing would cover the badge that reports the save worked.
+		await waitFor(() =>
+			expect(
+				body.queryByText("Enable Dynamic Client Registration?"),
+			).not.toBeInTheDocument(),
+		);
 	},
 };
 
 export const CancelEnable: Story = {
-	play: async ({ args, canvasElement }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Enable" }));
 
@@ -121,13 +129,12 @@ export const CancelEnable: Story = {
 		await waitFor(() => expect(body.getByText(title)).toBeVisible());
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Cancelling closing the dialog is the only thing this story protects.
-		// `onChange` is unreachable from a cancel click, so asserting it was not
-		// called would hold even against an `onClose` that does nothing.
+		// Cancelling closes the dialog, which is the only thing this story can
+		// prove. `onChange` is unreachable from a cancel click, so asserting it
+		// was not called would hold even against an `onClose` that does nothing.
 		await waitFor(() =>
 			expect(body.queryByText(title)).not.toBeInTheDocument(),
 		);
-		await expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -146,6 +153,14 @@ export const Updating: Story = {
 		await expect(button).toHaveFocus();
 		await userEvent.keyboard("{Enter}");
 		await expect(args.onChange).not.toHaveBeenCalled();
+		// `aria-disabled` does not stop a keyboard Enter; the guard in `onClick`
+		// does. In this direction Enter would open the dialog, not call `onChange`,
+		// so the call assertion above cannot see the guard go missing.
+		await expect(
+			within(canvasElement.ownerDocument.body).queryByText(
+				"Enable Dynamic Client Registration?",
+			),
+		).not.toBeInTheDocument();
 
 		// Disabled mid-request is self-evident and momentary. Only a permission
 		// problem earns an explanation.
@@ -334,7 +349,7 @@ export const SurvivesExternalEnabledChanges: Story = {
 			expect(body.queryByText(title)).not.toBeInTheDocument(),
 		);
 
-		// Going back to disabled is the transition that used to resurrect it.
+		// Returning to disabled must not reopen the dialog.
 		fireEvent.click(disableExternally);
 		await expect(body.queryByText(title)).not.toBeInTheDocument();
 		await expect(args.onChange).not.toHaveBeenCalled();

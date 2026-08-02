@@ -34,10 +34,25 @@ export const Loading: Story = {
 	},
 };
 
+/**
+ * An apps failure belongs to the applications tab. Rendered above the tabs it
+ * would sit over a settings panel that loaded fine, at the moment the admin is
+ * deciding whether to open self-registration.
+ */
 export const WithError: Story = {
 	args: {
 		isLoadingApps: false,
 		error: "some error",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("some error")).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+		await expect(canvas.queryByText("some error")).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("tab", { name: "Applications" }));
+		await expect(canvas.getByText("some error")).toBeVisible();
 	},
 };
 
@@ -146,6 +161,11 @@ export const SettingsFetchErrorKeepsAppsEmptyState: Story = {
 		await expect(canvas.getByText("settings boom")).toBeVisible();
 		await expect(
 			canvas.queryByRole("button", { name: "Enable" }),
+		).not.toBeInTheDocument();
+		// One condition, one explanation. The fallback copy is for a value that is
+		// absent without an error, not for an error.
+		await expect(
+			canvas.queryByText("Settings are unavailable."),
 		).not.toBeInTheDocument();
 	},
 };
