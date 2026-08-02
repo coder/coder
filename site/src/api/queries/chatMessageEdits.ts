@@ -114,6 +114,49 @@ export const projectEditedConversationIntoCache = ({
 	};
 };
 
+/**
+ * Restores the pre-edit conversation after a failed edit, keeping messages that
+ * landed while the mutation was in flight.
+ *
+ * A plain snapshot restore would drop socket-delivered messages committed after
+ * `onMutate` read the snapshot, so anything present now but absent from the
+ * snapshot is re-inserted into page 0. IDs the snapshot already holds keep the
+ * snapshot's copy, which is what undoes the optimistic replacement.
+ */
+export const restoreEditedConversationInCache = ({
+	currentData,
+	previousData,
+}: {
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
+	previousData: InfiniteData<TypesGen.ChatMessagesResponse>;
+}): InfiniteData<TypesGen.ChatMessagesResponse> => {
+	if (!previousData.pages.length) {
+		return previousData;
+	}
+	const previousIDs = new Set(
+		previousData.pages.flatMap((page) =>
+			page.messages.map((message) => message.id),
+		),
+	);
+	const arrivedDuringFlight = (currentData?.pages ?? []).flatMap((page) =>
+		page.messages.filter((message) => !previousIDs.has(message.id)),
+	);
+	if (arrivedDuringFlight.length === 0) {
+		return previousData;
+	}
+	let messages = previousData.pages[0].messages;
+	for (const message of arrivedDuringFlight) {
+		messages = upsertFirstPageMessage(messages, message);
+	}
+	return {
+		...previousData,
+		pages: [
+			{ ...previousData.pages[0], messages },
+			...previousData.pages.slice(1),
+		],
+	};
+};
+
 export const reconcileEditedMessageInCache = ({
 	currentData,
 	optimisticMessageId,

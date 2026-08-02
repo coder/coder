@@ -12,6 +12,10 @@ import {
 } from "react-query";
 import { watchChat } from "#/api/api";
 import {
+	type MessagesCacheWrite,
+	writeMessagesCache,
+} from "#/api/queries/chatMessagesCache";
+import {
 	applyServerChatStatusToCaches,
 	chatKeys,
 	readCachedChatSnapshotVersion,
@@ -32,7 +36,121 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-// Prevents REST re-hydration from replaying a stale queue over the store.
+type ChatMessagesCacheData = InfiniteData<TypesGen.ChatMessagesResponse>;
+
+/**
+ * Canonicalizes the incoming messages into page 0.
+ *
+ * Every incoming ID is removed from EVERY page first, so an in-place revision
+ * of a message that is also held by an older page cannot leave the stale copy
+ * behind. Page metadata (`has_more`, `queued_messages`) is preserved per page.
+ *
+ * A non-zero page emptied by that removal is dropped together with its page
+ * param: `getNextPageParam` reads the LAST page, so an empty last page would
+ * flip `hasNextPage` to false and strand the rest of the history. Dropping the
+ * page param alongside the page is safe because only `pageParams[0]` is reused
+ * on a refetch; later cursors are recomputed from the refetched pages.
+ */
+const upsertMessagesIntoCacheData = (
+	currentData: ChatMessagesCacheData,
+	incoming: readonly TypesGen.ChatMessage[],
+): ChatMessagesCacheData => {
+	const incomingByID = new Map<number, TypesGen.ChatMessage>();
+	for (const message of incoming) {
+		incomingByID.set(message.id, message);
+	}
+
+	const [firstPage, ...olderPages] = currentData.pages;
+	const firstPageByID = new Map(
+		firstPage.messages.map((message) => [message.id, message]),
+	);
+	const changesFirstPage = Array.from(incomingByID.values()).some((message) => {
+		const existing = firstPageByID.get(message.id);
+		return !existing || !chatMessagesEqualByValue(existing, message);
+	});
+	const hasOlderPageCopy = olderPages.some((page) =>
+		page.messages.some((message) => incomingByID.has(message.id)),
+	);
+	if (!changesFirstPage && !hasOlderPageCopy) {
+		return currentData;
+	}
+
+	const nextPages: TypesGen.ChatMessagesResponse[] = [];
+	const nextPageParams: unknown[] = [];
+	for (const [index, page] of olderPages.entries()) {
+		const kept = page.messages.filter(
+			(message) => !incomingByID.has(message.id),
+		);
+		if (kept.length === 0 && page.messages.length > 0) {
+			continue;
+		}
+		nextPages.push(
+			kept.length === page.messages.length ? page : { ...page, messages: kept },
+		);
+		// olderPages is offset by one from currentData.pages.
+		nextPageParams.push(currentData.pageParams[index + 1]);
+	}
+
+	// Newest first, matching the API's page order.
+	const nextFirstPageMessages = [
+		...firstPage.messages.filter((message) => !incomingByID.has(message.id)),
+		...incomingByID.values(),
+	].sort((left, right) => right.id - left.id);
+
+	return {
+		...currentData,
+		pages: [{ ...firstPage, messages: nextFirstPageMessages }, ...nextPages],
+		pageParams: [currentData.pageParams[0], ...nextPageParams],
+	};
+};
+
+/**
+ * Installs a replacement history as the only page. The socket sends the full
+ * replacement history after a `history_reset`, so every older page it
+ * superseded goes away with it; `pageParams` collapses to the uncursored
+ * initial page param.
+ */
+const replaceMessagesInCacheData = (
+	currentData: ChatMessagesCacheData,
+	messages: readonly TypesGen.ChatMessage[],
+): ChatMessagesCacheData => ({
+	...currentData,
+	pages: [
+		{
+			...currentData.pages[0],
+			messages: [...messages].sort((left, right) => right.id - left.id),
+			has_more: false,
+		},
+	],
+	pageParams: [undefined],
+});
+
+/**
+ * Replaces the queue snapshot the messages cache carries on page 0. The queue
+ * travels with the messages response, so it shares the cache entry, the fetch
+ * serialization, and the initialized-cache requirement with durable messages.
+ */
+const patchQueuedMessagesInCacheData = (
+	currentData: ChatMessagesCacheData,
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+): ChatMessagesCacheData => {
+	const firstPage = currentData.pages[0];
+	if (chatQueuedMessagesEqualByID(firstPage.queued_messages, queuedMessages)) {
+		return currentData;
+	}
+	return {
+		...currentData,
+		pages: [
+			{ ...firstPage, queued_messages: queuedMessages },
+			...currentData.pages.slice(1),
+		],
+	};
+};
+
+// Prevents REST re-hydration from replaying a stale queue over the store. Goes
+// through the shared write coordinator: a queue delete or a queue_update
+// committed while a pagination fetch is in flight would otherwise be clobbered
+// by the pages that fetch captured, resurrecting the deleted entry.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
 	chatID: string | undefined,
@@ -42,25 +160,10 @@ const writeQueuedMessagesToCache = (
 		return;
 	}
 	const nextQueuedMessages = queuedMessages ?? [];
-	queryClient.setQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatKeys.messages(chatID), (currentData) => {
-		if (!currentData?.pages?.length) {
-			return currentData;
-		}
-		const firstPage = currentData.pages[0];
-		if (
-			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
-		) {
-			return currentData;
-		}
-		return {
-			...currentData,
-			pages: [
-				{ ...firstPage, queued_messages: nextQueuedMessages },
-				...currentData.pages.slice(1),
-			],
-		};
+	writeMessagesCache(queryClient, chatKeys.messages(chatID), {
+		kind: "queue",
+		apply: (currentData) =>
+			patchQueuedMessagesInCacheData(currentData, nextQueuedMessages),
 	});
 };
 
@@ -139,17 +242,6 @@ export const useChatStore = (
 	// queue was drained while the user was away.
 	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
-	const prevChatIDRef = useRef<string | undefined>(chatID);
-	// Snapshot of the chatMessages elements from the last sync effect
-	// run. Used to detect whether chatMessages actually changed (e.g.
-	// after a refetch producing new objects) vs. just getting a new
-	// array reference because an unrelated field like queued_messages
-	// was updated in the query cache. Element-level reference
-	// comparison works because the flattening step preserves message
-	// object references when only non-message fields change in the
-	// page, while a genuine refetch returns new objects from the
-	// server.
-	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
 	// Compute the last REST-fetched message ID so the stream can
 	// skip messages the client already has. We use a ref so the
@@ -180,51 +272,33 @@ export const useChatStore = (
 		chatMessages !== undefined && chatRecord !== undefined;
 
 	// Write WebSocket-delivered durable messages into the React
-	// Query infinite cache so that navigating away and back
-	// serves up-to-date data instead of the stale REST snapshot.
-	// Without this, the cache only contains messages from the
-	// last REST fetch, and structural sharing can suppress the
-	// refetch-driven store update when no new durable messages
-	// have been committed to the DB yet.
+	// Query infinite cache. The cache is canonical for durable
+	// messages and the socket is their single ordered writer.
+	//
+	// Every write goes through the shared per-chat coordinator in
+	// `chatMessagesCache`, which serializes it against fetches on the
+	// same cache entry (see that module for why). The queue writes
+	// and the edit mutation share the coordinator, so all writers to
+	// this entry are ordered against each other and against fetches.
+	const writeMessagesToCache = useCallback(
+		(write: MessagesCacheWrite) => {
+			if (!chatID) {
+				return;
+			}
+			writeMessagesCache(queryClient, chatKeys.messages(chatID), write);
+		},
+		[chatID, queryClient],
+	);
+
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
 			}
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatKeys.messages(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
-
-				let changed = false;
-				for (const msg of messages) {
-					const existing = existingByID.get(msg.id);
-					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
-						changed = true;
-						existingByID.set(msg.id, msg);
-					}
-				}
-
-				if (!changed) {
-					return currentData;
-				}
-
-				// Sort descending to match the API page order
-				// (newest first).
-				const updatedMessages = Array.from(existingByID.values());
-				updatedMessages.sort((a, b) => b.id - a.id);
-
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, messages: updatedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
+			writeMessagesToCache({
+				kind: "upsert",
+				apply: (currentData) =>
+					upsertMessagesIntoCacheData(currentData, messages),
 			});
 			// Refresh the dedicated prompt-history cache when a user message arrives.
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
@@ -235,81 +309,19 @@ export const useChatStore = (
 				});
 			}
 		},
-		[chatID, queryClient],
+		[chatID, queryClient, writeMessagesToCache],
 	);
 
 	const replaceCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
-			if (!chatID) {
-				return;
-			}
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatKeys.messages(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const updatedMessages = [...messages].sort((a, b) => b.id - a.id);
-				return {
-					...currentData,
-					pages: [{ ...firstPage, messages: updatedMessages, has_more: false }],
-					pageParams: currentData.pageParams.slice(0, 1),
-				};
+			writeMessagesToCache({
+				kind: "replace",
+				apply: (currentData) =>
+					replaceMessagesInCacheData(currentData, messages),
 			});
 		},
-		[chatID, queryClient],
+		[writeMessagesToCache],
 	);
-
-	useEffect(() => {
-		store.batch(() => {
-			// When the active chat changes, clear stale messages
-			// immediately so the previous chat's messages aren't
-			// briefly visible while the new chat's query resolves.
-			if (prevChatIDRef.current !== chatID) {
-				prevChatIDRef.current = chatID;
-				lastSyncedMessagesRef.current = [];
-				store.replaceMessages([]);
-			}
-			// Merge REST-fetched messages into the store, preserving
-			// any messages the WebSocket delivered that haven't
-			// appeared in a REST page yet.
-			//
-			// If the fetched set is missing message IDs the store
-			// already has (e.g. after an edit truncation), a full
-			// replace is needed. We must only do this when the
-			// fetched messages actually changed (new elements from
-			// a refetch), not when an unrelated field like
-			// queued_messages caused the query data reference to
-			// update.
-			if (chatMessages) {
-				const prev = lastSyncedMessagesRef.current;
-				const contentChanged =
-					chatMessages.length !== prev.length ||
-					chatMessages.some((m, i) => m !== prev[i]);
-				lastSyncedMessagesRef.current = chatMessages;
-
-				const storeSnap = store.getSnapshot();
-				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
-				// Only classify a store-held ID as stale if it was
-				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (for example
-				// by the WS handler) are new, not stale, and must not
-				// trigger the destructive replaceMessages path.
-				const prevIDs = new Set(prev.map((m) => m.id));
-				const hasStaleEntries =
-					contentChanged &&
-					storeSnap.orderedMessageIDs.some(
-						(id) => !fetchedIDs.has(id) && prevIDs.has(id),
-					);
-				if (hasStaleEntries) {
-					store.replaceMessages(chatMessages);
-				} else {
-					store.upsertDurableMessages(chatMessages);
-				}
-			}
-		});
-	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
@@ -453,11 +465,13 @@ export const useChatStore = (
 			if (streamEvents.length === 0) {
 				return;
 			}
-			// Collect durable messages for bulk upsert so the
-			// entire batch produces one Map copy + one sort
-			// instead of N copies and N sorts.
+			// Collect durable messages for one bulk cache write so the
+			// entire batch produces a single query-cache notification.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
-			let needsStreamReset = false;
+			// The newest assistant message committed in this batch. Its ID is the
+			// identity the overlay hands off to, so the tail stays on screen until
+			// exactly that message is readable from the durable cache.
+			let finalizedAssistantMessageID: number | undefined;
 
 			// Atomically swap in the buffered replacement history. Called
 			// when a boundary event signals the replacement run ended, so
@@ -469,7 +483,6 @@ export const useChatStore = (
 				}
 				historyResetPending = false;
 				const replacement = historyReplacementBuf.splice(0);
-				store.replaceMessages(replacement);
 				replaceCacheMessages(replacement);
 			};
 
@@ -509,7 +522,7 @@ export const useChatStore = (
 						historyResetPending = true;
 						historyReplacementBuf.length = 0;
 						pendingMessages.length = 0;
-						needsStreamReset = false;
+						finalizedAssistantMessageID = undefined;
 						continue;
 					}
 
@@ -522,7 +535,22 @@ export const useChatStore = (
 
 					if (streamEvent.type === "preview_reset") {
 						discardBufferedParts();
-						store.clearStreamState();
+						// The backend emits the durable `message` for a snapshot BEFORE
+						// the `preview_reset` that retires the preview, usually in the
+						// same frame. Clearing the overlay here would strand the tail
+						// that just finalized: the end-of-batch handoff would find no
+						// overlay to keep, and nothing would render the finalized turn
+						// until its cache write became readable. So when a handoff is
+						// pending, the handoff performs the clear instead: it moves the
+						// overlay into the finalizing snapshot keyed by that message's
+						// ID, which every clear path and the next turn's first part
+						// still retire.
+						const finalizationPending =
+							finalizedAssistantMessageID !== undefined ||
+							store.getSnapshot().finalizingMessageID !== null;
+						if (!finalizationPending) {
+							store.clearStreamState();
+						}
 						continue;
 					}
 
@@ -559,7 +587,7 @@ export const useChatStore = (
 								lastMessageIdRef.current = message.id;
 							}
 							if (message.role === "assistant") {
-								needsStreamReset = true;
+								finalizedAssistantMessageID = message.id;
 							}
 							continue;
 						}
@@ -663,22 +691,17 @@ export const useChatStore = (
 				// non-message_part event above, this is a no-op.
 				schedulePartsFlush();
 
-				// Bulk-upsert all collected durable messages in one
-				// pass: one Map copy + one sort instead of N each.
+				// Commit the batch's durable messages, then hand the overlay over to
+				// the message that superseded it: cache first so any reader woken by
+				// the store notification already sees that message. The handoff keeps
+				// the finalized tail on screen until the durable-reading component
+				// renders it, which is also what retires the handoff.
 				if (pendingMessages.length > 0) {
-					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
 				}
 
-				// Clear stream state atomically with the durable
-				// message commit so subscribers never see a
-				// snapshot where both the committed message and
-				// the streaming output coexist. Previously this
-				// was deferred to a requestAnimationFrame, which
-				// left a window where ConversationTimeline and
-				// LiveStreamTail rendered the same content.
-				if (needsStreamReset) {
-					store.clearStreamState();
+				if (finalizedAssistantMessageID !== undefined) {
+					store.beginStreamFinalization(finalizedAssistantMessageID);
 					// If more message_part events arrived in this
 					// batch after the durable message, they belong
 					// to the next turn. Apply them immediately so

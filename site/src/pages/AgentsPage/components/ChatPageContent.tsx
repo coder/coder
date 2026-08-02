@@ -23,11 +23,14 @@ import {
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	selectFinalizingMessageID,
+	selectHasStreamOverlay,
 	selectHasStreamState,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
 import {
+	shouldSuppressFinalizedOverlay,
 	useDurableChatStatus,
 	useDurableMessageList,
 	useDurableQueuedMessages,
@@ -102,12 +105,37 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const messages = useDurableMessageList({ store, chatId });
 	const chatStatus = useDurableChatStatus({ store, chatId });
-	const hasStream = useChatSelector(store, selectHasStreamState);
+	// The overlay flag, not just the active stream: during the finalization
+	// handoff the tail is still on screen, so the timeline must not switch to
+	// its completed presentation. Outside that window this equals
+	// `streamState !== null`, so nothing else changes.
+	const hasStream = useChatSelector(store, selectHasStreamOverlay);
+	const finalizingMessageID = useChatSelector(store, selectFinalizingMessageID);
 	const isAwaitingFirstStreamChunk = useIsAwaitingFirstStreamChunk({
 		store,
 		chatId,
 	});
 	const isChatCompleted = !hasStream;
+
+	// Suppression is decided here because this component reads BOTH sources in
+	// one render: the finalizing ID from the store and the durable list from the
+	// query cache. Exact ID membership, not a >= comparison: a newer durable
+	// message must not suppress an overlay whose own message has not landed yet.
+	const suppressFinalizedOverlay = shouldSuppressFinalizedOverlay(
+		finalizingMessageID,
+		messages,
+	);
+
+	// Retiring the handoff here, after the commit that rendered the finalized
+	// message, is what ends the overlay lifecycle: doing it when the cache write
+	// lands would drop the overlay a frame before this component re-renders with
+	// the durable message, and leaving it set would keep the timeline in its
+	// streaming presentation for an idle chat.
+	useEffect(() => {
+		if (suppressFinalizedOverlay && finalizingMessageID !== null) {
+			store.completeStreamFinalization(finalizingMessageID);
+		}
+	}, [store, suppressFinalizedOverlay, finalizingMessageID]);
 
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
@@ -151,6 +179,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					chatId={chatId}
 					persistedError={persistedError}
 					isTranscriptEmpty={parsedMessages.length === 0}
+					suppressFinalizedOverlay={suppressFinalizedOverlay}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}

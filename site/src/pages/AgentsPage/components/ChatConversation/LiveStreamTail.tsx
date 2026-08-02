@@ -7,6 +7,8 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
+	resolveOverlayStreamState,
+	selectFinalizingStreamState,
 	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
@@ -116,6 +118,10 @@ interface LiveStreamTailProps {
 	chatId?: string;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
+	// Decided by the durable-reading parent, which reads the finalizing ID and
+	// the cache-backed message list in the same render. True once the finalized
+	// tail is readable from the durable list, so the overlay can drop it.
+	suppressFinalizedOverlay?: boolean;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
@@ -127,12 +133,25 @@ export const LiveStreamTail = ({
 	chatId,
 	persistedError,
 	isTranscriptEmpty,
+	suppressFinalizedOverlay = false,
 	subagentTitles,
 	subagentVariants,
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailProps) => {
 	const streamState = useChatSelector(store, selectStreamState);
+	const finalizingStreamState = useChatSelector(
+		store,
+		selectFinalizingStreamState,
+	);
+	// The finalizing snapshot bridges the handoff: the store notifies
+	// synchronously and the query cache a macrotask later, so dropping the
+	// overlay on the store notification alone would blank the tail for a frame.
+	const overlayStreamState = resolveOverlayStreamState(
+		streamState,
+		finalizingStreamState,
+		suppressFinalizedOverlay,
+	);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
@@ -145,11 +164,11 @@ export const LiveStreamTail = ({
 		selectSubagentStatusOverrides,
 	);
 	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
+		overlayStreamState?.toolCalls,
+		overlayStreamState?.toolResults,
 	);
 	const liveStatus = deriveLiveStatus({
-		streamState,
+		streamState: overlayStreamState,
 		retryState,
 		reconnectState,
 		streamError,
@@ -160,7 +179,7 @@ export const LiveStreamTail = ({
 	return (
 		<LiveStreamTailContent
 			isTranscriptEmpty={isTranscriptEmpty}
-			streamState={streamState}
+			streamState={overlayStreamState}
 			streamTools={streamTools}
 			liveStatus={liveStatus}
 			subagentTitles={subagentTitles}

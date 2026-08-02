@@ -15,7 +15,9 @@ import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
+	restoreEditedConversationInCache,
 } from "./chatMessageEdits";
+import { writeMessagesCache } from "./chatMessagesCache";
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
@@ -1717,6 +1719,75 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	staleTime: Number.POSITIVE_INFINITY,
 });
 
+type ChatMessagesInfiniteData = InfiniteData<TypesGen.ChatMessagesResponse>;
+
+/**
+ * Collapses the paginated history into one map keyed by message ID, keeping the
+ * FIRST occurrence of each ID. Pages arrive newest-first and page 0 is the most
+ * recent page, so first-occurrence-wins gives page 0 precedence over a stale
+ * copy left in an older page. The socket writer canonicalizes into page 0, so
+ * this is a defensive layer rather than the cache invariant.
+ */
+const collectDurableMessagesByID = (
+	data: ChatMessagesInfiniteData,
+): Map<number, TypesGen.ChatMessage> => {
+	const byID = new Map<number, TypesGen.ChatMessage>();
+	for (const page of data.pages) {
+		for (const message of page.messages) {
+			if (!byID.has(message.id)) {
+				byID.set(message.id, message);
+			}
+		}
+	}
+	return byID;
+};
+
+/**
+ * Query `select` producing the flat, ascending durable message list. Module
+ * level so react-query can memoize it per observer: an inline select is a new
+ * function every render, which re-runs the flatten and defeats the structural
+ * sharing that keeps the result reference stable.
+ *
+ * Deliberately NOT part of `chatMessagesForInfiniteScroll`: the pagination
+ * owner needs the raw pages, page params, and `hasNextPage`.
+ *
+ * `created_at` is shared across an insert batch, so only the ID orders the
+ * conversation.
+ */
+export const selectDurableMessages = (
+	data: ChatMessagesInfiniteData,
+): readonly TypesGen.ChatMessage[] =>
+	Array.from(collectDurableMessagesByID(data).values()).sort(
+		(left, right) => left.id - right.id,
+	);
+
+/**
+ * Numeric `select` so count consumers re-render on the deduplicated size only,
+ * never on message content.
+ */
+export const selectDurableMessageCount = (
+	data: ChatMessagesInfiniteData,
+): number => collectDurableMessagesByID(data).size;
+
+/**
+ * Primitive `select` returning the role of the newest durable message, or
+ * undefined for an empty history. Consumers compose it with the transient
+ * stream state instead of subscribing to the whole list.
+ */
+export const selectLatestDurableMessageRole = (
+	data: ChatMessagesInfiniteData,
+): TypesGen.ChatMessageRole | undefined => {
+	let latest: TypesGen.ChatMessage | undefined;
+	for (const page of data.pages) {
+		for (const message of page.messages) {
+			if (!latest || message.id > latest.id) {
+				latest = message;
+			}
+		}
+	}
+	return latest?.role;
+};
+
 // Cap requested prompts to keep the response small; well under the server-side maximum.
 const PROMPT_HISTORY_LIMIT = 500;
 
@@ -2371,16 +2442,21 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			InfiniteData<TypesGen.ChatMessagesResponse>
 		>(chatKeys.messages(chatId));
 
-		queryClient.setQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-		>(chatKeys.messages(chatId), (current) =>
-			projectEditedConversationIntoCache({
-				currentData: current,
-				editedMessageId: messageId,
-				replacementMessage: optimisticMessage,
-				queuedMessages: [],
-			}),
-		);
+		// Every phase of the edit goes through the shared messages-cache
+		// coordinator, the same one the per-chat socket uses. A pagination fetch
+		// started after this projection captures the optimistic pages and
+		// installs them verbatim when it resolves, so an unserialized write here
+		// or in onSuccess/onError would be silently overwritten.
+		writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+			kind: "edit-projection",
+			apply: (currentData) =>
+				projectEditedConversationIntoCache({
+					currentData,
+					editedMessageId: messageId,
+					replacementMessage: optimisticMessage,
+					queuedMessages: [],
+				}) ?? currentData,
+		});
 
 		return { previousData };
 	},
@@ -2389,10 +2465,17 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		_variables: EditChatMessageMutationArgs,
 		context: EditChatMessageMutationContext | undefined,
 	) => {
-		// Restore the cache on failure so the user sees the
-		// original messages again.
-		if (context?.previousData) {
-			queryClient.setQueryData(chatKeys.messages(chatId), context.previousData);
+		// Restore the cache on failure so the user sees the original messages
+		// again. The restore keeps messages the socket delivered while the
+		// mutation was in flight instead of reverting to the snapshot verbatim,
+		// which would drop them.
+		const previousData = context?.previousData;
+		if (previousData) {
+			writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+				kind: "edit-rollback",
+				apply: (currentData) =>
+					restoreEditedConversationInCache({ currentData, previousData }),
+			});
 		}
 		// Invalidate messages as a safety net: the restored snapshot
 		// may be missing WebSocket-delivered messages that arrived
@@ -2406,16 +2489,16 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
 	) => {
-		queryClient.setQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-		>(chatKeys.messages(chatId), (current) =>
-			reconcileEditedMessageInCache({
-				currentData: current,
-				optimisticMessageId: variables.messageId,
-				responseMessages: response.messages ?? [response.message],
-				deletedMessageIds: response.deleted_message_ids,
-			}),
-		);
+		writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+			kind: "edit-reconciliation",
+			apply: (currentData) =>
+				reconcileEditedMessageInCache({
+					currentData,
+					optimisticMessageId: variables.messageId,
+					responseMessages: response.messages ?? [response.message],
+					deletedMessageIds: response.deleted_message_ids,
+				}) ?? currentData,
+		});
 	},
 	onSettled: () => {
 		// Refresh chat metadata (status, title, etc.). The messages
@@ -2494,10 +2577,10 @@ export const deleteChatQueuedMessage = (
 			queryKey: chatKeys.detail(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
-			queryKey: chatKeys.messages(chatId),
-			exact: true,
-		});
+		// The messages query is deliberately NOT invalidated. It is canonical
+		// for durable messages and only the socket writes them, so a refetch
+		// would capture the pages an in-flight socket write is amending. The
+		// caller removes the entry from `pages[0].queued_messages` itself.
 	},
 });
 

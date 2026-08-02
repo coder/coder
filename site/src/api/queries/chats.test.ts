@@ -1,4 +1,10 @@
-import { hashKey, MutationObserver, QueryClient } from "react-query";
+import {
+	hashKey,
+	type InfiniteData as InfiniteQueryData,
+	MutationObserver,
+	onlineManager,
+	QueryClient,
+} from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -7,7 +13,9 @@ import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
+import { createDeferred } from "#/testHelpers/deferred";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
+import { writeMessagesCache } from "./chatMessagesCache";
 import {
 	addChildToParentInCache,
 	applyServerChatStatusToCaches,
@@ -87,6 +95,7 @@ vi.mock("#/api/api", () => ({
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
+			getChatMessages: vi.fn(),
 			updateChatACL: vi.fn(),
 		},
 	},
@@ -2016,7 +2025,7 @@ describe("mutation invalidation scope", () => {
 		).not.toBe(true);
 	});
 
-	it("deleteChatQueuedMessage invalidates only chat detail and messages", async () => {
+	it("deleteChatQueuedMessage invalidates only the chat detail", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -2024,15 +2033,17 @@ describe("mutation invalidation scope", () => {
 		const mutation = deleteChatQueuedMessage(queryClient, chatId);
 		await mutation.onSuccess();
 
-		// These two should be invalidated (exact match).
 		expect(
 			queryClient.getQueryState(chatKeys.detail(chatId))?.isInvalidated,
 			"the chat detail should be invalidated",
 		).toBe(true);
+		// The messages query is canonical for durable messages and only the
+		// socket writes them, so the caller amends pages[0].queued_messages
+		// instead of refetching pages an in-flight socket write is amending.
 		expect(
 			queryClient.getQueryState(chatKeys.messages(chatId))?.isInvalidated,
-			"chat messages should be invalidated",
-		).toBe(true);
+			"chat messages should NOT be invalidated",
+		).not.toBe(true);
 
 		// Unrelated queries should NOT be touched.
 		for (const { label, key } of unrelatedKeys(chatId)) {
@@ -2048,6 +2059,198 @@ describe("mutation invalidation scope", () => {
 				?.isInvalidated,
 			"infinite chats should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	// The edit mutation shares the messages cache with the per-chat socket, and
+	// pagination stays enabled while it is in flight. Its writes go through the
+	// same serialization coordinator, otherwise a fetch that captured the
+	// optimistic pages reinstalls them over the response.
+	const startDeferredMessagesFetch = (
+		queryClient: QueryClient,
+		chatId: string,
+	) => {
+		const pending = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			pending.promise,
+		);
+		// staleTime: 0 because fetchNextPage and deliberate refetches bypass the
+		// query's Infinity staleTime the same way.
+		const fetched = queryClient.fetchInfiniteQuery({
+			...chatMessagesForInfiniteScroll(chatId),
+			staleTime: 0,
+		});
+		return { pending, fetched };
+	};
+
+	it("editChatMessage keeps the response reconciliation when a fetch resolves after it", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+		const responseMessage = {
+			...makeMsg(chatId, 9),
+			content: [{ type: "text" as const, text: "edited authoritative" }],
+		};
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		await mutation.onMutate({ messageId: 3, optimisticMessage, req: editReq });
+
+		const { pending, fetched } = startDeferredMessagesFetch(
+			queryClient,
+			chatId,
+		);
+		expect(
+			queryClient.getQueryState(chatKeys.messages(chatId))?.fetchStatus,
+		).toBe("fetching");
+
+		mutation.onSuccess(
+			{ message: responseMessage, deleted_message_ids: [3] },
+			{ messageId: 3, optimisticMessage, req: editReq },
+		);
+
+		// Buffered rather than written: the resolving fetch would discard it.
+		expect(
+			queryClient
+				.getQueryData<InfMessages>(chatKeys.messages(chatId))
+				?.pages[0].messages.map((message) => message.id),
+		).toEqual([3, 2, 1]);
+
+		pending.resolve({
+			messages: [requireMessage(messages, 2), requireMessage(messages, 1)],
+			queued_messages: [],
+			has_more: false,
+		});
+		await fetched;
+
+		// The reconciliation replays on top of the fetched page.
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
+		expect(data?.pages[0].messages.map((message) => message.id)).toEqual([
+			9, 2, 1,
+		]);
+	});
+
+	it("editChatMessage keeps the rollback when a fetch resolves after it", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		const context = await mutation.onMutate({
+			messageId: 3,
+			optimisticMessage,
+			req: editReq,
+		});
+
+		const { pending, fetched } = startDeferredMessagesFetch(
+			queryClient,
+			chatId,
+		);
+
+		mutation.onError(
+			new Error("network failure"),
+			{ messageId: 3, optimisticMessage, req: editReq },
+			context,
+		);
+
+		// Buffered: applying it now would be discarded by the resolving fetch.
+		expect(
+			queryClient
+				.getQueryData<InfMessages>(chatKeys.messages(chatId))
+				?.pages[0].messages.map((message) => message.id),
+		).toEqual([3, 2, 1]);
+
+		pending.resolve({
+			messages: [requireMessage(messages, 2), requireMessage(messages, 1)],
+			queued_messages: [],
+			has_more: false,
+		});
+		await fetched;
+
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
+		expect(data?.pages[0].messages.map((message) => message.id)).toEqual([
+			5, 4, 3, 2, 1,
+		]);
+	});
+
+	it("editChatMessage rollback keeps messages delivered while the edit was in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+		const websocketMessage = {
+			...makeMsg(chatId, 10),
+			role: "assistant" as const,
+			content: [{ type: "text" as const, text: "assistant follow-up" }],
+		};
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		const context = await mutation.onMutate({
+			messageId: 3,
+			optimisticMessage,
+			req: editReq,
+		});
+
+		// The socket commits a durable message while the edit is in flight.
+		queryClient.setQueryData<InfMessages | undefined>(
+			chatKeys.messages(chatId),
+			(current) =>
+				current
+					? {
+							...current,
+							pages: [
+								{
+									...current.pages[0],
+									messages: [websocketMessage, ...current.pages[0].messages],
+								},
+								...current.pages.slice(1),
+							],
+						}
+					: current,
+		);
+
+		mutation.onError(
+			new Error("network failure"),
+			{ messageId: 3, optimisticMessage, req: editReq },
+			context,
+		);
+
+		// The pre-edit conversation is back AND the socket's message survived,
+		// with the edited message restored to its original content.
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
+		expect(data?.pages[0].messages.map((message) => message.id)).toEqual([
+			10, 5, 4, 3, 2, 1,
+		]);
+		expect(
+			data?.pages[0].messages.find((message) => message.id === 3)?.content,
+		).toEqual(requireMessage(messages, 3).content);
 	});
 });
 
@@ -4775,5 +4978,137 @@ describe("mergeWatchedChatSummary snapshot_version", () => {
 				activeChatId: "chat-2",
 			}),
 		).toMatchObject({ status: "waiting", has_unread: true });
+	});
+});
+
+describe("messages cache write serialization", () => {
+	type InfMessages = {
+		pages: TypesGen.ChatMessagesResponse[];
+		pageParams: (number | undefined)[];
+	};
+
+	const makeMessage = (chatId: string, id: number): TypesGen.ChatMessage => ({
+		id,
+		chat_id: chatId,
+		created_at: `2025-01-01T00:00:${String(id).padStart(2, "0")}Z`,
+		role: "user",
+		content: [{ type: "text", text: `msg ${id}` }],
+	});
+
+	const prependMessage =
+		(message: TypesGen.ChatMessage) =>
+		(currentData: InfiniteQueryData<TypesGen.ChatMessagesResponse>) => ({
+			...currentData,
+			pages: [
+				{
+					...currentData.pages[0],
+					messages: [message, ...currentData.pages[0].messages],
+				},
+				...currentData.pages.slice(1),
+			],
+		});
+
+	// A paused fetch already captured the pages it will install when it resumes,
+	// so it owns the cache entry just like a fetching one. A guard that only
+	// looked at `isFetching` would let a write through and lose it on resume.
+	it("buffers a write committed while a paused fetch owns the cache", async () => {
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+			},
+		});
+		const chatId = "chat-paused";
+		const messages = [2, 1].map((id) => makeMessage(chatId, id));
+		const socketMessage = makeMessage(chatId, 10);
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const pending = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			pending.promise,
+		);
+
+		onlineManager.setOnline(false);
+		// mount() is what subscribes the client to the online manager, which is
+		// how a paused fetch resumes.
+		queryClient.mount();
+		try {
+			const fetched = queryClient.fetchInfiniteQuery({
+				...chatMessagesForInfiniteScroll(chatId),
+				staleTime: 0,
+			});
+			expect(
+				queryClient.getQueryState(chatKeys.messages(chatId))?.fetchStatus,
+			).toBe("paused");
+
+			writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+				kind: "upsert",
+				apply: prependMessage(socketMessage),
+			});
+			expect(
+				queryClient
+					.getQueryData<InfMessages>(chatKeys.messages(chatId))
+					?.pages[0].messages.map((message) => message.id),
+			).toEqual([2, 1]);
+
+			onlineManager.setOnline(true);
+			pending.resolve({
+				messages,
+				queued_messages: [],
+				has_more: false,
+			});
+			await fetched;
+
+			expect(
+				queryClient
+					.getQueryData<InfMessages>(chatKeys.messages(chatId))
+					?.pages[0].messages.map((message) => message.id),
+			).toEqual([10, 2, 1]);
+		} finally {
+			onlineManager.setOnline(true);
+			queryClient.unmount();
+		}
+	});
+
+	it("replays buffered writes in arrival order", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-fifo";
+		const messages = [2, 1].map((id) => makeMessage(chatId, id));
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const pending = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			pending.promise,
+		);
+		const fetched = queryClient.fetchInfiniteQuery({
+			...chatMessagesForInfiniteScroll(chatId),
+			staleTime: 0,
+		});
+
+		writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+			kind: "upsert",
+			apply: prependMessage(makeMessage(chatId, 10)),
+		});
+		writeMessagesCache(queryClient, chatKeys.messages(chatId), {
+			kind: "upsert",
+			apply: prependMessage(makeMessage(chatId, 11)),
+		});
+
+		pending.resolve({ messages, queued_messages: [], has_more: false });
+		await fetched;
+
+		// 11 prepended after 10, so the later write ends up first.
+		expect(
+			queryClient
+				.getQueryData<InfMessages>(chatKeys.messages(chatId))
+				?.pages[0].messages.map((message) => message.id),
+		).toEqual([11, 10, 2, 1]);
 	});
 });

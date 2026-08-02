@@ -43,6 +43,7 @@ import {
 	promoteChatQueuedMessage,
 	readCachedChatSnapshotVersion,
 	rollbackOptimisticChatStatus,
+	selectDurableMessages,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	userChatDebugLogging,
@@ -88,10 +89,7 @@ import {
 	type ChatStoreState,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import {
-	useDurableChatStatus,
-	useDurableMessageCount,
-} from "./components/ChatConversation/durableChat";
+import { useDurableChatStatus } from "./components/ChatConversation/durableChat";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -244,6 +242,51 @@ export const runPromoteQueuedMessage = async (params: {
 		}
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
 		handleUsageLimitError(error);
+		throw error;
+	}
+};
+
+/**
+ * Runs the optimistic queued-message deletion flow.
+ *
+ * The mutation no longer invalidates the messages query, so the deletion is
+ * projected into both the store's visible queue and `pages[0].queued_messages`
+ * of the messages cache. Skipping the cache write would leave the cached queue
+ * stale, and REST re-hydration would resurrect the deleted entry. Both writes
+ * roll back together on failure.
+ *
+ * @internal Exported for testing.
+ */
+export const runDeleteQueuedMessage = async (params: {
+	id: number;
+	store: Pick<ChatStore, "getSnapshot" | "setQueuedMessages">;
+	deleteQueuedMessage: (id: number) => Promise<void>;
+	getCacheQueuedMessages: () =>
+		| readonly TypesGen.ChatQueuedMessage[]
+		| undefined;
+	setCacheQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	) => void;
+}): Promise<void> => {
+	const {
+		id,
+		store,
+		deleteQueuedMessage,
+		getCacheQueuedMessages,
+		setCacheQueuedMessages,
+	} = params;
+	const previousQueuedMessages = store.getSnapshot().queuedMessages;
+	const previousCacheQueuedMessages = getCacheQueuedMessages();
+	const nextQueuedMessages = previousQueuedMessages.filter(
+		(message) => message.id !== id,
+	);
+	store.setQueuedMessages(nextQueuedMessages);
+	setCacheQueuedMessages(nextQueuedMessages);
+	try {
+		await deleteQueuedMessage(id);
+	} catch (error) {
+		store.setQueuedMessages(previousQueuedMessages);
+		setCacheQueuedMessages(previousCacheQueuedMessages);
 		throw error;
 	}
 };
@@ -1127,24 +1170,12 @@ const AgentChatPage: FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
+	// Flatten paginated messages into chronological order with the same
+	// module-level select the durable read facade uses, so the page and the
+	// facade cannot disagree about the conversation.
+	const chatMessagesList = chatMessagesQuery.data
+		? selectDurableMessages(chatMessagesQuery.data)
+		: undefined;
 
 	// Queued messages are only in the first page (most recent).
 	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
@@ -1436,18 +1467,14 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) =>
+		runDeleteQueuedMessage({
+			id,
+			store,
+			deleteQueuedMessage,
+			getCacheQueuedMessages,
+			setCacheQueuedMessages,
+		});
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
@@ -1533,28 +1560,17 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 
-	// Signal ready only after the store has synced fetched messages,
-	// so the DOM actually contains them when the parent scrolls.
+	// The query cache is canonical for durable messages, so a successful
+	// messages query means the DOM already carries them and the parent can
+	// scroll. There is no second source left to wait for.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useDurableMessageCount({ store, chatId: agentId });
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
-		) {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -1853,9 +1869,6 @@ const AgentChatPage: FC = () => {
 			response.messages ?? (response.message ? [response.message] : []);
 		if (insertedMessages.length > 0) {
 			upsertCacheMessages(insertedMessages);
-			if (isActiveChat) {
-				store.upsertDurableMessages(insertedMessages);
-			}
 			if (response.queued) {
 				const reconciledQueue = isActiveChat
 					? reconcilePromotedQueueHead(
@@ -2064,7 +2077,7 @@ const AgentChatPage: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
+			messageCount={chatMessagesList?.length ?? 0}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

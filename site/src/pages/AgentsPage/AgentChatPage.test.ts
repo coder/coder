@@ -23,6 +23,7 @@ import {
 	getWorkspaceOptionsWithLinkedWorkspace,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
+	runDeleteQueuedMessage,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEditAndScroll,
@@ -314,6 +315,69 @@ describe("runPromoteQueuedMessage", () => {
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(readCachedStatus(queryClient)?.status).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
+describe("runDeleteQueuedMessage", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		chat_id: "chat-1",
+		content: [{ type: "text", text }],
+	});
+
+	it("removes the entry from the store and the cached queue", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([a, b]);
+		let cachedQueue: readonly ChatQueuedMessage[] | undefined = [a, b];
+		const deleteQueuedMessage = vi.fn(async (_id: number) => undefined);
+
+		await runDeleteQueuedMessage({
+			id: b.id,
+			store,
+			deleteQueuedMessage,
+			getCacheQueuedMessages: () => cachedQueue,
+			setCacheQueuedMessages: (queuedMessages) => {
+				cachedQueue = queuedMessages;
+			},
+		});
+
+		expect(deleteQueuedMessage).toHaveBeenCalledWith(b.id);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([a.id]);
+		// The mutation no longer invalidates the messages query, so without this
+		// write REST re-hydration would resurrect the deleted entry.
+		expect(cachedQueue?.map((m) => m.id)).toEqual([a.id]);
+	});
+
+	it("restores both the store and the cached queue on failure", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([a, b]);
+		let cachedQueue: readonly ChatQueuedMessage[] | undefined = [a, b];
+		const apiError = new Error("boom");
+
+		await expect(
+			runDeleteQueuedMessage({
+				id: b.id,
+				store,
+				deleteQueuedMessage: async () => {
+					throw apiError;
+				},
+				getCacheQueuedMessages: () => cachedQueue,
+				setCacheQueuedMessages: (queuedMessages) => {
+					cachedQueue = queuedMessages;
+				},
+			}),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+		expect(cachedQueue?.map((m) => m.id)).toEqual([a.id, b.id]);
 	});
 });
 

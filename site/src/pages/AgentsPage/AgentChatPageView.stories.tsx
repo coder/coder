@@ -1,8 +1,15 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	type PropsWithChildren,
+	useRef,
+} from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { chatKeys, selectDurableMessages } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -855,11 +862,63 @@ const buildMessage = (
 ): TypesGen.ChatMessage =>
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
-const buildStoreWithMessages = (msgs: TypesGen.ChatMessage[]) => {
-	const store = createChatStore();
-	store.replaceMessages(msgs);
-	return store;
+// Durable messages are canonical in the query cache, so a story that needs a
+// transcript owns a QueryClient seeded with the pages the API would return and
+// provides it around the view. The store carries only the streaming overlay.
+type StoryChat = {
+	queryClient: QueryClient;
+	store: ReturnType<typeof createChatStore>;
+	setMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	getMessages: () => readonly TypesGen.ChatMessage[];
 };
+
+const createStoryChat = (
+	messages: readonly TypesGen.ChatMessage[],
+): StoryChat => {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				staleTime: Number.POSITIVE_INFINITY,
+				refetchInterval: false,
+				retry: false,
+			},
+		},
+	});
+	const setMessages = (next: readonly TypesGen.ChatMessage[]): void => {
+		queryClient.setQueryData(chatKeys.messages(AGENT_ID), {
+			// The API returns each page newest-first.
+			pages: [
+				{
+					messages: [...next].sort((left, right) => right.id - left.id),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+	};
+	setMessages(messages);
+	return {
+		queryClient,
+		store: createChatStore(),
+		setMessages,
+		getMessages: () => {
+			const data = queryClient.getQueryData<
+				Parameters<typeof selectDurableMessages>[0]
+			>(chatKeys.messages(AGENT_ID));
+			return data ? selectDurableMessages(data) : [];
+		},
+	};
+};
+
+const WithStoryChat: FC<PropsWithChildren<{ chat: StoryChat }>> = ({
+	chat,
+	children,
+}) => (
+	<QueryClientProvider client={chat.queryClient}>
+		{children}
+	</QueryClientProvider>
+);
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
 	buildMessage(1, "user", "Please review this plan."),
@@ -882,15 +941,18 @@ const otherUserActionMessages: TypesGen.ChatMessage[] = [
 		},
 	]),
 ];
+const otherUserActionChat = createStoryChat(otherUserActionMessages);
 
 export const OtherUserChatHidesInlineActions: Story = {
 	render: () => (
-		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
-			isInputDisabled
-			onImplementPlan={fn()}
-			store={buildStoreWithMessages(otherUserActionMessages)}
-		/>
+		<WithStoryChat chat={otherUserActionChat}>
+			<StoryAgentChatPageView
+				chatOwner={{ username: "OtherUser", name: "Other User" }}
+				isInputDisabled
+				onImplementPlan={fn()}
+				store={otherUserActionChat.store}
+			/>
+		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -922,19 +984,22 @@ const editingMessages = [
 	),
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
+const editingChat = createStoryChat(editingMessages);
 
 /** Editing a message in the middle of the conversation — shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
 	render: () => (
-		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a joke",
-			}}
-		/>
+		<WithStoryChat chat={editingChat}>
+			<StoryAgentChatPageView
+				store={editingChat.store}
+				editing={{
+					editingMessageId: 3,
+					editorInitialValue: "Now tell me a joke",
+				}}
+			/>
+		</WithStoryChat>
 	),
 };
 
@@ -1058,26 +1123,9 @@ const waitForIntersectionObserverTick = async () => {
 	});
 };
 
-/** Helper that extracts the current messages array from a store. */
-const getStoreMessages = (
-	store: ReturnType<typeof createChatStore>,
-): TypesGen.ChatMessage[] => {
-	const snapshot = store.getSnapshot();
-	const messages: TypesGen.ChatMessage[] = [];
-	for (const id of snapshot.orderedMessageIDs) {
-		const message = snapshot.messagesByID.get(id);
-		if (message) {
-			messages.push(message);
-		}
-	}
-	return messages;
-};
-
-const prependOlderMessages = (
-	store: ReturnType<typeof createChatStore>,
-	count: number,
-) => {
-	const existing = getStoreMessages(store);
+/** Helper that reads the current durable messages from a story's cache. */
+const prependOlderMessages = (chat: StoryChat, count: number) => {
+	const existing = chat.getMessages();
 	const oldestMessage = existing[0];
 	const oldestID = oldestMessage?.id ?? 1;
 	const olderMessages = Array.from({ length: count }, (_, index) => {
@@ -1089,21 +1137,21 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.replaceMessages([...olderMessages, ...existing]);
+	chat.setMessages([...olderMessages, ...existing]);
 };
 
-const resetScrollStoryStore = (
-	store: ReturnType<typeof createChatStore>,
+const resetScrollStoryChat = (
+	chat: StoryChat,
 	// Default to a transcript long enough to overflow the 600px decorator so the
 	// inverse-scroll stories exercise the fetch threshold immediately.
 	count = 80,
 ) => {
-	store.replaceMessages(buildLongConversation(count));
+	chat.setMessages(buildLongConversation(count));
 };
 
-const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
+const inverseScrollChat = createStoryChat(buildLongConversation(80));
 const inverseScrollFetchSpy = fn(() => {
-	prependOlderMessages(inverseScrollStore, 10);
+	prependOlderMessages(inverseScrollChat, 10);
 });
 
 /**
@@ -1114,14 +1162,16 @@ export const InverseScrollLoadsOlderMessages: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
-		<StoryAgentChatPageView
-			store={inverseScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={inverseScrollFetchSpy}
-		/>
+		<WithStoryChat chat={inverseScrollChat}>
+			<StoryAgentChatPageView
+				store={inverseScrollChat.store}
+				hasMoreMessages
+				onFetchMoreMessages={inverseScrollFetchSpy}
+			/>
+		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(inverseScrollStore);
+		resetScrollStoryChat(inverseScrollChat);
 		inverseScrollFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
@@ -1136,9 +1186,9 @@ export const InverseScrollLoadsOlderMessages: Story = {
 	},
 };
 
-const multiPageScrollStore = buildStoreWithMessages(buildLongConversation(80));
+const multiPageScrollChat = createStoryChat(buildLongConversation(80));
 const multiPageFetchSpy = fn(() => {
-	prependOlderMessages(multiPageScrollStore, 10);
+	prependOlderMessages(multiPageScrollChat, 10);
 });
 
 /**
@@ -1149,14 +1199,16 @@ export const InverseScrollCanLoadMultiplePages: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
-		<StoryAgentChatPageView
-			store={multiPageScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={multiPageFetchSpy}
-		/>
+		<WithStoryChat chat={multiPageScrollChat}>
+			<StoryAgentChatPageView
+				store={multiPageScrollChat.store}
+				hasMoreMessages
+				onFetchMoreMessages={multiPageFetchSpy}
+			/>
+		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(multiPageScrollStore);
+		resetScrollStoryChat(multiPageScrollChat);
 		multiPageFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
@@ -1179,7 +1231,7 @@ export const InverseScrollCanLoadMultiplePages: Story = {
 	},
 };
 
-const scrollToBottomButtonStoryStore = buildStoreWithMessages(
+const scrollToBottomButtonStoryChat = createStoryChat(
 	buildLongConversation(80),
 );
 
@@ -1191,10 +1243,12 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
-		<StoryAgentChatPageView store={scrollToBottomButtonStoryStore} />
+		<WithStoryChat chat={scrollToBottomButtonStoryChat}>
+			<StoryAgentChatPageView store={scrollToBottomButtonStoryChat.store} />
+		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomButtonStoryStore);
+		resetScrollStoryChat(scrollToBottomButtonStoryChat);
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1224,9 +1278,7 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 	},
 };
 
-const scrollToBottomStoryStore = buildStoreWithMessages(
-	buildLongConversation(80),
-);
+const scrollToBottomStoryChat = createStoryChat(buildLongConversation(80));
 // Story objects live at module scope, so use a ref-shaped object instead of a
 // hook to capture the imperative callback across the render and play phases.
 const scrollToBottomStoryRef: { current: (() => void) | null } = {
@@ -1241,13 +1293,15 @@ export const ScrollToBottomRefStillWorks: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
-		<StoryAgentChatPageView
-			store={scrollToBottomStoryStore}
-			scrollToBottomRef={scrollToBottomStoryRef}
-		/>
+		<WithStoryChat chat={scrollToBottomStoryChat}>
+			<StoryAgentChatPageView
+				store={scrollToBottomStoryChat.store}
+				scrollToBottomRef={scrollToBottomStoryRef}
+			/>
+		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomStoryStore);
+		resetScrollStoryChat(scrollToBottomStoryChat);
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1271,7 +1325,7 @@ export const ScrollToBottomRefStillWorks: Story = {
 	},
 };
 
-const messageOrderStore = buildStoreWithMessages([
+const messageOrderChat = createStoryChat([
 	buildMessage(1, "user", "Oldest message"),
 	buildMessage(2, "assistant", "Older response"),
 	buildMessage(3, "user", "Newer question"),
@@ -1284,7 +1338,11 @@ const messageOrderStore = buildStoreWithMessages([
 export const MessageOrderIsStillCorrect: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={messageOrderStore} />,
+	render: () => (
+		<WithStoryChat chat={messageOrderChat}>
+			<StoryAgentChatPageView store={messageOrderChat.store} />
+		</WithStoryChat>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const oldest = canvas.getByText("Oldest message");
@@ -1298,7 +1356,7 @@ export const MessageOrderIsStillCorrect: Story = {
 	},
 };
 
-const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
+const stickyPinningChat = createStoryChat(buildLongConversation(40));
 
 /**
  * Regression guard for the StickyUserMessage push-up logic.
@@ -1317,9 +1375,13 @@ const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
 export const StickyUserMessagePinsOnScroll: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
+	render: () => (
+		<WithStoryChat chat={stickyPinningChat}>
+			<StoryAgentChatPageView store={stickyPinningChat.store} />
+		</WithStoryChat>
+	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(stickyPinningStore, 40);
+		resetScrollStoryChat(stickyPinningChat, 40);
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1399,9 +1461,7 @@ const buildTallStickyConversation = (count: number): TypesGen.ChatMessage[] => {
 	return messages;
 };
 
-const stickyClipUpdateStore = buildStoreWithMessages(
-	buildTallStickyConversation(30),
-);
+const stickyClipUpdateChat = createStoryChat(buildTallStickyConversation(30));
 
 /**
  * Regression guard: the sticky truncation must stay in sync as the
@@ -1422,9 +1482,13 @@ const stickyClipUpdateStore = buildStoreWithMessages(
 export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
+	render: () => (
+		<WithStoryChat chat={stickyClipUpdateChat}>
+			<StoryAgentChatPageView store={stickyClipUpdateChat.store} />
+		</WithStoryChat>
+	),
 	play: async ({ canvasElement }) => {
-		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
+		stickyClipUpdateChat.setMessages(buildTallStickyConversation(30));
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1488,8 +1552,8 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 		// Grow the transcript at the newest end. While pinned, scrollTop stays
 		// at 0 so no scroll event fires; only the content ResizeObserver can
 		// drive the recompute.
-		stickyClipUpdateStore.replaceMessages([
-			...getStoreMessages(stickyClipUpdateStore),
+		stickyClipUpdateChat.setMessages([
+			...stickyClipUpdateChat.getMessages(),
 			buildMessage(31, "assistant", "Freshly streamed reply. ".repeat(80)),
 			buildMessage(32, "assistant", "More freshly streamed reply. ".repeat(80)),
 		]);

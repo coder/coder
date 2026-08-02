@@ -1,4 +1,10 @@
-import { act, render, renderHook, waitFor } from "@testing-library/react";
+import {
+	act,
+	render,
+	renderHook,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { watchChat } from "#/api/api";
 import { chatKeys } from "#/api/queries/chats";
 
@@ -29,14 +35,31 @@ const readInfiniteChats = (
 };
 
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
+import { useEffect } from "react";
+import {
+	QueryClient,
+	QueryClientProvider,
+	useInfiniteQuery,
+	useQueryClient,
+} from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import {
+	projectEditedConversationIntoCache,
+	reconcileEditedMessageInCache,
+} from "#/api/queries/chatMessageEdits";
+import {
+	chatMessagesForInfiniteScroll,
+	selectDurableMessages,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
-	selectMessagesByID,
-	selectOrderedMessageIDs,
+	type ChatStore,
+	resolveOverlayStreamState,
+	selectFinalizingMessageID,
+	selectFinalizingStreamState,
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
@@ -47,6 +70,7 @@ import {
 	useChatStore,
 } from "./chatStore";
 import {
+	shouldSuppressFinalizedOverlay,
 	useDurableChatStatus,
 	useDurableMessageList,
 	useDurableQueuedMessages,
@@ -55,6 +79,11 @@ import {
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
+	API: {
+		experimental: {
+			getChatMessages: vi.fn(),
+		},
+	},
 }));
 
 type MessageListener = (
@@ -211,9 +240,10 @@ const createTestQueryClient = (): QueryClient =>
 	});
 
 /**
- * In the app the chat detail query IS the record passed to useChatStore, and
- * the socket writes status into that cache entry. Tests pass the record as a
- * prop, so mirror it into the cache the way the query would.
+ * In the app the infinite messages query IS the source of the durable
+ * messages, and both the socket and every reader go through its cache entry.
+ * Tests pass the flat list as a prop, so mirror it into the cache the way the
+ * query would, unless the test seeded the entry itself.
  */
 const useTestChatStore: typeof useChatStore = (options) => {
 	const queryClient = useQueryClient();
@@ -223,6 +253,25 @@ const useTestChatStore: typeof useChatStore = (options) => {
 		queryClient.getQueryData(chatKeys.detail(chatRecord.id)) === undefined
 	) {
 		queryClient.setQueryData(chatKeys.detail(chatRecord.id), chatRecord);
+	}
+	if (
+		options.chatID &&
+		options.chatMessages &&
+		queryClient.getQueryData(chatKeys.messages(options.chatID)) === undefined
+	) {
+		queryClient.setQueryData(chatKeys.messages(options.chatID), {
+			pages: [
+				{
+					// The API returns each page newest-first.
+					messages: [...options.chatMessages].sort(
+						(left, right) => right.id - left.id,
+					),
+					queued_messages: options.chatQueuedMessages ?? [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
 	}
 	return useChatStore(options);
 };
@@ -467,8 +516,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					messagesByID: useChatSelector(store, selectMessagesByID),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -512,10 +560,10 @@ describe("useChatStore", () => {
 
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
-			expect(result.current.messagesByID.get(2)?.content).toEqual(
-				assistantMessage.content,
-			);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2]);
+			expect(
+				result.current.messages.find((message) => message.id === 2)?.content,
+			).toEqual(assistantMessage.content);
 		});
 	});
 
@@ -565,7 +613,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -622,7 +670,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 			expect(result.current.streamState).toBeNull();
 		});
 	});
@@ -718,7 +766,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -756,7 +804,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2]);
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "fresh" },
 			]);
@@ -913,15 +961,14 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					messagesByID: useChatSelector(store, selectMessagesByID),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
 		);
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 		});
 
 		// Frame 1: history_reset plus only part of the replacement
@@ -933,7 +980,7 @@ describe("useChatStore", () => {
 				{ type: "message", chat_id: chatID, message: replacementOne },
 			]);
 		});
-		expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 
 		// Frame 2: the rest of the replacement, terminated by the
 		// preview_reset the server emits in the same sync.
@@ -945,13 +992,13 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
-			expect(result.current.messagesByID.get(1)?.content).toEqual(
-				replacementOne.content,
-			);
-			expect(result.current.messagesByID.get(2)?.content).toEqual(
-				replacementTwo.content,
-			);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2]);
+			expect(
+				result.current.messages.find((message) => message.id === 1)?.content,
+			).toEqual(replacementOne.content);
+			expect(
+				result.current.messages.find((message) => message.id === 2)?.content,
+			).toEqual(replacementTwo.content);
 		});
 
 		const cached = queryClient.getQueryData<{
@@ -1123,7 +1170,7 @@ describe("useChatStore", () => {
 
 		let streamRenderCount = 0;
 		let queueRenderCount = 0;
-		let orderedIDsRenderCount = 0;
+		let durableMessagesRenderCount = 0;
 
 		type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -1139,9 +1186,11 @@ describe("useChatStore", () => {
 			return null;
 		};
 
-		const OrderedIDsProbe: FC<{ store: ChatStoreHandle }> = ({ store }) => {
-			useChatSelector(store, selectOrderedMessageIDs);
-			orderedIDsRenderCount += 1;
+		const DurableMessagesProbe: FC<{ store: ChatStoreHandle }> = ({
+			store,
+		}) => {
+			useDurableMessageList({ store, chatId: chatID });
+			durableMessagesRenderCount += 1;
 			return null;
 		};
 
@@ -1163,7 +1212,7 @@ describe("useChatStore", () => {
 				<>
 					<StreamProbe store={store} />
 					<QueueProbe store={store} />
-					<OrderedIDsProbe store={store} />
+					<DurableMessagesProbe store={store} />
 				</>
 			);
 		};
@@ -1180,7 +1229,7 @@ describe("useChatStore", () => {
 
 		const streamBaseline = streamRenderCount;
 		const queueBaseline = queueRenderCount;
-		const orderedIDsBaseline = orderedIDsRenderCount;
+		const durableMessagesBaseline = durableMessagesRenderCount;
 
 		act(() => {
 			mockSocket.emitData({
@@ -1200,7 +1249,7 @@ describe("useChatStore", () => {
 			expect(streamRenderCount).toBeGreaterThan(streamBaseline);
 		});
 		expect(queueRenderCount).toBe(queueBaseline);
-		expect(orderedIDsRenderCount).toBe(orderedIDsBaseline);
+		expect(durableMessagesRenderCount).toBe(durableMessagesBaseline);
 	});
 
 	it("applies batched message_part events from one payload", async () => {
@@ -1713,7 +1762,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -1733,7 +1782,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedIDs).toContain(2);
+			expect(result.current.messages.map((m) => m.id)).toContain(2);
 		});
 
 		// The React Query cache should also contain the new message.
@@ -3149,7 +3198,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Transition to running — should clear retry state.
+		// Transition to running, which must clear retry state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -3306,7 +3355,7 @@ describe("useChatStore", () => {
 			);
 		});
 		// Main chat status should remain "running" from the initial
-		// chatRecord — the subagent status event must not change it.
+		// chatRecord: the subagent status event must not change it.
 		expect(result.current.chatStatus).toBe("running");
 	});
 
@@ -3631,7 +3680,7 @@ describe("useChatStore", () => {
 			timeout: 3_000,
 		});
 
-		// Second disconnect — reconnect after 2s.
+		// Second disconnect, so the reconnect lands after 2s.
 		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
@@ -3863,7 +3912,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
-		// Transition to running — should call clearChatErrorReason.
+		// Transition to running, which must call clearChatErrorReason.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -3875,74 +3924,6 @@ describe("useChatStore", () => {
 
 		await waitFor(() => {
 			expect(clearChatErrorReason).toHaveBeenCalledWith(chatID);
-		});
-	});
-
-	it("removes stale messages when refetched set is smaller (edit truncation)", async () => {
-		immediateAnimationFrame();
-
-		const chatID = "chat-edit-truncation";
-		const msg1 = buildMessage(chatID, 1, "user", "first");
-		const msg2 = buildMessage(chatID, 2, "assistant", "second");
-		const msg3 = buildMessage(chatID, 3, "user", "third");
-
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
-		const noQueued: TypesGen.ChatQueuedMessage[] = [];
-		const initialMessages = [msg1, msg2, msg3];
-
-		const initialOptions = {
-			chatID,
-			chatMessages: initialMessages,
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: noQueued,
-				has_more: false,
-			},
-			chatQueuedMessages: noQueued,
-			setChatErrorReason,
-			clearChatErrorReason,
-		};
-
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
-				return {
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
-				};
-			},
-			{ initialProps: initialOptions, wrapper },
-		);
-
-		// All three messages should be in the store.
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-		});
-
-		// Simulate a post-edit refetch that only returns the first
-		// message (server truncated messages 2 and 3).
-		rerender({
-			...initialOptions,
-			chatMessages: [msg1],
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [],
-				has_more: false,
-			},
-		});
-
-		// Messages 2 and 3 should be removed — replaceMessages should
-		// have been used instead of upsert because the store contained
-		// IDs not present in the fetched set.
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1]);
 		});
 	});
 
@@ -3984,7 +3965,7 @@ describe("useChatStore", () => {
 			(options: Parameters<typeof useChatStore>[0]) => {
 				const { store } = useTestChatStore(options);
 				return {
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 					queuedMessages: useChatSelector(store, selectQueuedMessages),
 				};
 			},
@@ -3992,7 +3973,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2]);
 			expect(result.current.queuedMessages).toHaveLength(1);
 		});
 
@@ -4017,30 +3998,19 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// The promoted message should appear in the store and the
-		// queue should be empty. Before the fix, the queue_update
-		// caused updateChatQueuedMessages to mutate the React Query
-		// cache, giving chatMessages a new reference that triggered
-		// the sync effect. The effect detected the promoted message
-		// as a "stale entry" (present in store but not in the REST
-		// data) and called replaceMessages, wiping it.
+		// The promoted message must survive in the canonical cache with an
+		// empty queue. The socket is the only writer of durable messages, so a
+		// queue_update that rewrites the cached page must leave the promoted
+		// message in place.
 		//
-		// Now re-render so the updated query cache flows through
-		// the chatMessages prop (simulating React rerender after
-		// the query cache mutation).
+		// Re-render so the updated query cache flows through the props the way
+		// it does after a React Query cache mutation.
 		rerender({
 			...initialOptions,
-			// chatMessages still comes from REST (not refetched), so
-			// it only has [msg1, msg2]. The promoted message lives
-			// only in the store via the WebSocket delivery.
-			//
-			// Spread into a new array to simulate what actually
-			// happens: updateChatQueuedMessages mutates the React
-			// Query cache (changing queued_messages), which gives
-			// chatMessagesQuery.data a new reference, causing the
-			// chatMessagesList useMemo to return a new array with
-			// the same elements. The new reference triggers the
-			// sync effect.
+			// The REST props were not refetched, so they still carry only
+			// [msg1, msg2]: the promoted message arrived over the socket.
+			// Spread into a new array to reproduce the new reference a queue
+			// cache write hands to every reader.
 			chatMessages: [...initialMessages],
 			chatMessagesData: {
 				messages: [...initialMessages],
@@ -4050,7 +4020,7 @@ describe("useChatStore", () => {
 			chatQueuedMessages: [],
 		});
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 			expect(result.current.queuedMessages).toHaveLength(0);
 		});
 	});
@@ -4094,14 +4064,14 @@ describe("useChatStore", () => {
 					store,
 					streamState: useChatSelector(store, selectStreamState),
 					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ initialProps: initialOptions, wrapper },
 		);
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2]);
 		});
 
 		// Open the WebSocket and set the chat to running.
@@ -4151,7 +4121,7 @@ describe("useChatStore", () => {
 		// The stream state must survive: the promoted user message
 		// should not wipe the in-progress assistant stream.
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toContain(3);
+			expect(result.current.messages.map((m) => m.id)).toContain(3);
 			expect(result.current.streamState).not.toBeNull();
 			const blocks = result.current.streamState?.blocks ?? [];
 			const textBlock = blocks.find((b) => b.type === "response");
@@ -4338,7 +4308,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -4400,7 +4370,7 @@ describe("useChatStore", () => {
 		// should be in the message store.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
-			expect(result.current.orderedIDs).toContain(2);
+			expect(result.current.messages.map((m) => m.id)).toContain(2);
 		});
 	});
 });
@@ -4756,7 +4726,7 @@ describe("sidebar cache writes from stream events", () => {
 					clearChatErrorReason,
 				});
 				return {
-					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -4778,7 +4748,7 @@ describe("sidebar cache writes from stream events", () => {
 			});
 		});
 
-		// The per-chat WebSocket does not write updated_at — only the
+		// The per-chat WebSocket does not write updated_at, only the
 		// global chat-list WebSocket delivers the authoritative server
 		// timestamp. Verify it stays at the original value.
 		await waitFor(() => {
@@ -4964,7 +4934,7 @@ describe("sidebar cache writes from stream events", () => {
 					clearChatErrorReason,
 				});
 				return {
-					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -5123,38 +5093,142 @@ describe("sidebar cache writes from stream events", () => {
 	});
 });
 
-describe("stream-to-durable transition (Bug 1)", () => {
-	it("does not render both stream state and durable message after assistant message commits", async () => {
+describe("stream-to-durable finalization handoff", () => {
+	type OverlayFrame = {
+		overlayText: string | null;
+		durableIDs: readonly number[];
+	};
+
+	const overlayTextOf = (
+		state: ReturnType<typeof selectStreamState>,
+	): string | null =>
+		state === null
+			? null
+			: state.blocks
+					.map((block) => ("text" in block ? block.text : ""))
+					.join("");
+
+	/**
+	 * Stands in for LiveStreamTail: subscribes to the store for the overlay and
+	 * takes the suppression decision from its durable-reading parent, resolving
+	 * the visible overlay with the production rule.
+	 */
+	const TailFrameProbe: FC<{
+		store: ChatStore;
+		durableIDs: readonly number[];
+		suppressFinalizedOverlay: boolean;
+		frames: OverlayFrame[];
+	}> = ({ store, durableIDs, suppressFinalizedOverlay, frames }) => {
+		const streamState = useChatSelector(store, selectStreamState);
+		const finalizingStreamState = useChatSelector(
+			store,
+			selectFinalizingStreamState,
+		);
+		const overlayText = overlayTextOf(
+			resolveOverlayStreamState(
+				streamState,
+				finalizingStreamState,
+				suppressFinalizedOverlay,
+			),
+		);
+		// Record the COMMITTED frame, so a render React discards never counts
+		// as something the user saw.
+		useEffect(() => {
+			frames.push({ overlayText, durableIDs });
+		});
+		return (
+			<>
+				<div data-testid="transcript">{durableIDs.join(",")}</div>
+				<div data-testid="tail">{overlayText ?? ""}</div>
+			</>
+		);
+	};
+
+	/**
+	 * Stands in for ChatPageTimeline: the only place the suppression decision is
+	 * made, reading the finalizing ID and the cache-backed durable list in the
+	 * same render.
+	 */
+	const FinalizationFrameHarness: FC<{
+		chatID: string;
+		initialMessages: readonly TypesGen.ChatMessage[];
+		frames: OverlayFrame[];
+		// Receives the pagination observer's fetchNextPage so a test can put a
+		// history fetch in flight, which forces socket cache writes to buffer.
+		paginationRef?: { current: (() => void) | null };
+	}> = ({ chatID, initialMessages, frames, paginationRef }) => {
+		const messagesQuery = useInfiniteQuery(
+			chatMessagesForInfiniteScroll(chatID),
+		);
+		const { store } = useTestChatStore({
+			chatID,
+			chatMessages: [...initialMessages],
+			chatRecord: buildChat(chatID),
+			chatMessagesData: {
+				messages: [...initialMessages].sort(
+					(left, right) => right.id - left.id,
+				),
+				queued_messages: [],
+				has_more: false,
+			},
+			chatQueuedMessages: [],
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		});
+		const messages = useDurableMessageList({ store, chatId: chatID });
+		const finalizingMessageID = useChatSelector(
+			store,
+			selectFinalizingMessageID,
+		);
+		const suppressFinalizedOverlay = shouldSuppressFinalizedOverlay(
+			finalizingMessageID,
+			messages,
+		);
+		// Same retirement the production parent performs.
+		useEffect(() => {
+			if (suppressFinalizedOverlay && finalizingMessageID !== null) {
+				store.completeStreamFinalization(finalizingMessageID);
+			}
+		}, [store, suppressFinalizedOverlay, finalizingMessageID]);
+		const fetchNextPage = messagesQuery.fetchNextPage;
+		useEffect(() => {
+			if (paginationRef) {
+				paginationRef.current = () => {
+					void fetchNextPage();
+				};
+			}
+		}, [paginationRef, fetchNextPage]);
+		return (
+			<>
+				<div data-testid="finalizing">{finalizingMessageID ?? ""}</div>
+				<TailFrameProbe
+					store={store}
+					durableIDs={messages.map((message) => message.id)}
+					suppressFinalizedOverlay={suppressFinalizedOverlay}
+					frames={frames}
+				/>
+			</>
+		);
+	};
+
+	it("shows the finalized tail exactly once in every committed frame", async () => {
 		immediateAnimationFrame();
 
-		const chatID = "chat-b1-overlap";
+		const chatID = "chat-finalize-frames";
 		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
+		const frames: OverlayFrame[] = [];
 
-		const { result } = renderHook(
-			() => {
-				const { store } = useTestChatStore({
-					chatID,
-					chatMessages: [userMsg],
-					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
-					setChatErrorReason: vi.fn(),
-					clearChatErrorReason: vi.fn(),
-				});
-				return {
-					streamState: useChatSelector(store, selectStreamState),
-					messages: useDurableMessageList({ store, chatId: chatID }),
-				};
-			},
+		render(
+			<FinalizationFrameHarness
+				chatID={chatID}
+				initialMessages={[userMsg]}
+				frames={frames}
+			/>,
 			{ wrapper },
 		);
 
@@ -5162,7 +5236,6 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Build up streaming content.
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
@@ -5175,16 +5248,11 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "response" },
-			]);
+			expect(screen.getByTestId("tail").textContent).toBe("response");
 		});
 
-		// Commit the assistant message as durable. With the old
-		// code, streamState stayed non-null here because
-		// clearStreamState was deferred to a rAF. Both the
-		// durable message and the stream content coexisted,
-		// causing duplicate rendering.
+		// Finalize: the cache write and the store's finalization land in one
+		// batch, but the cache notification is a macrotask later.
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -5193,62 +5261,53 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			});
 		});
 
-		// The durable message must be present AND streamState
-		// must be null in the same snapshot.
 		await waitFor(() => {
-			expect(result.current.messages.map((m) => m.id)).toContain(2);
-			expect(result.current.messages.find((m) => m.id === 2)?.role).toBe(
-				"assistant",
-			);
-			expect(result.current.streamState).toBeNull();
+			expect(screen.getByTestId("transcript").textContent).toBe("1,2");
 		});
+
+		// From the first frame that rendered the streamed tail onward, the
+		// finalized content is visible in EXACTLY one place: the overlay, or the
+		// durable transcript. Equality of the two booleans means a double render
+		// (both) or a gap (neither).
+		const handoffFrames = frames.slice(
+			frames.findIndex((frame) => frame.overlayText === "response"),
+		);
+		expect(handoffFrames.length).toBeGreaterThan(1);
+		const badFrames = handoffFrames.filter(
+			(frame) =>
+				(frame.overlayText === "response") === frame.durableIDs.includes(2),
+		);
+		expect(badFrames).toEqual([]);
+
+		// The overlay ends cleared, with the durable message on screen, and the
+		// handoff is retired instead of lingering into the idle chat.
+		expect(screen.getByTestId("tail").textContent).toBe("");
+		await waitFor(() => {
+			expect(screen.getByTestId("finalizing").textContent).toBe("");
+		});
+		const lastFrame = frames.at(-1);
+		expect(lastFrame?.overlayText).toBeNull();
+		expect(lastFrame?.durableIDs).toContain(2);
 	});
 
-	it("no snapshot ever has both durable assistant and stream state", async () => {
+	it("starts a fresh overlay for the next turn instead of extending the finalized snapshot", async () => {
 		immediateAnimationFrame();
 
-		const chatID = "chat-b1-atomic";
-		const userMsg = buildMessage(chatID, 1, "user", "hi");
+		const chatID = "chat-finalize-next-turn";
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
+		const frames: OverlayFrame[] = [];
 
-		// Track every snapshot emitted to subscribers.
-		const snapshots: Array<{
-			hasStream: boolean;
-			hasDurableAssistant: boolean;
-		}> = [];
-
-		const { result } = renderHook(
-			() => {
-				const { store } = useTestChatStore({
-					chatID,
-					chatMessages: [userMsg],
-					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
-					setChatErrorReason: vi.fn(),
-					clearChatErrorReason: vi.fn(),
-				});
-				const streamState = useChatSelector(store, selectStreamState);
-				const messages = useDurableMessageList({ store, chatId: chatID });
-				const hasDurableAssistant = messages.some(
-					(m) => m.role === "assistant",
-				);
-
-				snapshots.push({
-					hasStream: streamState !== null,
-					hasDurableAssistant,
-				});
-
-				return { streamState, messages };
-			},
+		render(
+			<FinalizationFrameHarness
+				chatID={chatID}
+				initialMessages={[userMsg]}
+				frames={frames}
+			/>,
 			{ wrapper },
 		);
 
@@ -5262,36 +5321,565 @@ describe("stream-to-durable transition (Bug 1)", () => {
 				chat_id: chatID,
 				message_part: {
 					role: "assistant",
-					part: { type: "text", text: "hello" },
+					part: { type: "text", text: "response" },
 				},
 			});
 		});
-
 		await waitFor(() => {
-			expect(result.current.streamState).not.toBeNull();
+			expect(screen.getByTestId("tail").textContent).toBe("response");
 		});
-
-		// Clear snapshot history before the critical transition.
-		snapshots.length = 0;
 
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
 				chat_id: chatID,
-				message: buildMessage(chatID, 2, "assistant", "hello"),
+				message: buildMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("transcript").textContent).toBe("1,2");
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "next turn" },
+				},
 			});
 		});
 
 		await waitFor(() => {
-			expect(result.current.messages.some((m) => m.id === 2)).toBe(true);
+			expect(screen.getByTestId("tail").textContent).toBe("next turn");
 		});
 
-		// No snapshot should ever have BOTH a durable assistant
-		// message AND non-null stream state.
-		const overlapping = snapshots.filter(
-			(s) => s.hasStream && s.hasDurableAssistant,
+		// The finalized snapshot never accumulates the next turn's tokens, and
+		// the durable transcript keeps the finalized message.
+		expect(
+			frames.some((frame) => frame.overlayText?.includes("responsenext turn")),
+		).toBe(false);
+		expect(screen.getByTestId("transcript").textContent).toBe("1,2");
+	});
+
+	// The bridge earns its keep here: the cache write buffers behind the
+	// in-flight fetch, so the store records the finalization long before the
+	// durable message is readable. Clearing the overlay on the store
+	// notification alone would blank the tail until the fetch resolves.
+	it("keeps the finalized tail visible while its cache write waits behind an in-flight fetch", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-finalize-during-fetch";
+		const older = buildMessage(chatID, 30, "assistant", "older answer");
+		const userMsg = buildMessage(chatID, 31, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		queryClient.setQueryData(chatKeys.messages(chatID), {
+			pages: [
+				{
+					messages: [userMsg, older],
+					queued_messages: [],
+					has_more: true,
+				},
+			],
+			pageParams: [undefined],
+		});
+
+		const frames: OverlayFrame[] = [];
+		const paginationRef: { current: (() => void) | null } = {
+			current: null,
+		};
+
+		render(
+			<FinalizationFrameHarness
+				chatID={chatID}
+				initialMessages={[older, userMsg]}
+				frames={frames}
+				paginationRef={paginationRef}
+			/>,
+			{ wrapper },
 		);
-		expect(overlapping).toEqual([]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 31);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("tail").textContent).toBe("response");
+		});
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			paginationRef.current?.();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 32, "assistant", "response"),
+			});
+		});
+
+		// Buffered, so the durable list cannot show it yet, and the overlay has
+		// to carry the tail on its own.
+		expect(screen.getByTestId("transcript").textContent).toBe("30,31");
+		expect(screen.getByTestId("tail").textContent).toBe("response");
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			expect(screen.getByTestId("transcript").textContent).toBe("20,30,31,32");
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("tail").textContent).toBe("");
+		});
+
+		const handoffFrames = frames.slice(
+			frames.findIndex((frame) => frame.overlayText === "response"),
+		);
+		const badFrames = handoffFrames.filter(
+			(frame) =>
+				(frame.overlayText === "response") === frame.durableIDs.includes(32),
+		);
+		expect(badFrames).toEqual([]);
+		await waitFor(() => {
+			expect(screen.getByTestId("finalizing").textContent).toBe("");
+		});
+	});
+
+	// The real backend sequence: the durable `message` and the `preview_reset`
+	// that retires its preview arrive in one frame, while a pagination fetch
+	// holds the durable write in the serialization buffer. The overlay is the
+	// only thing that can render the finalized turn until the fetch settles.
+	it("shows the finalized tail exactly once for a [message, preview_reset] batch during a fetch", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-finalize-preview-reset-frames";
+		const older = buildMessage(chatID, 30, "assistant", "older answer");
+		const userMsg = buildMessage(chatID, 31, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		queryClient.setQueryData(chatKeys.messages(chatID), {
+			pages: [
+				{ messages: [userMsg, older], queued_messages: [], has_more: true },
+			],
+			pageParams: [undefined],
+		});
+
+		const frames: OverlayFrame[] = [];
+		const paginationRef: { current: (() => void) | null } = { current: null };
+
+		render(
+			<FinalizationFrameHarness
+				chatID={chatID}
+				initialMessages={[older, userMsg]}
+				frames={frames}
+				paginationRef={paginationRef}
+			/>,
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 31);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("tail").textContent).toBe("response");
+		});
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			paginationRef.current?.();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 32, "assistant", "response"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		// The reset must not blank the tail: the durable write is buffered, so
+		// the transcript cannot show the finalized turn yet.
+		expect(screen.getByTestId("transcript").textContent).toBe("30,31");
+		expect(screen.getByTestId("tail").textContent).toBe("response");
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			expect(screen.getByTestId("transcript").textContent).toBe("20,30,31,32");
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("tail").textContent).toBe("");
+		});
+
+		const handoffFrames = frames.slice(
+			frames.findIndex((frame) => frame.overlayText === "response"),
+		);
+		const badFrames = handoffFrames.filter(
+			(frame) =>
+				(frame.overlayText === "response") === frame.durableIDs.includes(32),
+		);
+		expect(badFrames).toEqual([]);
+		await waitFor(() => {
+			expect(screen.getByTestId("finalizing").textContent).toBe("");
+		});
+	});
+
+	// The finalizing snapshot is transient overlay state, so every path that
+	// drops the overlay drops it too. These drive the real socket events rather
+	// than the store methods, so a handler that forgets a path is caught.
+	const renderFinalizationLifecycle = (
+		chatID: string,
+		queryClient: QueryClient,
+		initialMessages: readonly TypesGen.ChatMessage[],
+	) =>
+		renderHook(
+			({ activeChatID }: { activeChatID: string }) => {
+				const { store } = useTestChatStore({
+					chatID: activeChatID,
+					chatMessages: [...initialMessages],
+					chatRecord: buildChat(activeChatID),
+					chatMessagesData: {
+						messages: [...initialMessages],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					finalizingMessageID: useChatSelector(
+						store,
+						selectFinalizingMessageID,
+					),
+					finalizingStreamState: useChatSelector(
+						store,
+						selectFinalizingStreamState,
+					),
+				};
+			},
+			{
+				wrapper: createWrapper(queryClient),
+				initialProps: { activeChatID: chatID },
+			},
+		);
+
+	it.each([
+		[
+			"history_reset",
+			(chatID: string) => ({
+				type: "history_reset" as const,
+				chat_id: chatID,
+			}),
+		],
+		[
+			"retry",
+			(chatID: string): TypesGen.ChatStreamEvent => ({
+				type: "retry" as const,
+				chat_id: chatID,
+				retry: {
+					attempt: 2,
+					error: "upstream timeout",
+					kind: "timeout",
+					provider: "anthropic",
+					delay_ms: 5000,
+					retrying_at: "2025-01-01T00:01:00.000Z",
+				},
+			}),
+		],
+	])("clears the finalization handoff on %s", async (_label, buildEvent) => {
+		immediateAnimationFrame();
+
+		const chatID = `chat-finalize-clear-${_label}`;
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const { result } = renderFinalizationLifecycle(chatID, queryClient, [
+			userMsg,
+		]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+		expect(result.current.finalizingMessageID).toBe(2);
+		expect(result.current.finalizingStreamState).not.toBeNull();
+
+		act(() => {
+			mockSocket.emitData(buildEvent(chatID));
+		});
+
+		expect(result.current.finalizingMessageID).toBeNull();
+		expect(result.current.finalizingStreamState).toBeNull();
+	});
+
+	// The backend emits the durable `message` for a snapshot and then the
+	// `preview_reset` that retires its preview. Clearing the overlay on that
+	// reset would strand the tail that just finalized, so a pending handoff
+	// survives it and is retired by identity instead.
+	it("keeps the finalization handoff across a preview_reset in a later frame", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-finalize-preview-reset";
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const { result } = renderFinalizationLifecycle(chatID, queryClient, [
+			userMsg,
+		]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+		expect(result.current.finalizingMessageID).toBe(2);
+
+		// A separate frame, so the handler cannot see the durable message in
+		// this batch and has to consult the store's pending handoff.
+		act(() => {
+			mockSocket.emitData({ type: "preview_reset", chat_id: chatID });
+		});
+
+		expect(result.current.finalizingMessageID).toBe(2);
+		expect(result.current.finalizingStreamState).not.toBeNull();
+	});
+
+	it("clears the overlay on a preview_reset with no handoff pending", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-preview-reset-no-handoff";
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const { result } = renderFinalizationLifecycle(chatID, queryClient, [
+			userMsg,
+		]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "discarded preview" },
+				},
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+		});
+
+		act(() => {
+			mockSocket.emitData({ type: "preview_reset", chat_id: chatID });
+		});
+
+		expect(result.current.streamState).toBeNull();
+		expect(result.current.finalizingMessageID).toBeNull();
+		expect(result.current.finalizingStreamState).toBeNull();
+	});
+
+	it("clears the finalization handoff when the chat changes", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-finalize-clear-switch";
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const { result, rerender } = renderFinalizationLifecycle(
+			chatID,
+			queryClient,
+			[userMsg],
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+		expect(result.current.finalizingMessageID).toBe(2);
+
+		rerender({ activeChatID: "chat-finalize-clear-switch-other" });
+
+		expect(result.current.finalizingMessageID).toBeNull();
+		expect(result.current.finalizingStreamState).toBeNull();
+	});
+
+	it("clears the finalization handoff when the socket reconnects", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-finalize-clear-reconnect";
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
+		const firstSocket = createMockSocket();
+		mockWatchChatReturnOnce(firstSocket);
+
+		const queryClient = createTestQueryClient();
+		const { result } = renderFinalizationLifecycle(chatID, queryClient, [
+			userMsg,
+		]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			firstSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+		act(() => {
+			firstSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+		expect(result.current.finalizingMessageID).toBe(2);
+
+		act(() => {
+			firstSocket.emitError();
+		});
+		const secondSocket = createMockSocket();
+		mockWatchChatReturnOnce(secondSocket);
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenCalledTimes(2);
+			},
+			{ timeout: 3_000 },
+		);
+		act(() => {
+			secondSocket.emitOpen();
+		});
+
+		expect(result.current.finalizingMessageID).toBeNull();
+		expect(result.current.finalizingStreamState).toBeNull();
 	});
 });
 
@@ -5402,180 +5990,123 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 	});
 });
 
-describe("store/cache desync protection", () => {
-	it("does not wipe a message added via upsertDurableMessage when a genuine refetch follows", async () => {
-		// RED TEST: Simulates what handleSend does today — it calls
-		// store.upsertDurableMessage without writing to the React
-		// Query cache. A subsequent rerender with new message refs
-		// (genuine refetch) should NOT wipe the store-only message.
-		immediateAnimationFrame();
-
-		const chatID = "chat-send-desync";
-		const msg1 = buildMessage(chatID, 1, "user", "hello");
-		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
-		const msg3 = buildMessage(chatID, 3, "user", "follow-up");
-
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatKeys.messages(chatID), {
-			pages: [
-				{
-					messages: [msg2, msg1],
-					queued_messages: [],
-					has_more: false,
-				},
-			],
-			pageParams: [undefined],
-		});
-		const wrapper = createWrapper(queryClient);
-
-		const initialMessages = [msg1, msg2];
-		const initialOptions = {
-			chatID,
-			chatMessages: initialMessages,
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
-			setChatErrorReason: vi.fn(),
-			clearChatErrorReason: vi.fn(),
-		};
-
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
-				return {
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
-					store,
-				};
-			},
-			{ initialProps: initialOptions, wrapper },
-		);
-
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
-		});
-
-		act(() => {
-			mockSocket.emitOpen();
-		});
-
-		// Simulate handleSend: write to store only, no cache write.
-		act(() => {
-			result.current.store.upsertDurableMessage(msg3);
-		});
-
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-		});
-
-		// Genuine refetch: new object refs for msg1 and msg2,
-		// msg3 absent from the fetched set.
-		const msg1New = buildMessage(chatID, 1, "user", "hello");
-		const msg2New = buildMessage(chatID, 2, "assistant", "hi");
-		rerender({
-			...initialOptions,
-			chatMessages: [msg1New, msg2New],
-			chatMessagesData: {
-				messages: [msg1New, msg2New],
-				queued_messages: [],
-				has_more: false,
-			},
-		});
-
-		// msg3 was added to the store AFTER the last sync. It
-		// should NOT be classified as stale — it's new, not
-		// something the server removed.
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-		});
-	});
-
-	it("still removes messages that were in the previous sync but are absent from a refetch (edit truncation)", async () => {
-		immediateAnimationFrame();
-
-		const chatID = "chat-edit-truncation";
-		const msg1 = buildMessage(chatID, 1, "user", "hello");
-		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
-		const msg3 = buildMessage(chatID, 3, "user", "more");
-
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatKeys.messages(chatID), {
-			pages: [
-				{
-					messages: [msg3, msg2, msg1],
-					queued_messages: [],
-					has_more: false,
-				},
-			],
-			pageParams: [undefined],
-		});
-		const wrapper = createWrapper(queryClient);
-
-		const initialOptions = {
-			chatID,
-			chatMessages: [msg1, msg2, msg3],
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: [msg1, msg2, msg3],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
-			setChatErrorReason: vi.fn(),
-			clearChatErrorReason: vi.fn(),
-		};
-
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
-				return {
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
-				};
-			},
-			{ initialProps: initialOptions, wrapper },
-		);
-
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-		});
-
-		act(() => {
-			mockSocket.emitOpen();
-		});
-
-		// Simulate edit truncation: rerender with only msg1.
-		const msg1New = buildMessage(chatID, 1, "user", "hello");
-		rerender({
-			...initialOptions,
-			chatMessages: [msg1New],
-			chatMessagesData: {
-				messages: [msg1New],
-				queued_messages: [],
-				has_more: false,
-			},
-		});
-
-		// msg2 and msg3 WERE in the previous sync data and are
-		// now absent — they are genuinely stale (edit truncation)
-		// and should be removed.
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1]);
-		});
-	});
-
-	it("reflects optimistic and authoritative history-edit cache updates through the normal sync effect", async () => {
+describe("durable edit reconciliation through the cache", () => {
+	it("projects an optimistic edit and then the authoritative replacement", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-local-edit-sync";
+		const msg1 = buildMessage(chatID, 1, "user", "first");
+		const msg2 = buildMessage(chatID, 2, "assistant", "second");
+		const msg3 = buildMessage(chatID, 3, "user", "third");
+		const optimisticReplacement = {
+			...msg3,
+			content: [{ type: "text" as const, text: "edited draft" }],
+		};
+		// The backend soft-deletes the edited row and inserts a replacement with
+		// a NEW ID, so reconciliation is by ID plus deleted_message_ids.
+		const authoritativeReplacement = buildMessage(chatID, 9, "user", "edited");
+
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [msg1, msg2, msg3],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [msg1, msg2, msg3],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					messages: useDurableMessageList({ store, chatId: chatID }),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
+		// Channel 1, first half: the optimistic projection truncates everything
+		// at or above the edited ID and reinstates the edited message.
+		act(() => {
+			queryClient.setQueryData(
+				chatKeys.messages(chatID),
+				(current: MessagesCache | undefined) =>
+					projectEditedConversationIntoCache({
+						currentData: current,
+						editedMessageId: msg3.id,
+						replacementMessage: optimisticReplacement,
+					}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
+			expect(
+				result.current.messages.find((message) => message.id === 3)?.content,
+			).toEqual(optimisticReplacement.content);
+		});
+
+		// Channel 1, second half: the response deletes the optimistic ID and
+		// inserts the server's replacement.
+		act(() => {
+			queryClient.setQueryData(
+				chatKeys.messages(chatID),
+				(current: MessagesCache | undefined) =>
+					reconcileEditedMessageInCache({
+						currentData: current,
+						optimisticMessageId: msg3.id,
+						responseMessages: [authoritativeReplacement],
+						deletedMessageIds: [msg3.id],
+					}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 9]);
+			expect(result.current.messages.some((message) => message.id === 3)).toBe(
+				false,
+			);
+			expect(
+				result.current.messages.find((message) => message.id === 9)?.content,
+			).toEqual(authoritativeReplacement.content);
+		});
+
+		// The socket echo of the same replacement is idempotent: the upsert is
+		// keyed by ID, so the list does not grow a second copy.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: authoritativeReplacement,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 9]);
+		});
+	});
+
+	it("stays idempotent when the socket echo arrives before the edit response", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-local-edit-echo-first";
 		const msg1 = buildMessage(chatID, 1, "user", "first");
 		const msg2 = buildMessage(chatID, 2, "assistant", "second");
 		const msg3 = buildMessage(chatID, 3, "user", "third");
@@ -5590,73 +6121,83 @@ describe("store/cache desync protection", () => {
 
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
-		const initialOptions = {
-			chatID,
-			chatMessages: [msg1, msg2, msg3],
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: [msg1, msg2, msg3],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
-			setChatErrorReason: vi.fn(),
-			clearChatErrorReason: vi.fn(),
-		};
 
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [msg1, msg2, msg3],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [msg1, msg2, msg3],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
 				return {
-					store,
-					messagesByID: useChatSelector(store, selectMessagesByID),
-					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messages: useDurableMessageList({ store, chatId: chatID }),
 				};
 			},
-			{ initialProps: initialOptions, wrapper },
+			{ wrapper },
 		);
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3]);
 		});
 
 		act(() => {
 			mockSocket.emitOpen();
 		});
 
-		rerender({
-			...initialOptions,
-			chatMessages: [msg1, msg2, optimisticReplacement],
-			chatMessagesData: {
-				messages: [msg1, msg2, optimisticReplacement],
-				queued_messages: [],
-				has_more: false,
-			},
-		});
-
-		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-			expect(result.current.messagesByID.get(3)?.content).toEqual(
-				optimisticReplacement.content,
+		act(() => {
+			queryClient.setQueryData(
+				chatKeys.messages(chatID),
+				(current: MessagesCache | undefined) =>
+					projectEditedConversationIntoCache({
+						currentData: current,
+						editedMessageId: msg3.id,
+						replacementMessage: optimisticReplacement,
+					}),
 			);
 		});
 
-		rerender({
-			...initialOptions,
-			chatMessages: [msg1, msg2, authoritativeReplacement],
-			chatMessagesData: {
-				messages: [msg1, msg2, authoritativeReplacement],
-				queued_messages: [],
-				has_more: false,
-			},
+		// Channel 2 wins the race: the socket echoes the server's replacement
+		// before the mutation response reconciles the optimistic ID away.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: authoritativeReplacement,
+			});
 		});
 
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
-			expect(result.current.messagesByID.has(3)).toBe(false);
-			expect(result.current.messagesByID.get(9)?.content).toEqual(
-				authoritativeReplacement.content,
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 3, 9]);
+		});
+
+		act(() => {
+			queryClient.setQueryData(
+				chatKeys.messages(chatID),
+				(current: MessagesCache | undefined) =>
+					reconcileEditedMessageInCache({
+						currentData: current,
+						optimisticMessageId: msg3.id,
+						responseMessages: [authoritativeReplacement],
+						deletedMessageIds: [msg3.id],
+					}),
 			);
+		});
+
+		// The late response removes the optimistic row and re-inserts the same
+		// ID it already echoed, so the list neither duplicates nor loses it.
+		await waitFor(() => {
+			expect(result.current.messages.map((m) => m.id)).toEqual([1, 2, 9]);
+			expect(
+				result.current.messages.find((message) => message.id === 9)?.content,
+			).toEqual(authoritativeReplacement.content);
 		});
 	});
 });
@@ -6052,6 +6593,522 @@ describe("message cache resync over the socket", () => {
 				pageParams: unknown[];
 			}>(chatKeys.messages(chatID));
 			expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
+		});
+	});
+});
+
+type MessagesCache = {
+	pages: TypesGen.ChatMessagesResponse[];
+	pageParams: unknown[];
+};
+
+const readMessagesCache = (
+	queryClient: QueryClient,
+	chatID: string,
+): MessagesCache | undefined =>
+	queryClient.getQueryData<MessagesCache>(chatKeys.messages(chatID));
+
+const messageIDsPerPage = (cache: MessagesCache | undefined): number[][] =>
+	cache?.pages.map((page) => page.messages.map((message) => message.id)) ?? [];
+
+const createDeferred = <T,>(): {
+	promise: Promise<T>;
+	resolve: (value: T) => void;
+} => {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+};
+
+// The query cache, not the store, is canonical for durable messages: the
+// socket is their single ordered writer, so its writes have to land in page 0
+// without leaving stale cross-page copies, and they must not be clobbered by a
+// paginating fetch that captured the pages before the write.
+describe("durable messages in the query cache", () => {
+	const createRetainedQueryClient = (): QueryClient =>
+		new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+
+	const seedMessagesCache = (
+		queryClient: QueryClient,
+		chatID: string,
+		pages: MessagesCache["pages"],
+		pageParams: MessagesCache["pageParams"],
+	): void => {
+		queryClient.setQueryData<MessagesCache>(chatKeys.messages(chatID), {
+			pages,
+			pageParams,
+		});
+	};
+
+	const renderMessagesHarness = (
+		queryClient: QueryClient,
+		chatID: string,
+		chatMessages: readonly TypesGen.ChatMessage[],
+	) =>
+		renderHook(
+			() => {
+				const messagesQuery = useInfiniteQuery(
+					chatMessagesForInfiniteScroll(chatID),
+				);
+				useTestChatStore({
+					chatID,
+					chatMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [...chatMessages],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return messagesQuery;
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+	// Exposes the hook's queue cache writer next to the pagination handle, so a
+	// test can commit a queue write while a fetch is in flight.
+	const renderQueueHarness = (
+		queryClient: QueryClient,
+		chatID: string,
+		chatMessages: readonly TypesGen.ChatMessage[],
+		chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	) =>
+		renderHook(
+			() => {
+				const messagesQuery = useInfiniteQuery(
+					chatMessagesForInfiniteScroll(chatID),
+				);
+				const { setCacheQueuedMessages } = useTestChatStore({
+					chatID,
+					chatMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [...chatMessages],
+						queued_messages: [...chatQueuedMessages],
+						has_more: false,
+					},
+					chatQueuedMessages,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return { messagesQuery, setCacheQueuedMessages };
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+	it("canonicalizes an updated message into page 0 and drops the older copy", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const staleOlder = buildMessage(chatID, 20, "user", "original");
+		const oldest = buildMessage(chatID, 10, "user", "oldest");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[
+				{ messages: [newest], queued_messages: [], has_more: true },
+				{ messages: [staleOlder, oldest], queued_messages: [], has_more: true },
+			],
+			[undefined, 30],
+		);
+
+		renderMessagesHarness(queryClient, chatID, [oldest, staleOlder, newest]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+
+		const revised = buildMessage(chatID, 20, "user", "revised");
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: revised,
+			});
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			// The authoritative values land in page 0 and the older page keeps
+			// only the IDs it still owns, so the flatten cannot resurrect the
+			// superseded copy.
+			expect(messageIDsPerPage(cached)).toEqual([[30, 20], [10]]);
+			expect(cached?.pages[0].messages[1]).toEqual(revised);
+			expect(cached?.pageParams).toEqual([undefined, 30]);
+			expect(
+				cached && selectDurableMessages(cached).map((message) => message.id),
+			).toEqual([10, 20, 30]);
+		});
+	});
+
+	it("drops a page emptied by the upsert together with its page param", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const staleOlder = buildMessage(chatID, 20, "user", "original");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[
+				{ messages: [newest], queued_messages: [], has_more: true },
+				{ messages: [staleOlder], queued_messages: [], has_more: true },
+			],
+			[undefined, 30],
+		);
+
+		const { result } = renderMessagesHarness(queryClient, chatID, [
+			staleOlder,
+			newest,
+		]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+		expect(result.current.hasNextPage).toBe(true);
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 20, "user", "revised"),
+			});
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			expect(messageIDsPerPage(cached)).toEqual([[30, 20]]);
+			expect(cached?.pageParams).toEqual([undefined]);
+		});
+		// An emptied last page would make getNextPageParam return undefined and
+		// strand the rest of the history, so the page goes away with its cursor.
+		expect(result.current.hasNextPage).toBe(true);
+	});
+
+	it("preserves page metadata and the queue when upserting a message", async () => {
+		const chatID = "chat-1";
+		const existing = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[
+				{
+					messages: [existing],
+					queued_messages: [queuedMessage],
+					has_more: true,
+				},
+			],
+			[undefined],
+		);
+
+		renderMessagesHarness(queryClient, chatID, [existing]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "hi"),
+			});
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			expect(messageIDsPerPage(cached)).toEqual([[2, 1]]);
+			expect(cached?.pages[0].queued_messages).toEqual([queuedMessage]);
+			expect(cached?.pages[0].has_more).toBe(true);
+		});
+	});
+
+	it("replays a socket append buffered during an in-flight fetchNextPage", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[{ messages: [newest], queued_messages: [], has_more: true }],
+			[undefined],
+		);
+
+		const { result } = renderMessagesHarness(queryClient, chatID, [newest]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+
+		// The fetch captures the pages as they are now and installs them
+		// unconditionally when it resolves.
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			void result.current.fetchNextPage();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		const committed = buildMessage(chatID, 31, "user", "committed mid-fetch");
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: committed,
+			});
+		});
+		// Buffered rather than written, so the resolving fetch cannot discard it.
+		expect(messageIDsPerPage(readMessagesCache(queryClient, chatID))).toEqual([
+			[30],
+		]);
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			// Both survive: the fetched page and the socket write replayed on top.
+			expect(messageIDsPerPage(cached)).toEqual([[31, 30], [20]]);
+		});
+		expect(result.current.isFetchingNextPage).toBe(false);
+		// And it stays: nothing re-runs the clobbering install afterwards.
+		await waitFor(() => {
+			expect(
+				readMessagesCache(queryClient, chatID)?.pages[0].messages[0],
+			).toEqual(committed);
+		});
+	});
+
+	it("replays a history reset buffered during an in-flight fetchNextPage", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "stale answer");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[{ messages: [newest], queued_messages: [], has_more: true }],
+			[undefined],
+		);
+
+		const { result } = renderMessagesHarness(queryClient, chatID, [newest]);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			void result.current.fetchNextPage();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		const replacement = buildMessage(chatID, 1, "user", "edited");
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacement },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			// The replacement history is authoritative, so the page the fetch
+			// installed is superseded rather than merged.
+			expect(cached?.pages).toHaveLength(1);
+			expect(cached?.pages[0].messages).toEqual([replacement]);
+			expect(cached?.pageParams).toEqual([undefined]);
+		});
+	});
+
+	// The queue snapshot lives on page 0 of the same cache entry, so it needs the
+	// same serialization: a fetch that captured the pages before the delete
+	// would reinstall the deleted entry, and the store would not correct it
+	// because no queue_update arrived.
+	it("keeps a queued-message delete committed during an in-flight fetchNextPage", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const keptQueued = buildQueuedMessage(chatID, 11, "kept");
+		const deletedQueued = buildQueuedMessage(chatID, 10, "deleted");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[
+				{
+					messages: [newest],
+					queued_messages: [deletedQueued, keptQueued],
+					has_more: true,
+				},
+			],
+			[undefined],
+		);
+
+		const { result } = renderQueueHarness(
+			queryClient,
+			chatID,
+			[newest],
+			[deletedQueued, keptQueued],
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			void result.current.messagesQuery.fetchNextPage();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		// The optimistic delete the queued-message mutation performs.
+		act(() => {
+			result.current.setCacheQueuedMessages([keptQueued]);
+		});
+		expect(
+			readMessagesCache(queryClient, chatID)?.pages[0].queued_messages,
+		).toEqual([deletedQueued, keptQueued]);
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			const cached = readMessagesCache(queryClient, chatID);
+			// The delete survives the fetch instead of resurrecting.
+			expect(cached?.pages[0].queued_messages).toEqual([keptQueued]);
+			expect(messageIDsPerPage(cached)).toEqual([[30], [20]]);
+		});
+	});
+
+	it("replays a queue_update buffered during an in-flight fetchNextPage", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const queued = buildQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[{ messages: [newest], queued_messages: [queued], has_more: true }],
+			[undefined],
+		);
+
+		const { result } = renderQueueHarness(
+			queryClient,
+			chatID,
+			[newest],
+			[queued],
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			void result.current.messagesQuery.fetchNextPage();
+		});
+		await waitFor(() => {
+			expect(API.experimental.getChatMessages).toHaveBeenCalled();
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [],
+			});
+		});
+		expect(
+			readMessagesCache(queryClient, chatID)?.pages[0].queued_messages,
+		).toEqual([queued]);
+
+		await act(async () => {
+			olderPage.resolve({
+				messages: [buildMessage(chatID, 20, "user", "older")],
+				queued_messages: [],
+				has_more: false,
+			});
+			await olderPage.promise;
+		});
+
+		await waitFor(() => {
+			expect(
+				readMessagesCache(queryClient, chatID)?.pages[0].queued_messages,
+			).toEqual([]);
 		});
 	});
 });

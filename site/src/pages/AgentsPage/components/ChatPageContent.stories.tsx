@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { InfiniteData } from "react-query";
 import { expect, within } from "storybook/test";
 import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -17,15 +18,6 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
-// Chat status is canonical in the detail cache, so a story that depends on it
-// seeds the entry rather than the store.
-const seededChatDetail = (status: TypesGen.ChatStatus) => [
-	{
-		key: chatKeys.detail(CHAT_ID),
-		data: { ...MockChat, id: CHAT_ID, status } satisfies TypesGen.Chat,
-	},
-];
-
 const buildMessage = (
 	id: number,
 	role: TypesGen.ChatMessageRole,
@@ -38,36 +30,53 @@ const buildMessage = (
 	content,
 });
 
-const buildThinkingSpacerStore = () => {
-	const store = createChatStore();
-
-	store.replaceMessages([
-		buildMessage(1, "user", [{ type: "text", text: "Read the source files" }]),
-		buildMessage(2, "assistant", [
-			{
-				type: "reasoning",
-				text: "I should think before answering.",
-			},
-		]),
-		// A following message is needed so the spacer renders.
-		buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
-	]);
-
-	return store;
-};
+// Durable messages and chat status are both canonical in the query cache, so a
+// story seeds those entries rather than the store. The store only carries the
+// transient streaming overlay.
+const seededChat = (
+	messages: readonly TypesGen.ChatMessage[],
+	status: TypesGen.ChatStatus = "waiting",
+) => [
+	{
+		key: chatKeys.detail(CHAT_ID),
+		data: { ...MockChat, id: CHAT_ID, status } satisfies TypesGen.Chat,
+	},
+	{
+		key: chatKeys.messages(CHAT_ID),
+		data: {
+			// Pages arrive newest-first from the API.
+			pages: [
+				{
+					messages: [...messages].sort((left, right) => right.id - left.id),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		} satisfies InfiniteData<TypesGen.ChatMessagesResponse>,
+	},
+];
 
 export const SpacerVisibleWhenNotStreaming: Story = {
-	render: () => {
-		const store = buildThinkingSpacerStore();
-
-		return (
-			<ChatPageTimeline
-				store={store}
-				chatId={CHAT_ID}
-				persistedError={undefined}
-			/>
-		);
+	parameters: {
+		queries: seededChat([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Read the source files" },
+			]),
+			buildMessage(2, "assistant", [
+				{ type: "reasoning", text: "I should think before answering." },
+			]),
+			// A following message is needed so the spacer renders.
+			buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
+		]),
 	},
+	render: () => (
+		<ChatPageTimeline
+			store={createChatStore()}
+			chatId={CHAT_ID}
+			persistedError={undefined}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: /thinking/i });
@@ -76,31 +85,31 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 };
 
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
-	parameters: { queries: seededChatDetail("running") },
-	render: () => {
-		const store = createChatStore();
-		store.replaceMessages([
-			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
-			buildMessage(2, "assistant", [
-				{
-					type: "tool-call",
-					tool_call_id: "create-workspace-call",
-					tool_name: "create_workspace",
-					args: { name: "dev" },
-				},
-			]),
-		]);
-
-		return (
-			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-				<ChatPageTimeline
-					store={store}
-					chatId={CHAT_ID}
-					persistedError={undefined}
-				/>
-			</ChatWorkspaceContext>
-		);
+	parameters: {
+		queries: seededChat(
+			[
+				buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
+				buildMessage(2, "assistant", [
+					{
+						type: "tool-call",
+						tool_call_id: "create-workspace-call",
+						tool_name: "create_workspace",
+						args: { name: "dev" },
+					},
+				]),
+			],
+			"running",
+		),
 	},
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
+			<ChatPageTimeline
+				store={createChatStore()}
+				chatId={CHAT_ID}
+				persistedError={undefined}
+			/>
+		</ChatWorkspaceContext>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
@@ -110,24 +119,21 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 };
 
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
-	render: () => {
-		const store = createChatStore();
-
-		store.replaceMessages([
+	parameters: {
+		queries: seededChat([
 			buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
 			buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
 			buildMessage(3, "assistant", []),
 			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
-		]);
-
-		return (
-			<ChatPageTimeline
-				store={store}
-				chatId={CHAT_ID}
-				persistedError={undefined}
-			/>
-		);
+		]),
 	},
+	render: () => (
+		<ChatPageTimeline
+			store={createChatStore()}
+			chatId={CHAT_ID}
+			persistedError={undefined}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();
@@ -141,37 +147,63 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	},
 };
 
+// One created_at for the whole batch, so the ID is the only ordering signal and
+// the page order the API returned cannot leak into the transcript.
+const batchCreatedAt = new Date(FIXTURE_NOW).toISOString();
+const batchedMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage => ({
+	...buildMessage(id, role, [{ type: "text", text }]),
+	created_at: batchCreatedAt,
+});
+
 export const MergedMessagesRenderInIDOrder: Story = {
-	render: () => {
-		const store = createChatStore();
-		// One created_at for all four, so id is the only ordering signal.
-		const batchCreatedAt = new Date(FIXTURE_NOW).toISOString();
-		const batched = (
-			id: number,
-			role: TypesGen.ChatMessageRole,
-			text: string,
-		): TypesGen.ChatMessage => ({
-			...buildMessage(id, role, [{ type: "text", text }]),
-			created_at: batchCreatedAt,
-		});
-
-		store.replaceMessages([
-			batched(3, "user", "charlie"),
-			batched(4, "assistant", "delta"),
-		]);
-		store.upsertDurableMessages([
-			batched(1, "user", "alpha"),
-			batched(2, "assistant", "bravo"),
-		]);
-
-		return (
-			<ChatPageTimeline
-				store={store}
-				chatId={CHAT_ID}
-				persistedError={undefined}
-			/>
-		);
+	parameters: {
+		queries: [
+			{
+				key: chatKeys.detail(CHAT_ID),
+				data: {
+					...MockChat,
+					id: CHAT_ID,
+					status: "waiting",
+				} satisfies TypesGen.Chat,
+			},
+			{
+				key: chatKeys.messages(CHAT_ID),
+				data: {
+					// Deliberately unsorted, and split across pages.
+					pages: [
+						{
+							messages: [
+								batchedMessage(4, "assistant", "delta"),
+								batchedMessage(3, "user", "charlie"),
+							],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [
+								batchedMessage(1, "user", "alpha"),
+								batchedMessage(2, "assistant", "bravo"),
+							],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 3],
+				} satisfies InfiniteData<TypesGen.ChatMessagesResponse>,
+			},
+		],
 	},
+	render: () => (
+		<ChatPageTimeline
+			store={createChatStore()}
+			chatId={CHAT_ID}
+			persistedError={undefined}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(

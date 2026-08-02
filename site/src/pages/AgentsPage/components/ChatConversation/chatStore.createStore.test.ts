@@ -1,24 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsPendingAssistantResponse } from "./chatStore";
+import {
+	createChatStore,
+	selectHasStreamOverlay,
+	selectHasStreamState,
+} from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const makeMessage = (
-	id: number,
-	role: string,
-	text: string,
-	chatID = "chat-1",
-): TypesGen.ChatMessage =>
-	({
-		id,
-		chat_id: chatID,
-		created_at: `2025-01-01T00:00:0${Math.max(Math.abs(id), 0)}.000Z`,
-		role,
-		content: [{ type: "text", text }],
-	}) as TypesGen.ChatMessage;
 
 const makeQueuedMessage = (
 	id: number,
@@ -33,151 +23,6 @@ const makeQueuedMessage = (
 	}) as TypesGen.ChatQueuedMessage;
 
 const testChatID = "chat-1";
-
-// ---------------------------------------------------------------------------
-// replaceMessages
-// ---------------------------------------------------------------------------
-
-describe("replaceMessages", () => {
-	it("populates messagesByID and orderedMessageIDs", () => {
-		const store = createChatStore();
-		const msg1 = makeMessage(1, "user", "first");
-		const msg2 = makeMessage(2, "assistant", "second");
-
-		store.replaceMessages([msg1, msg2]);
-
-		const state = store.getSnapshot();
-		expect(state.messagesByID.size).toBe(2);
-		expect(state.messagesByID.get(1)).toBe(msg1);
-		expect(state.messagesByID.get(2)).toBe(msg2);
-		expect(state.orderedMessageIDs).toEqual([1, 2]);
-	});
-
-	it("sorts messages by id when created_at disagrees with append order", () => {
-		const store = createChatStore();
-		const first = {
-			...makeMessage(1, "user", "first"),
-			created_at: "2025-01-01T00:00:05.000Z",
-		} as TypesGen.ChatMessage;
-		const second = {
-			...makeMessage(2, "assistant", "second"),
-			created_at: "2025-01-01T00:00:01.000Z",
-		} as TypesGen.ChatMessage;
-
-		// Insert in reverse order.
-		store.replaceMessages([second, first]);
-
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
-	});
-
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
-
-		store.replaceMessages(undefined);
-
-		const state = store.getSnapshot();
-		expect(state.messagesByID.size).toBe(0);
-		expect(state.orderedMessageIDs).toEqual([]);
-	});
-
-	it("does not notify subscribers when content is unchanged", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.replaceMessages([msg]);
-
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
-		});
-
-		// Same object reference — maps compare equal by ref.
-		store.replaceMessages([msg]);
-
-		expect(notified).toBe(false);
-	});
-});
-
-describe("upsertDurableMessages", () => {
-	it("orders merged messages by id rather than by arrival", () => {
-		const store = createChatStore();
-		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
-		const withSharedCreatedAt = (
-			id: number,
-			role: string,
-		): TypesGen.ChatMessage => ({
-			...makeMessage(id, role, `message-${id}`),
-			created_at: sharedCreatedAt,
-		});
-
-		store.replaceMessages([
-			withSharedCreatedAt(3, "assistant"),
-			withSharedCreatedAt(4, "tool"),
-		]);
-		store.upsertDurableMessages([
-			withSharedCreatedAt(1, "user"),
-			withSharedCreatedAt(2, "assistant"),
-		]);
-
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// upsertDurableMessage
-// ---------------------------------------------------------------------------
-
-describe("upsertDurableMessage", () => {
-	it("inserts a new message and reports isDuplicate=false, changed=true", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-
-		const result = store.upsertDurableMessage(msg);
-
-		expect(result).toEqual({ isDuplicate: false, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)).toBe(msg);
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([1]);
-	});
-
-	it("reports isDuplicate=true, changed=false for value-equal duplicate", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.upsertDurableMessage(msg);
-
-		// Different object reference, same field values.
-		const dup = makeMessage(1, "user", "hello");
-		const result = store.upsertDurableMessage(dup);
-
-		expect(result).toEqual({ isDuplicate: true, changed: false });
-	});
-
-	it("reports isDuplicate=true, changed=true when content differs", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "assistant", "draft"));
-
-		const updated = makeMessage(1, "assistant", "final");
-		const result = store.upsertDurableMessage(updated);
-
-		expect(result).toEqual({ isDuplicate: true, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)?.content).toEqual(
-			updated.content,
-		);
-	});
-
-	it("does not reorder when updating an existing message in place", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "first"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "second"));
-		const orderBefore = store.getSnapshot().orderedMessageIDs;
-
-		// Update content of existing message (same ID, same map size).
-		store.upsertDurableMessage(makeMessage(2, "assistant", "edited"));
-
-		// Same reference — no reorder needed because the map size
-		// didn't change and the ID already existed.
-		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
-	});
-});
 
 // ---------------------------------------------------------------------------
 // setStreamState
@@ -843,9 +688,8 @@ describe("resetTransientState", () => {
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
 
-	it("preserves messages and queued messages", () => {
+	it("preserves the queue", () => {
 		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
 		store.setStreamError({
 			kind: "generic",
@@ -854,9 +698,7 @@ describe("resetTransientState", () => {
 
 		store.resetTransientState();
 
-		const state = store.getSnapshot();
-		expect(state.messagesByID.size).toBe(1);
-		expect(state.queuedMessages).toHaveLength(1);
+		expect(store.getSnapshot().queuedMessages).toHaveLength(1);
 	});
 
 	it("is a no-op when all transient state is already clean", () => {
@@ -869,6 +711,121 @@ describe("resetTransientState", () => {
 		store.resetTransientState();
 
 		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// beginStreamFinalization
+//
+// The overlay hands off to the durable message that superseded it. The store
+// half is the lifecycle below; the suppression half (exact ID membership in
+// the cache-backed list) is covered in chatStore.test.tsx and
+// durableChat.test.tsx.
+// ---------------------------------------------------------------------------
+
+describe("beginStreamFinalization", () => {
+	it("moves the overlay into the finalizing snapshot and records the ID", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "streamed answer" });
+		const overlay = store.getSnapshot().streamState;
+
+		store.beginStreamFinalization(42);
+
+		const state = store.getSnapshot();
+		expect(state.streamState).toBeNull();
+		expect(state.finalizingStreamState).toBe(overlay);
+		expect(state.finalizingMessageID).toBe(42);
+	});
+
+	it("starts a fresh stream state on the first part of the next turn", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "first turn" });
+		store.beginStreamFinalization(42);
+
+		store.applyMessagePart({ type: "text", text: "second turn" });
+
+		const state = store.getSnapshot();
+		// The next turn's tokens must not accumulate into the finalized snapshot.
+		expect(state.streamState?.blocks).toEqual([
+			{ type: "response", text: "second turn" },
+		]);
+		expect(state.finalizingStreamState).toBeNull();
+		expect(state.finalizingMessageID).toBeNull();
+	});
+
+	it("keeps the finalizing snapshot when a part carries no renderable output", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "first turn" });
+		store.beginStreamFinalization(42);
+
+		store.applyMessagePart({ type: "text", text: "   " });
+
+		const state = store.getSnapshot();
+		expect(state.streamState).toBeNull();
+		expect(state.finalizingMessageID).toBe(42);
+	});
+
+	it("drops a stale snapshot when there is no overlay to hand off", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "first turn" });
+		store.beginStreamFinalization(42);
+
+		store.beginStreamFinalization(43);
+
+		const state = store.getSnapshot();
+		expect(state.finalizingStreamState).toBeNull();
+		expect(state.finalizingMessageID).toBeNull();
+	});
+
+	// The timeline reads this flag to decide between its streaming and completed
+	// presentations, so it has to stay true through the handoff window while the
+	// finalized tail is still rendered by the overlay.
+	it("reports a stream overlay while an active stream or a handoff is on screen", () => {
+		const store = createChatStore();
+		expect(selectHasStreamOverlay(store.getSnapshot())).toBe(false);
+
+		store.applyMessagePart({ type: "text", text: "streamed answer" });
+		expect(selectHasStreamOverlay(store.getSnapshot())).toBe(true);
+		expect(selectHasStreamState(store.getSnapshot())).toBe(true);
+
+		store.beginStreamFinalization(42);
+		// The active stream is gone, but the finalized tail is still on screen.
+		expect(selectHasStreamState(store.getSnapshot())).toBe(false);
+		expect(selectHasStreamOverlay(store.getSnapshot())).toBe(true);
+
+		store.clearStreamState();
+		expect(selectHasStreamOverlay(store.getSnapshot())).toBe(false);
+	});
+
+	it.each([
+		[
+			"clearStreamState",
+			(store: ReturnType<typeof createChatStore>) => store.clearStreamState(),
+		],
+		[
+			"resetTransportReplayState",
+			(store: ReturnType<typeof createChatStore>) =>
+				store.resetTransportReplayState(),
+		],
+		[
+			"resetTransientState",
+			(store: ReturnType<typeof createChatStore>) =>
+				store.resetTransientState(),
+		],
+		[
+			"setStreamState",
+			(store: ReturnType<typeof createChatStore>) => store.setStreamState(null),
+		],
+	])("%s clears the finalization handoff", (_label, clear) => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "streamed answer" });
+		store.beginStreamFinalization(42);
+
+		clear(store);
+
+		const state = store.getSnapshot();
+		expect(state.finalizingStreamState).toBeNull();
+		expect(state.finalizingMessageID).toBeNull();
 	});
 });
 
@@ -907,79 +864,5 @@ describe("subscribe", () => {
 
 		expect(countA).toBe(1);
 		expect(countB).toBe(1);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// selectIsPendingAssistantResponse
-//
-// The Thinking indicator is the conjunction of this selector and the cached
-// chat status; the status half is covered in durableChat.test.tsx.
-// ---------------------------------------------------------------------------
-
-describe("selectIsPendingAssistantResponse", () => {
-	it("returns true with no stream state and no assistant message", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns false when the latest message is from the assistant", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
-	});
-
-	it("returns false when stream state is present", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.applyMessagePart({ type: "text", text: "response" });
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
-	});
-
-	it("returns true when the latest message is a tool result", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
-		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns true after an optimistic send clears the settled turn", () => {
-		const store = createChatStore();
-		// A settled previous turn: the assistant replied last.
-		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
-
-		// The sequence handleSend runs once the POST returns (non-queued).
-		store.clearStreamState();
-		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
-
-		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
-	});
-});
-
-describe("duplicate message deduplication", () => {
-	it("replaceMessages deduplicates orderedMessageIDs when input has duplicate IDs", () => {
-		const store = createChatStore();
-		const msg1 = makeMessage(1, "user", "hello");
-		const msg2 = makeMessage(2, "assistant", "hi");
-		// Simulate cross-page duplication: same ID appears twice.
-		const msg2Copy = makeMessage(2, "assistant", "hi");
-
-		store.replaceMessages([msg1, msg2, msg2Copy]);
-
-		const state = store.getSnapshot();
-		// Map deduplicates by key — only 2 unique entries.
-		expect(state.messagesByID.size).toBe(2);
-		// orderedMessageIDs MUST also have only 2 entries.
-		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 });

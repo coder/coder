@@ -1,6 +1,10 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import {
+	type InfiniteData,
+	QueryClient,
+	QueryClientProvider,
+} from "react-query";
 import { describe, expect, it } from "vitest";
 import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -8,12 +12,11 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	type ChatStore,
 	createChatStore,
-	selectMessagesByID,
-	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	useChatSelector,
 } from "./chatStore";
 import {
+	shouldSuppressFinalizedOverlay,
 	useDurableChatStatus,
 	useDurableMessageCount,
 	useDurableMessageList,
@@ -28,6 +31,7 @@ const createTestQueryClient = (): QueryClient =>
 		defaultOptions: {
 			queries: {
 				retry: false,
+				gcTime: Number.POSITIVE_INFINITY,
 				refetchOnWindowFocus: false,
 				networkMode: "offlineFirst",
 			},
@@ -49,6 +53,35 @@ const seedChatDetail = (
 		status,
 		snapshot_version: snapshotVersion,
 	});
+};
+
+/**
+ * Durable messages are canonical in the paginated messages cache, so the facade
+ * reads whatever the socket and the REST pages put there. Seeding mirrors the
+ * API's newest-first page order.
+ */
+const seedMessages = (
+	queryClient: QueryClient,
+	messages: readonly TypesGen.ChatMessage[],
+	extraPage?: readonly TypesGen.ChatMessage[],
+): void => {
+	const toPage = (
+		pageMessages: readonly TypesGen.ChatMessage[],
+		hasMore: boolean,
+	): TypesGen.ChatMessagesResponse => ({
+		messages: [...pageMessages].sort((left, right) => right.id - left.id),
+		queued_messages: [],
+		has_more: hasMore,
+	});
+	queryClient.setQueryData<InfiniteData<TypesGen.ChatMessagesResponse>>(
+		chatKeys.messages(CHAT_ID),
+		{
+			pages: extraPage
+				? [toPage(messages, true), toPage(extraPage, false)]
+				: [toPage(messages, false)],
+			pageParams: extraPage ? [undefined, messages[0]?.id] : [undefined],
+		},
+	);
 };
 
 const createWrapper =
@@ -85,7 +118,7 @@ const buildTextPart = (text: string): TypesGen.ChatMessagePart => ({
 });
 
 describe("durableChat facade", () => {
-	it("reads messages and the queue from the store and status from the cache", () => {
+	it("reads messages and status from the cache and the queue from the store", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
 		seedChatDetail(queryClient, "running");
@@ -93,18 +126,13 @@ describe("durableChat facade", () => {
 			buildMessage(1, "user", "hello"),
 			buildMessage(2, "assistant", "hi"),
 		];
-		store.replaceMessages(messages);
+		seedMessages(queryClient, messages);
 		store.setQueuedMessages([buildQueuedMessage(10, "later")]);
 
 		const { result } = renderHook(
 			() => ({
 				facadeStatus: useDurableChatStatus({ store, chatId: CHAT_ID }),
 				facadeMessages: useDurableMessageList({ store, chatId: CHAT_ID }),
-				selectorMessagesByID: useChatSelector(store, selectMessagesByID),
-				selectorOrderedMessageIDs: useChatSelector(
-					store,
-					selectOrderedMessageIDs,
-				),
 				facadeCount: useDurableMessageCount({ store, chatId: CHAT_ID }),
 				facadeQueued: useDurableQueuedMessages({ store, chatId: CHAT_ID }),
 				selectorQueued: useChatSelector(store, selectQueuedMessages),
@@ -114,14 +142,39 @@ describe("durableChat facade", () => {
 
 		const current = result.current;
 		expect(current.facadeStatus).toBe("running");
-		expect(current.facadeMessages).toEqual(
-			current.selectorOrderedMessageIDs.map((id) =>
-				current.selectorMessagesByID.get(id),
-			),
-		);
+		// Ascending by ID, which is the only ordering signal a message carries.
 		expect(current.facadeMessages).toEqual(messages);
-		expect(current.facadeCount).toBe(current.selectorMessagesByID.size);
+		expect(current.facadeCount).toBe(messages.length);
 		expect(current.facadeQueued).toBe(current.selectorQueued);
+	});
+
+	it("deduplicates a cross-page copy, keeping the page 0 values", () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		const canonical = buildMessage(2, "assistant", "revised");
+		seedMessages(
+			queryClient,
+			[buildMessage(3, "user", "newest"), canonical],
+			// An older page still holding a superseded copy of ID 2.
+			[
+				buildMessage(1, "user", "oldest"),
+				buildMessage(2, "assistant", "stale"),
+			],
+		);
+
+		const { result } = renderHook(
+			() => ({
+				messages: useDurableMessageList({ store, chatId: CHAT_ID }),
+				count: useDurableMessageCount({ store, chatId: CHAT_ID }),
+			}),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current.messages.map((message) => message.id)).toEqual([
+			1, 2, 3,
+		]);
+		expect(result.current.messages[1]).toEqual(canonical);
+		expect(result.current.count).toBe(3);
 	});
 
 	it("returns null when no chat is selected", () => {
@@ -130,11 +183,17 @@ describe("durableChat facade", () => {
 		seedChatDetail(queryClient, "running");
 
 		const { result } = renderHook(
-			() => useDurableChatStatus({ store, chatId: undefined }),
+			() => ({
+				status: useDurableChatStatus({ store, chatId: undefined }),
+				messages: useDurableMessageList({ store, chatId: undefined }),
+				count: useDurableMessageCount({ store, chatId: undefined }),
+			}),
 			{ wrapper: createWrapper(queryClient) },
 		);
 
-		expect(result.current).toBeNull();
+		expect(result.current.status).toBeNull();
+		expect(result.current.messages).toEqual([]);
+		expect(result.current.count).toBe(0);
 	});
 
 	it("re-renders the status consumer when the cached status changes", async () => {
@@ -160,7 +219,7 @@ describe("durableChat facade", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
 		seedChatDetail(queryClient, "waiting");
-		store.replaceMessages([buildMessage(1, "user", "hello")]);
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
 
 		const { result } = renderHook(
 			() => ({
@@ -179,18 +238,21 @@ describe("durableChat facade", () => {
 		});
 		expect(result.current.messages).toBe(firstMessages);
 
-		act(() => {
-			store.upsertDurableMessage(buildMessage(2, "assistant", "hi"));
-		});
+		seedMessages(queryClient, [
+			buildMessage(1, "user", "hello"),
+			buildMessage(2, "assistant", "hi"),
+		]);
 
+		await waitFor(() => {
+			expect(result.current.messages).toHaveLength(2);
+		});
 		expect(result.current.messages).not.toBe(firstMessages);
-		expect(result.current.messages).toHaveLength(2);
 	});
 
-	it("does not re-render a queued-message consumer on a message_part update", () => {
+	it("does not re-render message or queue consumers on a message_part update", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
-		store.replaceMessages([buildMessage(1, "user", "hello")]);
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
 
 		let queueRenderCount = 0;
 		let messageRenderCount = 0;
@@ -230,15 +292,15 @@ describe("durableChat facade", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
 		seedChatDetail(queryClient, "waiting");
-		store.replaceMessages([buildMessage(1, "user", "hello")]);
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
 
 		const { result } = renderHook(
 			() => useIsAwaitingFirstStreamChunk({ store, chatId: CHAT_ID }),
 			{ wrapper: createWrapper(queryClient) },
 		);
 
-		// The store half is satisfied (user message, no stream), the cached
-		// status is not.
+		// The cache half is satisfied (a user message is newest, no stream), the
+		// status half is not.
 		expect(result.current).toBe(false);
 
 		seedChatDetail(queryClient, "running", 2);
@@ -248,11 +310,52 @@ describe("durableChat facade", () => {
 		});
 	});
 
+	it("hides the Thinking indicator once the newest durable message is an assistant reply", async () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "running");
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
+
+		const { result } = renderHook(
+			() => useIsAwaitingFirstStreamChunk({ store, chatId: CHAT_ID }),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current).toBe(true);
+
+		seedMessages(queryClient, [
+			buildMessage(1, "user", "hello"),
+			buildMessage(2, "assistant", "hi"),
+		]);
+
+		await waitFor(() => {
+			expect(result.current).toBe(false);
+		});
+	});
+
+	it("hides the Thinking indicator while a finalizing overlay is still on screen", () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "running");
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
+		store.applyMessagePart(buildTextPart("streamed answer"));
+		// The durable message is not readable yet, so without counting the
+		// handoff the indicator would flash underneath the finalized tail.
+		store.beginStreamFinalization(2);
+
+		const { result } = renderHook(
+			() => useIsAwaitingFirstStreamChunk({ store, chatId: CHAT_ID }),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current).toBe(false);
+	});
+
 	it("re-renders the awaiting-first-chunk consumer only when the flag flips", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
 		seedChatDetail(queryClient, "running");
-		store.replaceMessages([buildMessage(1, "user", "hello")]);
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
 
 		let renderCount = 0;
 		const { result } = renderHook(
@@ -288,10 +391,10 @@ describe("durableChat facade", () => {
 		expect(renderCount).toBe(baseline + 1);
 	});
 
-	it("re-renders the message-count consumer only when the count changes", () => {
+	it("re-renders the message-count consumer only when the count changes", async () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
-		store.replaceMessages([buildMessage(1, "user", "hello")]);
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")]);
 
 		let renderCount = 0;
 		const { result } = renderHook(
@@ -306,18 +409,69 @@ describe("durableChat facade", () => {
 		expect(result.current).toBe(1);
 		const baseline = renderCount;
 
-		act(() => {
-			store.upsertDurableMessage(buildMessage(1, "user", "hello edited"));
-		});
+		seedMessages(queryClient, [buildMessage(1, "user", "hello edited")]);
 
+		// The cache notified, but the deduplicated size did not change, so the
+		// numeric select keeps the consumer from re-rendering.
+		await waitFor(() => {
+			expect(
+				queryClient.getQueryState(chatKeys.messages(CHAT_ID))?.dataUpdateCount,
+			).toBe(2);
+		});
 		expect(result.current).toBe(1);
 		expect(renderCount).toBe(baseline);
 
-		act(() => {
-			store.upsertDurableMessage(buildMessage(2, "assistant", "hi"));
-		});
+		seedMessages(queryClient, [
+			buildMessage(1, "user", "hello edited"),
+			buildMessage(2, "assistant", "hi"),
+		]);
 
-		expect(result.current).toBe(2);
+		await waitFor(() => {
+			expect(result.current).toBe(2);
+		});
 		expect(renderCount).toBe(baseline + 1);
+	});
+});
+
+describe("shouldSuppressFinalizedOverlay", () => {
+	it("keeps the overlay while no finalization is in progress", () => {
+		expect(
+			shouldSuppressFinalizedOverlay(null, [
+				buildMessage(7, "assistant", "done"),
+			]),
+		).toBe(false);
+	});
+
+	it("suppresses the overlay once the exact finalized message is durable", () => {
+		expect(
+			shouldSuppressFinalizedOverlay(7, [
+				buildMessage(6, "user", "ask"),
+				buildMessage(7, "assistant", "done"),
+			]),
+		).toBe(true);
+	});
+
+	it("keeps the overlay while the finalized message is absent", () => {
+		expect(
+			shouldSuppressFinalizedOverlay(7, [
+				buildMessage(5, "user", "ask"),
+				buildMessage(6, "assistant", "earlier"),
+			]),
+		).toBe(false);
+	});
+
+	// A `maxDurableID >= finalizingMessageID` check would blank the tail here,
+	// which is why membership is by exact ID.
+	it("does not let a newer durable message suppress the overlay", () => {
+		expect(
+			shouldSuppressFinalizedOverlay(7, [
+				buildMessage(6, "user", "ask"),
+				buildMessage(9, "assistant", "newer"),
+			]),
+		).toBe(false);
+	});
+
+	it("keeps the overlay for an empty durable list", () => {
+		expect(shouldSuppressFinalizedOverlay(7, [])).toBe(false);
 	});
 });

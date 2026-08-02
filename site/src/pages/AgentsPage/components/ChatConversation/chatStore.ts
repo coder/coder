@@ -7,55 +7,6 @@ import {
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
-const buildMessageMap = (
-	messages: readonly TypesGen.ChatMessage[],
-): Map<number, TypesGen.ChatMessage> =>
-	new Map(messages.map((message) => [message.id, message]));
-
-const buildOrderedMessageIDs = (
-	messages: readonly TypesGen.ChatMessage[],
-): readonly number[] => {
-	// created_at is shared across an insert batch, so only id tracks append order.
-	const sorted = messages.toSorted((left, right) => left.id - right.id);
-	// Deduplicate by ID. The input can contain duplicate IDs when
-	// cross-page duplication occurs in the React Query cache (e.g.
-	// upsertCacheMessages writes to page 0 while the same message
-	// still exists in a later page). The Map-based messagesByID
-	// already deduplicates, but orderedMessageIDs must match.
-	const seen = new Set<number>();
-	const orderedMessageIDs: number[] = [];
-	for (const message of sorted) {
-		if (seen.has(message.id)) continue;
-		seen.add(message.id);
-		orderedMessageIDs.push(message.id);
-	}
-	return orderedMessageIDs;
-};
-
-const mapsEqualByRef = <K, V>(left: Map<K, V>, right: Map<K, V>): boolean => {
-	if (left.size !== right.size) {
-		return false;
-	}
-	for (const [key, value] of left) {
-		if (!right.has(key) || right.get(key) !== value) {
-			return false;
-		}
-	}
-	return true;
-};
-
-const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index] !== right[index]) {
-			return false;
-		}
-	}
-	return true;
-};
-
 const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
 	if (left === right) {
 		return true;
@@ -126,10 +77,21 @@ export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
 ): boolean => status === "running" || status === "interrupting";
 
+/**
+ * Transient chat state. Durable messages are NOT here: the query cache is
+ * canonical for them, written only by the per-chat socket. What remains is the
+ * streaming overlay, its finalization handoff, transport state, and the queue.
+ */
 export type ChatStoreState = {
-	messagesByID: Map<number, TypesGen.ChatMessage>;
-	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
+	// Snapshot of the overlay taken when its assistant message committed, plus
+	// that message's ID. It hands the tail over to the durable list without a
+	// gap: the cache notifies a macrotask after the store does, so the overlay
+	// has to keep rendering until the exact durable message is readable. It
+	// NEVER accumulates parts; the next turn's first part starts a fresh
+	// StreamState and drops it.
+	finalizingStreamState: StreamState | null;
+	finalizingMessageID: number | null;
 	streamError: ChatDetailError | null;
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
@@ -149,16 +111,18 @@ export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
-	replaceMessages: (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	) => void;
-	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
-		isDuplicate: boolean;
-		changed: boolean;
-	};
-	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
+	// Moves the current overlay into the finalizing snapshot and records the
+	// durable assistant message that superseded it. Call it AFTER writing that
+	// message to the cache, inside the same batch, so any reader woken by the
+	// store notification already sees that message, and complete the handoff
+	// when the message renders.
+	beginStreamFinalization: (durableMessageID: number) => void;
+	// Retires the handoff once the recorded durable message is readable from the
+	// cache. Ignores a different ID, so a stale completion cannot drop the
+	// overlay of a later turn.
+	completeStreamFinalization: (durableMessageID: number) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
@@ -205,9 +169,9 @@ export type ChatStore = {
 };
 
 const createInitialState = (): ChatStoreState => ({
-	messagesByID: new Map(),
-	orderedMessageIDs: [],
 	streamState: null,
+	finalizingStreamState: null,
+	finalizingMessageID: null,
 	streamError: null,
 	retryState: null,
 	reconnectState: null,
@@ -266,122 +230,34 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const replaceMessages = (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	): void => {
-		const safeMessages = messages ?? [];
-		const nextMessagesByID = buildMessageMap(safeMessages);
-		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
-
-		// Fast-path: skip setState entirely when nothing changed.
-		if (
-			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
-			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
-		) {
-			return;
-		}
-
-		setState((current) => {
-			// Re-check equality against `current` inside the updater
-			// to avoid overwriting a concurrent state change.
-			if (
-				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
-				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
-			) {
-				return current;
-			}
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-	};
-
-	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
-		// Use `state` for the early-return guard so we can return
-		// the result synchronously. The actual mutation below uses
-		// `current` inside the updater to avoid overwriting a
-		// concurrent state change (TOCTOU).
-		const existing = state.messagesByID.get(message.id);
-		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && chatMessagesEqualByValue(existing, message)) {
-			return { isDuplicate, changed: false };
-		}
-
-		let actuallyChanged = false;
-		setState((current) => {
-			// Re-check inside the updater: another call may have
-			// already applied this exact message.
-			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
-				return current;
-			}
-
-			actuallyChanged = true;
-
-			const nextMessagesByID = new Map(current.messagesByID);
-			nextMessagesByID.set(message.id, message);
-
-			const curIsDuplicate = current.messagesByID.has(message.id);
-			const needsReorder =
-				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
-			const nextOrderedMessageIDs = needsReorder
-				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-				: current.orderedMessageIDs;
-
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-		return { isDuplicate, changed: actuallyChanged };
-	};
-
-	// Bulk variant that applies all messages in a single pass —
-	// one Map copy and one sort instead of N copies and N sorts.
-	const upsertDurableMessages = (
-		messages: readonly TypesGen.ChatMessage[],
-	): void => {
-		if (messages.length === 0) {
-			return;
-		}
-		setState((current) => {
-			let nextMessagesByID: Map<number, TypesGen.ChatMessage> | null = null;
-			for (const message of messages) {
-				const map = nextMessagesByID ?? current.messagesByID;
-				const existing = map.get(message.id);
-				if (existing && chatMessagesEqualByValue(existing, message)) {
-					continue;
-				}
-				// Lazily copy the map on first actual change.
-				if (!nextMessagesByID) {
-					nextMessagesByID = new Map(current.messagesByID);
-				}
-				nextMessagesByID.set(message.id, message);
-			}
-			if (!nextMessagesByID) {
-				return current;
-			}
-			const needsReorder = nextMessagesByID.size !== current.messagesByID.size;
-			const nextOrderedMessageIDs = needsReorder
-				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-				: current.orderedMessageIDs;
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-	};
-
 	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
 		}
 
 		setState((current) => {
+			if (current.finalizingMessageID !== null) {
+				// These parts belong to the next turn, so they start a fresh
+				// StreamState instead of appending to the finalized snapshot.
+				let freshStreamState: StreamState | null = null;
+				for (const part of parts) {
+					freshStreamState = applyMessagePartToStreamState(
+						freshStreamState,
+						part,
+					);
+				}
+				// Nothing renderable arrived yet (empty or metadata-only parts), so
+				// the finalizing snapshot stays until the next turn has output.
+				if (freshStreamState === null) {
+					return current;
+				}
+				return {
+					...current,
+					streamState: freshStreamState,
+					finalizingStreamState: null,
+					finalizingMessageID: null,
+				};
+			}
 			let nextStreamState: StreamState | null = current.streamState;
 			for (const part of parts) {
 				nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
@@ -396,6 +272,50 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
+	const beginStreamFinalization = (durableMessageID: number): void => {
+		setState((current) => {
+			if (current.streamState === null) {
+				// No overlay to hand off. Any earlier snapshot is stale: its message
+				// committed in an earlier batch and is already in the cache.
+				if (
+					current.finalizingStreamState === null &&
+					current.finalizingMessageID === null
+				) {
+					return current;
+				}
+				return {
+					...current,
+					finalizingStreamState: null,
+					finalizingMessageID: null,
+				};
+			}
+			return {
+				...current,
+				streamState: null,
+				finalizingStreamState: current.streamState,
+				finalizingMessageID: durableMessageID,
+			};
+		});
+	};
+
+	// The handoff exists to bridge the window where the finalized message is not
+	// yet readable from the cache, so it ends as soon as it is. In the common
+	// case the cache write applies immediately and this runs in the same batch,
+	// leaving no handoff behind; a write buffered behind a fetch keeps the
+	// overlay until the replay lands.
+	const completeStreamFinalization = (durableMessageID: number): void => {
+		setState((current) => {
+			if (current.finalizingMessageID !== durableMessageID) {
+				return current;
+			}
+			return {
+				...current,
+				finalizingStreamState: null,
+				finalizingMessageID: null,
+			};
+		});
+	};
+
 	return {
 		getSnapshot: () => state,
 		subscribe: (listener) => {
@@ -405,11 +325,10 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		replaceMessages,
-		upsertDurableMessage,
-		upsertDurableMessages,
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
+		beginStreamFinalization,
+		completeStreamFinalization,
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
@@ -601,16 +520,28 @@ export const createChatStore = (): ChatStore => {
 		},
 		getActiveChatID: () => activeChatID,
 		setStreamState: (streamState) => {
-			if (state.streamState === streamState) {
+			// An explicit overlay write is authoritative, so it also ends any
+			// pending finalization handoff.
+			if (
+				state.streamState === streamState &&
+				state.finalizingStreamState === null &&
+				state.finalizingMessageID === null
+			) {
 				return;
 			}
 			setState((current) => {
-				if (current.streamState === streamState) {
+				if (
+					current.streamState === streamState &&
+					current.finalizingStreamState === null &&
+					current.finalizingMessageID === null
+				) {
 					return current;
 				}
 				return {
 					...current,
 					streamState,
+					finalizingStreamState: null,
+					finalizingMessageID: null,
 				};
 			});
 		},
@@ -675,18 +606,26 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 		clearStreamState: () => {
-			if (state.streamState === null) {
+			if (
+				state.streamState === null &&
+				state.finalizingStreamState === null &&
+				state.finalizingMessageID === null
+			) {
 				return;
 			}
 			setState((current) => ({
 				...current,
 				streamState: null,
+				finalizingStreamState: null,
+				finalizingMessageID: null,
 			}));
 		},
 		resetTransportReplayState: () => {
 			if (
 				state.reconnectState === null &&
 				state.streamState === null &&
+				state.finalizingStreamState === null &&
+				state.finalizingMessageID === null &&
 				state.streamError === null
 			) {
 				return;
@@ -695,6 +634,8 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				reconnectState: null,
 				streamState: null,
+				finalizingStreamState: null,
+				finalizingMessageID: null,
 				streamError: null,
 			}));
 		},
@@ -714,6 +655,8 @@ export const createChatStore = (): ChatStore => {
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
+				state.finalizingStreamState === null &&
+				state.finalizingMessageID === null &&
 				state.streamError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
@@ -724,6 +667,8 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
+				finalizingStreamState: null,
+				finalizingMessageID: null,
 				streamError: null,
 				retryState: null,
 				reconnectState: null,
@@ -733,12 +678,33 @@ export const createChatStore = (): ChatStore => {
 	};
 };
 
-export const selectMessagesByID = (state: ChatStoreState) => state.messagesByID;
-export const selectOrderedMessageIDs = (state: ChatStoreState) =>
-	state.orderedMessageIDs;
 export const selectStreamState = (state: ChatStoreState) => state.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
 	state.streamState !== null;
+/**
+ * True while EITHER an active overlay or a finalizing snapshot is on screen.
+ * Consumers that ask "is anything streaming visible" have to include the
+ * handoff window, otherwise a Thinking indicator flashes underneath the
+ * finalized tail.
+ */
+export const selectHasStreamOverlay = (state: ChatStoreState) =>
+	state.streamState !== null || state.finalizingMessageID !== null;
+export const selectFinalizingStreamState = (state: ChatStoreState) =>
+	state.finalizingStreamState;
+export const selectFinalizingMessageID = (state: ChatStoreState) =>
+	state.finalizingMessageID;
+
+/**
+ * Resolves which overlay snapshot the tail renders. The active stream wins; the
+ * finalizing snapshot bridges the handoff until the durable-reading parent
+ * reports that the finalized message is readable from the cache.
+ */
+export const resolveOverlayStreamState = (
+	streamState: StreamState | null,
+	finalizingStreamState: StreamState | null,
+	suppressFinalizedOverlay: boolean,
+): StreamState | null =>
+	streamState ?? (suppressFinalizedOverlay ? null : finalizingStreamState);
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
@@ -747,32 +713,6 @@ export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
-
-const selectLatestDurableMessage = (
-	state: ChatStoreState,
-): TypesGen.ChatMessage | undefined => {
-	const latestMessageID =
-		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
-	return latestMessageID === undefined
-		? undefined
-		: state.messagesByID.get(latestMessageID);
-};
-
-/**
- * True when the conversation is between turns: no stream output yet and the
- * latest durable message is not an assistant reply. Deliberately primitive and
- * status-free, the facade composes it with the cached chat status to decide
- * whether to show the Thinking indicator.
- */
-export const selectIsPendingAssistantResponse = (
-	state: ChatStoreState,
-): boolean => {
-	if (state.streamState !== null) {
-		return false;
-	}
-	const latestMessage = selectLatestDurableMessage(state);
-	return !latestMessage || latestMessage.role !== "assistant";
-};
 
 export const useChatSelector = <T>(
 	store: ChatStore,
