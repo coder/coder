@@ -4995,6 +4995,7 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	AdmittedCustomPrompt     sql.NullString          `db:"admitted_custom_prompt" json:"admitted_custom_prompt"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5220,6 +5221,8 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Owner custom prompt admitted with the most recent user_prompt_submit lifecycle event. Injected verbatim by generation while hooks are enabled; NULL when no admission recorded one.
+	AdmittedCustomPrompt sql.NullString `db:"admitted_custom_prompt" json:"admitted_custom_prompt"`
 }
 
 type ChatUsageLimitConfig struct {

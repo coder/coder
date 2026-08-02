@@ -1320,6 +1320,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
+	var admittedCustomPrompt sql.NullString
 	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
@@ -1334,7 +1335,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		// channels this create admits; a policy shown only the prompt
 		// would admit the others sight unseen.
 		promptMessage.SystemPrompt = userPrompt
-		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, opts.OwnerID)
+		// Resolve the owner's custom prompt once: the event and the
+		// persisted admission snapshot must carry the same bytes, and
+		// generation injects the snapshot, so the policy always sees
+		// exactly what the model will receive.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, opts.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptMessage.DynamicTools = opts.DynamicTools
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
@@ -1414,8 +1420,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:      opts.ClientType,
-		InitialMessages: initialMessages,
+		ClientType:           opts.ClientType,
+		InitialMessages:      initialMessages,
+		AdmittedCustomPrompt: admittedCustomPrompt,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1464,6 +1471,7 @@ func (p *Server) SendMessage(
 	}
 
 	contentParts := opts.Content
+	var admittedCustomPrompt sql.NullString
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -1495,8 +1503,11 @@ func (p *Server) SendMessage(
 		}
 		// The owner's custom prompt is injected into this turn's system
 		// prompt but is stored through its own API without a lifecycle
-		// event, so this event is where a policy sees it.
-		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
+		// event, so this event is where a policy sees it. Resolve it once
+		// and persist the same bytes with the send below so generation
+		// injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, chat.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1600,6 +1611,17 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+		// Commit the admitted custom prompt with the send it was admitted
+		// for (queued sends included) so generation injects the value the
+		// policy saw, not whatever the owner's config says later.
+		if admittedCustomPrompt.Valid {
+			if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
+				ID:                   opts.ChatID,
+				AdmittedCustomPrompt: admittedCustomPrompt,
+			}); err != nil {
+				return xerrors.Errorf("update admitted custom prompt: %w", err)
+			}
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1786,7 +1808,10 @@ func (p *Server) EditMessage(
 	}
 
 	contentParts := opts.Content
-	var sessionStartHookResult *chathooks.Result
+	var (
+		sessionStartHookResult *chathooks.Result
+		admittedCustomPrompt   sql.NullString
+	)
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -1817,7 +1842,10 @@ func (p *Server) EditMessage(
 		// The owner's custom prompt is injected into the regenerated
 		// turn's system prompt but is stored through its own API without
 		// a lifecycle event, so this event is where a policy sees it.
-		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
+		// Resolve it once and persist the same bytes with the edit below
+		// so generation injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, chat.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1936,6 +1964,16 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
+		// Commit the admitted custom prompt with the edit it was admitted
+		// for so the regenerated turn injects the value the policy saw.
+		if admittedCustomPrompt.Valid {
+			if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
+				ID:                   opts.ChatID,
+				AdmittedCustomPrompt: admittedCustomPrompt,
+			}); err != nil {
+				return xerrors.Errorf("update admitted custom prompt: %w", err)
+			}
+		}
 		// Capture the post-edit chat inside the same transaction so
 		// the returned chat and the debug-cleanup cutoff use the
 		// snapshot bump and updated_at stamped by the transition.

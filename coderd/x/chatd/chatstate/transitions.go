@@ -35,6 +35,12 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// AdmittedCustomPrompt is the owner's custom prompt exactly as a
+	// lifecycle hook policy admitted it with the creating
+	// user_prompt_submit event. Invalid when hooks are disabled; hook
+	// dispatch happens before the create, so persisting it here keeps the
+	// snapshot atomic with the admission it records.
+	AdmittedCustomPrompt sql.NullString
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -103,23 +109,24 @@ func insertChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			ID:                chatID,
-			OrganizationID:    input.OrganizationID,
-			OwnerID:           input.OwnerID,
-			WorkspaceID:       input.WorkspaceID,
-			BuildID:           input.BuildID,
-			AgentID:           input.AgentID,
-			ParentChatID:      input.ParentChatID,
-			RootChatID:        input.RootChatID,
-			LastModelConfigID: input.LastModelConfigID,
-			Title:             input.Title,
-			Mode:              input.Mode,
-			PlanMode:          input.PlanMode,
-			Status:            database.ChatStatusRunning,
-			MCPServerIDs:      input.MCPServerIDs,
-			Labels:            input.Labels,
-			DynamicTools:      input.DynamicTools,
-			ClientType:        input.ClientType,
+			ID:                   chatID,
+			OrganizationID:       input.OrganizationID,
+			OwnerID:              input.OwnerID,
+			WorkspaceID:          input.WorkspaceID,
+			BuildID:              input.BuildID,
+			AgentID:              input.AgentID,
+			ParentChatID:         input.ParentChatID,
+			RootChatID:           input.RootChatID,
+			LastModelConfigID:    input.LastModelConfigID,
+			Title:                input.Title,
+			Mode:                 input.Mode,
+			PlanMode:             input.PlanMode,
+			Status:               database.ChatStatusRunning,
+			MCPServerIDs:         input.MCPServerIDs,
+			Labels:               input.Labels,
+			DynamicTools:         input.DynamicTools,
+			ClientType:           input.ClientType,
+			AdmittedCustomPrompt: input.AdmittedCustomPrompt,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

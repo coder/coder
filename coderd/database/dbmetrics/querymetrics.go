@@ -5257,6 +5257,14 @@ func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.U
 	return r0
 }
 
+func (m queryMetricsStore) UpdateChatAdmittedCustomPrompt(ctx context.Context, arg database.UpdateChatAdmittedCustomPromptParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatAdmittedCustomPrompt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAdmittedCustomPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAdmittedCustomPrompt").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatBuildAgentBinding(ctx, arg)

@@ -92,6 +92,9 @@ type UserPromptSubmitData struct {
 	// CustomPrompt is the chat owner's stored custom prompt as it will be
 	// injected into this turn's system prompt. It is set through its own
 	// API without a lifecycle event, so this is where a policy sees it.
+	// The admitted value is snapshotted with the turn and injected
+	// verbatim; changing the stored prompt after admission does not
+	// change what the admitted turn's model receives.
 	CustomPrompt string `json:"custom_prompt,omitempty"`
 	// DynamicTools carries the caller-declared tool definitions admitted
 	// with a chat create. Their names and descriptions reach the model.

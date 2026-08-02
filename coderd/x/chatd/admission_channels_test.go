@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -112,4 +114,104 @@ func TestUserPromptSubmitCarriesInstructionChannels(t *testing.T) {
 	require.Empty(t, sent.SystemPrompt)
 	require.Empty(t, sent.DynamicTools)
 	require.Contains(t, sent.CustomPrompt, "stored custom prompt")
+}
+
+// TestAdmittedCustomPromptFixedForTurn pins the admission snapshot: the
+// turn injects the custom prompt persisted with its user_prompt_submit
+// admission, not the live per-user config. The owner rewrites the stored
+// prompt between admission and generation, and a second replica (with a
+// cold config cache, so it would resolve the rewrite) generates the turn;
+// the model must still receive the admitted bytes.
+func TestAdmittedCustomPromptFixedForTurn(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		promptsMu     sync.Mutex
+		systemPrompts []string
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		promptsMu.Lock()
+		for _, message := range req.Messages {
+			if message.Role == "system" {
+				systemPrompts = append(systemPrompts, message.Content)
+			}
+		}
+		promptsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	_, err := db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           user.ID,
+		ChatCustomPrompt: "admitted instruction marker",
+	})
+	require.NoError(t, err)
+
+	consumer, recorder := newUserPromptSubmitRecorder(t)
+
+	// Admit the create on an API-only replica whose worker never runs, so
+	// the stored prompt can change before any replica generates the turn.
+	apiServer := newHookTestServer(t, db, ps, consumer)
+	chat, err := apiServer.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "admitted custom prompt",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hi")},
+	})
+	require.NoError(t, err)
+
+	// The admission persisted its snapshot atomically with the create.
+	stored, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, stored.AdmittedCustomPrompt.Valid)
+	require.Contains(t, stored.AdmittedCustomPrompt.String, "admitted instruction marker")
+
+	events := recorder.all()
+	require.Len(t, events, 1)
+	admitted := events[0].CustomPrompt
+	require.Contains(t, admitted, "admitted instruction marker")
+
+	// The owner rewrites the stored prompt after admission but before any
+	// worker picks the turn up.
+	_, err = db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           user.ID,
+		ChatCustomPrompt: "unadmitted instruction marker",
+	})
+	require.NoError(t, err)
+
+	genServer := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	promptsMu.Lock()
+	joined := strings.Join(systemPrompts, "\n")
+	promptsMu.Unlock()
+	// The injected value is byte-for-byte what the policy admitted; the
+	// rewrite the policy never saw stays out of the model's context.
+	require.Contains(t, joined, admitted)
+	require.NotContains(t, joined, "unadmitted instruction marker")
+
+	// The next admission sees the rewrite and replaces the snapshot
+	// synchronously with the send: the latest admitted value wins.
+	_, err = genServer.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("again")},
+	})
+	require.NoError(t, err)
+	stored, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, stored.AdmittedCustomPrompt.String, "unadmitted instruction marker")
+	events = recorder.all()
+	require.Len(t, events, 2)
+	require.Contains(t, events[1].CustomPrompt, "unadmitted instruction marker")
 }

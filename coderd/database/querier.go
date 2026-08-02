@@ -1464,6 +1464,13 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	// Records the owner's custom prompt exactly as it was shown to the
+	// lifecycle hook policy with a user_prompt_submit admission. Callers run
+	// inside the chat state-machine transaction that commits the admitted
+	// send, so the snapshot and the admission land atomically and the latest
+	// admitted value wins. Generation injects this snapshot, never the live
+	// per-user config, while hooks are enabled.
+	UpdateChatAdmittedCustomPrompt(ctx context.Context, arg UpdateChatAdmittedCustomPromptParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

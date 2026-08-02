@@ -845,6 +845,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
 			&i.Chat.CompactionRequestedAt,
+			&i.Chat.AdmittedCustomPrompt,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -926,7 +927,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextDirtySince,
 			&i.ContextDirtyResources,
 			&i.ContextError,
-			&i.CompactionRequestedAt); err != nil {
+			&i.CompactionRequestedAt,
+			&i.AdmittedCustomPrompt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

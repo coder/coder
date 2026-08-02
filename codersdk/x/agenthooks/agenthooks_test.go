@@ -605,6 +605,56 @@ func TestSignResponsesWrapsRawHandler(t *testing.T) {
 	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
 }
 
+// TestSignResponsesCommitsFirstStatus pins net/http commit semantics inside
+// the signing buffer: once a handler writes an error status, later Write or
+// WriteHeader calls cannot flip the response into a signed 2xx the
+// dispatcher would treat as allow.
+func TestSignResponsesCommitsFirstStatus(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+		// Sloppy middleware might keep writing after the failure; a real
+		// ResponseWriter ignores both of these status changes.
+		_, _ = rw.Write([]byte("failed"))
+		rw.WriteHeader(http.StatusOK)
+	})))
+	t.Cleanup(server.Close)
+
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	require.Empty(t, response.Header.Get(agenthooks.SignatureHeader))
+}
+
+// TestSignResponsesImplicit200 pins that a handler writing a body without an
+// explicit WriteHeader still produces a signed 200, matching net/http's
+// implicit commit on first Write.
+func TestSignResponsesImplicit200(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte(`{}`))
+		// Too late: the first Write committed the implicit 200.
+		rw.WriteHeader(http.StatusForbidden)
+	})))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
 func TestSignResponsesRejectsUnauthenticatedRequests(t *testing.T) {
 	t.Parallel()
 

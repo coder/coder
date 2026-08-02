@@ -1309,7 +1309,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
-	var promptResult *chathooks.Result
+	var (
+		promptResult         *chathooks.Result
+		admittedCustomPrompt sql.NullString
+	)
 	if p.hooks.Enabled() {
 		mintedTurnID := uuid.New()
 		promptMessage, err := chathooks.UserPromptMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
@@ -1317,8 +1320,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return database.Chat{}, err
 		}
 		// Subagent turns inject the owner's custom prompt like any other
-		// chat, so the admission event carries it too.
-		promptMessage.CustomPrompt = p.resolveUserPrompt(ctx, parent.OwnerID)
+		// chat, so the admission event carries it too. Resolve it once and
+		// persist the same bytes on the child chat so its generation
+		// injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, parent.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,
@@ -1408,9 +1414,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 			RawMessage: labelsJSON,
 			Valid:      true,
 		},
-		DynamicTools:    pqtype.NullRawMessage{},
-		ClientType:      parent.ClientType,
-		InitialMessages: initialMessages,
+		DynamicTools:         pqtype.NullRawMessage{},
+		ClientType:           parent.ClientType,
+		InitialMessages:      initialMessages,
+		AdmittedCustomPrompt: admittedCustomPrompt,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)

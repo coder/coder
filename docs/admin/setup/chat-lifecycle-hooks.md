@@ -84,7 +84,7 @@ A consumer that gates prompt content must inspect `parts`.
 The prompt isn't the only caller-controlled channel that reaches the model, so the event also carries the other instruction channels in effect for the admitted turn:
 
 - `system_prompt` is the caller-supplied per-chat system prompt, present on the admission for a chat create and immutable afterward.
-- `custom_prompt` is the chat owner's stored custom prompt as it will be injected into the turn's system prompt. It's stored through its own API without a lifecycle event, so this field is where a policy sees it, on every prompt admission.
+- `custom_prompt` is the chat owner's stored custom prompt as it will be injected into the turn's system prompt. It's stored through its own API without a lifecycle event, so this field is where a policy sees it, on every prompt admission. The admitted value is snapshotted with the turn and injected verbatim at generation, so rewriting the stored prompt after admission can't put unreviewed instructions in front of an already-admitted turn.
 - `dynamic_tools` carries the caller-declared tool definitions admitted with a chat create. Their names and descriptions reach the model as instructions.
 
 A prompt policy that inspects only `prompt` admits these channels sight unseen.

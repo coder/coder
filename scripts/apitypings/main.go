@@ -148,21 +148,34 @@ func TypeMappings(gen *guts.GoParser) error {
 	return nil
 }
 
-// AgentHookRawMessages maps agent-hook raw JSON fields to unknown instead of
-// the global object type.
+// AgentHookRawMessages replaces the global object type on agent-hook raw
+// JSON fields. Truly dynamic payloads become unknown; dynamic_tools always
+// serializes from []codersdk.DynamicTool, so it gets the precise array type.
 func AgentHookRawMessages(ts *guts.Typescript) {
 	if _, ok := ts.Node("AgentHookRequest"); !ok {
 		return
 	}
-	unknown := bindings.KeywordUnknown
-	fields := map[string]string{
-		"AgentHookRequest":              "data",
-		"AgentHookUserPromptSubmitData": "parts",
-		"AgentHookPreToolUseData":       "tool_input",
-		"AgentHookPostToolUseData":      "tool_response",
-		"AgentHookPermission":           "input_override",
+	dynamicToolNode, ok := ts.Node("DynamicTool")
+	if !ok {
+		panic("agent hook type \"DynamicTool\" was not generated")
 	}
-	for typeName, fieldName := range fields {
+	dynamicToolIface, ok := dynamicToolNode.(*bindings.Interface)
+	if !ok {
+		panic("agent hook type \"DynamicTool\" is not an interface")
+	}
+	unknown := bindings.KeywordUnknown
+	dynamicTools := bindings.Array(bindings.Reference(dynamicToolIface.Name))
+	fields := map[string]map[string]bindings.ExpressionType{
+		"AgentHookRequest": {"data": &unknown},
+		"AgentHookUserPromptSubmitData": {
+			"parts":         &unknown,
+			"dynamic_tools": dynamicTools,
+		},
+		"AgentHookPreToolUseData":  {"tool_input": &unknown},
+		"AgentHookPostToolUseData": {"tool_response": &unknown},
+		"AgentHookPermission":      {"input_override": &unknown},
+	}
+	for typeName, overrides := range fields {
 		node, ok := ts.Node(typeName)
 		if !ok {
 			panic(fmt.Sprintf("agent hook type %q was not generated", typeName))
@@ -171,16 +184,18 @@ func AgentHookRawMessages(ts *guts.Typescript) {
 		if !ok {
 			panic(fmt.Sprintf("agent hook type %q is not an interface", typeName))
 		}
-		found := false
-		for _, field := range iface.Fields {
-			if field.Name == fieldName {
-				field.Type = &unknown
-				found = true
-				break
+		for fieldName, fieldType := range overrides {
+			found := false
+			for _, field := range iface.Fields {
+				if field.Name == fieldName {
+					field.Type = fieldType
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			panic(fmt.Sprintf("agent hook field %q.%s was not generated", typeName, fieldName))
+			if !found {
+				panic(fmt.Sprintf("agent hook field %q.%s was not generated", typeName, fieldName))
+			}
 		}
 	}
 }

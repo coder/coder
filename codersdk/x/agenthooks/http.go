@@ -136,8 +136,9 @@ func SignResponses(secret []byte, next http.Handler) http.Handler {
 			http.Error(rw, err.Error(), http.StatusUnauthorized)
 			return
 		}
-		buffer := &bufferedResponse{header: make(http.Header), status: http.StatusOK}
+		buffer := &bufferedResponse{header: make(http.Header)}
 		next.ServeHTTP(buffer, r)
+		buffer.commitStatus()
 		body := buffer.body.Bytes()
 		if buffer.status >= http.StatusOK && buffer.status < http.StatusMultipleChoices {
 			signature, err := SignResponse(secret, claims, body)
@@ -156,18 +157,39 @@ func SignResponses(secret []byte, next http.Handler) http.Handler {
 }
 
 // bufferedResponse captures a handler's response so it can be signed before
-// any byte reaches the network.
+// any byte reaches the network. It mirrors net/http commit semantics: the
+// first WriteHeader wins, Write commits an implicit 200, and later status
+// changes are ignored, so a handler that wrote an error status cannot be
+// converted into a signed 2xx by a subsequent WriteHeader call.
 type bufferedResponse struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
+	header      http.Header
+	body        bytes.Buffer
+	status      int
+	wroteHeader bool
 }
 
 func (b *bufferedResponse) Header() http.Header { return b.header }
 
-func (b *bufferedResponse) Write(p []byte) (int, error) { return b.body.Write(p) }
+func (b *bufferedResponse) Write(p []byte) (int, error) {
+	b.commitStatus()
+	return b.body.Write(p)
+}
 
-func (b *bufferedResponse) WriteHeader(status int) { b.status = status }
+func (b *bufferedResponse) WriteHeader(status int) {
+	if b.wroteHeader {
+		return
+	}
+	b.status = status
+	b.wroteHeader = true
+}
+
+// commitStatus locks in the implicit 200 a real ResponseWriter would send
+// on the first Write (or at end of a handler that never wrote anything).
+func (b *bufferedResponse) commitStatus() {
+	if !b.wroteHeader {
+		b.WriteHeader(http.StatusOK)
+	}
+}
 
 func verifyBody(body []byte, claims Claims, request Request, audience string) error {
 	digest := sha256.Sum256(body)
