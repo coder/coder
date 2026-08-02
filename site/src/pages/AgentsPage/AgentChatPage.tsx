@@ -84,12 +84,16 @@ import {
 	getParentChatID,
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
+import { runExclusiveQueueMutation } from "./components/ChatConversation/chatQueueMutations";
 import {
 	type ChatStore,
 	type ChatStoreState,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { useDurableChatStatus } from "./components/ChatConversation/durableChat";
+import {
+	readEffectiveQueuedMessages,
+	useDurableChatStatus,
+} from "./components/ChatConversation/durableChat";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -157,22 +161,17 @@ export function getPersistedDraftInputValue(
 /**
  * Restores the transient store slices an optimistic request overwrote. Chat
  * status is not among them: it lives in the query cache, and its rollback is
- * token-scoped through `rollbackOptimisticChatStatus`.
+ * token-scoped through `rollbackOptimisticChatStatus`. Neither is the queue:
+ * the cache is canonical for it, and an optimistic queue removal is a
+ * read-time marker the failing caller unsuppresses on its own.
  *
  * @internal Exported for testing.
  */
 export const restoreOptimisticRequestSnapshot = (
-	store: Pick<
-		ChatStore,
-		"batch" | "setQueuedMessages" | "setStreamError" | "setStreamState"
-	>,
-	snapshot: Pick<
-		ChatStoreState,
-		"queuedMessages" | "streamError" | "streamState"
-	>,
+	store: Pick<ChatStore, "batch" | "setStreamError" | "setStreamState">,
+	snapshot: Pick<ChatStoreState, "streamError" | "streamState">,
 ): void => {
 	store.batch(() => {
-		store.setQueuedMessages(snapshot.queuedMessages);
 		store.setStreamState(snapshot.streamState);
 		store.setStreamError(snapshot.streamError);
 	});
@@ -183,25 +182,27 @@ export const restoreOptimisticRequestSnapshot = (
  *
  * The promote endpoint returns 202 Accepted with no message body, so the
  * actual user message is delivered via SSE or the messages REST endpoint.
- * Suppress the promoted ID so the transient reordered queue published by
- * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
+ * Suppressing the promoted ID is the whole optimistic update: it hides the row
+ * instantly, and it keeps hiding it through the transient reordered queue the
+ * running-case backend publishes before auto-promoting it. The cache is never
+ * written, so a failure only has to drop the marker, and a queue snapshot that
+ * lands mid-request is not clobbered by a rollback.
  *
  * @internal Exported for testing.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
+	chatID: string | undefined;
 	store: Pick<
 		ChatStore,
 		| "batch"
 		| "clearStreamError"
 		| "clearStreamState"
 		| "getSnapshot"
-		| "setQueuedMessages"
 		| "setStreamError"
 		| "setStreamState"
-		| "suppressQueuedMessageID"
-		| "unsuppressQueuedMessageID"
+		| "suppressQueuedMessageIDs"
+		| "unsuppressQueuedMessageIDs"
 	>;
 	queryClient: QueryClient;
 	promoteQueuedMessage: (id: number) => Promise<void>;
@@ -211,6 +212,7 @@ export const runPromoteQueuedMessage = async (params: {
 }): Promise<void> => {
 	const {
 		id,
+		chatID,
 		store,
 		queryClient,
 		promoteQueuedMessage,
@@ -218,77 +220,74 @@ export const runPromoteQueuedMessage = async (params: {
 		clearChatErrorReason,
 		handleUsageLimitError,
 	} = params;
-	const previousSnapshot = store.getSnapshot();
-	store.batch(() => {
-		store.suppressQueuedMessageID(id);
-		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-		);
-		store.clearStreamState();
-		store.clearStreamError();
-	});
-	const optimisticStatusToken = agentId
-		? writeOptimisticChatStatus(queryClient, agentId, "running")
-		: undefined;
-	if (agentId) {
-		clearChatErrorReason(agentId);
-	}
-	try {
-		await promoteQueuedMessage(id);
-	} catch (error) {
-		store.unsuppressQueuedMessageID(id);
-		if (agentId && optimisticStatusToken !== undefined) {
-			rollbackOptimisticChatStatus(queryClient, agentId, optimisticStatusToken);
+	const run = async (): Promise<void> => {
+		const previousSnapshot = store.getSnapshot();
+		store.batch(() => {
+			store.suppressQueuedMessageIDs([id]);
+			store.clearStreamState();
+			store.clearStreamError();
+		});
+		const optimisticStatusToken = agentId
+			? writeOptimisticChatStatus(queryClient, agentId, "running")
+			: undefined;
+		if (agentId) {
+			clearChatErrorReason(agentId);
 		}
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
-		handleUsageLimitError(error);
-		throw error;
-	}
+		try {
+			await promoteQueuedMessage(id);
+		} catch (error) {
+			store.unsuppressQueuedMessageIDs([id]);
+			if (agentId && optimisticStatusToken !== undefined) {
+				rollbackOptimisticChatStatus(
+					queryClient,
+					agentId,
+					optimisticStatusToken,
+				);
+			}
+			restoreOptimisticRequestSnapshot(store, previousSnapshot);
+			handleUsageLimitError(error);
+			throw error;
+		}
+	};
+	// Markers and request together: a marker placed before the lock belongs to
+	// an operation that has not started, so its failure path could lift a marker
+	// another operation took ownership of meanwhile.
+	await (chatID ? runExclusiveQueueMutation(chatID, run) : run());
 };
 
 /**
  * Runs the optimistic queued-message deletion flow.
  *
- * The mutation no longer invalidates the messages query, so the deletion is
- * projected into both the store's visible queue and `pages[0].queued_messages`
- * of the messages cache. Skipping the cache write would leave the cached queue
- * stale, and REST re-hydration would resurrect the deleted entry. Both writes
- * roll back together on failure.
+ * The removal is a read-time suppression marker, not a cache write: the cache
+ * stays server-truthful, the row disappears from the visible queue instantly
+ * even while a pagination fetch is buffering cache writes, and a failure only
+ * unsuppresses. The server's own `queue_update` retires the marker by omitting
+ * the id.
  *
  * @internal Exported for testing.
  */
 export const runDeleteQueuedMessage = async (params: {
 	id: number;
-	store: Pick<ChatStore, "getSnapshot" | "setQueuedMessages">;
+	chatID: string | undefined;
+	store: Pick<
+		ChatStore,
+		"suppressQueuedMessageIDs" | "unsuppressQueuedMessageIDs"
+	>;
 	deleteQueuedMessage: (id: number) => Promise<void>;
-	getCacheQueuedMessages: () =>
-		| readonly TypesGen.ChatQueuedMessage[]
-		| undefined;
-	setCacheQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	) => void;
 }): Promise<void> => {
-	const {
-		id,
-		store,
-		deleteQueuedMessage,
-		getCacheQueuedMessages,
-		setCacheQueuedMessages,
-	} = params;
-	const previousQueuedMessages = store.getSnapshot().queuedMessages;
-	const previousCacheQueuedMessages = getCacheQueuedMessages();
-	const nextQueuedMessages = previousQueuedMessages.filter(
-		(message) => message.id !== id,
-	);
-	store.setQueuedMessages(nextQueuedMessages);
-	setCacheQueuedMessages(nextQueuedMessages);
-	try {
-		await deleteQueuedMessage(id);
-	} catch (error) {
-		store.setQueuedMessages(previousQueuedMessages);
-		setCacheQueuedMessages(previousCacheQueuedMessages);
-		throw error;
-	}
+	const { id, chatID, store, deleteQueuedMessage } = params;
+	const run = async (): Promise<void> => {
+		store.suppressQueuedMessageIDs([id]);
+		try {
+			await deleteQueuedMessage(id);
+		} catch (error) {
+			// Lifts this operation's ordinary suppression only. If a send promoted
+			// the same ID meanwhile, that promotion veto is not ours to retire.
+			store.unsuppressQueuedMessageIDs([id]);
+			throw error;
+		}
+	};
+	await (chatID ? runExclusiveQueueMutation(chatID, run) : run());
 };
 
 /**
@@ -344,39 +343,48 @@ const buildPromotedQueueReconciliation = (
 	return tailPending ? [...remaining, queuedTail] : remaining;
 };
 
-// Prefer an inactive chat's cached queue so messages queued during the send
-// are not dropped; fall back when no cache exists.
+// The inactive-chat variant: no socket is watching, so nothing local can have
+// observed the tail yet, and the cached queue is the only baseline. Without a
+// cached queue there is no page 0 to amend, and re-entry refetches it.
 export const buildInactiveChatQueueReconciliation = (
 	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
 	insertedMessages: readonly TypesGen.ChatMessage[],
 	promotedHeadID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined =>
-	buildPromotedQueueReconciliation(
-		cachedQueuedMessages ?? queuedMessagesBeforeSend,
-		insertedMessages,
-		promotedHeadID,
-		queuedTail,
-		() => false,
-	);
+	cachedQueuedMessages === undefined
+		? undefined
+		: buildPromotedQueueReconciliation(
+				cachedQueuedMessages,
+				insertedMessages,
+				promotedHeadID,
+				queuedTail,
+				() => false,
+			);
 
-// Queue updates may rotate the head before the response arrives.
+/**
+ * Projects the queue a promoting send left behind: the canonical queue minus
+ * the head the server promoted, plus the tail the response returned. Both
+ * facts are server-confirmed, so the result is a server-DERIVED value the
+ * caller may write to the canonical cache. It is the one cache write the
+ * client originates, because a marker can only subtract and this one adds.
+ *
+ * Queue updates may rotate the head before the response arrives, so the
+ * promoted ID is a guess; `promotedQueuedMessageIDs` fences stale snapshots
+ * until the convergence fetch settles which row the server actually promoted.
+ */
 export const reconcilePromotedQueueHead = (
 	store: Pick<
 		ChatStore,
-		| "batch"
-		| "getSnapshot"
-		| "setQueuedMessages"
-		| "markQueuedMessagePromoted"
-		| "hasObservedQueuedMessageID"
+		"markQueuedMessagePromoted" | "hasObservedQueuedMessageID"
 	>,
+	canonicalQueuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	insertedMessages: readonly TypesGen.ChatMessage[],
 	promotedHeadID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
 	const next = buildPromotedQueueReconciliation(
-		store.getSnapshot().queuedMessages,
+		canonicalQueuedMessages,
 		insertedMessages,
 		promotedHeadID,
 		queuedTail,
@@ -385,41 +393,69 @@ export const reconcilePromotedQueueHead = (
 	if (!next || promotedHeadID === undefined) {
 		return next;
 	}
-	store.batch(() => {
-		// The promoted user row proves the server deleted its queue row.
-		store.markQueuedMessagePromoted(promotedHeadID);
-		store.setQueuedMessages(next);
-	});
+	// The promoted user row proves the server deleted its queue row.
+	store.markQueuedMessagePromoted(promotedHeadID);
 	return next;
 };
 
-const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
-	queryClient.fetchQuery(chatQueueConvergence(chatID));
+const fetchChatMessages =
+	(queryClient: QueryClient) => (chatID: string, promotedHeadID: number) =>
+		queryClient.fetchQuery(chatQueueConvergence(chatID, promotedHeadID));
 
-// A promoted head is suppressed locally, but another tab can queue or
-// promote concurrently, so only the server knows the resulting queue.
+// A promoted head is suppressed locally, but the client cannot compute the
+// server's head: the server promotes by `position ASC` while the client sees
+// the queue by `created_at ASC`, and a promote rewrites position without
+// touching created_at. Only the server knows the resulting queue, so the
+// convergence GET repairs a wrong guess. Returns the RAW response for the
+// caller to write; suppression stays a read-time concern.
+//
+// The veto the guess installed lasts exactly as long as this call, however it
+// ends. A failed fetch ends it and hands back whatever the veto rejected
+// meanwhile: leaving the marker up would reject every later snapshot that
+// still lists the guessed row, and clearing it alone would leave the queue
+// showing a value the rejected snapshots already contradicted. A response the
+// fence already superseded ends it the same way, because the fence only
+// guarantees that the markers of the convergence that MOVED it were retired,
+// not this one's.
 export const settlePromotedQueueHead = async (
 	store: Pick<
 		ChatStore,
-		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
+		| "getQueueConvergenceFence"
+		| "acceptQueueConvergence"
+		| "abandonQueueConvergence"
 	>,
 	chatID: string,
 	promotedHeadID: number,
-	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
+	fetchMessages: (
+		chatID: string,
+		promotedHeadID: number,
+	) => Promise<TypesGen.ChatMessagesResponse>,
 ): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
 	const baselineFence = store.getQueueConvergenceFence();
 	let response: TypesGen.ChatMessagesResponse;
 	try {
-		response = await fetchMessages(chatID);
+		response = await fetchMessages(chatID, promotedHeadID);
 	} catch {
-		// Convergence is best effort; a later authoritative update can correct it.
-		return undefined;
+		return store.abandonQueueConvergence(chatID, promotedHeadID, baselineFence);
 	}
-	return store.applyPromoteRefetchQueuedMessages(
+	const queuedMessages = response.queued_messages ?? [];
+	if (
+		store.acceptQueueConvergence(
+			chatID,
+			promotedHeadID,
+			queuedMessages,
+			baselineFence,
+		)
+	) {
+		return queuedMessages;
+	}
+	// Superseded, so this response cannot settle the guess. Retire the marker
+	// anyway: at worst the promoted row flickers back for one snapshot, while
+	// leaving it would veto every snapshot listing it, forever.
+	return store.abandonQueueConvergence(
 		chatID,
 		promotedHeadID,
-		response.queued_messages ?? [],
-		baselineFence,
+		store.getQueueConvergenceFence(),
 	);
 };
 
@@ -456,6 +492,128 @@ export async function submitEditAndScroll({
 	// shifts between the old and truncated content.
 	scrollToBottom?.();
 }
+
+/**
+ * Runs the optimistic queue-clearing edit flow.
+ *
+ * An edit restarts the turn and clears the server queue, so the visible queue
+ * is hidden the same way a delete hides one row: read-time markers, never a
+ * cache write. A cache clear would need a rollback, and that rollback would
+ * clobber a `queue_update` that landed while the edit was in flight.
+ *
+ * Everything the operation owns runs INSIDE the queue lock, the marker
+ * capture included. Captured before FIFO ownership, the marker list would
+ * describe a queue another operation is still changing, and this failure path
+ * would then lift markers that operation owns.
+ *
+ * @internal Exported for testing.
+ */
+export const runQueueSuppressingEdit = (params: {
+	chatID: string;
+	store: ChatStore;
+	queryClient: QueryClient;
+	editMessage: (args: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	}) => Promise<unknown>;
+	editArgs: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	};
+	scrollToBottom: (() => void) | null | undefined;
+	clearChatErrorReason: (chatID: string) => void;
+	clearStreamError: () => void;
+	handleUsageLimitError: (error: unknown) => void;
+}): Promise<void> => {
+	const {
+		chatID,
+		store,
+		queryClient,
+		editMessage,
+		editArgs,
+		scrollToBottom,
+		clearChatErrorReason,
+		clearStreamError,
+		handleUsageLimitError,
+	} = params;
+	return runExclusiveQueueMutation(chatID, async () => {
+		const previousSnapshot = store.getSnapshot();
+		const suppressedForEdit = readEffectiveQueuedMessages(
+			queryClient,
+			store,
+			chatID,
+		).map((message) => message.id);
+		clearChatErrorReason(chatID);
+		clearStreamError();
+		store.batch(() => {
+			store.suppressQueuedMessageIDs(suppressedForEdit);
+			store.clearStreamState();
+		});
+		const optimisticStatusToken = writeOptimisticChatStatus(
+			queryClient,
+			chatID,
+			"running",
+		);
+		await submitEditAndScroll({
+			editMessage,
+			editArgs,
+			scrollToBottom,
+			onError: (error) => {
+				// Lifts this edit's ordinary suppression only; a send's promotion
+				// veto on the same ID belongs to that send's convergence.
+				store.unsuppressQueuedMessageIDs(suppressedForEdit);
+				rollbackOptimisticChatStatus(
+					queryClient,
+					chatID,
+					optimisticStatusToken,
+				);
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				handleUsageLimitError(error);
+				// Hook dispatch failures can park an idle chat in error before
+				// returning the request error. The refetched detail carries a
+				// snapshot version, so the comparator decides whether it is newer
+				// than any status the socket delivered meanwhile.
+				void queryClient.invalidateQueries({
+					queryKey: chatKeys.detail(chatID),
+					exact: true,
+				});
+			},
+		});
+	});
+};
+
+/**
+ * Runs a chat turn behind a synchronous in-flight guard.
+ *
+ * A submission occupies its chat's queue-position slot from the moment it is
+ * accepted, which is BEFORE its mutation reports pending: the request only
+ * starts once the queue lock is free. A second submission entering that
+ * window would send the same turn twice. The ref makes the guard synchronous,
+ * because a state update is invisible to a handler that already captured its
+ * closure; the setter mirrors it so the composer can disable.
+ *
+ * @internal Exported for testing.
+ */
+export const runGuardedChatTurn = async (params: {
+	inFlightRef: { current: boolean };
+	setInFlight: (inFlight: boolean) => void;
+	run: () => Promise<void>;
+}): Promise<void> => {
+	const { inFlightRef, setInFlight, run } = params;
+	if (inFlightRef.current) {
+		return;
+	}
+	inFlightRef.current = true;
+	setInFlight(true);
+	try {
+		await run();
+	} finally {
+		inFlightRef.current = false;
+		setInFlight(false);
+	}
+};
 
 /** @internal Exported for testing. */
 export const waitForPendingChatSettingsSyncs = async (
@@ -1177,19 +1335,6 @@ const AgentChatPage: FC = () => {
 		? selectDurableMessages(chatMessagesQuery.data)
 		: undefined;
 
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
-				}
-			: undefined;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -1227,6 +1372,11 @@ const AgentChatPage: FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
+	// A submission holds a queue-position slot from the moment it is
+	// accepted, which is BEFORE its mutation reports pending. See
+	// `runGuardedChatTurn`.
+	const chatTurnInFlightRef = useRef(false);
+	const [isChatTurnInFlight, setIsChatTurnInFlight] = useState(false);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -1279,15 +1429,13 @@ const AgentChatPage: FC = () => {
 	const {
 		store,
 		clearStreamError,
-		setCacheQueuedMessages,
-		getCacheQueuedMessages,
+		writeCanonicalQueuedMessages,
+		readCanonicalQueuedMessages,
 		upsertCacheMessages,
 	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
@@ -1388,7 +1536,11 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending || isCompactPending;
+		isSendPending ||
+		isEditPending ||
+		isInterruptPending ||
+		isCompactPending ||
+		isChatTurnInFlight;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
@@ -1470,15 +1622,15 @@ const AgentChatPage: FC = () => {
 	const handleDeleteQueuedMessage = (id: number) =>
 		runDeleteQueuedMessage({
 			id,
+			chatID: agentId,
 			store,
 			deleteQueuedMessage,
-			getCacheQueuedMessages,
-			setCacheQueuedMessages,
 		});
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
+			chatID: agentId,
 			store,
 			queryClient,
 			promoteQueuedMessage,
@@ -1638,19 +1790,32 @@ const AgentChatPage: FC = () => {
 		return { content, hasContent: content.length > 0 };
 	}
 
-	async function submitChatTurn({
-		message,
-		attachments,
-		editedMessageID,
-		useComposerContent = true,
-		planModeSwitch,
-	}: {
+	type ChatTurnSubmission = {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		planModeSwitch?: PlanModeSwitch;
-	}) {
+	};
+
+	// Guards the whole turn, the queue lock wait included, so a second
+	// submission cannot slip past a mutation that has not started reporting
+	// pending yet.
+	function submitChatTurn(submission: ChatTurnSubmission): Promise<void> {
+		return runGuardedChatTurn({
+			inFlightRef: chatTurnInFlightRef,
+			setInFlight: setIsChatTurnInFlight,
+			run: () => runChatTurn(submission),
+		});
+	}
+
+	async function runChatTurn({
+		message,
+		attachments,
+		editedMessageID,
+		useComposerContent = true,
+		planModeSwitch,
+	}: ChatTurnSubmission) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
 			attachments,
@@ -1756,19 +1921,10 @@ const AgentChatPage: FC = () => {
 						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 					})
 				: undefined;
-			const previousSnapshot = store.getSnapshot();
-			clearChatErrorReason(agentId);
-			clearStreamError();
-			store.batch(() => {
-				store.setQueuedMessages([]);
-				store.clearStreamState();
-			});
-			const optimisticStatusToken = writeOptimisticChatStatus(
+			await runQueueSuppressingEdit({
+				chatID: agentId,
+				store,
 				queryClient,
-				agentId,
-				"running",
-			);
-			await submitEditAndScroll({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
@@ -1776,23 +1932,9 @@ const AgentChatPage: FC = () => {
 					req: request,
 				},
 				scrollToBottom: scrollToBottomRef.current,
-				onError: (error) => {
-					rollbackOptimisticChatStatus(
-						queryClient,
-						agentId,
-						optimisticStatusToken,
-					);
-					restoreOptimisticRequestSnapshot(store, previousSnapshot);
-					handleUsageLimitError(error);
-					// Hook dispatch failures can park an idle chat in error before
-					// returning the request error. The refetched detail carries a
-					// snapshot version, so the comparator decides whether it is
-					// newer than any status the socket delivered meanwhile.
-					void queryClient.invalidateQueries({
-						queryKey: chatKeys.detail(agentId),
-						exact: true,
-					});
-				},
+				clearChatErrorReason,
+				clearStreamError,
+				handleUsageLimitError,
 			});
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
@@ -1823,94 +1965,106 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
-		// An errored-chat send may promote the queue head that existed when the request began.
-		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
-		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
-		// The cached snapshot version is the send-path fence: optimistic
-		// writes never advance it, so it changes only when the server
-		// reported a status during the request.
-		const snapshotVersionBeforeSend = readCachedChatSnapshotVersion(
-			queryClient,
-			agentId,
-		);
-
-		// Don't clear stream state before the POST completes.
-		// For queued sends the WebSocket status events handle
-		// clearing; for non-queued sends we clear explicitly
-		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMessage>>;
-		try {
-			response = await sendMessage(request);
-		} catch (error) {
-			handleUsageLimitError(error);
-			// Hook dispatch failures can park an idle chat in error before
-			// returning the request error. The refetched detail carries a
-			// snapshot version, so the comparator decides whether it is newer
-			// than any status the socket delivered meanwhile.
-			void queryClient.invalidateQueries({
-				queryKey: chatKeys.detail(agentId),
-				exact: true,
-			});
-			throw error;
-		}
-		const isActiveChat = store.getActiveChatID() === agentId;
-		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
-		if (!response.queued && isActiveChat) {
-			assertTurnStartedAfterSend({
-				store,
+		// The head capture and the reconciliation that depends on it run
+		// inside the queue-mutation lock: a delete or promote committing
+		// between them would make the server promote a different head than
+		// the one captured here.
+		await runExclusiveQueueMutation(agentId, async () => {
+			// An errored-chat send may promote the queue head that existed when
+			// the request began. Read the RAW canonical queue: the server
+			// promotes ITS head by position, which includes a row this client
+			// has suppressed but the server still has queued.
+			const queueHeadIDBeforeSend = readCanonicalQueuedMessages()?.[0]?.id;
+			// The cached snapshot version is the send-path fence: optimistic
+			// writes never advance it, so it changes only when the server
+			// reported a status during the request.
+			const snapshotVersionBeforeSend = readCachedChatSnapshotVersion(
 				queryClient,
-				chatId: agentId,
-				snapshotVersionBeforeSend,
-			});
-		}
-		// Upsert the full batch because a queued send can insert a promoted head below
-		// the highest cached ID, which a reconnect would skip.
-		const insertedMessages =
-			response.messages ?? (response.message ? [response.message] : []);
-		if (insertedMessages.length > 0) {
-			upsertCacheMessages(insertedMessages);
-			if (response.queued) {
-				const reconciledQueue = isActiveChat
-					? reconcilePromotedQueueHead(
-							store,
-							insertedMessages,
-							queueHeadIDBeforeSend,
-							response.queued_message,
-						)
-					: buildInactiveChatQueueReconciliation(
-							getCacheQueuedMessages(),
-							queuedMessagesBeforeSend,
-							insertedMessages,
-							queueHeadIDBeforeSend,
-							response.queued_message,
-						);
-				if (reconciledQueue) {
-					setCacheQueuedMessages(reconciledQueue);
-					// A promoted head starts a turn, but any server status received during the
-					// request is newer and must win.
-					if (isActiveChat) {
-						assertTurnStartedAfterSend({
-							store,
-							queryClient,
-							chatId: agentId,
-							snapshotVersionBeforeSend,
-						});
-					}
-					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-						void settlePromotedQueueHead(
-							store,
-							agentId,
-							queueHeadIDBeforeSend,
-							fetchChatMessages(queryClient),
-						).then((settled) => {
-							if (settled) {
-								setCacheQueuedMessages(settled);
-							}
-						});
-					}
-				}
+				agentId,
+			);
+
+			// Don't clear stream state before the POST completes.
+			// For queued sends the WebSocket status events handle
+			// clearing; for non-queued sends we clear explicitly
+			// below. Clearing eagerly causes a visible cutoff.
+			let sendResponse: Awaited<ReturnType<typeof sendMessage>>;
+			try {
+				sendResponse = await sendMessage(request);
+			} catch (error) {
+				handleUsageLimitError(error);
+				// Hook dispatch failures can park an idle chat in error before
+				// returning the request error. The refetched detail carries a
+				// snapshot version, so the comparator decides whether it is newer
+				// than any status the socket delivered meanwhile.
+				void queryClient.invalidateQueries({
+					queryKey: chatKeys.detail(agentId),
+					exact: true,
+				});
+				throw error;
 			}
-		}
+			const isActiveChat = store.getActiveChatID() === agentId;
+			// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
+			if (!sendResponse.queued && isActiveChat) {
+				assertTurnStartedAfterSend({
+					store,
+					queryClient,
+					chatId: agentId,
+					snapshotVersionBeforeSend,
+				});
+			}
+			// Upsert the full batch because a queued send can insert a promoted head below
+			// the highest cached ID, which a reconnect would skip.
+			const insertedMessages =
+				sendResponse.messages ??
+				(sendResponse.message ? [sendResponse.message] : []);
+			if (insertedMessages.length === 0) {
+				return;
+			}
+			upsertCacheMessages(insertedMessages);
+			if (!sendResponse.queued) {
+				return;
+			}
+			const reconciledQueue = isActiveChat
+				? reconcilePromotedQueueHead(
+						store,
+						readCanonicalQueuedMessages() ?? [],
+						insertedMessages,
+						queueHeadIDBeforeSend,
+						sendResponse.queued_message,
+					)
+				: buildInactiveChatQueueReconciliation(
+						readCanonicalQueuedMessages(),
+						insertedMessages,
+						queueHeadIDBeforeSend,
+						sendResponse.queued_message,
+					);
+			if (!reconciledQueue) {
+				return;
+			}
+			writeCanonicalQueuedMessages(reconciledQueue);
+			// A promoted head starts a turn, but any server status received during the
+			// request is newer and must win.
+			if (isActiveChat) {
+				assertTurnStartedAfterSend({
+					store,
+					queryClient,
+					chatId: agentId,
+					snapshotVersionBeforeSend,
+				});
+			}
+			if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
+				void settlePromotedQueueHead(
+					store,
+					agentId,
+					queueHeadIDBeforeSend,
+					fetchChatMessages(queryClient),
+				).then((settled) => {
+					if (settled) {
+						writeCanonicalQueuedMessages(settled);
+					}
+				});
+			}
+		});
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
 		} else {

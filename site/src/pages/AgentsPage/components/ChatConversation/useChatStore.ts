@@ -8,6 +8,7 @@ import {
 import {
 	type InfiniteData,
 	type QueryClient,
+	useInfiniteQuery,
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
@@ -18,6 +19,7 @@ import {
 import {
 	applyServerChatStatusToCaches,
 	chatKeys,
+	chatMessagesForInfiniteScroll,
 	readCachedChatSnapshotVersion,
 	readCachedChatStatus,
 } from "#/api/queries/chats";
@@ -30,10 +32,14 @@ import {
 	type ChatStore,
 	type ChatStoreState,
 	chatMessagesEqualByValue,
-	chatQueuedMessagesEqualByID,
+	chatQueuedMessagesEqualByValue,
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
+import {
+	readCanonicalQueuedMessages,
+	selectCanonicalQueuedMessages,
+} from "./durableChat";
 import type { RetryState } from "./types";
 
 type ChatMessagesCacheData = InfiniteData<TypesGen.ChatMessagesResponse>;
@@ -129,15 +135,15 @@ const replaceMessagesInCacheData = (
  * Replaces the queue snapshot the messages cache carries on page 0. The queue
  * travels with the messages response, so it shares the cache entry, the fetch
  * serialization, and the initialized-cache requirement with durable messages.
+ *
+ * No equality guard: `setQueryData` runs `replaceEqualDeep`, so a deep-equal
+ * write collapses to the previous reference and notifies nothing.
  */
 const patchQueuedMessagesInCacheData = (
 	currentData: ChatMessagesCacheData,
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 ): ChatMessagesCacheData => {
 	const firstPage = currentData.pages[0];
-	if (chatQueuedMessagesEqualByID(firstPage.queued_messages, queuedMessages)) {
-		return currentData;
-	}
 	return {
 		...currentData,
 		pages: [
@@ -147,36 +153,44 @@ const patchQueuedMessagesInCacheData = (
 	};
 };
 
-// Prevents REST re-hydration from replaying a stale queue over the store. Goes
-// through the shared write coordinator: a queue delete or a queue_update
-// committed while a pagination fetch is in flight would otherwise be clobbered
-// by the pages that fetch captured, resurrecting the deleted entry.
+// The cache is canonical for the queue, so only SERVER-DERIVED values are
+// written here: an authoritative snapshot the gate accepted, or the
+// promoted-head send reconciliation's projection. Optimistic removals are
+// read-time markers instead and never reach this function.
+//
+// The SINGLE place the cache echo is armed. The cache arm of the gate would
+// otherwise re-gate this write when it observes it, retiring the markers the
+// write depends on. Only a write that CHANGES the cached value is owed an
+// echo: `setQueryData` collapses a deep-equal write through structural
+// sharing, so no observation follows it, and an expectation armed for one
+// would sit there and swallow the next genuine snapshot of that value. A
+// convergence response confirming a correct guess is exactly such a no-op
+// write, which is why neither the gate nor the convergence arms its own.
+//
+// Goes through the shared write coordinator: a queue snapshot committed while
+// a pagination fetch is in flight would otherwise be clobbered by the pages
+// that fetch captured, resurrecting entries the server already removed.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
+	store: ChatStore,
 	chatID: string | undefined,
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 ): void => {
 	if (!chatID) {
 		return;
 	}
-	const nextQueuedMessages = queuedMessages ?? [];
+	const cachedQueue = readCanonicalQueuedMessages(queryClient, chatID);
+	if (
+		cachedQueue !== undefined &&
+		!chatQueuedMessagesEqualByValue(cachedQueue, queuedMessages)
+	) {
+		store.noteLocalQueueProjection(queuedMessages);
+	}
 	writeMessagesCache(queryClient, chatKeys.messages(chatID), {
 		kind: "queue",
 		apply: (currentData) =>
-			patchQueuedMessagesInCacheData(currentData, nextQueuedMessages),
+			patchQueuedMessagesInCacheData(currentData, queuedMessages),
 	});
-};
-
-const readQueuedMessagesFromCache = (
-	queryClient: QueryClient,
-	chatID: string | undefined,
-): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (!chatID) {
-		return undefined;
-	}
-	return queryClient.getQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatKeys.messages(chatID))?.pages[0]?.queued_messages;
 };
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
@@ -200,8 +214,6 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
-	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
@@ -212,10 +224,13 @@ export const useChatStore = (
 ): {
 	store: ChatStore;
 	clearStreamError: () => void;
-	setCacheQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	// Writes a server-derived queue value into the canonical cache. Used by the
+	// promoted-head send reconciliation and its convergence response only.
+	writeCanonicalQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	getCacheQueuedMessages: () =>
+	// The RAW cached queue, suppression markers included.
+	readCanonicalQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
 		| undefined;
 	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
@@ -224,8 +239,6 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled = false,
@@ -233,14 +246,6 @@ export const useChatStore = (
 
 	const queryClient = useQueryClient();
 	const [store] = useState(createChatStore);
-	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
-	// Tracks whether the WebSocket has delivered a queue_update for the
-	// current chat. When true, the stream is the authoritative source
-	// and REST re-fetches must not overwrite the store. When false,
-	// REST data is allowed to re-hydrate so stale cached queued
-	// messages are corrected when switching back to a chat whose
-	// queue was drained while the user was away.
-	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 
 	// Compute the last REST-fetched message ID so the stream can
@@ -324,46 +329,37 @@ export const useChatStore = (
 	);
 
 	useEffect(() => {
-		queuedMessagesHydratedChatIDRef.current = null;
-		wsQueueUpdateReceivedRef.current = false;
-		store.setQueuedMessages([]);
-		// Suppression entries are scoped to the current chat; clear
-		// them on chat change so a stale promote suppression doesn't
-		// hide queued messages in another chat.
-		store.clearSuppressedQueuedMessageIDs();
 		if (!chatID) {
 			return;
 		}
+		// Markers and the gate's snapshot bookkeeping describe the open chat, so
+		// they are dropped on the way out: a stale promote suppression must not
+		// hide a queued message in the chat opened next.
+		return () => {
+			store.clearSuppressedQueuedMessageIDs();
+		};
 	}, [chatID, store]);
 
+	// Cache arm of the authoritative-snapshot gate. A page-0 install is an
+	// authoritative queue snapshot too, so it has to advance the fence and
+	// reconcile the markers exactly like a `queue_update` does. It is a
+	// POST-INSTALL observer, not a write gate: by the time the effect runs the
+	// value IS the cached one, so a rejected snapshot stays installed and is
+	// only withheld from the fence and the markers, and kept as the corrective
+	// truth a failed convergence restores. The store consumes the echo of a
+	// write this client made, so observing the socket arm's own write does not
+	// double-advance the fence.
+	const cachedQueuedMessages = useInfiniteQuery({
+		...chatMessagesForInfiniteScroll(chatID ?? ""),
+		enabled: Boolean(chatID),
+		select: selectCanonicalQueuedMessages,
+	}).data;
 	useEffect(() => {
-		if (!chatID || !chatMessagesData) {
+		if (!chatID || cachedQueuedMessages === undefined) {
 			return;
 		}
-		// Allow re-hydration from REST as long as the WebSocket hasn't
-		// delivered a queue_update yet (which would be fresher). This
-		// ensures that when the user navigates back to a chat whose
-		// queued messages were drained server-side while they were
-		// away, the REST refetch corrects the stale cached state.
-		if (
-			queuedMessagesHydratedChatIDRef.current === chatID &&
-			wsQueueUpdateReceivedRef.current
-		) {
-			return;
-		}
-		queuedMessagesHydratedChatIDRef.current = chatID;
-		// An optimistic promotion cache write must not clear suppression before
-		// a stale pre-promotion queue_update arrives.
-		if (
-			chatQueuedMessagesEqualByID(
-				store.getSnapshot().queuedMessages,
-				chatQueuedMessages ?? [],
-			)
-		) {
-			return;
-		}
-		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
-	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
+		store.acceptAuthoritativeQueueSnapshot(cachedQueuedMessages, "cache");
+	}, [cachedQueuedMessages, chatID, store]);
 
 	useEffect(() => {
 		store.resetTransientState();
@@ -591,20 +587,18 @@ export const useChatStore = (
 							}
 							continue;
 						}
-						case "queue_update":
-							wsQueueUpdateReceivedRef.current = true;
-							store.applyAuthoritativeQueuedMessages(
-								streamEvent.queued_messages,
-							);
-							// Cache the store's filtered queue, not the raw
-							// event, so a promoted message suppressed by the
-							// store cannot reappear on REST re-hydration.
-							writeQueuedMessagesToCache(
-								queryClient,
-								chatID,
-								store.getSnapshot().queuedMessages,
-							);
+						case "queue_update": {
+							// The gate decides; a rejected snapshot must not reach the
+							// cache. An accepted one is written VERBATIM, because the
+							// cache holds server truth and the suppression markers hide
+							// the transient rows at read time.
+							const snapshot = streamEvent.queued_messages ?? [];
+							if (!store.acceptAuthoritativeQueueSnapshot(snapshot, "socket")) {
+								continue;
+							}
+							writeQueuedMessagesToCache(queryClient, store, chatID, snapshot);
 							continue;
+						}
 						case "status": {
 							const nextStatus = streamEvent.status?.status;
 							if (!nextStatus) {
@@ -787,11 +781,11 @@ export const useChatStore = (
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
-		setCacheQueuedMessages: (queuedMessages) => {
-			writeQueuedMessagesToCache(queryClient, chatID, queuedMessages);
+		writeCanonicalQueuedMessages: (queuedMessages) => {
+			writeQueuedMessagesToCache(queryClient, store, chatID, queuedMessages);
 		},
-		getCacheQueuedMessages: () =>
-			readQueuedMessagesFromCache(queryClient, chatID),
+		readCanonicalQueuedMessages: () =>
+			readCanonicalQueuedMessages(queryClient, chatID),
 		upsertCacheMessages,
 	};
 };

@@ -12,10 +12,12 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	type ChatStore,
 	createChatStore,
-	selectQueuedMessages,
+	selectSuppressedQueuedMessageIDs,
 	useChatSelector,
 } from "./chatStore";
 import {
+	readCanonicalQueuedMessages,
+	readEffectiveQueuedMessages,
 	shouldSuppressFinalizedOverlay,
 	useDurableChatStatus,
 	useDurableMessageCount,
@@ -64,21 +66,23 @@ const seedMessages = (
 	queryClient: QueryClient,
 	messages: readonly TypesGen.ChatMessage[],
 	extraPage?: readonly TypesGen.ChatMessage[],
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
 ): void => {
 	const toPage = (
 		pageMessages: readonly TypesGen.ChatMessage[],
 		hasMore: boolean,
+		pageQueuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
 	): TypesGen.ChatMessagesResponse => ({
 		messages: [...pageMessages].sort((left, right) => right.id - left.id),
-		queued_messages: [],
+		queued_messages: pageQueuedMessages,
 		has_more: hasMore,
 	});
 	queryClient.setQueryData<InfiniteData<TypesGen.ChatMessagesResponse>>(
 		chatKeys.messages(CHAT_ID),
 		{
 			pages: extraPage
-				? [toPage(messages, true), toPage(extraPage, false)]
-				: [toPage(messages, false)],
+				? [toPage(messages, true, queuedMessages), toPage(extraPage, false)]
+				: [toPage(messages, false, queuedMessages)],
 			pageParams: extraPage ? [undefined, messages[0]?.id] : [undefined],
 		},
 	);
@@ -118,7 +122,7 @@ const buildTextPart = (text: string): TypesGen.ChatMessagePart => ({
 });
 
 describe("durableChat facade", () => {
-	it("reads messages and status from the cache and the queue from the store", () => {
+	it("reads messages, status, and the queue from the cache", () => {
 		const store = createChatStore();
 		const queryClient = createTestQueryClient();
 		seedChatDetail(queryClient, "running");
@@ -126,8 +130,8 @@ describe("durableChat facade", () => {
 			buildMessage(1, "user", "hello"),
 			buildMessage(2, "assistant", "hi"),
 		];
-		seedMessages(queryClient, messages);
-		store.setQueuedMessages([buildQueuedMessage(10, "later")]);
+		const queued = buildQueuedMessage(10, "later");
+		seedMessages(queryClient, messages, undefined, [queued]);
 
 		const { result } = renderHook(
 			() => ({
@@ -135,7 +139,6 @@ describe("durableChat facade", () => {
 				facadeMessages: useDurableMessageList({ store, chatId: CHAT_ID }),
 				facadeCount: useDurableMessageCount({ store, chatId: CHAT_ID }),
 				facadeQueued: useDurableQueuedMessages({ store, chatId: CHAT_ID }),
-				selectorQueued: useChatSelector(store, selectQueuedMessages),
 			}),
 			{ wrapper: createWrapper(queryClient) },
 		);
@@ -145,7 +148,50 @@ describe("durableChat facade", () => {
 		// Ascending by ID, which is the only ordering signal a message carries.
 		expect(current.facadeMessages).toEqual(messages);
 		expect(current.facadeCount).toBe(messages.length);
-		expect(current.facadeQueued).toBe(current.selectorQueued);
+		expect(current.facadeQueued).toEqual([queued]);
+	});
+
+	it("hides a suppressed queued message without touching the cache", async () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		const kept = buildQueuedMessage(10, "kept");
+		const hidden = buildQueuedMessage(11, "hidden");
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")], undefined, [
+			kept,
+			hidden,
+		]);
+
+		const { result } = renderHook(
+			() => ({
+				queued: useDurableQueuedMessages({ store, chatId: CHAT_ID }),
+				suppressed: useChatSelector(store, selectSuppressedQueuedMessageIDs),
+			}),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current.queued).toEqual([kept, hidden]);
+
+		act(() => {
+			store.suppressQueuedMessageIDs([hidden.id]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.queued).toEqual([kept]);
+		});
+		// The marker subtracts at read time; the cache still holds server truth.
+		expect(
+			queryClient.getQueryData<InfiniteData<TypesGen.ChatMessagesResponse>>(
+				chatKeys.messages(CHAT_ID),
+			)?.pages[0].queued_messages,
+		).toEqual([kept, hidden]);
+
+		act(() => {
+			store.unsuppressQueuedMessageIDs([hidden.id]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.queued).toEqual([kept, hidden]);
+		});
 	});
 
 	it("deduplicates a cross-page copy, keeping the page 0 values", () => {
@@ -430,6 +476,41 @@ describe("durableChat facade", () => {
 			expect(result.current).toBe(2);
 		});
 		expect(renderCount).toBe(baseline + 1);
+	});
+});
+
+describe("queue read projections", () => {
+	it("keeps a suppressed head in the canonical read and out of the effective one", () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		const head = buildQueuedMessage(10, "head");
+		const tail = buildQueuedMessage(11, "tail");
+		seedMessages(queryClient, [buildMessage(1, "user", "hello")], undefined, [
+			head,
+			tail,
+		]);
+		store.suppressQueuedMessageIDs([head.id]);
+
+		// The send captures the head from the canonical read because the server
+		// promotes ITS head by position, which still includes the hidden row.
+		expect(readCanonicalQueuedMessages(queryClient, CHAT_ID)).toEqual([
+			head,
+			tail,
+		]);
+		expect(readEffectiveQueuedMessages(queryClient, store, CHAT_ID)).toEqual([
+			tail,
+		]);
+	});
+
+	it("reports no canonical queue for a chat with no cache entry", () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+
+		expect(readCanonicalQueuedMessages(queryClient, CHAT_ID)).toBeUndefined();
+		expect(readCanonicalQueuedMessages(queryClient, undefined)).toBeUndefined();
+		expect(readEffectiveQueuedMessages(queryClient, store, CHAT_ID)).toEqual(
+			[],
+		);
 	});
 });
 

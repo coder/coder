@@ -33,6 +33,7 @@ import {
 	chat as chatDetail,
 	chatKeys,
 	chatMessagesForInfiniteScroll,
+	chatQueueConvergence,
 	chatSearch,
 	clearChatUnreadInCaches,
 	createChat,
@@ -1636,7 +1637,7 @@ describe("mutation invalidation scope", () => {
 		expect(context?.previousData?.pages[0]?.messages).toHaveLength(5);
 	});
 
-	it("editChatMessage clears queued messages in cache during optimistic history edit", async () => {
+	it("editChatMessage leaves the cached queue alone during the optimistic edit", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
@@ -1663,10 +1664,64 @@ describe("mutation invalidation scope", () => {
 			req: editReq,
 		});
 
+		// The caller hides the queue with read-time suppression markers instead,
+		// so the cache keeps server truth and needs no rollback.
 		const data = queryClient.getQueryData<InfMessages>(
 			chatKeys.messages(chatId),
 		);
-		expect(data?.pages[0]?.queued_messages).toEqual([]);
+		expect(data?.pages[0]?.queued_messages).toEqual(queuedMessages);
+	});
+
+	it("editChatMessage keeps a queue update delivered while the edit was in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+
+		queryClient.setQueryData<InfMessages>(chatKeys.messages(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		const context = await mutation.onMutate({
+			messageId: 3,
+			optimisticMessage,
+			req: editReq,
+		});
+
+		// The socket delivers a queue snapshot while the request is in flight.
+		const arrivedQueue = [makeQueuedMessage(chatId, 21)];
+		queryClient.setQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+			(current) =>
+				current
+					? {
+							...current,
+							pages: [
+								{ ...current.pages[0], queued_messages: arrivedQueue },
+								...current.pages.slice(1),
+							],
+						}
+					: current,
+		);
+
+		mutation.onError(
+			new Error("network failure"),
+			{ messageId: 3, optimisticMessage, req: editReq },
+			context,
+		);
+
+		const data = queryClient.getQueryData<InfMessages>(
+			chatKeys.messages(chatId),
+		);
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			5, 4, 3, 2, 1,
+		]);
+		// The rollback restores the conversation without clobbering the queue.
+		expect(data?.pages[0]?.queued_messages).toEqual(arrivedQueue);
 	});
 
 	it("editChatMessage restores cache on error", async () => {
@@ -5110,5 +5165,64 @@ describe("messages cache write serialization", () => {
 				.getQueryData<InfMessages>(chatKeys.messages(chatId))
 				?.pages[0].messages.map((message) => message.id),
 		).toEqual([11, 10, 2, 1]);
+	});
+});
+
+describe("chatQueueConvergence", () => {
+	it("does not answer one promotion's convergence from another's request", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-convergence";
+		const first = createDeferred<TypesGen.ChatMessagesResponse>();
+		const second = createDeferred<TypesGen.ChatMessagesResponse>();
+		const responses = [first.promise, second.promise];
+		// An implementation rather than a once-queue: a leftover queued value
+		// would leak into the next test.
+		vi.mocked(API.experimental.getChatMessages).mockImplementation(
+			() => responses.shift() ?? Promise.reject(new Error("unexpected fetch")),
+		);
+
+		// Two promoting sends overlap. A shared key would let TanStack answer
+		// the second from the first's in-flight request, whose response was
+		// dispatched before the second promotion existed.
+		const settledFirst = queryClient.fetchQuery(
+			chatQueueConvergence(chatId, 1),
+		);
+		const settledSecond = queryClient.fetchQuery(
+			chatQueueConvergence(chatId, 2),
+		);
+		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(2);
+
+		first.resolve({ messages: [], queued_messages: [], has_more: false });
+		second.resolve({
+			messages: [],
+			queued_messages: [
+				{
+					id: 7,
+					chat_id: chatId,
+					created_at: "2025-01-01T00:10:07Z",
+					content: [{ type: "text", text: "queued 7" }],
+				},
+			],
+			has_more: false,
+		});
+
+		expect((await settledFirst).queued_messages).toEqual([]);
+		expect((await settledSecond).queued_messages).toHaveLength(1);
+	});
+
+	it("still deduplicates a repeat convergence for the same promotion", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-convergence";
+		const pending = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockImplementation(
+			() => pending.promise,
+		);
+
+		const a = queryClient.fetchQuery(chatQueueConvergence(chatId, 1));
+		const b = queryClient.fetchQuery(chatQueueConvergence(chatId, 1));
+		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
+
+		pending.resolve({ messages: [], queued_messages: [], has_more: false });
+		await Promise.all([a, b]);
 	});
 });

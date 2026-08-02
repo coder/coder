@@ -6,7 +6,9 @@ import { applyServerChatStatusToCaches, chatKeys } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatMessage,
+	ChatMessagesResponse,
 	ChatQueuedMessage,
+	EditChatMessageRequest,
 } from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -24,13 +26,16 @@ import {
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runDeleteQueuedMessage,
+	runGuardedChatTurn,
 	runPromoteQueuedMessage,
+	runQueueSuppressingEdit,
 	settlePromotedQueueHead,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { runExclusiveQueueMutation } from "./components/ChatConversation/chatQueueMutations";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
@@ -190,22 +195,14 @@ describe("getPersistedDraftInputValue", () => {
 });
 
 describe("restoreOptimisticRequestSnapshot", () => {
-	it("restores queued messages, stream output, and stream error", () => {
+	it("restores stream output and stream error but not the queue", () => {
 		const store = createChatStore();
-		store.setQueuedMessages([
-			{
-				id: 9,
-				chat_id: "chat-abc-123",
-				created_at: "2025-01-01T00:00:00.000Z",
-				content: [{ type: "text" as const, text: "queued" }],
-			},
-		]);
+		store.suppressQueuedMessageIDs([9]);
 		store.applyMessagePart({ type: "text", text: "partial response" });
 		store.setStreamError({ kind: "generic", message: "old error" });
 		const previousSnapshot = store.getSnapshot();
 
 		store.batch(() => {
-			store.setQueuedMessages([]);
 			store.clearStreamState();
 			store.clearStreamError();
 		});
@@ -213,11 +210,11 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
 
 		const restoredSnapshot = store.getSnapshot();
-		expect(restoredSnapshot.queuedMessages).toEqual(
-			previousSnapshot.queuedMessages,
-		);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
+		// Queue markers are owned by the failing queue mutation, not by the
+		// whole-snapshot restore, so the restore must leave them alone.
+		expect(restoredSnapshot.suppressedQueuedMessageIDs.has(9)).toBe(true);
 	});
 });
 
@@ -248,14 +245,11 @@ describe("runPromoteQueuedMessage", () => {
 	const readCachedStatus = (queryClient: QueryClient): Chat | undefined =>
 		queryClient.getQueryData<Chat>(chatKeys.detail("chat-1"));
 
-	it("suppresses the promoted ID and removes it optimistically", async () => {
+	it("suppresses the promoted ID instead of writing the cache", async () => {
 		const store = createChatStore();
 		const queryClient = new QueryClient();
 		seedChatDetail(queryClient, "waiting");
-		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
-		const c = buildQueuedMessage(3, "C");
-		store.setQueuedMessages([a, b, c]);
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
@@ -263,6 +257,7 @@ describe("runPromoteQueuedMessage", () => {
 
 		await runPromoteQueuedMessage({
 			id: b.id,
+			chatID: "chat-1",
 			store,
 			queryClient,
 			promoteQueuedMessage: promote,
@@ -273,22 +268,18 @@ describe("runPromoteQueuedMessage", () => {
 
 		expect(promote).toHaveBeenCalledWith(b.id);
 
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
-		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 		const cached = readCachedStatus(queryClient);
 		expect(cached?.status).toBe("running");
 		// An optimistic write never advances the version.
 		expect(cached?.snapshot_version).toBe(4);
 	});
 
-	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
+	it("unsuppresses and rolls back status on API error", async () => {
 		const store = createChatStore();
 		const queryClient = new QueryClient();
 		seedChatDetail(queryClient, "waiting");
-		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
-		store.setQueuedMessages([a, b]);
 
 		const apiError = new Error("boom");
 		const promote = vi.fn(async (_id: number) => {
@@ -300,6 +291,7 @@ describe("runPromoteQueuedMessage", () => {
 		await expect(
 			runPromoteQueuedMessage({
 				id: b.id,
+				chatID: "chat-1",
 				store,
 				queryClient,
 				promoteQueuedMessage: promote,
@@ -310,74 +302,226 @@ describe("runPromoteQueuedMessage", () => {
 		).rejects.toBe(apiError);
 
 		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
-
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(readCachedStatus(queryClient)?.status).toBe("waiting");
-		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
+			false,
+		);
 	});
 });
 
 describe("runDeleteQueuedMessage", () => {
-	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
-		...MockChatQueuedMessage,
-		id,
-		chat_id: "chat-1",
-		content: [{ type: "text", text }],
-	});
-
-	it("removes the entry from the store and the cached queue", async () => {
+	it("suppresses the entry without writing the cache", async () => {
 		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setQueuedMessages([a, b]);
-		let cachedQueue: readonly ChatQueuedMessage[] | undefined = [a, b];
 		const deleteQueuedMessage = vi.fn(async (_id: number) => undefined);
 
 		await runDeleteQueuedMessage({
-			id: b.id,
+			id: 2,
+			chatID: "chat-1",
 			store,
 			deleteQueuedMessage,
-			getCacheQueuedMessages: () => cachedQueue,
-			setCacheQueuedMessages: (queuedMessages) => {
-				cachedQueue = queuedMessages;
-			},
 		});
 
-		expect(deleteQueuedMessage).toHaveBeenCalledWith(b.id);
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([a.id]);
-		// The mutation no longer invalidates the messages query, so without this
-		// write REST re-hydration would resurrect the deleted entry.
-		expect(cachedQueue?.map((m) => m.id)).toEqual([a.id]);
+		expect(deleteQueuedMessage).toHaveBeenCalledWith(2);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(true);
 	});
 
-	it("restores both the store and the cached queue on failure", async () => {
+	it("suppresses before the request settles and unsuppresses on failure", async () => {
 		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setQueuedMessages([a, b]);
-		let cachedQueue: readonly ChatQueuedMessage[] | undefined = [a, b];
 		const apiError = new Error("boom");
+		const pending = createDeferred<void>();
+
+		const deletion = runDeleteQueuedMessage({
+			id: 2,
+			chatID: "chat-1",
+			store,
+			deleteQueuedMessage: () => pending.promise,
+		});
+
+		// The marker is a store write, so the row is hidden immediately rather
+		// than waiting on the request or on a buffered cache write.
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(true);
+
+		pending.reject(apiError);
+		await expect(deletion).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(false);
+	});
+
+	it("waits for the queue lock before placing its marker", async () => {
+		const store = createChatStore();
+		const blocker = createDeferred<void>();
+		const holder = runExclusiveQueueMutation("chat-1", () => blocker.promise);
+		const deleteQueuedMessage = vi.fn(async (_id: number) => undefined);
+
+		const deletion = runDeleteQueuedMessage({
+			id: 2,
+			chatID: "chat-1",
+			store,
+			deleteQueuedMessage,
+		});
+
+		// The operation does not own the queue yet, so it owns no markers
+		// either: its failure path must not be able to touch a marker the
+		// operation currently holding the lock relies on.
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(false);
+		expect(deleteQueuedMessage).not.toHaveBeenCalled();
+
+		blocker.resolve();
+		await holder;
+		await deletion;
+
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(true);
+	});
+
+	it("leaves a promotion veto it does not own after a failure", async () => {
+		const store = createChatStore();
+		const apiError = new Error("boom");
+		// A send promoted this row while the delete was queued behind it.
+		store.markQueuedMessagePromoted(2);
 
 		await expect(
 			runDeleteQueuedMessage({
-				id: b.id,
+				id: 2,
+				chatID: "chat-1",
 				store,
-				deleteQueuedMessage: async () => {
-					throw apiError;
-				},
-				getCacheQueuedMessages: () => cachedQueue,
-				setCacheQueuedMessages: (queuedMessages) => {
-					cachedQueue = queuedMessages;
-				},
+				deleteQueuedMessage: () => Promise.reject(apiError),
 			}),
 		).rejects.toBe(apiError);
 
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
-			a.id,
-			b.id,
-		]);
-		expect(cachedQueue?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(2)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(2)).toBe(true);
+	});
+});
+
+describe("runQueueSuppressingEdit", () => {
+	const chatID = "chat-1";
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		chat_id: chatID,
+		content: [{ type: "text", text }],
+	});
+	const seedQueue = (
+		queryClient: QueryClient,
+		queuedMessages: readonly ChatQueuedMessage[],
+	): void => {
+		queryClient.setQueryData(chatKeys.messages(chatID), {
+			pages: [
+				{ messages: [], queued_messages: queuedMessages, has_more: false },
+			],
+			pageParams: [undefined],
+		});
+	};
+	const buildParams = (
+		store: ReturnType<typeof createChatStore>,
+		queryClient: QueryClient,
+		editMessage: (args: {
+			messageId: number;
+			req: EditChatMessageRequest;
+		}) => Promise<unknown>,
+	) => ({
+		chatID,
+		store,
+		queryClient,
+		editMessage,
+		editArgs: { messageId: 10, req: { content: [] } },
+		scrollToBottom: undefined,
+		clearChatErrorReason: vi.fn(),
+		clearStreamError: vi.fn(),
+		handleUsageLimitError: vi.fn(),
+	});
+
+	it("waits for the queue lock before capturing its markers", async () => {
+		const store = createChatStore();
+		const queryClient = new QueryClient();
+		const a = buildQueuedMessage(1, "A");
+		seedQueue(queryClient, [a]);
+		const blocker = createDeferred<void>();
+		const holder = runExclusiveQueueMutation(chatID, () => blocker.promise);
+		const editMessage = vi.fn(async () => undefined);
+
+		const edit = runQueueSuppressingEdit(
+			buildParams(store, queryClient, editMessage),
+		);
+
+		// The queue it would clear is still being changed by the operation that
+		// holds the lock, so nothing is captured or marked yet.
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+		expect(editMessage).not.toHaveBeenCalled();
+
+		blocker.resolve();
+		await holder;
+		await edit;
+
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("leaves a promotion veto it does not own after a failure", async () => {
+		const store = createChatStore();
+		const queryClient = new QueryClient();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		seedQueue(queryClient, [a, b]);
+		// A send promoted A, so it is already hidden and not this edit's to
+		// unhide.
+		store.markQueuedMessagePromoted(a.id);
+		const apiError = new Error("boom");
+
+		await expect(
+			runQueueSuppressingEdit(
+				buildParams(store, queryClient, () => Promise.reject(apiError)),
+			),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
+			false,
+		);
+	});
+});
+
+describe("runGuardedChatTurn", () => {
+	it("refuses a second submission while the first waits for the queue lock", async () => {
+		const inFlightRef = { current: false };
+		const setInFlight = vi.fn();
+		const blocker = createDeferred<void>();
+		const holder = runExclusiveQueueMutation("chat-1", () => blocker.promise);
+		const send = vi.fn(async () => undefined);
+		const submit = () =>
+			runGuardedChatTurn({
+				inFlightRef,
+				setInFlight,
+				run: () => runExclusiveQueueMutation("chat-1", send),
+			});
+
+		// The mutation has not started, so nothing derived from its pending
+		// state can refuse the second submission.
+		const first = submit();
+		const second = submit();
+
+		blocker.resolve();
+		await Promise.all([holder, first, second]);
+
+		expect(send).toHaveBeenCalledTimes(1);
+		expect(setInFlight.mock.calls).toEqual([[true], [false]]);
+	});
+
+	it("accepts the next submission once the turn settles", async () => {
+		const inFlightRef = { current: false };
+		const run = vi.fn(async () => {
+			throw new Error("boom");
+		});
+
+		await expect(
+			runGuardedChatTurn({ inFlightRef, setInFlight: () => {}, run }),
+		).rejects.toThrow("boom");
+		expect(inFlightRef.current).toBe(false);
+
+		await expect(
+			runGuardedChatTurn({ inFlightRef, setInFlight: () => {}, run }),
+		).rejects.toThrow("boom");
+		expect(run).toHaveBeenCalledTimes(2);
 	});
 });
 
@@ -441,48 +585,23 @@ describe("reconcilePromotedQueueHead", () => {
 	const userMessage: ChatMessage = { ...MockChatMessage, id: 10, role: "user" };
 	const toolMessage: ChatMessage = { ...MockChatMessage, id: 9, role: "tool" };
 
-	it("suppresses the captured head and appends the queued tail", () => {
+	it("marks the captured head promoted and appends the queued tail", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const tail = buildQueuedMessage(3, "C");
-		store.setQueuedMessages([a, b]);
 
 		const reconciled = reconcilePromotedQueueHead(
 			store,
+			[a, b],
 			[toolMessage, userMessage],
 			a.id,
 			tail,
 		);
 
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, tail.id]);
-		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
 		expect(reconciled?.map((m) => m.id)).toEqual([b.id, tail.id]);
-	});
-
-	it("does not suppress the rotated head when a queue_update already applied", () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		const c = buildQueuedMessage(3, "C");
-		store.setQueuedMessages([b, c]);
-
-		reconcilePromotedQueueHead(store, [userMessage], a.id, c);
-
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, c.id]);
-		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
-		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
-		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
-
-		store.applyAuthoritativeQueuedMessages([a, b, c]);
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
-			b.id,
-			c.id,
-		]);
-		store.applyAuthoritativeQueuedMessages([b, c]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
 	});
 
 	it("keeps the response tail when a stale snapshot arrived mid-request", () => {
@@ -492,10 +611,15 @@ describe("reconcilePromotedQueueHead", () => {
 		const c = buildQueuedMessage(3, "C");
 		// A pre-send snapshot lands while the POST is in flight; it cannot
 		// mention the tail the send just created.
-		store.setQueuedMessages([a]);
-		store.applyAuthoritativeQueuedMessages([a, b]);
+		store.acceptAuthoritativeQueueSnapshot([a, b], "socket");
 
-		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+		const next = reconcilePromotedQueueHead(
+			store,
+			[a, b],
+			[userMessage],
+			a.id,
+			c,
+		);
 
 		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
 	});
@@ -504,46 +628,43 @@ describe("reconcilePromotedQueueHead", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const c = buildQueuedMessage(3, "C");
-		store.applyAuthoritativeQueuedMessages([a, c]);
-		store.applyAuthoritativeQueuedMessages([a]);
+		store.acceptAuthoritativeQueueSnapshot([a, c], "socket");
+		store.acceptAuthoritativeQueueSnapshot([a], "socket");
 
-		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+		const next = reconcilePromotedQueueHead(store, [a], [userMessage], a.id, c);
 
 		expect(next).toEqual([]);
 	});
 
-	it("omits the response tail when a newer queue update was observed", () => {
+	it("omits the response tail when there is none", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
-		store.setQueuedMessages([a]);
 
 		const next = reconcilePromotedQueueHead(
 			store,
+			[a],
 			[userMessage],
 			a.id,
 			undefined,
 		);
 
 		expect(next).toEqual([]);
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 
 	it("does nothing when no user row was inserted", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
-		store.setQueuedMessages([a]);
 
 		const reconciled = reconcilePromotedQueueHead(
 			store,
+			[a],
 			[toolMessage],
 			a.id,
 			buildQueuedMessage(2, "B"),
 		);
 
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id]);
-		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
 		expect(reconciled).toBeUndefined();
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
 	it("does nothing when no head was captured before the send", () => {
@@ -551,15 +672,14 @@ describe("reconcilePromotedQueueHead", () => {
 
 		const reconciled = reconcilePromotedQueueHead(
 			store,
+			[],
 			[userMessage],
 			undefined,
 			buildQueuedMessage(1, "A"),
 		);
 
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages).toEqual([]);
-		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
 		expect(reconciled).toBeUndefined();
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 });
 
@@ -582,7 +702,6 @@ describe("buildInactiveChatQueueReconciliation", () => {
 
 		const next = buildInactiveChatQueueReconciliation(
 			[a, b, c],
-			[a, b],
 			[userMessage],
 			a.id,
 			undefined,
@@ -591,19 +710,17 @@ describe("buildInactiveChatQueueReconciliation", () => {
 		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
 	});
 
-	it("falls back to the pre-send queue when nothing is cached", () => {
+	it("skips the write when the chat has no cached queue to amend", () => {
 		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
 
-		const next = buildInactiveChatQueueReconciliation(
-			undefined,
-			[a, b],
-			[userMessage],
-			a.id,
-			undefined,
-		);
-
-		expect(next?.map((m) => m.id)).toEqual([b.id]);
+		expect(
+			buildInactiveChatQueueReconciliation(
+				undefined,
+				[userMessage],
+				a.id,
+				undefined,
+			),
+		).toBeUndefined();
 	});
 });
 
@@ -615,56 +732,16 @@ describe("settlePromotedQueueHead", () => {
 	});
 	const chatID = "chat-abc-123";
 
-	it("restores a head the server still has queued", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setActiveChatID(chatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-
-		const settled = await settlePromotedQueueHead(
-			store,
-			chatID,
-			a.id,
-			async () => ({ messages: [], has_more: false, queued_messages: [a, b] }),
-		);
-
-		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
-			a.id,
-			b.id,
-		]);
-	});
-
-	it("leaves the queue alone when the fetch fails", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setActiveChatID(chatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-
-		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
-			Promise.reject(new Error("offline")),
-		);
-
-		expect(settled).toBeUndefined();
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
-	});
-
-	it("returns the filtered queue the store applied", async () => {
+	it("returns the RAW response and clears the head's markers", async () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const c = buildQueuedMessage(3, "C");
 		store.setActiveChatID(chatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		// An overlapping explicit promotion suppresses C, which the server has
-		// not deleted yet, so the caller must not cache it back.
-		store.suppressQueuedMessageID(c.id);
+		// An overlapping explicit promotion suppresses C. It stays suppressed,
+		// but the convergence response is written to the cache unfiltered.
+		store.suppressQueuedMessageIDs([c.id]);
 
 		const settled = await settlePromotedQueueHead(
 			store,
@@ -677,7 +754,98 @@ describe("settlePromotedQueueHead", () => {
 			}),
 		);
 
-		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(
+			false,
+		);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(c.id)).toBe(true);
+	});
+
+	it("ends the veto when the fetch fails and nothing was rejected", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		// No snapshot was vetoed, so the cache still holds the projection the
+		// send wrote and there is nothing to write back.
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(false);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(true);
+	});
+
+	it("restores the vetoed snapshot when a wrong guess fails to converge", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setActiveChatID(chatID);
+		// The send guessed A, but the server promoted another row and keeps
+		// reporting A as queued.
+		store.markQueuedMessagePromoted(a.id);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(
+			false,
+		);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
+			false,
+		);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		// The veto ends AND hands back the newest snapshot it swallowed, so the
+		// caller can restore what the server last reported.
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(false);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(
+			false,
+		);
+		// Queue updates resume instead of being rejected forever.
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
+			true,
+		);
+	});
+
+	it("disposes both markers when overlapping promotions share a response", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		const shared = createDeferred<ChatMessagesResponse>();
+
+		// The chat errored twice, so a second promoting send lands while the
+		// first convergence is still in flight and both settle from the same
+		// response, which predates the second promotion.
+		store.markQueuedMessagePromoted(a.id);
+		const first = settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			() => shared.promise,
+		);
+		store.markQueuedMessagePromoted(b.id);
+		const second = settlePromotedQueueHead(
+			store,
+			chatID,
+			b.id,
+			() => shared.promise,
+		);
+
+		shared.resolve({ messages: [], has_more: false, queued_messages: [] });
+		await Promise.all([first, second]);
+
+		// The first completion advances the fence, which retires only its own
+		// marker. The second must not leave its marker vetoing every later
+		// snapshot.
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(true);
 	});
 
 	it("discards a response that resolves after navigating to another chat", async () => {
@@ -685,7 +853,6 @@ describe("settlePromotedQueueHead", () => {
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		store.setActiveChatID(chatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 
 		const settled = await settlePromotedQueueHead(
@@ -694,13 +861,11 @@ describe("settlePromotedQueueHead", () => {
 			a.id,
 			async () => {
 				store.setActiveChatID("chat-other");
-				store.setQueuedMessages([]);
 				return { messages: [], has_more: false, queued_messages: [a, b] };
 			},
 		);
 
 		expect(settled).toBeUndefined();
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 });
 

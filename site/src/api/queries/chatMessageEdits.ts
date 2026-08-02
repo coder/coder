@@ -78,32 +78,28 @@ export const projectEditedConversationIntoCache = ({
 	currentData,
 	editedMessageId,
 	replacementMessage,
-	queuedMessages,
 }: {
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 	editedMessageId: number;
 	replacementMessage?: TypesGen.ChatMessage;
-	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
 }): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
 	if (!currentData?.pages?.length) {
 		return currentData;
 	}
 
+	// The queue is deliberately untouched. The edit clears the server queue,
+	// but hiding it optimistically is a read-time suppression marker: a cache
+	// clear here would need a rollback in `onError`, and that rollback would
+	// clobber a `queue_update` delivered while the edit was in flight.
 	const truncatedPages = currentData.pages.map((page, pageIndex) => {
 		const truncatedMessages = page.messages.filter(
 			(message) => message.id < editedMessageId,
 		);
-		const nextPage = {
-			...page,
-			...(pageIndex === 0 && queuedMessages !== undefined
-				? { queued_messages: queuedMessages }
-				: {}),
-		};
 		if (pageIndex !== 0 || !replacementMessage) {
-			return { ...nextPage, messages: truncatedMessages };
+			return { ...page, messages: truncatedMessages };
 		}
 		return {
-			...nextPage,
+			...page,
 			messages: upsertFirstPageMessage(truncatedMessages, replacementMessage),
 		};
 	});
@@ -122,6 +118,11 @@ export const projectEditedConversationIntoCache = ({
  * `onMutate` read the snapshot, so anything present now but absent from the
  * snapshot is re-inserted into page 0. IDs the snapshot already holds keep the
  * snapshot's copy, which is what undoes the optimistic replacement.
+ *
+ * The queue is never restored. The edit's optimistic hide is a read-time
+ * suppression marker rather than a cache write, so page 0 already carries
+ * whatever the server last reported, including a `queue_update` delivered
+ * mid-flight. Reinstating the snapshot's copy would clobber exactly that.
  */
 export const restoreEditedConversationInCache = ({
 	currentData,
@@ -133,6 +134,7 @@ export const restoreEditedConversationInCache = ({
 	if (!previousData.pages.length) {
 		return previousData;
 	}
+	const currentQueuedMessages = currentData?.pages?.[0]?.queued_messages;
 	const previousIDs = new Set(
 		previousData.pages.flatMap((page) =>
 			page.messages.map((message) => message.id),
@@ -141,17 +143,26 @@ export const restoreEditedConversationInCache = ({
 	const arrivedDuringFlight = (currentData?.pages ?? []).flatMap((page) =>
 		page.messages.filter((message) => !previousIDs.has(message.id)),
 	);
-	if (arrivedDuringFlight.length === 0) {
-		return previousData;
-	}
 	let messages = previousData.pages[0].messages;
 	for (const message of arrivedDuringFlight) {
 		messages = upsertFirstPageMessage(messages, message);
 	}
+	const queuedMessages =
+		currentQueuedMessages ?? previousData.pages[0].queued_messages;
+	if (
+		arrivedDuringFlight.length === 0 &&
+		queuedMessages === previousData.pages[0].queued_messages
+	) {
+		return previousData;
+	}
 	return {
 		...previousData,
 		pages: [
-			{ ...previousData.pages[0], messages },
+			{
+				...previousData.pages[0],
+				messages,
+				queued_messages: queuedMessages,
+			},
 			...previousData.pages.slice(1),
 		],
 	};

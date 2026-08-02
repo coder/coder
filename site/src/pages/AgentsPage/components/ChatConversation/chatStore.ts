@@ -30,12 +30,25 @@ export const chatMessagesEqualByValue = (
 	jsonValuesEqual(left.content, right.content) &&
 	jsonValuesEqual(left.usage, right.usage);
 
-export const chatQueuedMessagesEqualByID = (
+// Compares two queue snapshots by value. Deliberately not by ID alone: a
+// requeued edit keeps the ID and changes the content. Covers every field of
+// `ChatQueuedMessage`, so it agrees with the structural sharing the query
+// cache applies to a write.
+export const chatQueuedMessagesEqualByValue = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
 ): boolean =>
 	left.length === right.length &&
-	left.every((message, index) => message.id === right[index].id);
+	left.every((message, index) => {
+		const other = right[index];
+		return (
+			message.id === other.id &&
+			message.chat_id === other.chat_id &&
+			message.model_config_id === other.model_config_id &&
+			message.created_at === other.created_at &&
+			jsonValuesEqual(message.content, other.content)
+		);
+	});
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -78,9 +91,11 @@ export const isActiveChatStatus = (
 ): boolean => status === "running" || status === "interrupting";
 
 /**
- * Transient chat state. Durable messages are NOT here: the query cache is
- * canonical for them, written only by the per-chat socket. What remains is the
- * streaming overlay, its finalization handoff, transport state, and the queue.
+ * Transient chat state. Durable messages and the durable queue are NOT here:
+ * the query cache is canonical for both, and only server-derived values are
+ * written to it. What remains is the streaming overlay, its finalization
+ * handoff, transport state, and the read-time reconciliation markers that hide
+ * queue rows the server has not caught up with yet.
  */
 export type ChatStoreState = {
 	streamState: StreamState | null;
@@ -95,17 +110,24 @@ export type ChatStoreState = {
 	streamError: ChatDetailError | null;
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	// Hides queued IDs from the visible queue while the backend is
-	// in a transient state that would briefly include them. Used by
-	// the running-case promote, where the backend reorders the
-	// queued message to the front before auto-promoting it.
+	// Hides queued IDs from the visible queue while the cache still holds them.
+	// Markers only SUBTRACT at read time, so an optimistic removal never writes
+	// the cache and never needs a rollback. `chat_queued_messages.id` is a
+	// global bigserial, so a marker for an id the server never lists again is
+	// permanently inert.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
-	// IDs confirmed deleted from the queue because the send response
-	// contained their promoted user rows.
+	// IDs confirmed deleted from the queue because the send response contained
+	// their promoted user rows. A snapshot still listing one predates that
+	// deletion, so the gate rejects it.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
+
+/**
+ * Which arm of the queue gate delivered a snapshot. The socket arm gates the
+ * cache write itself; the cache arm observes a write that already happened.
+ */
+export type QueueSnapshotSource = "socket" | "cache";
 
 export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
@@ -123,34 +145,64 @@ export type ChatStore = {
 	// cache. Ignores a different ID, so a stale completion cannot drop the
 	// overlay of a later turn.
 	completeStreamFinalization: (durableMessageID: number) => void;
-	setQueuedMessages: (
+	// Accept/reject gate every authoritative queue snapshot passes through.
+	// `source` names the arm that delivered it, because the two arms can do
+	// different things about a snapshot:
+	//   "socket": a `queue_update`. Its caller writes an accepted snapshot to
+	//     the cache VERBATIM and drops a rejected one, so the gate really is a
+	//     write gate here.
+	//   "cache": a page-0 value already installed in the query cache. The
+	//     observer runs AFTER the install, so rejecting cannot undo the write;
+	//     it only withholds the fence advance and the marker reconciliation.
+	// Suppression markers do the hiding at read time either way.
+	acceptAuthoritativeQueueSnapshot: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	) => void;
-	// Server-truthful queue snapshot, filtered through the
-	// suppression set. Use for SSE queue_update and REST hydration;
-	// optimistic writes go through setQueuedMessages so they don't
-	// lift suppression.
-	applyAuthoritativeQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		source: QueueSnapshotSource,
+	) => boolean;
+	// Arms the echo the cache arm of the gate is expected to report back once,
+	// for a write this client is making to the canonical queue. The WRITE PATH
+	// is the only caller: an expectation is owed only by a write that actually
+	// changes the cached value, and only the writer can know that. Arming for a
+	// no-op write would leave an expectation nothing consumes, and it would
+	// swallow the next genuine snapshot of that value.
+	noteLocalQueueProjection: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
 	// Advances when an accepted snapshot or active-chat change invalidates an
-	// in-flight convergence request. Discarded snapshots do not advance it.
+	// in-flight convergence request. Rejected snapshots do not advance it.
 	getQueueConvergenceFence: () => number;
-	// Applies a promotion refetch only while the chat and fence still match.
-	// Clears that ID's markers and returns the filtered queue for cache mirroring.
-	applyPromoteRefetchQueuedMessages: (
+	// Accepts a promotion refetch only while the chat and fence still match, and
+	// clears that ID's markers. The caller writes the RAW response to the cache;
+	// filtering stays at read time.
+	acceptQueueConvergence: (
 		chatID: string,
 		promotedID: number,
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+		baselineFence: number,
+	) => boolean;
+	// Ends the promoted-head veto when its convergence fetch failed. The veto
+	// rests on a GUESS about which row the server promoted, so leaving it
+	// standing would reject every later snapshot that still lists that row and
+	// freeze the queue. Clearing the marker alone is not enough: the snapshots
+	// vetoed meanwhile were dropped and nothing re-delivers them, so this also
+	// returns the newest one for the caller to write back as the last thing the
+	// server said about the queue.
+	abandonQueueConvergence: (
+		chatID: string,
+		promotedID: number,
 		baselineFence: number,
 	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
-	suppressQueuedMessageID: (id: number) => void;
+	suppressQueuedMessageIDs: (ids: readonly number[]) => void;
 	markQueuedMessagePromoted: (id: number) => void;
 	// Distinguishes a tail still in flight from one the server listed and later removed.
 	hasObservedQueuedMessageID: (id: number) => boolean;
 	setActiveChatID: (chatID: string | null) => void;
 	getActiveChatID: () => string | null;
-	unsuppressQueuedMessageID: (id: number) => void;
+	// Lifts ORDINARY suppression only. A promoted ID keeps both of its markers:
+	// the queue operation that suppressed an ID does not own the promotion veto
+	// a send placed on the same ID, and dropping that veto would let a stale
+	// snapshot resurrect a row the server already promoted.
+	unsuppressQueuedMessageIDs: (ids: readonly number[]) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
@@ -175,7 +227,6 @@ const createInitialState = (): ChatStoreState => ({
 	streamError: null,
 	retryState: null,
 	reconnectState: null,
-	queuedMessages: [],
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
@@ -188,6 +239,16 @@ export const createChatStore = (): ChatStore => {
 	let observedQueuedMessageIDs = new Set<number>();
 	let queueConvergenceFence = 0;
 	let activeChatID: string | null = null;
+	// The value this client last wrote to the canonical cache and therefore
+	// expects the cache arm of the gate to report back once. It is NOT a
+	// general value-based dedupe: a later authoritative snapshot that happens
+	// to carry the same value is a real server statement and must be gated.
+	let expectedCacheEcho: readonly TypesGen.ChatQueuedMessage[] | null = null;
+	// The newest snapshot the promoted-head veto rejected. A rejected snapshot
+	// is dropped, and the server does not resend it, so this is the only
+	// corrective truth left if the convergence fetch that justifies the veto
+	// fails.
+	let vetoedQueueSnapshot: readonly TypesGen.ChatQueuedMessage[] | null = null;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -329,35 +390,48 @@ export const createChatStore = (): ChatStore => {
 		applyMessageParts,
 		beginStreamFinalization,
 		completeStreamFinalization,
-		setQueuedMessages: (queuedMessages) => {
-			const nextQueuedMessages = queuedMessages ?? [];
-			setState((current) => {
-				if (
-					chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						nextQueuedMessages,
-					)
-				) {
-					return current;
-				}
-				return { ...current, queuedMessages: nextQueuedMessages };
-			});
-		},
-		applyAuthoritativeQueuedMessages: (queuedMessages) => {
+		acceptAuthoritativeQueueSnapshot: (queuedMessages, source) => {
 			const incoming = queuedMessages ?? [];
-			for (const message of incoming) {
-				observedQueuedMessageIDs.add(message.id);
-			}
-			// A snapshot containing a confirmed promoted ID predates its queue
-			// deletion. Applying it would also drop newer queued messages, and
-			// counting it would discard the fresher refetch racing it.
+			// The veto runs FIRST, ahead of any short-circuit. A snapshot
+			// containing a confirmed promoted ID predates its queue deletion, so
+			// installing it would also drop the newer tail the send returned, and
+			// counting it would discard the convergence fetch racing it. Promoted
+			// markers exist only from the send reconciliation until the server
+			// catches up, so every other snapshot is accepted. Keep the newest
+			// rejected one: it is what the convergence failure path restores.
 			if (
 				incoming.some((message) =>
 					state.promotedQueuedMessageIDs.has(message.id),
 				)
 			) {
-				return;
+				vetoedQueueSnapshot = incoming;
+				return false;
 			}
+			// The cache arm is watching the write this client just made. Consuming
+			// the expectation once keeps that echo from advancing the fence a
+			// second time and stranding a convergence request that carries
+			// strictly newer information, while a genuine snapshot of the same
+			// value still passes through the full gate below.
+			if (
+				source === "cache" &&
+				expectedCacheEcho !== null &&
+				chatQueuedMessagesEqualByValue(expectedCacheEcho, incoming)
+			) {
+				expectedCacheEcho = null;
+				return true;
+			}
+			// Below the echo check, so a tail the CLIENT projected into the cache
+			// is never recorded as a row the server listed. The send
+			// reconciliation asks exactly that question about its own tail.
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			vetoedQueueSnapshot = null;
+			// Any expectation still standing describes an older write, and the
+			// observer only ever reports the newest cached value. The write that
+			// follows an accepted socket snapshot arms a fresh one if it changes
+			// the cache.
+			expectedCacheEcho = null;
 			queueConvergenceFence++;
 			setState((current) => {
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
@@ -376,34 +450,31 @@ export const createChatStore = (): ChatStore => {
 						nextSuppressed = copy;
 					}
 				}
-				const filtered =
-					nextSuppressed.size === 0
-						? incoming
-						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					filtered,
-				);
-				const sameSuppressed =
-					nextSuppressed === current.suppressedQueuedMessageIDs;
+				// The veto above already proved this snapshot lists no promoted ID,
+				// so the server has caught up with every one of them.
 				const nextPromoted =
 					current.promotedQueuedMessageIDs.size === 0
 						? current.promotedQueuedMessageIDs
 						: new Set<number>();
-				const samePromoted = nextPromoted === current.promotedQueuedMessageIDs;
-				if (sameQueue && sameSuppressed && samePromoted) {
+				if (
+					nextSuppressed === current.suppressedQueuedMessageIDs &&
+					nextPromoted === current.promotedQueuedMessageIDs
+				) {
 					return current;
 				}
 				return {
 					...current,
-					queuedMessages: sameQueue ? current.queuedMessages : filtered,
 					suppressedQueuedMessageIDs: nextSuppressed,
 					promotedQueuedMessageIDs: nextPromoted,
 				};
 			});
+			return true;
+		},
+		noteLocalQueueProjection: (queuedMessages) => {
+			expectedCacheEcho = queuedMessages;
 		},
 		getQueueConvergenceFence: () => queueConvergenceFence,
-		applyPromoteRefetchQueuedMessages: (
+		acceptQueueConvergence: (
 			chatID,
 			promotedID,
 			queuedMessages,
@@ -413,45 +484,101 @@ export const createChatStore = (): ChatStore => {
 			// additionally keeps a response that names another chat out of the
 			// shared store even if its caller captured the fence incorrectly.
 			if (activeChatID !== chatID) {
+				return false;
+			}
+			if (queueConvergenceFence !== baselineFence) {
+				return false;
+			}
+			queueConvergenceFence++;
+			for (const message of queuedMessages) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			vetoedQueueSnapshot = null;
+			// The caller writes this response to the cache, and that write arms
+			// the echo if it changes anything. Arming here instead would arm one
+			// for a response that merely confirms the cached queue, which is the
+			// common case and produces no observation to consume it.
+			expectedCacheEcho = null;
+			setState((current) => {
+				if (
+					!current.suppressedQueuedMessageIDs.has(promotedID) &&
+					!current.promotedQueuedMessageIDs.has(promotedID)
+				) {
+					return current;
+				}
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.delete(promotedID);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.delete(promotedID);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
+			});
+			return true;
+		},
+		abandonQueueConvergence: (chatID, promotedID, baselineFence) => {
+			// Same guards as the accepting path. A moved fence or a changed chat
+			// means the markers this call would clear are already gone.
+			if (activeChatID !== chatID) {
 				return undefined;
 			}
 			if (queueConvergenceFence !== baselineFence) {
 				return undefined;
 			}
-			const incoming = queuedMessages ?? [];
+			const corrective = vetoedQueueSnapshot;
+			vetoedQueueSnapshot = null;
 			queueConvergenceFence++;
-			for (const message of incoming) {
-				observedQueuedMessageIDs.add(message.id);
+			if (corrective) {
+				for (const message of corrective) {
+					observedQueuedMessageIDs.add(message.id);
+				}
 			}
-			const suppressed = new Set(state.suppressedQueuedMessageIDs);
-			suppressed.delete(promotedID);
-			const promoted = new Set(state.promotedQueuedMessageIDs);
-			promoted.delete(promotedID);
-			const applied =
-				suppressed.size === 0
-					? incoming
-					: incoming.filter((message) => !suppressed.has(message.id));
-			setState((current) => ({
-				...current,
-				queuedMessages: chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					applied,
-				)
-					? current.queuedMessages
-					: applied,
-				suppressedQueuedMessageIDs: suppressed,
-				promotedQueuedMessageIDs: promoted,
-			}));
-			return applied;
+			setState((current) => {
+				const correctiveIDs = corrective
+					? new Set(corrective.map((message) => message.id))
+					: null;
+				const staleSuppressed = [...current.suppressedQueuedMessageIDs].filter(
+					(id) =>
+						id === promotedID ||
+						(correctiveIDs !== null && !correctiveIDs.has(id)),
+				);
+				if (
+					staleSuppressed.length === 0 &&
+					!current.promotedQueuedMessageIDs.has(promotedID)
+				) {
+					return current;
+				}
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				for (const id of staleSuppressed) {
+					suppressed.delete(id);
+				}
+				// Only this send's guess is retired. Another send's promotion still
+				// has its own convergence request in flight.
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.delete(promotedID);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
+			});
+			return corrective ?? undefined;
 		},
 		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
-		suppressQueuedMessageID: (id) => {
+		suppressQueuedMessageIDs: (ids) => {
 			setState((current) => {
-				if (current.suppressedQueuedMessageIDs.has(id)) {
+				const added = ids.filter(
+					(id) => !current.suppressedQueuedMessageIDs.has(id),
+				);
+				if (added.length === 0) {
 					return current;
 				}
 				const next = new Set(current.suppressedQueuedMessageIDs);
-				next.add(id);
+				for (const id of added) {
+					next.add(id);
+				}
 				return { ...current, suppressedQueuedMessageIDs: next };
 			});
 		},
@@ -474,27 +601,34 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		unsuppressQueuedMessageID: (id) => {
+		unsuppressQueuedMessageIDs: (ids) => {
 			setState((current) => {
-				if (
-					!current.suppressedQueuedMessageIDs.has(id) &&
-					!current.promotedQueuedMessageIDs.has(id)
-				) {
+				// A promoted ID is skipped: its markers belong to the send that
+				// confirmed the promotion, and only that send's convergence may
+				// retire them. A failed delete or edit lifting them here would let
+				// a stale snapshot resurrect the row the server already promoted.
+				const removed = ids.filter(
+					(id) =>
+						current.suppressedQueuedMessageIDs.has(id) &&
+						!current.promotedQueuedMessageIDs.has(id),
+				);
+				if (removed.length === 0) {
 					return current;
 				}
 				const suppressed = new Set(current.suppressedQueuedMessageIDs);
-				suppressed.delete(id);
-				const promoted = new Set(current.promotedQueuedMessageIDs);
-				promoted.delete(id);
+				for (const id of removed) {
+					suppressed.delete(id);
+				}
 				return {
 					...current,
 					suppressedQueuedMessageIDs: suppressed,
-					promotedQueuedMessageIDs: promoted,
 				};
 			});
 		},
 		clearSuppressedQueuedMessageIDs: () => {
 			observedQueuedMessageIDs = new Set();
+			expectedCacheEcho = null;
+			vetoedQueueSnapshot = null;
 			setState((current) => {
 				if (
 					current.suppressedQueuedMessageIDs.size === 0 &&
@@ -706,8 +840,8 @@ export const resolveOverlayStreamState = (
 ): StreamState | null =>
 	streamState ?? (suppressFinalizedOverlay ? null : finalizingStreamState);
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
-export const selectQueuedMessages = (state: ChatStoreState) =>
-	state.queuedMessages;
+export const selectSuppressedQueuedMessageIDs = (state: ChatStoreState) =>
+	state.suppressedQueuedMessageIDs;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;

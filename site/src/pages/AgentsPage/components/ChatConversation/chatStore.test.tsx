@@ -60,7 +60,6 @@ import {
 	resolveOverlayStreamState,
 	selectFinalizingMessageID,
 	selectFinalizingStreamState,
-	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
@@ -241,11 +240,17 @@ const createTestQueryClient = (): QueryClient =>
 
 /**
  * In the app the infinite messages query IS the source of the durable
- * messages, and both the socket and every reader go through its cache entry.
- * Tests pass the flat list as a prop, so mirror it into the cache the way the
- * query would, unless the test seeded the entry itself.
+ * messages and the queue, and both the socket and every reader go through its
+ * cache entry. Tests pass the flat list as a prop, so mirror it into the cache
+ * the way the query would, unless the test seeded the entry itself.
  */
-const useTestChatStore: typeof useChatStore = (options) => {
+type TestChatStoreOptions = Parameters<typeof useChatStore>[0] & {
+	chatQueuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+};
+
+const useTestChatStore = (
+	options: TestChatStoreOptions,
+): ReturnType<typeof useChatStore> => {
 	const queryClient = useQueryClient();
 	const chatRecord = options.chatRecord;
 	if (
@@ -389,11 +394,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -462,11 +462,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -505,11 +500,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -602,11 +592,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -694,11 +679,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -755,11 +735,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -852,11 +827,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: initialMessages,
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -950,11 +920,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: initialMessages,
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1030,11 +995,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1103,11 +1063,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1181,7 +1136,7 @@ describe("useChatStore", () => {
 		};
 
 		const QueueProbe: FC<{ store: ChatStoreHandle }> = ({ store }) => {
-			useChatSelector(store, selectQueuedMessages);
+			useDurableQueuedMessages({ store, chatId: chatID });
 			queueRenderCount += 1;
 			return null;
 		};
@@ -1199,11 +1154,6 @@ describe("useChatStore", () => {
 				chatID,
 				chatMessages: [existingMessage],
 				chatRecord: buildChat(chatID),
-				chatMessagesData: {
-					messages: [existingMessage],
-					queued_messages: [],
-					has_more: false,
-				},
 				chatQueuedMessages: [],
 				setChatErrorReason,
 				clearChatErrorReason,
@@ -1271,11 +1221,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1344,11 +1289,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1428,7 +1368,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("does not restore stale queued messages after a stream queue_update", async () => {
+	it("renders the queue from the cache after a stream queue_update", async () => {
 		const chatID = "chat-1";
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
@@ -1439,23 +1379,17 @@ describe("useChatStore", () => {
 		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
-		const initialOptions = {
-			chatID,
-			chatMessages: [existingMessage],
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
-			setChatErrorReason,
-			clearChatErrorReason,
-		};
 
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
 				return {
 					queuedMessages: useDurableQueuedMessages({
 						store,
@@ -1463,10 +1397,7 @@ describe("useChatStore", () => {
 					}),
 				};
 			},
-			{
-				initialProps: initialOptions,
-				wrapper,
-			},
+			{ wrapper },
 		);
 
 		await waitFor(() => {
@@ -1484,26 +1415,17 @@ describe("useChatStore", () => {
 			});
 		});
 
+		// The store keeps no queue mirror, so the list can only be reading the
+		// cache the socket wrote.
 		await waitFor(() => {
 			expect(result.current.queuedMessages).toEqual([]);
 		});
-
-		rerender({
-			...initialOptions,
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
-		});
-
-		await waitFor(() => {
-			expect(result.current.queuedMessages).toEqual([]);
-		});
+		expect(
+			readMessagesCache(queryClient, chatID)?.pages[0]?.queued_messages,
+		).toEqual([]);
 	});
 
-	it("corrects stale queued messages from cache when switching back to a chat", async () => {
+	it("writes a queue_update snapshot into the cache verbatim", async () => {
 		const chatID = "chat-1";
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
@@ -1512,98 +1434,6 @@ describe("useChatStore", () => {
 
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
-		// Start with queued messages from a stale React Query cache.
-		// This simulates coming back to a chat whose queue was drained
-		// server-side while the user was viewing a different chat.
-		const staleOptions = {
-			chatID,
-			chatMessages: [existingMessage],
-			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
-			setChatErrorReason,
-			clearChatErrorReason,
-		};
-
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useTestChatStore(options);
-				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
-				};
-			},
-			{
-				initialProps: staleOptions,
-				wrapper,
-			},
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
-		});
-		// Initially shows the stale queued message from cache.
-		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
-			queuedMessage.id,
-		]);
-
-		// Simulate the REST query refetching and returning fresh
-		// data with an empty queue (no queue_update from WS yet).
-		rerender({
-			...staleOptions,
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [],
-		});
-
-		// The store should accept the fresh REST data because the
-		// WebSocket hasn't sent a queue_update yet.
-		await waitFor(() => {
-			expect(result.current.queuedMessages).toEqual([]);
-		});
-	});
-
-	it("writes queue_update snapshots into the chat query cache", async () => {
-		const chatID = "chat-1";
-		const existingMessage = buildMessage(chatID, 1, "user", "hello");
-		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = new QueryClient({
-			defaultOptions: {
-				queries: {
-					retry: false,
-					gcTime: Number.POSITIVE_INFINITY,
-					refetchOnWindowFocus: false,
-					networkMode: "offlineFirst",
-				},
-			},
-		});
-		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
-			messages: [existingMessage],
-			queued_messages: [queuedMessage],
-			has_more: false,
-		};
-		// The cache is InfiniteData<ChatMessagesResponse> after the
-		// migration to useInfiniteQuery for chat messages.
-		queryClient.setQueryData(chatKeys.messages(chatID), {
-			pages: [initialChatMessagesData],
-			pageParams: [undefined],
-		});
-
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
 
 		const { result } = renderHook(
 			() => {
@@ -1611,85 +1441,16 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [queuedMessage],
-					setChatErrorReason,
-					clearChatErrorReason,
-				});
-				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
-				};
-			},
-			{ wrapper },
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
-		});
-
-		act(() => {
-			mockSocket.emitData({
-				type: "queue_update",
-				chat_id: chatID,
-				queued_messages: [],
-			});
-		});
-
-		await waitFor(() => {
-			expect(result.current.queuedMessages).toEqual([]);
-		});
-		const cachedData = queryClient.getQueryData<{
-			pages: TypesGen.ChatMessagesResponse[];
-			pageParams: unknown[];
-		}>(chatKeys.messages(chatID));
-		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
-	});
-
-	it("caches the filtered queue when a queue_update still contains a suppressed message", async () => {
-		const chatID = "chat-1";
-		const existingMessage = buildMessage(chatID, 1, "user", "hello");
-		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = new QueryClient({
-			defaultOptions: {
-				queries: {
-					retry: false,
-					gcTime: Number.POSITIVE_INFINITY,
-					refetchOnWindowFocus: false,
-					networkMode: "offlineFirst",
-				},
-			},
-		});
-		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
-			messages: [existingMessage],
-			queued_messages: [queuedMessage],
-			has_more: false,
-		};
-		queryClient.setQueryData(chatKeys.messages(chatID), {
-			pages: [initialChatMessagesData],
-			pageParams: [undefined],
-		});
-
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
-		const { result } = renderHook(
-			() => {
-				const { store } = useTestChatStore({
-					chatID,
-					chatMessages: [existingMessage],
-					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
-					chatQueuedMessages: [queuedMessage],
-					setChatErrorReason,
-					clearChatErrorReason,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
 				});
 				return {
 					store,
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{ wrapper },
@@ -1699,8 +1460,10 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
+		// The running-case promote: the row is hidden locally, but the server
+		// still reports it queued (reordered to the front) until it promotes it.
 		act(() => {
-			result.current.store.suppressQueuedMessageID(queuedMessage.id);
+			result.current.store.suppressQueuedMessageIDs([queuedMessage.id]);
 		});
 		act(() => {
 			mockSocket.emitData({
@@ -1713,11 +1476,209 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(result.current.queuedMessages).toEqual([]);
 		});
-		const cachedData = queryClient.getQueryData<{
-			pages: TypesGen.ChatMessagesResponse[];
-			pageParams: unknown[];
-		}>(chatKeys.messages(chatID));
-		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
+		// Verbatim: the cache holds server truth and the marker hides the row.
+		expect(
+			readMessagesCache(queryClient, chatID)?.pages[0]?.queued_messages,
+		).toEqual([queuedMessage]);
+
+		// The server finally promotes it and omits it from the snapshot, which
+		// retires the marker.
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(
+				result.current.store.getSnapshot().suppressedQueuedMessageIDs.size,
+			).toBe(0);
+		});
+	});
+
+	it("keeps a queue update that lands while a removal marker is set", async () => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const deleted = buildQueuedMessage(chatID, 10, "deleted");
+		const arrived = buildQueuedMessage(chatID, 11, "arrived");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatQueuedMessages: [deleted],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// The optimistic half of a delete: a marker, no cache write.
+		act(() => {
+			result.current.store.suppressQueuedMessageIDs([deleted.id]);
+		});
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+
+		// A queue_update for an unrelated enqueue lands mid-request. Nothing
+		// rolls back a snapshot here, so the new entry survives.
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [deleted, arrived],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([arrived]);
+		});
+		expect(
+			readMessagesCache(queryClient, chatID)?.pages[0]?.queued_messages,
+		).toEqual([deleted, arrived]);
+
+		// The delete fails, so the marker is dropped. No cache rollback runs,
+		// and the entry that arrived meanwhile is still there.
+		act(() => {
+			result.current.store.unsuppressQueuedMessageIDs([deleted.id]);
+		});
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([deleted, arrived]);
+		});
+	});
+
+	it("renders the retained cached queue when re-entering a chat", async () => {
+		const chatID = "chat-1";
+		const otherChatID = "chat-2";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		mockWatchChatWithFreshSockets();
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const initialOptions: TestChatStoreOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: buildChat(chatID),
+			chatQueuedMessages: [queuedMessage],
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		};
+
+		const { result, rerender } = renderHook(
+			(options: TestChatStoreOptions) => {
+				const { store } = useTestChatStore(options);
+				return {
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: options.chatID,
+					}),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([queuedMessage]);
+		});
+
+		rerender({
+			...initialOptions,
+			chatID: otherChatID,
+			chatMessages: [],
+			chatRecord: buildChat(otherChatID),
+			chatQueuedMessages: [],
+		});
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+
+		// Re-entry within gcTime renders the retained cached queue for one
+		// socket round trip instead of an empty list. Accepted behavior change:
+		// the store no longer blanks a mirror on chat change. An evicted entry
+		// renders nothing until REST or the socket repopulates it, which is what
+		// the canonical-read projection test covers.
+		rerender(initialOptions);
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([queuedMessage]);
+		});
+	});
+
+	it("keeps a suppression marker across a socket reconnect", async () => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		const sockets = mockWatchChatWithFreshSockets();
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(sockets.length).toBe(1);
+		});
+
+		act(() => {
+			result.current.store.suppressQueuedMessageIDs([queuedMessage.id]);
+		});
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+
+		// onOpen fires before the reconnected socket replays its snapshot, so
+		// clearing markers there would flash a legitimately hidden row back in.
+		act(() => {
+			sockets[0].emitOpen();
+		});
+
+		expect(
+			result.current.store
+				.getSnapshot()
+				.suppressedQueuedMessageIDs.has(queuedMessage.id),
+		).toBe(true);
+		expect(result.current.queuedMessages).toEqual([]);
 	});
 
 	it("writes WebSocket message events into the chat query cache", async () => {
@@ -1756,7 +1717,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -1851,11 +1811,6 @@ describe("useChatStore", () => {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [] as TypesGen.ChatQueuedMessage[],
-				has_more: false,
-			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
@@ -1900,11 +1855,6 @@ describe("useChatStore", () => {
 			chatID: chatID2,
 			chatMessages: [msg2],
 			chatRecord: buildChat(chatID2),
-			chatMessagesData: {
-				messages: [msg2],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		await waitFor(() => {
@@ -1936,17 +1886,15 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [queuedMessage],
-						has_more: false,
-					},
 					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
 				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{ wrapper },
@@ -1990,11 +1938,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -2095,11 +2038,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -2189,11 +2127,6 @@ describe("useChatStore", () => {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [] as TypesGen.ChatQueuedMessage[],
-				has_more: false,
-			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
@@ -2238,11 +2171,6 @@ describe("useChatStore", () => {
 			chatID: chatID2,
 			chatMessages: [msg2],
 			chatRecord: buildChat(chatID2),
-			chatMessagesData: {
-				messages: [msg2],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		await waitFor(() => {
@@ -2278,21 +2206,19 @@ describe("useChatStore", () => {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
 			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
 
 		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
+			(options: TestChatStoreOptions) => {
 				const { store } = useTestChatStore(options);
 				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: options.chatID,
+					}),
 				};
 			},
 			{ initialProps: initialOptions, wrapper },
@@ -2314,16 +2240,11 @@ describe("useChatStore", () => {
 			chatID: chatID2,
 			chatMessages: [],
 			chatRecord: buildChat(chatID2),
-			chatMessagesData: {
-				messages: [],
-				queued_messages: [],
-				has_more: false,
-			},
 			chatQueuedMessages: [],
 		});
 
-		// After the switch, queued messages from chat-1 should NOT be
-		// visible — the store resets them on chatID change.
+		// After the switch, queued messages from chat-1 must NOT be visible:
+		// the facade reads the new chat's cache entry.
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
@@ -2348,11 +2269,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -2408,11 +2324,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -2633,11 +2544,6 @@ describe("useChatStore", () => {
 						status: "running",
 						snapshot_version: 7,
 					}),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -2770,11 +2676,6 @@ describe("useChatStore", () => {
 						status: "running",
 						snapshot_version: 7,
 					}),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason: vi.fn(),
@@ -2906,11 +2807,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -2955,11 +2851,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3033,11 +2924,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3088,11 +2974,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3151,11 +3032,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3232,11 +3108,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3316,11 +3187,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3378,11 +3244,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3457,11 +3318,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3532,11 +3388,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3608,11 +3459,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: { ...buildChat(chatID), status: "waiting" },
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -3655,11 +3501,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -3706,11 +3547,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [msg],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [msg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -3769,11 +3605,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3892,11 +3723,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -3951,22 +3777,20 @@ describe("useChatStore", () => {
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
 			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
 
 		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
+			(options: TestChatStoreOptions) => {
 				const { store } = useTestChatStore(options);
 				return {
 					messages: useDurableMessageList({ store, chatId: chatID }),
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					queuedMessages: useDurableQueuedMessages({
+						store,
+						chatId: chatID,
+					}),
 				};
 			},
 			{ initialProps: initialOptions, wrapper },
@@ -4012,11 +3836,6 @@ describe("useChatStore", () => {
 			// Spread into a new array to reproduce the new reference a queue
 			// cache write hands to every reader.
 			chatMessages: [...initialMessages],
-			chatMessagesData: {
-				messages: [...initialMessages],
-				queued_messages: [],
-				has_more: false,
-			},
 			chatQueuedMessages: [],
 		});
 		await waitFor(() => {
@@ -4047,11 +3866,6 @@ describe("useChatStore", () => {
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
 			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
@@ -4147,11 +3961,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: props.chatRecord,
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -4220,11 +4029,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4297,11 +4101,6 @@ describe("useChatStore", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4396,11 +4195,6 @@ describe("thinking indicator event ordering", () => {
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4483,11 +4277,6 @@ describe("thinking indicator event ordering", () => {
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4565,11 +4354,6 @@ describe("thinking indicator event ordering", () => {
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4653,11 +4437,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4716,11 +4495,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4787,11 +4561,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4852,11 +4621,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: activeChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4924,11 +4688,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -4993,11 +4752,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -5058,11 +4812,6 @@ describe("sidebar cache writes from stream events", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -5164,13 +4913,6 @@ describe("stream-to-durable finalization handoff", () => {
 			chatID,
 			chatMessages: [...initialMessages],
 			chatRecord: buildChat(chatID),
-			chatMessagesData: {
-				messages: [...initialMessages].sort(
-					(left, right) => right.id - left.id,
-				),
-				queued_messages: [],
-				has_more: false,
-			},
 			chatQueuedMessages: [],
 			setChatErrorReason: vi.fn(),
 			clearChatErrorReason: vi.fn(),
@@ -5598,11 +5340,6 @@ describe("stream-to-durable finalization handoff", () => {
 					chatID: activeChatID,
 					chatMessages: [...initialMessages],
 					chatRecord: buildChat(activeChatID),
-					chatMessagesData: {
-						messages: [...initialMessages],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -5901,11 +5638,6 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6018,11 +5750,6 @@ describe("durable edit reconciliation through the cache", () => {
 					chatID,
 					chatMessages: [msg1, msg2, msg3],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [msg1, msg2, msg3],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6128,11 +5855,6 @@ describe("durable edit reconciliation through the cache", () => {
 					chatID,
 					chatMessages: [msg1, msg2, msg3],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [msg1, msg2, msg3],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6221,11 +5943,6 @@ describe("parse errors", () => {
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -6274,11 +5991,6 @@ describe("parse errors", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -6348,11 +6060,6 @@ describe("parse errors", () => {
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
@@ -6451,7 +6158,6 @@ describe("message cache resync over the socket", () => {
 					chatID,
 					chatMessages: [cachedMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6508,7 +6214,6 @@ describe("message cache resync over the socket", () => {
 					chatID,
 					chatMessages: cachedMessages,
 					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6567,7 +6272,6 @@ describe("message cache resync over the socket", () => {
 					chatID,
 					chatMessages: [cachedMessage],
 					chatRecord: buildChat(chatID),
-					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6665,11 +6369,6 @@ describe("durable messages in the query cache", () => {
 					chatID,
 					chatMessages,
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [...chatMessages],
-						queued_messages: [],
-						has_more: false,
-					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
@@ -6679,8 +6378,9 @@ describe("durable messages in the query cache", () => {
 			{ wrapper: createWrapper(queryClient) },
 		);
 
-	// Exposes the hook's queue cache writer next to the pagination handle, so a
-	// test can commit a queue write while a fetch is in flight.
+	// Exposes the hook's canonical queue writer next to the pagination handle,
+	// so a test can commit a server-derived queue write while a fetch is in
+	// flight.
 	const renderQueueHarness = (
 		queryClient: QueryClient,
 		chatID: string,
@@ -6692,20 +6392,15 @@ describe("durable messages in the query cache", () => {
 				const messagesQuery = useInfiniteQuery(
 					chatMessagesForInfiniteScroll(chatID),
 				);
-				const { setCacheQueuedMessages } = useTestChatStore({
+				const { store, writeCanonicalQueuedMessages } = useTestChatStore({
 					chatID,
 					chatMessages,
 					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [...chatMessages],
-						queued_messages: [...chatQueuedMessages],
-						has_more: false,
-					},
 					chatQueuedMessages,
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
-				return { messagesQuery, setCacheQueuedMessages };
+				return { messagesQuery, store, writeCanonicalQueuedMessages };
 			},
 			{ wrapper: createWrapper(queryClient) },
 		);
@@ -6976,10 +6671,9 @@ describe("durable messages in the query cache", () => {
 	});
 
 	// The queue snapshot lives on page 0 of the same cache entry, so it needs the
-	// same serialization: a fetch that captured the pages before the delete
-	// would reinstall the deleted entry, and the store would not correct it
-	// because no queue_update arrived.
-	it("keeps a queued-message delete committed during an in-flight fetchNextPage", async () => {
+	// same serialization: a fetch that captured the pages before the write would
+	// reinstall the superseded queue.
+	it("keeps a server-derived queue write committed during an in-flight fetchNextPage", async () => {
 		const chatID = "chat-1";
 		const newest = buildMessage(chatID, 30, "assistant", "newest");
 		const keptQueued = buildQueuedMessage(chatID, 11, "kept");
@@ -7023,9 +6717,9 @@ describe("durable messages in the query cache", () => {
 			expect(API.experimental.getChatMessages).toHaveBeenCalled();
 		});
 
-		// The optimistic delete the queued-message mutation performs.
+		// The promoted-head send reconciliation's projected write.
 		act(() => {
-			result.current.setCacheQueuedMessages([keptQueued]);
+			result.current.writeCanonicalQueuedMessages([keptQueued]);
 		});
 		expect(
 			readMessagesCache(queryClient, chatID)?.pages[0].queued_messages,
@@ -7042,10 +6736,126 @@ describe("durable messages in the query cache", () => {
 
 		await waitFor(() => {
 			const cached = readMessagesCache(queryClient, chatID);
-			// The delete survives the fetch instead of resurrecting.
+			// The projection survives the fetch instead of being clobbered.
 			expect(cached?.pages[0].queued_messages).toEqual([keptQueued]);
 			expect(messageIDsPerPage(cached)).toEqual([[30], [20]]);
 		});
+	});
+
+	it("awaits no cache echo for a write that changes nothing", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const queued = buildQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[{ messages: [newest], queued_messages: [queued], has_more: false }],
+			[undefined],
+		);
+
+		const { result } = renderQueueHarness(
+			queryClient,
+			chatID,
+			[newest],
+			[queued],
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+		const store = result.current.store;
+
+		// A promoting send's marker, waiting on its own convergence.
+		act(() => {
+			store.markQueuedMessagePromoted(99);
+		});
+		// Convergence confirmed the guess, so the response equals the cached
+		// queue. Structural sharing collapses the write and the cache observer
+		// never fires, so there is no echo to await.
+		act(() => {
+			result.current.writeCanonicalQueuedMessages([queued]);
+		});
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		// A genuine page-0 install carrying that same value is still a server
+		// statement and has to be gated.
+		act(() => {
+			store.acceptAuthoritativeQueueSnapshot([{ ...queued }], "cache");
+		});
+
+		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(99)).toBe(false);
+	});
+
+	it("awaits no cache echo when convergence confirms the cached queue", async () => {
+		const chatID = "chat-1";
+		const newest = buildMessage(chatID, 30, "assistant", "newest");
+		const queued = buildQueuedMessage(chatID, 10, "queued");
+		const promotedHeadID = 99;
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createRetainedQueryClient();
+		seedMessagesCache(
+			queryClient,
+			chatID,
+			[{ messages: [newest], queued_messages: [queued], has_more: false }],
+			[undefined],
+		);
+
+		const { result } = renderQueueHarness(
+			queryClient,
+			chatID,
+			[newest],
+			[queued],
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
+		});
+		const store = result.current.store;
+
+		// The send guessed this head and its convergence is in flight.
+		act(() => {
+			store.markQueuedMessagePromoted(promotedHeadID);
+		});
+		// The convergence path exactly as the page runs it: the response
+		// confirms the guess, so it equals the cached queue and its write
+		// changes nothing.
+		let settled: readonly TypesGen.ChatQueuedMessage[] | undefined;
+		act(() => {
+			const baselineFence = store.getQueueConvergenceFence();
+			settled = store.acceptQueueConvergence(
+				chatID,
+				promotedHeadID,
+				[queued],
+				baselineFence,
+			)
+				? [queued]
+				: undefined;
+			if (settled) {
+				result.current.writeCanonicalQueuedMessages(settled);
+			}
+		});
+		expect(settled).toBeDefined();
+
+		// A later send promotes another head and is waiting on its own
+		// convergence.
+		act(() => {
+			store.markQueuedMessagePromoted(98);
+		});
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		// A genuine page-0 install carrying the same value is still a server
+		// statement: it omits 98, so it has to retire that marker.
+		act(() => {
+			store.acceptAuthoritativeQueueSnapshot([{ ...queued }], "cache");
+		});
+
+		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(98)).toBe(false);
 	});
 
 	it("replays a queue_update buffered during an in-flight fetchNextPage", async () => {

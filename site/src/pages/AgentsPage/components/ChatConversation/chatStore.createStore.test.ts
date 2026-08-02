@@ -217,127 +217,189 @@ describe("setSubagentStatusOverride", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setQueuedMessages
+// acceptAuthoritativeQueueSnapshot: the accept/reject gate
 // ---------------------------------------------------------------------------
 
-describe("setQueuedMessages", () => {
-	it("stores queued messages", () => {
-		const store = createChatStore();
-		const qm = makeQueuedMessage(10, "queued");
-
-		store.setQueuedMessages([qm]);
-
-		expect(store.getSnapshot().queuedMessages).toEqual([qm]);
-	});
-
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.setQueuedMessages([makeQueuedMessage(1, "q")]);
-
-		store.setQueuedMessages(undefined);
-
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
-	});
-
-	it("does not notify when queued message IDs are unchanged", () => {
-		const store = createChatStore();
-		const qm = makeQueuedMessage(10, "queued");
-		store.setQueuedMessages([qm]);
-
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
-		});
-
-		// Different object reference, same ID.
-		store.setQueuedMessages([{ ...qm }]);
-
-		expect(notified).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// suppressQueuedMessageID / applyAuthoritativeQueuedMessages
-// ---------------------------------------------------------------------------
-
-describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
-	it("filters suppressed IDs from authoritative writes and auto-clears", () => {
+describe("acceptAuthoritativeQueueSnapshot", () => {
+	it("accepts an ordinary snapshot and keeps unrelated markers", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
-		store.setQueuedMessages([a, b, c]);
-		store.suppressQueuedMessageID(b.id);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-
-		// Running-case promotion only reorders the queue; the backend still reports the row.
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([a, c]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
-			false,
+		store.suppressQueuedMessageIDs([b.id]);
+		// The running-case promotion only reorders the queue, so the backend
+		// still reports the row and the marker has to keep hiding it.
+		expect(store.acceptAuthoritativeQueueSnapshot([b, a, c], "socket")).toBe(
+			true,
 		);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 	});
 
-	it("filters suppressed IDs from REST hydration via applyAuthoritativeQueuedMessages", () => {
+	it("clears a suppression marker the accepted snapshot omits", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
-		store.suppressQueuedMessageID(b.id);
-		// REST hydration delivers the unfiltered queue [B, A, C].
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
+		store.suppressQueuedMessageIDs([b.id]);
+		store.acceptAuthoritativeQueueSnapshot([b, a, c], "socket");
+
+		expect(store.acceptAuthoritativeQueueSnapshot([a, c], "socket")).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
-	it("still applies newly queued messages while a suppressed message stays queued", () => {
+	it("keeps a marker for an id the snapshot never listed", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const d = makeQueuedMessage(4, "D");
 
-		store.setQueuedMessages([b]);
-		store.suppressQueuedMessageID(a.id);
-
-		store.applyAuthoritativeQueuedMessages([a, b, d]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, d.id]);
+		store.suppressQueuedMessageIDs([a.id]);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, d], "socket")).toBe(
+			true,
+		);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
 	});
 
-	it("ignores stale snapshots that still list a promoted message", () => {
+	it("rejects a stale snapshot that still lists a promoted message", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
-		store.setQueuedMessages([b, c]);
 		store.markQueuedMessagePromoted(a.id);
+		const fenceBefore = store.getQueueConvergenceFence();
 
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(
+			false,
+		);
+		// A rejected snapshot advances nothing and retires nothing.
+		expect(store.getQueueConvergenceFence()).toBe(fenceBefore);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
 
-		store.applyAuthoritativeQueuedMessages([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
+		expect(store.acceptAuthoritativeQueueSnapshot([b, c], "socket")).toBe(true);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("advances the fence once for the cache echo of its own write", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		expect(store.acceptAuthoritativeQueueSnapshot([a], "socket")).toBe(true);
+		const fenceAfterFirst = store.getQueueConvergenceFence();
+		expect(fenceAfterFirst).not.toBe(fenceBefore);
+
+		// Writing the accepted snapshot to the cache changes the cached value,
+		// so the write path arms the echo it is about to produce.
+		store.noteLocalQueueProjection([a]);
+
+		// The cache arm observing that write.
+		expect(store.acceptAuthoritativeQueueSnapshot([{ ...a }], "cache")).toBe(
+			true,
+		);
+		expect(store.getQueueConvergenceFence()).toBe(fenceAfterFirst);
+	});
+
+	it("does not arm a cache echo for the snapshot it accepts", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+
+		// Whether the write that follows changes the cached value is the write
+		// path's business, so the gate never arms an expectation of its own. A
+		// snapshot equal to what is already cached collapses on write and
+		// produces no observation to consume one.
+		expect(store.acceptAuthoritativeQueueSnapshot([a], "socket")).toBe(true);
+		store.markQueuedMessagePromoted(98);
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		expect(store.acceptAuthoritativeQueueSnapshot([{ ...a }], "cache")).toBe(
+			true,
+		);
+		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(98)).toBe(false);
+	});
+
+	it("does not re-gate a value the client projected into the cache itself", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.markQueuedMessagePromoted(a.id);
+		store.noteLocalQueueProjection([b]);
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		// The cache arm observing the promoted-head projection must not treat it
+		// as a server snapshot, or it would retire the marker the send just set.
+		expect(store.acceptAuthoritativeQueueSnapshot([b], "cache")).toBe(true);
+		expect(store.getQueueConvergenceFence()).toBe(fenceBefore);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("gates a socket snapshot that repeats the projected value", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.markQueuedMessagePromoted(a.id);
+		store.noteLocalQueueProjection([b]);
+		const fenceBefore = store.getQueueConvergenceFence();
+
+		// Same value, but the server is the one saying it now: the projection
+		// is confirmed, so the promoted marker it protected has to retire and
+		// the fence has to move.
+		expect(store.acceptAuthoritativeQueueSnapshot([{ ...b }], "socket")).toBe(
+			true,
+		);
+		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("gates a second cache observation of the projected value", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.markQueuedMessagePromoted(a.id);
+		store.noteLocalQueueProjection([b]);
+		store.acceptAuthoritativeQueueSnapshot([b], "cache");
+		const fenceAfterEcho = store.getQueueConvergenceFence();
+
+		// The expectation is consumed by the first observation. A page-0
+		// install carrying the same value afterwards is a server statement.
+		expect(store.acceptAuthoritativeQueueSnapshot([{ ...b }], "cache")).toBe(
+			true,
+		);
+		expect(store.getQueueConvergenceFence()).not.toBe(fenceAfterEcho);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("rejects a promoted-listing snapshot before consuming the echo", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.noteLocalQueueProjection([a, b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		// The veto outranks the echo: the projection is stale the moment a row
+		// it lists is confirmed promoted.
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "cache")).toBe(false);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("does not record a client-projected tail as server-observed", () => {
+		const store = createChatStore();
+		const tail = makeQueuedMessage(7, "tail");
+
+		store.noteLocalQueueProjection([tail]);
+		store.acceptAuthoritativeQueueSnapshot([tail], "cache");
+
+		// The send response returned this row; the server has not LISTED it in
+		// a queue snapshot, which is the question the reconciliation asks.
+		expect(store.hasObservedQueuedMessageID(tail.id)).toBe(false);
 	});
 
 	it("records queued IDs the server has reported", () => {
@@ -347,126 +409,126 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		const c = makeQueuedMessage(3, "C");
 
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-		store.applyAuthoritativeQueuedMessages([a, b]);
+		store.acceptAuthoritativeQueueSnapshot([a, b], "socket");
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
 		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
 
-		store.applyAuthoritativeQueuedMessages([b]);
+		store.acceptAuthoritativeQueueSnapshot([b], "socket");
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
-
-		store.setQueuedMessages([b, c]);
 		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
 
 		store.clearSuppressedQueuedMessageIDs();
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
 	});
+});
 
-	it("restores a promoted head that a fresh snapshot still queues", () => {
+// ---------------------------------------------------------------------------
+// acceptQueueConvergence
+// ---------------------------------------------------------------------------
+
+describe("acceptQueueConvergence", () => {
+	it("clears the promoted head's markers", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
 		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
+			store.acceptQueueConvergence(testChatID, a.id, [a, b], baseline),
+		).toBe(true);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
-	it("ignores a promote refetch that a newer snapshot already superseded", () => {
+	it("leaves an unrelated suppression marker in place", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C, which the server has
+		// not deleted yet, so it stays hidden at read time.
+		store.suppressQueuedMessageIDs([c.id]);
+
+		expect(
+			store.acceptQueueConvergence(
+				testChatID,
+				a.id,
+				[a, b, c],
+				store.getQueueConvergenceFence(),
+			),
+		).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(c.id)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(
+			false,
+		);
+	});
+
+	it("rejects a refetch that a newer snapshot already superseded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		store.applyAuthoritativeQueuedMessages([b, c]);
+		store.acceptAuthoritativeQueueSnapshot([b, c], "socket");
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
+			store.acceptQueueConvergence(testChatID, a.id, [a, b], baseline),
+		).toBe(false);
+		// The accepted snapshot already retired the promoted marker.
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
 	});
 
-	it("still applies a promote refetch after a stale snapshot was discarded", () => {
+	it("still accepts a refetch after a stale snapshot was rejected", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
-		store.applyAuthoritativeQueuedMessages([a, b, c]);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
+			false,
+		);
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[b, c],
-				baseline,
-			),
-		).toEqual([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
+			store.acceptQueueConvergence(testChatID, a.id, [b, c], baseline),
+		).toBe(true);
 	});
 
-	it("ignores a promote refetch that resolves after switching chats", () => {
+	it("rejects a refetch that resolves after switching chats", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
 		store.setActiveChatID("chat-other");
-		store.setQueuedMessages([]);
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
+			store.acceptQueueConvergence(testChatID, a.id, [a, b], baseline),
+		).toBe(false);
 	});
 
-	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
+	it("rejects a refetch spanning a round trip back to the same chat", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getQueueConvergenceFence();
 
@@ -474,101 +536,199 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
+			store.acceptQueueConvergence(testChatID, a.id, [a, b], baseline),
+		).toBe(false);
 	});
 
-	it("ignores a promote refetch naming another chat even at a matching fence", () => {
+	it("rejects a refetch naming another chat even at a matching fence", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
+			store.acceptQueueConvergence(
 				"chat-other",
 				a.id,
 				[a, b],
 				store.getQueueConvergenceFence(),
 			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
+		).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// suppression markers
+// ---------------------------------------------------------------------------
+
+describe("suppressQueuedMessageIDs / unsuppressQueuedMessageIDs", () => {
+	it("adds and removes IDs from the suppression set", () => {
+		const store = createChatStore();
+		store.suppressQueuedMessageIDs([42, 43]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(43)).toBe(true);
+
+		store.unsuppressQueuedMessageIDs([42]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(43)).toBe(true);
 	});
 
-	it("returns the queue it applied, not the raw snapshot", () => {
+	it("does not notify when every ID is already suppressed", () => {
+		const store = createChatStore();
+		store.suppressQueuedMessageIDs([42]);
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+
+		store.suppressQueuedMessageIDs([42]);
+		store.unsuppressQueuedMessageIDs([99]);
+
+		expect(notified).toBe(false);
+	});
+
+	it("keeps a promoted marker a failed queue operation does not own", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+
+		store.markQueuedMessagePromoted(a.id);
+		// A delete of the same ID failing after a send promoted it: the send
+		// owns the veto, and only its convergence may retire it.
+		store.unsuppressQueuedMessageIDs([a.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+
+		// The veto still stands, so the snapshot that still queues A is stale.
+		expect(store.acceptAuthoritativeQueueSnapshot([a], "socket")).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// abandonQueueConvergence: the veto is bounded by its convergence fetch
+// ---------------------------------------------------------------------------
+
+describe("abandonQueueConvergence", () => {
+	it("returns the newest vetoed snapshot and resumes queue updates", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
 		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
+		// A wrong head guess: the server never promoted A.
 		store.markQueuedMessagePromoted(a.id);
-		store.suppressQueuedMessageID(c.id);
 		const baseline = store.getQueueConvergenceFence();
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(
+			false,
+		);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
+			false,
+		);
 
-		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(
-					testChatID,
-					a.id,
-					[a, b, c],
-					baseline,
-				)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
+		// The convergence fetch failed. The newest rejected snapshot is the last
+		// thing the server said, and nothing will resend it.
+		expect(store.abandonQueueConvergence(testChatID, a.id, baseline)).toEqual([
+			a,
+			b,
+			c,
+		]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+		expect(store.getQueueConvergenceFence()).not.toBe(baseline);
+
+		// Later snapshots that still list the guessed head are accepted again.
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
+			true,
+		);
 	});
 
-	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
+	it("clears the marker with no corrective snapshot when nothing was vetoed", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
+		store.setActiveChatID(testChatID);
 		store.markQueuedMessagePromoted(a.id);
-		store.unsuppressQueuedMessageID(a.id);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		const baseline = store.getQueueConvergenceFence();
 
-		store.applyAuthoritativeQueuedMessages([a, b]);
+		// Nothing was rejected, so the cache still holds the projection the send
+		// wrote and there is no truth to restore.
 		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
+			store.abandonQueueConvergence(testChatID, a.id, baseline),
+		).toBeUndefined();
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(true);
 	});
 
-	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {
-		const store = createChatStore();
-		store.suppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
-		store.unsuppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
-	});
-
-	it("setQueuedMessages does not auto-clear suppression", () => {
+	it("keeps another send's promotion veto", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
 
-		store.suppressQueuedMessageID(99);
-		// setQueuedMessages is the optimistic path: it must not
-		// touch the suppression set, otherwise the optimistic write
-		// would lift suppression before the authoritative reordered
-		// queue arrives.
-		store.setQueuedMessages([a]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(99)).toBe(true);
+		store.setActiveChatID(testChatID);
+		store.markQueuedMessagePromoted(a.id);
+		store.markQueuedMessagePromoted(b.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.abandonQueueConvergence(testChatID, a.id, baseline);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(b.id)).toBe(true);
+	});
+
+	it("does nothing once a newer snapshot moved the fence", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+		// This snapshot omits A, so it already retired the veto.
+		store.acceptAuthoritativeQueueSnapshot([b], "socket");
+		const fenceAfterAccept = store.getQueueConvergenceFence();
+
+		expect(
+			store.abandonQueueConvergence(testChatID, a.id, baseline),
+		).toBeUndefined();
+		expect(store.getQueueConvergenceFence()).toBe(fenceAfterAccept);
+	});
+
+	it("does nothing after switching chats", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+		store.acceptAuthoritativeQueueSnapshot([a, b], "socket");
+		store.setActiveChatID("chat-other");
+
+		expect(
+			store.abandonQueueConvergence(testChatID, a.id, baseline),
+		).toBeUndefined();
+	});
+
+	it("drops a vetoed snapshot a later acceptance superseded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.markQueuedMessagePromoted(a.id);
+		store.acceptAuthoritativeQueueSnapshot([a, b], "socket");
+		// Omits A, so it is accepted and retires the veto, and it is newer than
+		// the snapshot the veto rejected.
+		store.acceptAuthoritativeQueueSnapshot([b, c], "socket");
+		store.markQueuedMessagePromoted(b.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store.abandonQueueConvergence(testChatID, b.id, baseline),
+		).toBeUndefined();
 	});
 });
 
@@ -688,9 +848,9 @@ describe("resetTransientState", () => {
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
 
-	it("preserves the queue", () => {
+	it("preserves the queue suppression markers", () => {
 		const store = createChatStore();
-		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
+		store.suppressQueuedMessageIDs([10]);
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
@@ -698,7 +858,7 @@ describe("resetTransientState", () => {
 
 		store.resetTransientState();
 
-		expect(store.getSnapshot().queuedMessages).toHaveLength(1);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(10)).toBe(true);
 	});
 
 	it("is a no-op when all transient state is already clean", () => {
