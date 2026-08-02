@@ -144,7 +144,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -164,7 +164,11 @@ func allSubagentDefinitions() []subagentDefinition {
 						ChatMode: database.ChatModeComputerUse,
 						Valid:    true,
 					},
-					systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
+					// The child system prompt embeds the task prompt, so it
+					// is built from the policy-approved prompt at create.
+					systemPrompt: func(prompt string) string {
+						return computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt)
+					},
 				}, nil
 			},
 		},

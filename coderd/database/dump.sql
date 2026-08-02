@@ -2026,10 +2026,13 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    admitted_custom_prompt text
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.admitted_custom_prompt IS 'Owner custom prompt admitted with this queued message''s user_prompt_submit lifecycle event. Copied to chats.admitted_custom_prompt when the row is promoted into history; NULL when no admission recorded one.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

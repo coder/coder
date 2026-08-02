@@ -1154,6 +1154,10 @@ type sqlcQuerier interface {
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
+	// admitted_custom_prompt snapshots the owner's custom prompt exactly as
+	// this message's user_prompt_submit admission showed it to the lifecycle
+	// hook policy; promotion copies it to the chat row so the promoted turn
+	// injects the value its own admission was shown.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)

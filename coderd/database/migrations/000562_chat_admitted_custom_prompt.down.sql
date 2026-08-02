@@ -1,5 +1,8 @@
 DROP VIEW IF EXISTS chats_expanded;
 
+ALTER TABLE chat_queued_messages
+    DROP COLUMN admitted_custom_prompt;
+
 ALTER TABLE chats
     DROP COLUMN admitted_custom_prompt;
 

@@ -11,8 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -214,4 +216,93 @@ func TestAdmittedCustomPromptFixedForTurn(t *testing.T) {
 	events = recorder.all()
 	require.Len(t, events, 2)
 	require.Contains(t, events[1].CustomPrompt, "unadmitted instruction marker")
+}
+
+// TestQueuedAdmissionSnapshotsPromotePerMessage pins that each queued send
+// carries its own admission snapshot and promotion installs the promoted
+// message's value, not the latest admission's. Two messages are queued on a
+// busy chat under different stored custom prompts; when the first promotes,
+// the turn must use the first admission's value even though a later
+// admission happened in between.
+func TestQueuedAdmissionSnapshotsPromotePerMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	consumer, recorder := newUserPromptSubmitRecorder(t)
+
+	// A running chat queues sends instead of inserting them directly.
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusRunning,
+	})
+
+	// Each send goes through its own server (and so its own config cache)
+	// to make the admissions observe the two stored prompts without
+	// waiting out the cache TTL.
+	_, err := db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           user.ID,
+		ChatCustomPrompt: "first admission marker",
+	})
+	require.NoError(t, err)
+	firstServer := newHookTestServer(t, db, ps, consumer)
+	firstSend, err := firstServer.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("first queued")},
+	})
+	require.NoError(t, err)
+	require.True(t, firstSend.Queued)
+
+	_, err = db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           user.ID,
+		ChatCustomPrompt: "second admission marker",
+	})
+	require.NoError(t, err)
+	secondServer := newHookTestServer(t, db, ps, consumer)
+	secondSend, err := secondServer.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("second queued")},
+	})
+	require.NoError(t, err)
+	require.True(t, secondSend.Queued)
+
+	events := recorder.all()
+	require.Len(t, events, 2)
+	require.Contains(t, events[0].CustomPrompt, "first admission marker")
+	require.Contains(t, events[1].CustomPrompt, "second admission marker")
+
+	// Each queued row carries the snapshot its own admission was shown.
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 2)
+	require.Contains(t, queued[0].AdmittedCustomPrompt.String, "first admission marker")
+	require.Contains(t, queued[1].AdmittedCustomPrompt.String, "second admission marker")
+
+	// The in-flight turn finishes: the head promotes and its own
+	// admission value becomes the chat-level snapshot, even though a
+	// later admission happened after it was queued.
+	machine := chatstate.NewChatMachine(db, ps, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+	stored, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, stored.AdmittedCustomPrompt.String, "first admission marker")
+	require.NotContains(t, stored.AdmittedCustomPrompt.String, "second admission marker")
+
+	// The next promotion installs the second admission's value.
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+	stored, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, stored.AdmittedCustomPrompt.String, "second admission marker")
 }

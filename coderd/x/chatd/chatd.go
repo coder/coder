@@ -1590,9 +1590,13 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		// The admission snapshot rides the transition: a direct send
+		// stamps the chat row, a queued send stores it on the queued row
+		// so promotion pairs each turn with its own admitted value.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			Message:              message,
+			BusyBehavior:         busyBehaviorToChatState(busyBehavior),
+			AdmittedCustomPrompt: admittedCustomPrompt,
 		})
 		if err != nil {
 			return err
@@ -1611,17 +1615,6 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
-		// Commit the admitted custom prompt with the send it was admitted
-		// for (queued sends included) so generation injects the value the
-		// policy saw, not whatever the owner's config says later.
-		if admittedCustomPrompt.Valid {
-			if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
-				ID:                   opts.ChatID,
-				AdmittedCustomPrompt: admittedCustomPrompt,
-			}); err != nil {
-				return xerrors.Errorf("update admitted custom prompt: %w", err)
-			}
-		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by

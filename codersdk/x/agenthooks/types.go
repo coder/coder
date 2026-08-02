@@ -85,9 +85,12 @@ type SessionStartData struct {
 type UserPromptSubmitData struct {
 	Prompt string          `json:"prompt"`
 	Parts  json.RawMessage `json:"parts,omitempty"`
-	// SystemPrompt is the caller-supplied per-chat system prompt admitted
-	// with a chat create, as it will be injected. Later turns omit it; it
-	// is immutable after creation.
+	// SystemPrompt is the per-chat system prompt admitted with a chat
+	// create or subagent spawn, as it will be injected. Subagent types
+	// that embed the submitted prompt at system priority (computer-use)
+	// carry the built value here, and a prompt override rebuilds it from
+	// the approved prompt. Later turns omit it; it is immutable after
+	// creation.
 	SystemPrompt string `json:"system_prompt,omitempty"`
 	// CustomPrompt is the chat owner's stored custom prompt as it will be
 	// injected into this turn's system prompt. It is set through its own

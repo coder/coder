@@ -9,6 +9,16 @@ ALTER TABLE chats
 
 COMMENT ON COLUMN chats.admitted_custom_prompt IS 'Owner custom prompt admitted with the most recent user_prompt_submit lifecycle event. Injected verbatim by generation while hooks are enabled; NULL when no admission recorded one.';
 
+-- Queued sends are admitted at queue time but generate later, possibly
+-- after other admissions changed the chat-level snapshot. Each queued row
+-- carries its own admission snapshot; promotion copies it to the chat row
+-- in the same transaction that moves the message into history, so every
+-- turn generates with the value its own admission event was shown.
+ALTER TABLE chat_queued_messages
+    ADD COLUMN admitted_custom_prompt text;
+
+COMMENT ON COLUMN chat_queued_messages.admitted_custom_prompt IS 'Owner custom prompt admitted with this queued message''s user_prompt_submit lifecycle event. Copied to chats.admitted_custom_prompt when the row is promoted into history; NULL when no admission recorded one.';
+
 -- Refresh chats_expanded to include the new chat column. The gentest
 -- TestViewSubsetChat requires every chats column to appear in the view.
 DROP VIEW IF EXISTS chats_expanded;

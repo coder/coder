@@ -5164,6 +5164,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Owner custom prompt admitted with this queued message's user_prompt_submit lifecycle event. Copied to chats.admitted_custom_prompt when the row is promoted into history; NULL when no admission recorded one.
+	AdmittedCustomPrompt sql.NullString `db:"admitted_custom_prompt" json:"admitted_custom_prompt"`
 }
 
 type ChatTable struct {
