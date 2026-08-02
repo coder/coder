@@ -937,6 +937,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 					"SendMessage(queue) into W/E0 inserts exactly one history message")
 				require.Nil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(queue) into W/E0 does not queue")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(queue) into W/E0 promotes nothing")
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
 				require.Equal(t, seeded.chatID, inserted.ChatID)
 				assertChatMessageText(t, inserted, "sm-queue")
@@ -972,6 +974,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				// queue and now lives in history.
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
+				require.Equal(t, base.queueIDs[0], result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(queue) from E1 reports the promoted queue head id")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
@@ -994,6 +998,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 					"SendMessage(queue) from busy states returns the queued message")
 				require.Empty(t, result.sendMessage.InsertedMessages,
 					"SendMessage(queue) from busy states does not insert history")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(queue) from busy states promotes nothing")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-queue")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
@@ -1045,6 +1051,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) into W/E0 must not queue")
 				require.Nil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(interrupt) into W/E0 does not return a queued message")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(interrupt) into W/E0 promotes nothing")
 				require.Len(t, result.sendMessage.InsertedMessages, 1,
 					"SendMessage(interrupt) into W/E0 inserts exactly one history message")
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
@@ -1079,6 +1087,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
+				require.Equal(t, base.queueIDs[0], result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(interrupt) from E1 reports the promoted queue head id")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
@@ -1101,6 +1111,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from I* returns the queued tail")
 				require.Empty(t, result.sendMessage.InsertedMessages,
 					"SendMessage(interrupt) from I* does not insert history")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(interrupt) from I* promotes nothing")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
@@ -1118,6 +1130,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from R* appends one queued message")
 				require.NotNil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(interrupt) from R* returns the queued tail")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(interrupt) from R* promotes nothing")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
@@ -1135,6 +1149,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from A* appends one queued message")
 				require.NotNil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(interrupt) from A* returns the queued tail")
+				require.Zero(t, result.sendMessage.PromotedQueuedMessageID,
+					"SendMessage(interrupt) from A* promotes nothing")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)

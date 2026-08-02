@@ -413,6 +413,74 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 		"failed queue append must not bump queue_version")
 }
 
+// TestSendMessageE1ReportsReorderedPromotedQueuedMessageID asserts that
+// SendMessage from E1 reports the id of the row it actually promoted.
+// The promoted row is the queue head by position, which after a reorder
+// is not the oldest queued row, so a client ordering the queue by
+// insertion cannot derive the id on its own.
+func TestSendMessageE1ReportsReorderedPromotedQueuedMessageID(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	// R0 -> R1 with three queued rows in insertion order.
+	first := sendQueuedMessage(t, f, m, "queued-first")
+	second := sendQueuedMessage(t, f, m, "queued-second")
+	third := sendQueuedMessage(t, f, m, "queued-third")
+	require.NotNil(t, first.QueuedMessage)
+	require.NotNil(t, second.QueuedMessage)
+	require.NotNil(t, third.QueuedMessage)
+
+	promote := func(id int64) {
+		t.Helper()
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+				QueuedMessageID: id,
+			})
+			return err
+		}))
+	}
+	// Reordering twice and draining the interruption leaves the newest
+	// row at the head: promote third (R1 -> I1), promote second, then
+	// FinishInterruption pops the second row into history.
+	promote(third.QueuedMessage.ID)
+	promote(second.QueuedMessage.ID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+		return err
+	}))
+	// R1 -> E1.
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.FinishError(chatstate.FinishErrorInput{
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"boom"}`),
+				Valid:      true,
+			},
+		})
+		return err
+	}))
+	require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
+	require.Equal(t,
+		[]int64{third.QueuedMessage.ID, first.QueuedMessage.ID},
+		queuedIDsByPosition(ctx, t, f, created.Chat.ID),
+		"the reordered queue head is not the oldest queued row")
+
+	send := sendQueuedMessage(t, f, m, "sm-after-reorder")
+	require.NotNil(t, send.QueuedMessage)
+	require.Equal(t, third.QueuedMessage.ID, send.PromotedQueuedMessageID,
+		"E1 send reports the promoted head, not the oldest queued row")
+	require.Greater(t, send.PromotedQueuedMessageID, first.QueuedMessage.ID,
+		"the promoted row is newer than a row still in the queue")
+	require.Len(t, send.InsertedMessages, 1,
+		"E1 send inserts only the promoted head")
+	require.Equal(t,
+		[]int64{first.QueuedMessage.ID, send.QueuedMessage.ID},
+		queuedIDsByPosition(ctx, t, f, created.Chat.ID),
+		"the promoted head leaves the queue and the new tail is appended")
+}
+
 func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)

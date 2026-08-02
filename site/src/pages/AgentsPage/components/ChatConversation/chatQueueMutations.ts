@@ -2,13 +2,12 @@
  * Serializes the LOCAL mutations that change a chat's queue positions: send,
  * edit, delete, and promote.
  *
- * A send on an errored chat promotes the server's queue head, but the response
- * does not say which row that was, so the client captures the head it can see
- * and reconciles against it. Letting a delete or a promote commit inside that
- * window makes the capture describe a queue the server no longer has, so the
- * reconciliation suppresses the wrong row until the convergence fetch repairs
- * it. Running one queue-position request at a time per chat removes the
- * overlap instead of tracking per-operation ownership.
+ * A send on an errored chat promotes the server's queue head and reports which
+ * row that was, and the client projects the resulting queue into the canonical
+ * cache. Letting a delete or a promote commit inside that window interleaves
+ * two writers of the same cached queue, so one of them projects a queue the
+ * other already changed. Running one queue-position request at a time per chat
+ * removes the overlap instead of tracking per-operation ownership.
  *
  * The critical section covers the WHOLE operation, its suppression markers
  * included. A marker placed before the lock belongs to an operation that has

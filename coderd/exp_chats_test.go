@@ -7395,6 +7395,153 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	require.False(t, storedChat.LastReasoningEffort.Valid)
 }
 
+// TestSendMessageReportsPromotedQueuedMessageID asserts that a queued
+// send on an errored chat reports the exact queued row the server
+// promoted into history. The server promotes by queue position, so a
+// reordered queue promotes a row that is not the oldest and that
+// clients cannot identify from their own ordering.
+func TestSendMessageReportsPromotedQueuedMessageID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ErroredChatPromotesReorderedHead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "promoted queued message id",
+			Status:            database.ChatStatusError,
+		})
+
+		queuedContent := func(text string) json.RawMessage {
+			content, err := json.Marshal([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(text),
+			})
+			require.NoError(t, err)
+			return content
+		}
+		const headText = "queued message promoted after reorder"
+		oldest := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent("oldest queued message"), chat.LastModelConfigID)
+		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent(headText), chat.LastModelConfigID)
+		_, err := db.ReorderChatQueuedMessageToHead(dbauthz.AsSystemRestricted(ctx), database.ReorderChatQueuedMessageToHeadParams{
+			ID:     head.ID,
+			ChatID: chat.ID,
+		})
+		require.NoError(t, err)
+		require.Greater(t, head.ID, oldest.ID,
+			"the reordered head must be the newer queued row")
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "new tail",
+			}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.Queued)
+		require.NotNil(t, resp.QueuedMessage)
+		require.Equal(t, head.ID, resp.PromotedQueuedMessageID,
+			"the send reports the queued row it promoted, not the oldest")
+
+		// The promoted row is reported independently of Messages; the
+		// batch still carries the promoted user message.
+		promotedText := ""
+		for _, msg := range resp.Messages {
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText {
+					promotedText = part.Text
+				}
+			}
+		}
+		require.Equal(t, headText, promotedText,
+			"the promoted queue head is inserted into history")
+
+		remaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		remainingIDs := make([]int64, len(remaining))
+		for i, queued := range remaining {
+			remainingIDs[i] = queued.ID
+		}
+		require.NotContains(t, remainingIDs, head.ID,
+			"the promoted row leaves the queue")
+		require.Contains(t, remainingIDs, oldest.ID,
+			"the older queued row stays in the queue")
+	})
+
+	t.Run("QueueAppendOmitsPromotedID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "queue append without promotion",
+		})
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+			LastError:   pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "queue tail",
+			}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.Queued)
+		require.Zero(t, resp.PromotedQueuedMessageID,
+			"a plain queue append promotes nothing")
+	})
+
+	t.Run("DirectSendOmitsPromotedID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "direct send without promotion",
+			Status:            database.ChatStatusError,
+		})
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "retry after error",
+			}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.Queued)
+		require.Zero(t, resp.PromotedQueuedMessageID,
+			"a direct send promotes nothing")
+	})
+}
+
 func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
 	t.Parallel()
 

@@ -1916,9 +1916,12 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
-	 * SnapshotVersion is a monotonic per-chat version of the full chat
-	 * snapshot. Clients use it to order chat payloads received from REST,
-	 * the per-chat stream, and the global watch stream.
+	 * SnapshotVersion is a monotonic per-chat version of the chat's durable
+	 * execution state, incremented under the chat row lock on every
+	 * ChatMachine.Update, so version order equals commit order. Clients use it
+	 * to order chat status payloads received from REST, the per-chat stream,
+	 * and the global watch stream. Metadata mutations (title, archive,
+	 * summary, context) may not advance it.
 	 */
 	readonly snapshot_version: number;
 	readonly archived: boolean;
@@ -3996,6 +3999,14 @@ export interface CreateChatMessageResponse {
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	/**
+	 * PromotedQueuedMessageID is the id of the queued message this send
+	 * promoted into history. Queue ids are positive, so a zero or absent
+	 * value means the send promoted nothing. Only set alongside Queued,
+	 * on the errored-chat path where the server promotes the queue head
+	 * by position; clients must not infer the id from Messages.
+	 */
+	readonly promoted_queued_message_id?: number;
 	readonly warnings?: readonly string[];
 }
 

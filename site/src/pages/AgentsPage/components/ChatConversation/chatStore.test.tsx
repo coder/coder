@@ -6768,94 +6768,24 @@ describe("durable messages in the query cache", () => {
 		});
 		const store = result.current.store;
 
-		// A promoting send's marker, waiting on its own convergence.
+		// A promoting send's marker for a row this snapshot does not list.
 		act(() => {
 			store.markQueuedMessagePromoted(99);
 		});
-		// Convergence confirmed the guess, so the response equals the cached
-		// queue. Structural sharing collapses the write and the cache observer
-		// never fires, so there is no echo to await.
+		// The projection equals the cached queue, so structural sharing
+		// collapses the write and the cache observer never fires: there is no
+		// echo to await.
 		act(() => {
 			result.current.writeCanonicalQueuedMessages([queued]);
 		});
-		const fenceBefore = store.getQueueConvergenceFence();
 
 		// A genuine page-0 install carrying that same value is still a server
-		// statement and has to be gated.
+		// statement and has to be gated, which retires the marker.
 		act(() => {
 			store.acceptAuthoritativeQueueSnapshot([{ ...queued }], "cache");
 		});
 
-		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(99)).toBe(false);
-	});
-
-	it("awaits no cache echo when convergence confirms the cached queue", async () => {
-		const chatID = "chat-1";
-		const newest = buildMessage(chatID, 30, "assistant", "newest");
-		const queued = buildQueuedMessage(chatID, 10, "queued");
-		const promotedHeadID = 99;
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createRetainedQueryClient();
-		seedMessagesCache(
-			queryClient,
-			chatID,
-			[{ messages: [newest], queued_messages: [queued], has_more: false }],
-			[undefined],
-		);
-
-		const { result } = renderQueueHarness(
-			queryClient,
-			chatID,
-			[newest],
-			[queued],
-		);
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 30);
-		});
-		const store = result.current.store;
-
-		// The send guessed this head and its convergence is in flight.
-		act(() => {
-			store.markQueuedMessagePromoted(promotedHeadID);
-		});
-		// The convergence path exactly as the page runs it: the response
-		// confirms the guess, so it equals the cached queue and its write
-		// changes nothing.
-		let settled: readonly TypesGen.ChatQueuedMessage[] | undefined;
-		act(() => {
-			const baselineFence = store.getQueueConvergenceFence();
-			settled = store.acceptQueueConvergence(
-				chatID,
-				promotedHeadID,
-				[queued],
-				baselineFence,
-			)
-				? [queued]
-				: undefined;
-			if (settled) {
-				result.current.writeCanonicalQueuedMessages(settled);
-			}
-		});
-		expect(settled).toBeDefined();
-
-		// A later send promotes another head and is waiting on its own
-		// convergence.
-		act(() => {
-			store.markQueuedMessagePromoted(98);
-		});
-		const fenceBefore = store.getQueueConvergenceFence();
-
-		// A genuine page-0 install carrying the same value is still a server
-		// statement: it omits 98, so it has to retire that marker.
-		act(() => {
-			store.acceptAuthoritativeQueueSnapshot([{ ...queued }], "cache");
-		});
-
-		expect(store.getQueueConvergenceFence()).not.toBe(fenceBefore);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(98)).toBe(false);
 	});
 
 	it("replays a queue_update buffered during an in-flight fetchNextPage", async () => {

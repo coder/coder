@@ -17327,7 +17327,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "snapshot_version": {
-                    "description": "SnapshotVersion is a monotonic per-chat version of the full chat\nsnapshot. Clients use it to order chat payloads received from REST,\nthe per-chat stream, and the global watch stream.",
+                    "description": "SnapshotVersion is a monotonic per-chat version of the chat's durable\nexecution state, incremented under the chat row lock on every\nChatMachine.Update, so version order equals commit order. Clients use it\nto order chat status payloads received from REST, the per-chat stream,\nand the global watch stream. Metadata mutations (title, archive,\nsummary, context) may not advance it.",
                     "type": "integer"
                 },
                 "status": {
@@ -18827,6 +18827,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
                     }
+                },
+                "promoted_queued_message_id": {
+                    "description": "PromotedQueuedMessageID is the id of the queued message this send\npromoted into history. Queue ids are positive, so a zero or absent\nvalue means the send promoted nothing. Only set alongside Queued,\non the errored-chat path where the server promotes the queue head\nby position; clients must not infer the id from Messages.",
+                    "type": "integer"
                 },
                 "queued": {
                     "type": "boolean"

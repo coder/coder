@@ -32,7 +32,6 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
-	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -322,22 +321,24 @@ export const assertTurnStartedAfterSend = (params: {
 
 const buildPromotedQueueReconciliation = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedQueuedMessageID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 	hasObservedQueuedMessageID: (id: number) => boolean,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (promotedHeadID === undefined) {
-		return undefined;
-	}
-	if (!insertedMessages.some((message) => message.role === "user")) {
+	// Queue IDs are a positive bigserial, so an absent or zero field means the
+	// send promoted nothing.
+	if (promotedQueuedMessageID === undefined || promotedQueuedMessageID === 0) {
 		return undefined;
 	}
 	const remaining = queuedMessages.filter(
-		(message) => message.id !== promotedHeadID,
+		(message) => message.id !== promotedQueuedMessageID,
 	);
 	const tailPending =
 		queuedTail !== undefined &&
+		// Defensive: the state machine inserts the tail after popping the head,
+		// so they are always distinct rows. Appending a tail that names the
+		// promoted ID would re-add the row this projection just removed.
+		queuedTail.id !== promotedQueuedMessageID &&
 		!remaining.some((message) => message.id === queuedTail.id) &&
 		!hasObservedQueuedMessageID(queuedTail.id);
 	return tailPending ? [...remaining, queuedTail] : remaining;
@@ -348,30 +349,31 @@ const buildPromotedQueueReconciliation = (
 // cached queue there is no page 0 to amend, and re-entry refetches it.
 export const buildInactiveChatQueueReconciliation = (
 	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedQueuedMessageID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined =>
 	cachedQueuedMessages === undefined
 		? undefined
 		: buildPromotedQueueReconciliation(
 				cachedQueuedMessages,
-				insertedMessages,
-				promotedHeadID,
+				promotedQueuedMessageID,
 				queuedTail,
 				() => false,
 			);
 
 /**
  * Projects the queue a promoting send left behind: the canonical queue minus
- * the head the server promoted, plus the tail the response returned. Both
- * facts are server-confirmed, so the result is a server-DERIVED value the
+ * the row the server reported promoting, plus the tail the response returned.
+ * Both facts are server-confirmed, so the result is a server-DERIVED value the
  * caller may write to the canonical cache. It is the one cache write the
  * client originates, because a marker can only subtract and this one adds.
  *
- * Queue updates may rotate the head before the response arrives, so the
- * promoted ID is a guess; `promotedQueuedMessageIDs` fences stale snapshots
- * until the convergence fetch settles which row the server actually promoted.
+ * The promoted ID comes from `promoted_queued_message_id` on the send
+ * response, so it is exact even when the server promoted a row this client
+ * does not order first. `response.messages` never participates: the promoted
+ * row is not necessarily `messages[0]`, and message content must not decide
+ * queue identity. `promotedQueuedMessageIDs` still fences snapshots derived
+ * before the promotion committed, which the exact ID makes provable.
  */
 export const reconcilePromotedQueueHead = (
 	store: Pick<
@@ -379,84 +381,21 @@ export const reconcilePromotedQueueHead = (
 		"markQueuedMessagePromoted" | "hasObservedQueuedMessageID"
 	>,
 	canonicalQueuedMessages: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedQueuedMessageID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
 	const next = buildPromotedQueueReconciliation(
 		canonicalQueuedMessages,
-		insertedMessages,
-		promotedHeadID,
+		promotedQueuedMessageID,
 		queuedTail,
 		store.hasObservedQueuedMessageID,
 	);
-	if (!next || promotedHeadID === undefined) {
+	if (!next || promotedQueuedMessageID === undefined) {
 		return next;
 	}
-	// The promoted user row proves the server deleted its queue row.
-	store.markQueuedMessagePromoted(promotedHeadID);
+	// The server reported this row as promoted, so its queue row is gone.
+	store.markQueuedMessagePromoted(promotedQueuedMessageID);
 	return next;
-};
-
-const fetchChatMessages =
-	(queryClient: QueryClient) => (chatID: string, promotedHeadID: number) =>
-		queryClient.fetchQuery(chatQueueConvergence(chatID, promotedHeadID));
-
-// A promoted head is suppressed locally, but the client cannot compute the
-// server's head: the server promotes by `position ASC` while the client sees
-// the queue by `created_at ASC`, and a promote rewrites position without
-// touching created_at. Only the server knows the resulting queue, so the
-// convergence GET repairs a wrong guess. Returns the RAW response for the
-// caller to write; suppression stays a read-time concern.
-//
-// The veto the guess installed lasts exactly as long as this call, however it
-// ends. A failed fetch ends it and hands back whatever the veto rejected
-// meanwhile: leaving the marker up would reject every later snapshot that
-// still lists the guessed row, and clearing it alone would leave the queue
-// showing a value the rejected snapshots already contradicted. A response the
-// fence already superseded ends it the same way, because the fence only
-// guarantees that the markers of the convergence that MOVED it were retired,
-// not this one's.
-export const settlePromotedQueueHead = async (
-	store: Pick<
-		ChatStore,
-		| "getQueueConvergenceFence"
-		| "acceptQueueConvergence"
-		| "abandonQueueConvergence"
-	>,
-	chatID: string,
-	promotedHeadID: number,
-	fetchMessages: (
-		chatID: string,
-		promotedHeadID: number,
-	) => Promise<TypesGen.ChatMessagesResponse>,
-): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
-	const baselineFence = store.getQueueConvergenceFence();
-	let response: TypesGen.ChatMessagesResponse;
-	try {
-		response = await fetchMessages(chatID, promotedHeadID);
-	} catch {
-		return store.abandonQueueConvergence(chatID, promotedHeadID, baselineFence);
-	}
-	const queuedMessages = response.queued_messages ?? [];
-	if (
-		store.acceptQueueConvergence(
-			chatID,
-			promotedHeadID,
-			queuedMessages,
-			baselineFence,
-		)
-	) {
-		return queuedMessages;
-	}
-	// Superseded, so this response cannot settle the guess. Retire the marker
-	// anyway: at worst the promoted row flickers back for one snapshot, while
-	// leaving it would veto every snapshot listing it, forever.
-	return store.abandonQueueConvergence(
-		chatID,
-		promotedHeadID,
-		store.getQueueConvergenceFence(),
-	);
 };
 
 export async function submitEditAndScroll({
@@ -562,7 +501,8 @@ export const runQueueSuppressingEdit = (params: {
 			scrollToBottom,
 			onError: (error) => {
 				// Lifts this edit's ordinary suppression only; a send's promotion
-				// veto on the same ID belongs to that send's convergence.
+				// veto on the same ID is retired by the server snapshot that omits
+				// the promoted row.
 				store.unsuppressQueuedMessageIDs(suppressedForEdit);
 				rollbackOptimisticChatStatus(
 					queryClient,
@@ -1965,16 +1905,10 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
-		// The head capture and the reconciliation that depends on it run
-		// inside the queue-mutation lock: a delete or promote committing
-		// between them would make the server promote a different head than
-		// the one captured here.
+		// The reconciliation runs inside the queue-mutation lock so a delete
+		// or promote committing between the send and the projection cannot
+		// interleave with the queue write this send derives.
 		await runExclusiveQueueMutation(agentId, async () => {
-			// An errored-chat send may promote the queue head that existed when
-			// the request began. Read the RAW canonical queue: the server
-			// promotes ITS head by position, which includes a row this client
-			// has suppressed but the server still has queued.
-			const queueHeadIDBeforeSend = readCanonicalQueuedMessages()?.[0]?.id;
 			// The cached snapshot version is the send-path fence: optimistic
 			// writes never advance it, so it changes only when the server
 			// reported a status during the request.
@@ -2017,25 +1951,25 @@ const AgentChatPage: FC = () => {
 			const insertedMessages =
 				sendResponse.messages ??
 				(sendResponse.message ? [sendResponse.message] : []);
-			if (insertedMessages.length === 0) {
-				return;
+			if (insertedMessages.length > 0) {
+				upsertCacheMessages(insertedMessages);
 			}
-			upsertCacheMessages(insertedMessages);
 			if (!sendResponse.queued) {
 				return;
 			}
+			// The server names the row it promoted; the message batch never
+			// decides queue identity.
+			const promotedQueuedMessageID = sendResponse.promoted_queued_message_id;
 			const reconciledQueue = isActiveChat
 				? reconcilePromotedQueueHead(
 						store,
 						readCanonicalQueuedMessages() ?? [],
-						insertedMessages,
-						queueHeadIDBeforeSend,
+						promotedQueuedMessageID,
 						sendResponse.queued_message,
 					)
 				: buildInactiveChatQueueReconciliation(
 						readCanonicalQueuedMessages(),
-						insertedMessages,
-						queueHeadIDBeforeSend,
+						promotedQueuedMessageID,
 						sendResponse.queued_message,
 					);
 			if (!reconciledQueue) {
@@ -2050,18 +1984,6 @@ const AgentChatPage: FC = () => {
 					queryClient,
 					chatId: agentId,
 					snapshotVersionBeforeSend,
-				});
-			}
-			if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-				void settlePromotedQueueHead(
-					store,
-					agentId,
-					queueHeadIDBeforeSend,
-					fetchChatMessages(queryClient),
-				).then((settled) => {
-					if (settled) {
-						writeCanonicalQueuedMessages(settled);
-					}
 				});
 			}
 		});

@@ -33,7 +33,6 @@ import {
 	chat as chatDetail,
 	chatKeys,
 	chatMessagesForInfiniteScroll,
-	chatQueueConvergence,
 	chatSearch,
 	clearChatUnreadInCaches,
 	createChat,
@@ -5165,64 +5164,5 @@ describe("messages cache write serialization", () => {
 				.getQueryData<InfMessages>(chatKeys.messages(chatId))
 				?.pages[0].messages.map((message) => message.id),
 		).toEqual([11, 10, 2, 1]);
-	});
-});
-
-describe("chatQueueConvergence", () => {
-	it("does not answer one promotion's convergence from another's request", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-convergence";
-		const first = createDeferred<TypesGen.ChatMessagesResponse>();
-		const second = createDeferred<TypesGen.ChatMessagesResponse>();
-		const responses = [first.promise, second.promise];
-		// An implementation rather than a once-queue: a leftover queued value
-		// would leak into the next test.
-		vi.mocked(API.experimental.getChatMessages).mockImplementation(
-			() => responses.shift() ?? Promise.reject(new Error("unexpected fetch")),
-		);
-
-		// Two promoting sends overlap. A shared key would let TanStack answer
-		// the second from the first's in-flight request, whose response was
-		// dispatched before the second promotion existed.
-		const settledFirst = queryClient.fetchQuery(
-			chatQueueConvergence(chatId, 1),
-		);
-		const settledSecond = queryClient.fetchQuery(
-			chatQueueConvergence(chatId, 2),
-		);
-		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(2);
-
-		first.resolve({ messages: [], queued_messages: [], has_more: false });
-		second.resolve({
-			messages: [],
-			queued_messages: [
-				{
-					id: 7,
-					chat_id: chatId,
-					created_at: "2025-01-01T00:10:07Z",
-					content: [{ type: "text", text: "queued 7" }],
-				},
-			],
-			has_more: false,
-		});
-
-		expect((await settledFirst).queued_messages).toEqual([]);
-		expect((await settledSecond).queued_messages).toHaveLength(1);
-	});
-
-	it("still deduplicates a repeat convergence for the same promotion", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-convergence";
-		const pending = createDeferred<TypesGen.ChatMessagesResponse>();
-		vi.mocked(API.experimental.getChatMessages).mockImplementation(
-			() => pending.promise,
-		);
-
-		const a = queryClient.fetchQuery(chatQueueConvergence(chatId, 1));
-		const b = queryClient.fetchQuery(chatQueueConvergence(chatId, 1));
-		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
-
-		pending.resolve({ messages: [], queued_messages: [], has_more: false });
-		await Promise.all([a, b]);
 	});
 });

@@ -5,16 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyServerChatStatusToCaches, chatKeys } from "#/api/queries/chats";
 import type {
 	Chat,
-	ChatMessage,
-	ChatMessagesResponse,
 	ChatQueuedMessage,
 	EditChatMessageRequest,
 } from "#/api/typesGenerated";
-import {
-	MockChat,
-	MockChatMessage,
-	MockChatQueuedMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
@@ -29,7 +23,6 @@ import {
 	runGuardedChatTurn,
 	runPromoteQueuedMessage,
 	runQueueSuppressingEdit,
-	settlePromotedQueueHead,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -582,26 +575,52 @@ describe("reconcilePromotedQueueHead", () => {
 		id,
 		content: [{ type: "text", text }],
 	});
-	const userMessage: ChatMessage = { ...MockChatMessage, id: 10, role: "user" };
-	const toolMessage: ChatMessage = { ...MockChatMessage, id: 9, role: "tool" };
 
-	it("marks the captured head promoted and appends the queued tail", () => {
+	it("marks the promoted row and appends the queued tail", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const tail = buildQueuedMessage(3, "C");
 
-		const reconciled = reconcilePromotedQueueHead(
-			store,
-			[a, b],
-			[toolMessage, userMessage],
-			a.id,
-			tail,
-		);
+		const reconciled = reconcilePromotedQueueHead(store, [a, b], a.id, tail);
 
 		expect(reconciled?.map((m) => m.id)).toEqual([b.id, tail.id]);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("removes the exact promoted row from a reordered queue", () => {
+		const store = createChatStore();
+		// The server promotes by position, so the row it promoted is not the
+		// one this client orders first. The response names it, so no refetch
+		// is needed to find it.
+		const oldest = buildQueuedMessage(1, "A");
+		const promoted = buildQueuedMessage(2, "B");
+		const tail = buildQueuedMessage(3, "C");
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[oldest, promoted],
+			promoted.id,
+			tail,
+		);
+
+		expect(reconciled?.map((m) => m.id)).toEqual([oldest.id, tail.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(promoted.id)).toBe(
+			true,
+		);
+	});
+
+	it("projects the tail when the cached queue is empty", () => {
+		const store = createChatStore();
+		// An initialized-but-empty page 0: the server promoted a row this
+		// client never saw queued, so the projection is the tail alone.
+		const tail = buildQueuedMessage(3, "C");
+
+		const reconciled = reconcilePromotedQueueHead(store, [], 1, tail);
+
+		expect(reconciled?.map((m) => m.id)).toEqual([tail.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(1)).toBe(true);
 	});
 
 	it("keeps the response tail when a stale snapshot arrived mid-request", () => {
@@ -613,13 +632,7 @@ describe("reconcilePromotedQueueHead", () => {
 		// mention the tail the send just created.
 		store.acceptAuthoritativeQueueSnapshot([a, b], "socket");
 
-		const next = reconcilePromotedQueueHead(
-			store,
-			[a, b],
-			[userMessage],
-			a.id,
-			c,
-		);
+		const next = reconcilePromotedQueueHead(store, [a, b], a.id, c);
 
 		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
 	});
@@ -631,7 +644,7 @@ describe("reconcilePromotedQueueHead", () => {
 		store.acceptAuthoritativeQueueSnapshot([a, c], "socket");
 		store.acceptAuthoritativeQueueSnapshot([a], "socket");
 
-		const next = reconcilePromotedQueueHead(store, [a], [userMessage], a.id, c);
+		const next = reconcilePromotedQueueHead(store, [a], a.id, c);
 
 		expect(next).toEqual([]);
 	});
@@ -640,46 +653,71 @@ describe("reconcilePromotedQueueHead", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 
-		const next = reconcilePromotedQueueHead(
-			store,
-			[a],
-			[userMessage],
-			a.id,
-			undefined,
-		);
+		const next = reconcilePromotedQueueHead(store, [a], a.id, undefined);
 
 		expect(next).toEqual([]);
 	});
 
-	it("does nothing when no user row was inserted", () => {
+	it("never re-adds a tail that names the promoted row", () => {
 		const store = createChatStore();
+		// Defensive: the state machine cannot return the promoted row as the
+		// new tail, and if it did the projection must not resurrect it.
 		const a = buildQueuedMessage(1, "A");
 
-		const reconciled = reconcilePromotedQueueHead(
-			store,
-			[a],
-			[toolMessage],
-			a.id,
-			buildQueuedMessage(2, "B"),
-		);
+		const next = reconcilePromotedQueueHead(store, [a], a.id, a);
 
-		expect(reconciled).toBeUndefined();
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+		expect(next).toEqual([]);
 	});
 
-	it("does nothing when no head was captured before the send", () => {
+	it("does nothing when the response promoted no queued row", () => {
 		const store = createChatStore();
 
-		const reconciled = reconcilePromotedQueueHead(
-			store,
-			[],
-			[userMessage],
-			undefined,
-			buildQueuedMessage(1, "A"),
-		);
-
-		expect(reconciled).toBeUndefined();
+		expect(
+			reconcilePromotedQueueHead(
+				store,
+				[],
+				undefined,
+				buildQueuedMessage(1, "A"),
+			),
+		).toBeUndefined();
+		// Queue IDs start at 1, so zero also means no promotion.
+		expect(
+			reconcilePromotedQueueHead(store, [], 0, buildQueuedMessage(1, "A")),
+		).toBeUndefined();
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+});
+
+describe("promoted-ID veto", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+
+	it("rejects a stale snapshot and clears once the server catches up", () => {
+		const store = createChatStore();
+		const promoted = buildQueuedMessage(2, "B");
+		const oldest = buildQueuedMessage(1, "A");
+		const tail = buildQueuedMessage(3, "C");
+		reconcilePromotedQueueHead(store, [oldest, promoted], promoted.id, tail);
+
+		// A queue_update derived before the promotion committed still lists
+		// the promoted row, so installing it would resurrect that row and drop
+		// the tail the send projected.
+		expect(
+			store.acceptAuthoritativeQueueSnapshot([oldest, promoted], "socket"),
+		).toBe(false);
+
+		// The promote bumps queue_version, so a later snapshot omitting the
+		// promoted row is guaranteed, and it retires the marker.
+		expect(
+			store.acceptAuthoritativeQueueSnapshot([oldest, tail], "socket"),
+		).toBe(true);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(
+			store.acceptAuthoritativeQueueSnapshot([oldest, promoted], "socket"),
+		).toBe(true);
 	});
 });
 
@@ -689,11 +727,6 @@ describe("buildInactiveChatQueueReconciliation", () => {
 		id,
 		content: [{ type: "text", text }],
 	});
-	const userMessage: ChatMessage = {
-		...MockChatMessage,
-		id: 42,
-		role: "user",
-	};
 
 	it("keeps a message queued while the send was in flight", () => {
 		const a = buildQueuedMessage(1, "A");
@@ -702,7 +735,6 @@ describe("buildInactiveChatQueueReconciliation", () => {
 
 		const next = buildInactiveChatQueueReconciliation(
 			[a, b, c],
-			[userMessage],
 			a.id,
 			undefined,
 		);
@@ -714,158 +746,8 @@ describe("buildInactiveChatQueueReconciliation", () => {
 		const a = buildQueuedMessage(1, "A");
 
 		expect(
-			buildInactiveChatQueueReconciliation(
-				undefined,
-				[userMessage],
-				a.id,
-				undefined,
-			),
+			buildInactiveChatQueueReconciliation(undefined, a.id, undefined),
 		).toBeUndefined();
-	});
-});
-
-describe("settlePromotedQueueHead", () => {
-	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
-		...MockChatQueuedMessage,
-		id,
-		content: [{ type: "text", text }],
-	});
-	const chatID = "chat-abc-123";
-
-	it("returns the RAW response and clears the head's markers", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		const c = buildQueuedMessage(3, "C");
-		store.setActiveChatID(chatID);
-		store.markQueuedMessagePromoted(a.id);
-		// An overlapping explicit promotion suppresses C. It stays suppressed,
-		// but the convergence response is written to the cache unfiltered.
-		store.suppressQueuedMessageIDs([c.id]);
-
-		const settled = await settlePromotedQueueHead(
-			store,
-			chatID,
-			a.id,
-			async () => ({
-				messages: [],
-				has_more: false,
-				queued_messages: [a, b, c],
-			}),
-		);
-
-		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(
-			false,
-		);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(c.id)).toBe(true);
-	});
-
-	it("ends the veto when the fetch fails and nothing was rejected", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setActiveChatID(chatID);
-		store.markQueuedMessagePromoted(a.id);
-
-		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
-			Promise.reject(new Error("offline")),
-		);
-
-		// No snapshot was vetoed, so the cache still holds the projection the
-		// send wrote and there is nothing to write back.
-		expect(settled).toBeUndefined();
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(false);
-		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(true);
-	});
-
-	it("restores the vetoed snapshot when a wrong guess fails to converge", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		const c = buildQueuedMessage(3, "C");
-		store.setActiveChatID(chatID);
-		// The send guessed A, but the server promoted another row and keeps
-		// reporting A as queued.
-		store.markQueuedMessagePromoted(a.id);
-		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(
-			false,
-		);
-		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
-			false,
-		);
-
-		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
-			Promise.reject(new Error("offline")),
-		);
-
-		// The veto ends AND hands back the newest snapshot it swallowed, so the
-		// caller can restore what the server last reported.
-		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(false);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(
-			false,
-		);
-		// Queue updates resume instead of being rejected forever.
-		expect(store.acceptAuthoritativeQueueSnapshot([a, b, c], "socket")).toBe(
-			true,
-		);
-	});
-
-	it("disposes both markers when overlapping promotions share a response", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setActiveChatID(chatID);
-		const shared = createDeferred<ChatMessagesResponse>();
-
-		// The chat errored twice, so a second promoting send lands while the
-		// first convergence is still in flight and both settle from the same
-		// response, which predates the second promotion.
-		store.markQueuedMessagePromoted(a.id);
-		const first = settlePromotedQueueHead(
-			store,
-			chatID,
-			a.id,
-			() => shared.promise,
-		);
-		store.markQueuedMessagePromoted(b.id);
-		const second = settlePromotedQueueHead(
-			store,
-			chatID,
-			b.id,
-			() => shared.promise,
-		);
-
-		shared.resolve({ messages: [], has_more: false, queued_messages: [] });
-		await Promise.all([first, second]);
-
-		// The first completion advances the fence, which retires only its own
-		// marker. The second must not leave its marker vetoing every later
-		// snapshot.
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.acceptAuthoritativeQueueSnapshot([a, b], "socket")).toBe(true);
-	});
-
-	it("discards a response that resolves after navigating to another chat", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setActiveChatID(chatID);
-		store.markQueuedMessagePromoted(a.id);
-
-		const settled = await settlePromotedQueueHead(
-			store,
-			chatID,
-			a.id,
-			async () => {
-				store.setActiveChatID("chat-other");
-				return { messages: [], has_more: false, queued_messages: [a, b] };
-			},
-		);
-
-		expect(settled).toBeUndefined();
 	});
 });
 

@@ -126,8 +126,6 @@ export const chatKeys = {
 	messages: (chatId: string) =>
 		[...chatKeys.detail(chatId), "messages"] as const,
 	prompts: (chatId: string) => [...chatKeys.detail(chatId), "prompts"] as const,
-	queueConvergence: (chatId: string, promotedId: number) =>
-		[...chatKeys.detail(chatId), "queue-convergence", promotedId] as const,
 	acl: (chatId: string) => [...chatKeys.detail(chatId), "acl"] as const,
 	diffContents: (chatId: string) =>
 		[...chatKeys.detail(chatId), "diff-contents"] as const,
@@ -1682,19 +1680,6 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
-
-// The queued messages ride on the uncursored page of the messages endpoint,
-// so settling the queue after a promote needs its own request. Refetching
-// chatMessagesForInfiniteScroll would reload every page already scrolled.
-// The key carries the promoted ID, not just the chat: two promoting sends can
-// overlap, and a shared key would let TanStack answer the second from the
-// first's in-flight request. That response was dispatched before the second
-// promotion existed, so it cannot settle it.
-export const chatQueueConvergence = (chatId: string, promotedId: number) => ({
-	queryKey: chatKeys.queueConvergence(chatId, promotedId),
-	queryFn: () => API.experimental.getChatMessages(chatId),
-	gcTime: 0,
-});
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatKeys.messages(chatId),

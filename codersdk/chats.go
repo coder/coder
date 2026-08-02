@@ -658,7 +658,13 @@ type CreateChatMessageResponse struct {
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
-	Warnings      []string           `json:"warnings,omitempty"`
+	// PromotedQueuedMessageID is the id of the queued message this send
+	// promoted into history. Queue ids are positive, so a zero or absent
+	// value means the send promoted nothing. Only set alongside Queued,
+	// on the errored-chat path where the server promotes the queue head
+	// by position; clients must not infer the id from Messages.
+	PromotedQueuedMessageID int64    `json:"promoted_queued_message_id,omitempty"`
+	Warnings                []string `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.

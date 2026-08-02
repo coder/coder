@@ -1224,6 +1224,11 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// PromotedQueuedMessageID is the id of the queued row the send
+	// promoted into history, or zero when nothing was promoted. The
+	// promoted row is chosen by queue position, so clients cannot
+	// infer it from their own ordering.
+	PromotedQueuedMessageID int64
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1590,6 +1595,7 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+		result.PromotedQueuedMessageID = sendResult.PromotedQueuedMessageID
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by

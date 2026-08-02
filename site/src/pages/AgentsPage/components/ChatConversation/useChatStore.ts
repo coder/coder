@@ -164,8 +164,8 @@ const patchQueuedMessagesInCacheData = (
 // echo: `setQueryData` collapses a deep-equal write through structural
 // sharing, so no observation follows it, and an expectation armed for one
 // would sit there and swallow the next genuine snapshot of that value. A
-// convergence response confirming a correct guess is exactly such a no-op
-// write, which is why neither the gate nor the convergence arms its own.
+// projection that merely confirms the cached queue is exactly such a no-op
+// write, which is why the gate never arms its own.
 //
 // Goes through the shared write coordinator: a queue snapshot committed while
 // a pagination fetch is in flight would otherwise be clobbered by the pages
@@ -225,7 +225,7 @@ export const useChatStore = (
 	store: ChatStore;
 	clearStreamError: () => void;
 	// Writes a server-derived queue value into the canonical cache. Used by the
-	// promoted-head send reconciliation and its convergence response only.
+	// promoted-head send reconciliation only.
 	writeCanonicalQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
@@ -341,14 +341,13 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	// Cache arm of the authoritative-snapshot gate. A page-0 install is an
-	// authoritative queue snapshot too, so it has to advance the fence and
-	// reconcile the markers exactly like a `queue_update` does. It is a
-	// POST-INSTALL observer, not a write gate: by the time the effect runs the
-	// value IS the cached one, so a rejected snapshot stays installed and is
-	// only withheld from the fence and the markers, and kept as the corrective
-	// truth a failed convergence restores. The store consumes the echo of a
-	// write this client made, so observing the socket arm's own write does not
-	// double-advance the fence.
+	// authoritative queue snapshot too, so it has to reconcile the markers
+	// exactly like a `queue_update` does. It is a POST-INSTALL observer, not a
+	// write gate: by the time the effect runs the value IS the cached one, so a
+	// rejected snapshot stays installed and is only withheld from the marker
+	// reconciliation. The store consumes the echo of a write this client made,
+	// so observing the socket arm's own write is not mistaken for a server
+	// statement.
 	const cachedQueuedMessages = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(chatID ?? ""),
 		enabled: Boolean(chatID),

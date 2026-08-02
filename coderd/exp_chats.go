@@ -3569,6 +3569,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if sendResult.QueuedMessage != nil {
 			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
 		}
+		response.PromotedQueuedMessageID = sendResult.PromotedQueuedMessageID
 	} else {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message

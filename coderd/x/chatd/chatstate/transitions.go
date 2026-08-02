@@ -347,6 +347,12 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
+	// PromotedQueuedMessageID is the id of the queued row this send
+	// promoted into history, or zero when the send promoted nothing.
+	// Only the errored-chat queue path (E1) promotes a head as part of
+	// a send; the head is chosen by queue position, which clients
+	// cannot derive from a possibly stale local ordering.
+	PromotedQueuedMessageID int64
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -476,8 +482,9 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 		return SendMessageResult{}, xerrors.Errorf("set running: %w", err)
 	}
 	return SendMessageResult{
-		InsertedMessages: inserted,
-		QueuedMessage:    &queued,
+		InsertedMessages:        inserted,
+		QueuedMessage:           &queued,
+		PromotedQueuedMessageID: head.ID,
 	}, nil
 }
 
