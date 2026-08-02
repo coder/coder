@@ -1,11 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, type PropsWithChildren, useRef } from "react";
 import type { InfiniteData } from "react-query";
 import { expect, within } from "storybook/test";
 import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
-import { createChatStore } from "./ChatConversation/chatStore";
+import {
+	ChatStoreContext,
+	createChatStore,
+} from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
 
@@ -17,6 +21,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
+
+// One store per mounted story, created once so the context value stays stable
+// across renders. These stories exercise durable rendering only, so the store
+// carries no streaming overlay.
+const WithChatStore: FC<PropsWithChildren> = ({ children }) => {
+	const storeRef = useRef(createChatStore());
+	return (
+		<ChatStoreContext value={storeRef.current}>{children}</ChatStoreContext>
+	);
+};
 
 const buildMessage = (
 	id: number,
@@ -71,11 +85,9 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 		]),
 	},
 	render: () => (
-		<ChatPageTimeline
-			store={createChatStore()}
-			chatId={CHAT_ID}
-			persistedError={undefined}
-		/>
+		<WithChatStore>
+			<ChatPageTimeline chatId={CHAT_ID} persistedError={undefined} />
+		</WithChatStore>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -103,11 +115,9 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 	render: () => (
 		<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-			<ChatPageTimeline
-				store={createChatStore()}
-				chatId={CHAT_ID}
-				persistedError={undefined}
-			/>
+			<WithChatStore>
+				<ChatPageTimeline chatId={CHAT_ID} persistedError={undefined} />
+			</WithChatStore>
 		</ChatWorkspaceContext>
 	),
 	play: async ({ canvasElement }) => {
@@ -128,11 +138,9 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 		]),
 	},
 	render: () => (
-		<ChatPageTimeline
-			store={createChatStore()}
-			chatId={CHAT_ID}
-			persistedError={undefined}
-		/>
+		<WithChatStore>
+			<ChatPageTimeline chatId={CHAT_ID} persistedError={undefined} />
+		</WithChatStore>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -198,11 +206,9 @@ export const MergedMessagesRenderInIDOrder: Story = {
 		],
 	},
 	render: () => (
-		<ChatPageTimeline
-			store={createChatStore()}
-			chatId={CHAT_ID}
-			persistedError={undefined}
-		/>
+		<WithChatStore>
+			<ChatPageTimeline chatId={CHAT_ID} persistedError={undefined} />
+		</WithChatStore>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

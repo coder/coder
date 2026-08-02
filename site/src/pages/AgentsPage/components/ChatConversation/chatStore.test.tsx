@@ -57,6 +57,8 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	type ChatStore,
+	ChatStoreContext,
+	createChatStore,
 	resolveOverlayStreamState,
 	selectFinalizingMessageID,
 	selectFinalizingStreamState,
@@ -66,7 +68,7 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	useChatStore,
+	useChatStoreContext,
 } from "./chatStore";
 import {
 	shouldSuppressFinalizedOverlay,
@@ -75,6 +77,7 @@ import {
 	useDurableQueuedMessages,
 	useIsAwaitingFirstStreamChunk,
 } from "./durableChat";
+import { useChatStore } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -6850,5 +6853,43 @@ describe("durable messages in the query cache", () => {
 				readMessagesCache(queryClient, chatID)?.pages[0].queued_messages,
 			).toEqual([]);
 		});
+	});
+});
+
+describe("ChatStoreContext", () => {
+	it("gives a descendant selector the provided store", () => {
+		const store = createChatStore();
+		store.setStreamError({ kind: "generic", message: "provided store" });
+
+		const StreamErrorProbe: FC = () => {
+			const contextStore = useChatStoreContext();
+			const streamError = useChatSelector(contextStore, selectStreamError);
+			return <span>{streamError?.message ?? "no error"}</span>;
+		};
+
+		render(
+			<ChatStoreContext value={store}>
+				<StreamErrorProbe />
+			</ChatStoreContext>,
+		);
+
+		expect(screen.getByText("provided store")).toBeInTheDocument();
+	});
+
+	it("throws when a descendant reads the context without a provider", () => {
+		const BareProbe: FC = () => {
+			useChatStoreContext();
+			return null;
+		};
+
+		// React logs the expected render error; keep the output clean.
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		try {
+			expect(() => render(<BareProbe />)).toThrow();
+		} finally {
+			consoleError.mockRestore();
+		}
 	});
 });

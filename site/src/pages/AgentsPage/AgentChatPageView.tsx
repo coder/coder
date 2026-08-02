@@ -33,7 +33,6 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
@@ -71,8 +70,6 @@ import {
 	savePersistedSidebarTabId,
 } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
-
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 type ChatOwnerInfo = {
 	name?: string;
@@ -125,9 +122,6 @@ interface AgentChatPageViewProps {
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
-
-	// Store handle.
-	store: ChatStoreHandle;
 
 	// Editing state.
 	editing: EditingState;
@@ -326,7 +320,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	chatBuildId,
-	store,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -912,7 +905,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						>
 							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline
-									store={store}
 									chatId={agentId}
 									persistedError={persistedError}
 									onEditUserMessage={
@@ -938,7 +930,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<ChatPageInput
 								organizationId={organizationId}
 								sendShortcut={sendShortcut}
-								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
 								onDeleteQueuedMessage={handleDeleteQueuedMessage}

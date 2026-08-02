@@ -1,54 +1,12 @@
-import { useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
 } from "../../utils/usageLimitMessage";
+import { chatQueuedMessagesEqualByValue } from "./chatValueEquality";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
-
-const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
-	if (left === right) {
-		return true;
-	}
-	try {
-		return JSON.stringify(left) === JSON.stringify(right);
-	} catch {
-		return false;
-	}
-};
-
-export const chatMessagesEqualByValue = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): boolean =>
-	left.id === right.id &&
-	left.chat_id === right.chat_id &&
-	left.model_config_id === right.model_config_id &&
-	left.created_at === right.created_at &&
-	left.role === right.role &&
-	jsonValuesEqual(left.content, right.content) &&
-	jsonValuesEqual(left.usage, right.usage);
-
-// Compares two queue snapshots by value. Deliberately not by ID alone: a
-// requeued edit keeps the ID and changes the content. Covers every field of
-// `ChatQueuedMessage`, so it agrees with the structural sharing the query
-// cache applies to a write.
-export const chatQueuedMessagesEqualByValue = (
-	left: readonly TypesGen.ChatQueuedMessage[],
-	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean =>
-	left.length === right.length &&
-	left.every((message, index) => {
-		const other = right[index];
-		return (
-			message.id === other.id &&
-			message.chat_id === other.chat_id &&
-			message.model_config_id === other.model_config_id &&
-			message.created_at === other.created_at &&
-			jsonValuesEqual(message.content, other.content)
-		);
-	});
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -85,10 +43,6 @@ const reconnectStatesEqual = (
 		left.retryingAt === right.retryingAt
 	);
 };
-
-export const isActiveChatStatus = (
-	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "interrupting";
 
 /**
  * Transient chat state. Durable messages and the durable queue are NOT here:
@@ -186,7 +140,6 @@ export type ChatStore = {
 	setRetryState: (state: RetryState | null) => void;
 	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState | null) => void;
-	clearReconnectState: () => void;
 	clearStreamState: () => void;
 	resetTransportReplayState: () => void;
 	setSubagentStatusOverride: (
@@ -602,15 +555,6 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		clearReconnectState: () => {
-			if (state.reconnectState === null) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				reconnectState: null,
-			}));
-		},
 		clearStreamState: () => {
 			if (
 				state.streamState === null &&
@@ -728,4 +672,18 @@ export const useChatSelector = <T>(
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
-export { useChatStore } from "./useChatStore";
+/**
+ * Publishes the handle the chat page created so descendants subscribe at the
+ * point of use instead of receiving it through props. Nullable rather than
+ * defaulted to a store: a default would let a subtree rendered outside the
+ * page read a second store nothing ever writes.
+ */
+export const ChatStoreContext = createContext<ChatStore | null>(null);
+
+export const useChatStoreContext = (): ChatStore => {
+	const store = useContext(ChatStoreContext);
+	if (!store) {
+		throw new Error("useChatStoreContext must be used within ChatStoreContext");
+	}
+	return store;
+};

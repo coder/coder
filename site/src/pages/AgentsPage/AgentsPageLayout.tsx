@@ -61,7 +61,7 @@ import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
-import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
+import { isActiveChatStatus } from "./components/ChatConversation/chatStatusHelpers";
 import {
 	ChatsSidebar,
 	isSettingsView,

@@ -23,6 +23,10 @@ const normalizeProvider = (provider?: string): string | undefined => {
 	}
 };
 
+export const isActiveChatStatus = (
+	status: TypesGen.ChatStatus | null,
+): boolean => status === "running" || status === "interrupting";
+
 export const getErrorTitle = (
 	kind: TypesGen.ChatErrorKind,
 	mode: "retry" | "error",

@@ -28,14 +28,16 @@ import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { normalizeChatErrorPayload } from "./chatError";
+import { isActiveChatStatus } from "./chatStatusHelpers";
 import {
 	type ChatStore,
 	type ChatStoreState,
+	createChatStore,
+} from "./chatStore";
+import {
 	chatMessagesEqualByValue,
 	chatQueuedMessagesEqualByValue,
-	createChatStore,
-	isActiveChatStatus,
-} from "./chatStore";
+} from "./chatValueEquality";
 import {
 	readCanonicalQueuedMessages,
 	selectCanonicalQueuedMessages,
@@ -376,9 +378,9 @@ export const useChatStore = (
 		let disposed = false;
 
 		// Parts buffer lives at the effect scope so it persists
-		// across WebSocket messages. A rAF-based flush coalesces
+		// across WebSocket messages. A timer-based flush coalesces
 		// parts from multiple WS messages into a single render,
-		// capping stream renders to once per animation frame.
+		// capping stream renders to one per macrotask.
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 

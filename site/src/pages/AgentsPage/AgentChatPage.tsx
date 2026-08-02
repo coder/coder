@@ -86,13 +86,14 @@ import {
 import { runExclusiveQueueMutation } from "./components/ChatConversation/chatQueueMutations";
 import {
 	type ChatStore,
+	ChatStoreContext,
 	type ChatStoreState,
-	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import {
 	readEffectiveQueuedMessages,
 	useDurableChatStatus,
 } from "./components/ChatConversation/durableChat";
+import { useChatStore } from "./components/ChatConversation/useChatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -2067,101 +2068,102 @@ const AgentChatPage: FC = () => {
 	}
 
 	return (
-		<AgentChatPageView
-			key={agentId}
-			agentId={agentId}
-			sendShortcut={getAgentChatSendShortcut(
-				preferencesQuery.data?.agent_chat_send_shortcut,
-				preferencesQuery.isLoading,
-			)}
-			organizationId={chatQuery.data?.organization_id}
-			chatTitle={chatTitle}
-			parentChat={parentChat}
-			persistedError={persistedError}
-			isArchived={isArchived}
-			isSharedChat={isSharedChat}
-			chatOwner={chatOwner}
-			canShareChat={canShareChat}
-			workspace={workspace}
-			workspaceAgent={workspaceAgent}
-			chatBuildId={chatQuery.data?.build_id}
-			store={store}
-			editing={{ ...editing, handleEditUserMessage }}
-			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			modelSelectorHelp={modelSelectorHelp}
-			reasoningEffort={effectiveReasoningEffort}
-			onReasoningEffortChange={(value) => {
-				setSelectedReasoningEffort(value);
-				if (editing.editingMessageId !== null) {
-					isEditReasoningEffortDirtyRef.current = true;
+		<ChatStoreContext value={store}>
+			<AgentChatPageView
+				key={agentId}
+				agentId={agentId}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
+				organizationId={chatQuery.data?.organization_id}
+				chatTitle={chatTitle}
+				parentChat={parentChat}
+				persistedError={persistedError}
+				isArchived={isArchived}
+				isSharedChat={isSharedChat}
+				chatOwner={chatOwner}
+				canShareChat={canShareChat}
+				workspace={workspace}
+				workspaceAgent={workspaceAgent}
+				chatBuildId={chatQuery.data?.build_id}
+				editing={{ ...editing, handleEditUserMessage }}
+				effectiveSelectedModel={effectiveSelectedModel}
+				setSelectedModel={setSelectedModel}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				modelSelectorHelp={modelSelectorHelp}
+				reasoningEffort={effectiveReasoningEffort}
+				onReasoningEffortChange={(value) => {
+					setSelectedReasoningEffort(value);
+					if (editing.editingMessageId !== null) {
+						isEditReasoningEffortDirtyRef.current = true;
+					}
+				}}
+				canConfigureAgentSetup={permissions.editDeploymentConfig}
+				providerCount={providerCount}
+				modelCount={modelCount}
+				unsupportedProviderNames={unsupportedProviderNames}
+				aiGatewayDisabled={aiGatewayDisabled}
+				hasModelOptions={hasModelOptions}
+				isModelCatalogLoading={isModelCatalogLoading}
+				planModeEnabled={planModeEnabled}
+				onPlanModeToggle={handlePlanModeToggle}
+				compressionThreshold={compressionThreshold}
+				isInputDisabled={isInputDisabled}
+				isSubmissionPending={isSubmissionPending}
+				isInterruptPending={isInterruptPending}
+				workspaceOptions={workspaceOptions}
+				selectedWorkspaceId={selectedWorkspaceId}
+				onWorkspaceChange={
+					canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 				}
-			}}
-			canConfigureAgentSetup={permissions.editDeploymentConfig}
-			providerCount={providerCount}
-			modelCount={modelCount}
-			unsupportedProviderNames={unsupportedProviderNames}
-			aiGatewayDisabled={aiGatewayDisabled}
-			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
-			compressionThreshold={compressionThreshold}
-			isInputDisabled={isInputDisabled}
-			isSubmissionPending={isSubmissionPending}
-			isInterruptPending={isInterruptPending}
-			workspaceOptions={workspaceOptions}
-			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={
-				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
-			}
-			isWorkspaceLoading={isWorkspaceLoading}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			showSidebarPanel={showSidebarPanel}
-			onSetShowSidebarPanel={handleSetShowSidebarPanel}
-			prNumber={prNumber}
-			diffStatusData={chatQuery.data?.diff_status}
-			debugLoggingEnabled={debugLoggingEnabled}
-			gitWatcher={gitWatcher}
-			sshCommand={sshCommand}
-			handleCommit={handleCommit}
-			handleInterrupt={handleInterrupt}
-			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
-			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-			onImplementPlan={handleImplementPlan}
-			onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-			handleArchiveAgentAction={handleArchiveAgentAction}
-			handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-			handleArchiveAndDeleteWorkspaceAction={
-				handleArchiveAndDeleteWorkspaceAction
-			}
-			handlePinAgentAction={handlePinAgentAction}
-			handleUnpinAgentAction={handleUnpinAgentAction}
-			handleOpenRenameDialogAction={handleOpenRenameDialogAction}
-			isArchivingThisChat={
-				isArchiving &&
-				(archivingChatId === undefined || archivingChatId === agentId)
-			}
-			isPinned={(chatRecord?.pin_order ?? 0) > 0}
-			isChildChat={parentChatID !== undefined}
-			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
-			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={chatMessagesList?.length ?? 0}
-			desktopChatId={desktopEnabled ? agentId : undefined}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={effectiveMCPServerIds}
-			onMCPSelectionChange={handleMCPSelectionChange}
-			onMCPAuthComplete={handleMCPAuthComplete}
-			chatContext={chatQuery.data?.context}
-			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
-		/>
+				isWorkspaceLoading={isWorkspaceLoading}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showSidebarPanel={showSidebarPanel}
+				onSetShowSidebarPanel={handleSetShowSidebarPanel}
+				prNumber={prNumber}
+				diffStatusData={chatQuery.data?.diff_status}
+				debugLoggingEnabled={debugLoggingEnabled}
+				gitWatcher={gitWatcher}
+				sshCommand={sshCommand}
+				handleCommit={handleCommit}
+				handleInterrupt={handleInterrupt}
+				handleDeleteQueuedMessage={handleDeleteQueuedMessage}
+				handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+				onImplementPlan={handleImplementPlan}
+				onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+				handleArchiveAgentAction={handleArchiveAgentAction}
+				handleUnarchiveAgentAction={handleUnarchiveAgentAction}
+				handleArchiveAndDeleteWorkspaceAction={
+					handleArchiveAndDeleteWorkspaceAction
+				}
+				handlePinAgentAction={handlePinAgentAction}
+				handleUnpinAgentAction={handleUnpinAgentAction}
+				handleOpenRenameDialogAction={handleOpenRenameDialogAction}
+				isArchivingThisChat={
+					isArchiving &&
+					(archivingChatId === undefined || archivingChatId === agentId)
+				}
+				isPinned={(chatRecord?.pin_order ?? 0) > 0}
+				isChildChat={parentChatID !== undefined}
+				urlTransform={urlTransform}
+				scrollContainerRef={scrollContainerRef}
+				scrollToBottomRef={scrollToBottomRef}
+				hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+				isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+				onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+				messageCount={chatMessagesList?.length ?? 0}
+				desktopChatId={desktopEnabled ? agentId : undefined}
+				mcpServers={mcpServers}
+				selectedMCPServerIds={effectiveMCPServerIds}
+				onMCPSelectionChange={handleMCPSelectionChange}
+				onMCPAuthComplete={handleMCPAuthComplete}
+				chatContext={chatQuery.data?.context}
+				workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
+			/>
+		</ChatStoreContext>
 	);
 };
 

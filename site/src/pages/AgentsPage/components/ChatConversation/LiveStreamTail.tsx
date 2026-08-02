@@ -15,7 +15,7 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	type useChatStore,
+	useChatStoreContext,
 } from "./chatStore";
 import { useIsAwaitingFirstStreamChunk } from "./durableChat";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
@@ -29,8 +29,6 @@ const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "retrying" ||
 	liveStatus.phase === "reconnecting" ||
 	liveStatus.hasAccumulatedOutput;
-
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 interface LiveStreamTailContentProps {
 	isTranscriptEmpty: boolean;
@@ -114,7 +112,6 @@ export const LiveStreamTailContent = ({
 };
 
 interface LiveStreamTailProps {
-	store: ChatStoreHandle;
 	chatId?: string;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
@@ -129,7 +126,6 @@ interface LiveStreamTailProps {
 }
 
 export const LiveStreamTail = ({
-	store,
 	chatId,
 	persistedError,
 	isTranscriptEmpty,
@@ -139,6 +135,7 @@ export const LiveStreamTail = ({
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailProps) => {
+	const store = useChatStoreContext();
 	const streamState = useChatSelector(store, selectStreamState);
 	const finalizingStreamState = useChatSelector(
 		store,

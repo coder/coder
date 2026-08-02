@@ -139,11 +139,11 @@ describe("setRetryState / clearRetryState", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setReconnectState / clearReconnectState
+// setReconnectState
 // ---------------------------------------------------------------------------
 
-describe("setReconnectState / clearReconnectState", () => {
-	it("stores and clears reconnect state", () => {
+describe("setReconnectState", () => {
+	it("stores reconnect state", () => {
 		const store = createChatStore();
 
 		store.setReconnectState({
@@ -156,20 +156,26 @@ describe("setReconnectState / clearReconnectState", () => {
 			delayMs: 3000,
 			retryingAt: "2025-01-01T00:00:30.000Z",
 		});
-
-		store.clearReconnectState();
-		expect(store.getSnapshot().reconnectState).toBeNull();
 	});
 
-	it("clearReconnectState is a no-op when already null", () => {
+	it("does not notify when setting an equal reconnect state", () => {
 		const store = createChatStore();
+		store.setReconnectState({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.clearReconnectState();
 
+		store.setReconnectState({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
 		expect(notified).toBe(false);
 	});
 });

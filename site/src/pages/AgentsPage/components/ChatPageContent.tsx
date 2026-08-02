@@ -27,7 +27,7 @@ import {
 	selectHasStreamOverlay,
 	selectHasStreamState,
 	useChatSelector,
-	type useChatStore,
+	useChatStoreContext,
 } from "./ChatConversation/chatStore";
 import {
 	shouldSuppressFinalizedOverlay,
@@ -45,8 +45,6 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
-
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
@@ -76,7 +74,6 @@ export const workspaceSkillsFromChat = (
 };
 
 interface ChatPageTimelineProps {
-	store: ChatStoreHandle;
 	chatId?: string;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -92,7 +89,6 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
-	store,
 	chatId,
 	persistedError,
 	onEditUserMessage,
@@ -102,6 +98,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
+	const store = useChatStoreContext();
 	const [chatFullWidth] = useChatFullWidth();
 	const messages = useDurableMessageList({ store, chatId });
 	const chatStatus = useDurableChatStatus({ store, chatId });
@@ -175,7 +172,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					showDesktopPreviews={false}
 				/>
 				<LiveStreamTail
-					store={store}
 					chatId={chatId}
 					persistedError={persistedError}
 					isTranscriptEmpty={parsedMessages.length === 0}
@@ -198,7 +194,6 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
 	organizationId: string | undefined;
-	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (
 		message: string,
@@ -277,7 +272,6 @@ interface ChatPageInputProps {
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	organizationId,
-	store,
 	compressionThreshold,
 	onSend,
 	sendShortcut,
@@ -333,6 +327,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	attachedWorkspace,
 	folder,
 }) => {
+	const store = useChatStoreContext();
 	const messages = useDurableMessageList({ store, chatId });
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useDurableChatStatus({ store, chatId });

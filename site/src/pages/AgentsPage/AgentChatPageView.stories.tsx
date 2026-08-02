@@ -33,7 +33,10 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { createChatStore } from "./components/ChatConversation/chatStore";
+import {
+	ChatStoreContext,
+	createChatStore,
+} from "./components/ChatConversation/chatStore";
 import { useDurableMessageCount } from "./components/ChatConversation/durableChat";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -110,10 +113,9 @@ const agentsRouting = [
 // Wrapper component.
 //
 // Storybook's composeStory deep-merges meta.args into every story.
-// When meta.args contains many fn() mocks, Maps, and closure-bound
-// stores the merge hangs the browser. This wrapper builds fresh
-// default props on each render, accepting only the overrides each
-// story cares about.
+// When meta.args contains many fn() mocks and Maps the merge hangs
+// the browser. This wrapper builds fresh default props on each
+// render, accepting only the overrides each story cares about.
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
@@ -123,10 +125,10 @@ type StoryProps = Omit<
 };
 
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
-	const defaultStoreRef = useRef(createChatStore());
+	const storeRef = useRef(createChatStore());
 	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
-	const store = overrides.store ?? defaultStoreRef.current;
+	const store = storeRef.current;
 	const agentId = overrides.agentId ?? AGENT_ID;
 	const messageCount = useDurableMessageCount({ store, chatId: agentId });
 
@@ -186,11 +188,14 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		providerCount: 1,
 		modelCount: 1,
 		...overrides,
-		store,
 		messageCount: overrides.messageCount ?? messageCount,
 		editing: buildEditing(editing),
 	};
-	return <AgentChatPageView {...props} />;
+	return (
+		<ChatStoreContext value={store}>
+			<AgentChatPageView {...props} />
+		</ChatStoreContext>
+	);
 };
 
 // ---------------------------------------------------------------------------
@@ -864,10 +869,9 @@ const buildMessage = (
 
 // Durable messages are canonical in the query cache, so a story that needs a
 // transcript owns a QueryClient seeded with the pages the API would return and
-// provides it around the view. The store carries only the streaming overlay.
+// provides it around the view.
 type StoryChat = {
 	queryClient: QueryClient;
-	store: ReturnType<typeof createChatStore>;
 	setMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	getMessages: () => readonly TypesGen.ChatMessage[];
 };
@@ -900,7 +904,6 @@ const createStoryChat = (
 	setMessages(messages);
 	return {
 		queryClient,
-		store: createChatStore(),
 		setMessages,
 		getMessages: () => {
 			const data = queryClient.getQueryData<
@@ -950,7 +953,6 @@ export const OtherUserChatHidesInlineActions: Story = {
 				chatOwner={{ username: "OtherUser", name: "Other User" }}
 				isInputDisabled
 				onImplementPlan={fn()}
-				store={otherUserActionChat.store}
 			/>
 		</WithStoryChat>
 	),
@@ -993,7 +995,6 @@ export const EditingMessage: Story = {
 	render: () => (
 		<WithStoryChat chat={editingChat}>
 			<StoryAgentChatPageView
-				store={editingChat.store}
 				editing={{
 					editingMessageId: 3,
 					editorInitialValue: "Now tell me a joke",
@@ -1164,7 +1165,6 @@ export const InverseScrollLoadsOlderMessages: Story = {
 	render: () => (
 		<WithStoryChat chat={inverseScrollChat}>
 			<StoryAgentChatPageView
-				store={inverseScrollChat.store}
 				hasMoreMessages
 				onFetchMoreMessages={inverseScrollFetchSpy}
 			/>
@@ -1201,7 +1201,6 @@ export const InverseScrollCanLoadMultiplePages: Story = {
 	render: () => (
 		<WithStoryChat chat={multiPageScrollChat}>
 			<StoryAgentChatPageView
-				store={multiPageScrollChat.store}
 				hasMoreMessages
 				onFetchMoreMessages={multiPageFetchSpy}
 			/>
@@ -1244,7 +1243,7 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<WithStoryChat chat={scrollToBottomButtonStoryChat}>
-			<StoryAgentChatPageView store={scrollToBottomButtonStoryChat.store} />
+			<StoryAgentChatPageView />
 		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
@@ -1294,10 +1293,7 @@ export const ScrollToBottomRefStillWorks: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<WithStoryChat chat={scrollToBottomStoryChat}>
-			<StoryAgentChatPageView
-				store={scrollToBottomStoryChat.store}
-				scrollToBottomRef={scrollToBottomStoryRef}
-			/>
+			<StoryAgentChatPageView scrollToBottomRef={scrollToBottomStoryRef} />
 		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
@@ -1340,7 +1336,7 @@ export const MessageOrderIsStillCorrect: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<WithStoryChat chat={messageOrderChat}>
-			<StoryAgentChatPageView store={messageOrderChat.store} />
+			<StoryAgentChatPageView />
 		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
@@ -1377,7 +1373,7 @@ export const StickyUserMessagePinsOnScroll: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<WithStoryChat chat={stickyPinningChat}>
-			<StoryAgentChatPageView store={stickyPinningChat.store} />
+			<StoryAgentChatPageView />
 		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
@@ -1484,7 +1480,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<WithStoryChat chat={stickyClipUpdateChat}>
-			<StoryAgentChatPageView store={stickyClipUpdateChat.store} />
+			<StoryAgentChatPageView />
 		</WithStoryChat>
 	),
 	play: async ({ canvasElement }) => {
