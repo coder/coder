@@ -172,7 +172,28 @@ func (b *bufferedResponse) Header() http.Header { return b.header }
 
 func (b *bufferedResponse) Write(p []byte) (int, error) {
 	b.commitStatus()
+	// net/http suppresses bodies for these statuses. Refusing the write
+	// here keeps the buffer identical to the bytes the real writer sends,
+	// so the signature computed over the buffer always matches the wire
+	// body the dispatcher hashes.
+	if !bodyAllowedForStatus(b.status) {
+		return 0, http.ErrBodyNotAllowed
+	}
 	return b.body.Write(p)
+}
+
+// bodyAllowedForStatus mirrors net/http's rule for statuses that cannot
+// carry a response body.
+func bodyAllowedForStatus(status int) bool {
+	switch {
+	case status >= 100 && status <= 199:
+		return false
+	case status == http.StatusNoContent:
+		return false
+	case status == http.StatusNotModified:
+		return false
+	}
+	return true
 }
 
 func (b *bufferedResponse) WriteHeader(status int) {

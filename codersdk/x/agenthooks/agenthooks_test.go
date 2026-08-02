@@ -655,6 +655,39 @@ func TestSignResponsesImplicit200(t *testing.T) {
 	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
 }
 
+// TestSignResponsesBodylessStatus pins that the signing buffer refuses
+// body writes for statuses net/http suppresses bodies on (for example 204),
+// so the signature is computed over the empty body that actually reaches
+// the wire instead of over buffered bytes the real writer would drop.
+func TestSignResponsesBodylessStatus(t *testing.T) {
+	t.Parallel()
+
+	var writeErr error
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+		_, writeErr = rw.Write([]byte(`{}`))
+	})))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusNoContent, response.StatusCode)
+	require.ErrorIs(t, writeErr, http.ErrBodyNotAllowed)
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+	require.Empty(t, buffer.Bytes())
+
+	// The 2xx signature must verify over the empty wire body.
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
 func TestSignResponsesRejectsUnauthenticatedRequests(t *testing.T) {
 	t.Parallel()
 
