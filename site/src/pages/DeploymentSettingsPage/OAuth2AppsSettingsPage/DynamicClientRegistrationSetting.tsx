@@ -47,8 +47,8 @@ export const DynamicClientRegistrationSetting: FC<
 						Allow OAuth2 clients to register themselves at{" "}
 						<code className="text-xs">/oauth2/register</code> without prior
 						administrator approval (RFC 7591). Disabling stops new
-						registrations. Clients that already registered keep working until
-						you remove them from the Applications tab.
+						registrations. Clients that already registered keep working until an
+						administrator deletes them.
 					</p>
 					{/*
 					 * A disabled button takes no focus and no pointer events, so it
