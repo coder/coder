@@ -156,6 +156,13 @@ type Agent interface {
 	io.Closer
 }
 
+var errTailnetWatchdogTimeout = xerrors.New("tailnet watchdog timeout")
+
+type tailnetWatchdogEvent struct {
+	generation uint64
+	operation  string
+}
+
 func New(options Options) Agent {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
@@ -234,6 +241,7 @@ func New(options Options) Agent {
 		lifecycleReported:       make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:         []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
 		reportConnectionsUpdate: make(chan struct{}, 1),
+		tailnetWatchdog:         make(chan struct{}, 1),
 		listeningPortsHandler: listeningPortsHandler{
 			getter:      options.ListeningPortsGetter,
 			ignorePorts: maps.Clone(options.IgnorePorts),
@@ -296,15 +304,19 @@ type agent struct {
 	hardCancel     context.CancelFunc
 
 	// closeMutex protects the following:
-	closeMutex        sync.Mutex
-	closeWaitGroup    sync.WaitGroup
-	coordDisconnected chan struct{}
-	closing           bool
-	// note that once the network is set to non-nil, it is never modified, as with the statsReporter. So, routines
-	// that run after createOrUpdateNetwork and check the networkOK checkpoint do not need to hold the lock to use them.
-	network       *tailnet.Conn
-	statsReporter *statsReporter
+	closeMutex            sync.Mutex
+	closeWaitGroup        sync.WaitGroup
+	coordDisconnected     chan struct{}
+	closing               bool
+	networkGeneration     uint64
+	network               *tailnet.Conn
+	networkTransitionDone chan struct{}
+	statsReporter         *statsReporter
 	// end fields protected by closeMutex
+	tailnetWatchdogMu      sync.Mutex
+	tailnetWatchdog        chan struct{}
+	tailnetWatchdogEvent   tailnetWatchdogEvent
+	tailnetWatchdogPending bool
 
 	environmentVariables map[string]string
 
@@ -1165,6 +1177,8 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgent
 }
 
 func (a *agent) run() (retErr error) {
+	a.discardHandledTailnetWatchdogEvents()
+
 	// This allows the agent to refresh its token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
@@ -1304,6 +1318,10 @@ func (a *agent) run() (retErr error) {
 	//           stats report loop <---------------+
 	networkOK := newCheckpoint(a.logger)
 	manifestOK := newCheckpoint(a.logger)
+	connMan.startAgentAPI("tailnet watchdog recovery", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, _ proto.DRPCAgentClient28) error {
+			return a.recoverTailnetAfterWatchdog(ctx)
+		})
 
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
 
@@ -1327,7 +1345,11 @@ func (a *agent) run() (retErr error) {
 			if err := networkOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no network: %w", err)
 			}
-			return a.runCoordinator(ctx, tAPI, a.network)
+			network, ok := a.requireNetwork()
+			if !ok {
+				return tailnet.ErrConnClosed
+			}
+			return a.runCoordinator(ctx, tAPI, network)
 		},
 	)
 
@@ -1336,7 +1358,11 @@ func (a *agent) run() (retErr error) {
 			if err := networkOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no network: %w", err)
 			}
-			return a.runDERPMapSubscriber(ctx, tAPI, a.network)
+			network, ok := a.requireNetwork()
+			if !ok {
+				return tailnet.ErrConnClosed
+			}
+			return a.runDERPMapSubscriber(ctx, tAPI, network)
 		})
 
 	connMan.startAgentAPI("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
@@ -1345,7 +1371,11 @@ func (a *agent) run() (retErr error) {
 		if err := networkOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no network: %w", err)
 		}
-		return a.statsReporter.reportLoop(ctx, aAPI)
+		reporter, ok := a.requireStatsReporter()
+		if !ok {
+			return tailnet.ErrConnClosed
+		}
+		return reporter.reportLoop(ctx, aAPI)
 	})
 
 	err = connMan.wait()
@@ -1616,9 +1646,35 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			networkOK.complete(retErr)
 		}()
 		manifest := a.manifest.Load()
-		a.closeMutex.Lock()
-		network := a.network
-		a.closeMutex.Unlock()
+		var network *tailnet.Conn
+		var networkGeneration uint64
+		var networkTransitionDone chan struct{}
+		for {
+			a.closeMutex.Lock()
+			if a.closing {
+				a.closeMutex.Unlock()
+				return xerrors.Errorf("agent closed before creating tailnet: %w", ErrAgentClosing)
+			}
+			pendingNetworkTransition := a.networkTransitionDone
+			if pendingNetworkTransition == nil {
+				network = a.network
+				networkGeneration = a.networkGeneration
+				if network == nil {
+					a.networkGeneration++
+					networkGeneration = a.networkGeneration
+					networkTransitionDone = make(chan struct{})
+					a.networkTransitionDone = networkTransitionDone
+				}
+				a.closeMutex.Unlock()
+				break
+			}
+			a.closeMutex.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-pendingNetworkTransition:
+			}
+		}
 		if network == nil {
 			keySeed, err := SSHKeySeed(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName)
 			if err != nil {
@@ -1633,21 +1689,30 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 				manifest.DERPForceWebSockets,
 				manifest.DisableDirectConnections,
 				keySeed,
+				networkGeneration,
 			)
 			if err != nil {
+				a.completeNetworkTransition(networkTransitionDone)
 				return xerrors.Errorf("create tailnet: %w", err)
 			}
 			a.closeMutex.Lock()
-			// Re-check if agent was closed while initializing the network.
+			// Re-check if the agent closed or the watchdog invalidated this
+			// generation while the tailnet was initializing.
 			closing := a.closing
-			if !closing {
+			generationChanged := a.networkGeneration != networkGeneration
+			if !closing && !generationChanged {
 				a.network = network
 				a.statsReporter = newStatsReporter(a.logger, network, a, a.statsReportInterval)
+				a.completeNetworkTransitionLocked(networkTransitionDone)
 			}
 			a.closeMutex.Unlock()
-			if closing {
-				_ = network.Close()
-				return xerrors.Errorf("agent closed while creating tailnet: %w", ErrAgentClosing)
+			if closing || generationChanged {
+				network.Abort()
+				a.completeNetworkTransition(networkTransitionDone)
+				if closing {
+					return xerrors.Errorf("agent closed while creating tailnet: %w", ErrAgentClosing)
+				}
+				return xerrors.Errorf("tailnet invalidated while initializing: %w", errTailnetWatchdogTimeout)
 			}
 		} else {
 			// Update the wireguard IPs if the agent ID changed.
@@ -1666,9 +1731,140 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 				client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
 				a.containerAPI.UpdateSubAgentClient(client)
 			}
+			a.closeMutex.Lock()
+			closing := a.closing
+			generationChanged := a.networkGeneration != networkGeneration || a.network != network
+			a.closeMutex.Unlock()
+			if closing {
+				return xerrors.Errorf("agent closed while updating tailnet: %w", ErrAgentClosing)
+			}
+			if generationChanged {
+				return xerrors.Errorf("tailnet invalidated while updating: %w", errTailnetWatchdogTimeout)
+			}
 		}
 		return nil
 	}
+}
+func (a *agent) recoverTailnetAfterWatchdog(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-a.tailnetWatchdog:
+			event, ok := a.takeTailnetWatchdogEvent()
+			if !ok {
+				continue
+			}
+			a.closeMutex.Lock()
+			currentGeneration := a.networkGeneration
+			eventIsCurrent := !a.closing && a.network == nil && currentGeneration == event.generation+1
+			a.closeMutex.Unlock()
+			if !eventIsCurrent {
+				a.logger.Debug(ctx, "ignoring stale wireguard watchdog timeout",
+					slog.F("operation", event.operation),
+					slog.F("generation", event.generation),
+					slog.F("current_generation", currentGeneration),
+				)
+				continue
+			}
+			a.logger.Error(ctx, "resetting tailnet after wireguard watchdog timeout",
+				slog.F("operation", event.operation),
+				slog.F("generation", event.generation),
+			)
+			return xerrors.Errorf("%w: %s", errTailnetWatchdogTimeout, event.operation)
+		}
+	}
+}
+func (a *agent) discardHandledTailnetWatchdogEvents() {
+	a.tailnetWatchdogMu.Lock()
+	event := a.tailnetWatchdogEvent
+	pending := a.tailnetWatchdogPending
+	a.tailnetWatchdogPending = false
+	select {
+	case <-a.tailnetWatchdog:
+	default:
+	}
+	a.tailnetWatchdogMu.Unlock()
+	if pending {
+		a.logger.Debug(a.hardCtx, "discarding handled wireguard watchdog timeout",
+			slog.F("operation", event.operation),
+			slog.F("generation", event.generation),
+		)
+	}
+}
+
+func (a *agent) queueTailnetWatchdogEvent(event tailnetWatchdogEvent) {
+	a.tailnetWatchdogMu.Lock()
+	if !a.tailnetWatchdogPending || event.generation > a.tailnetWatchdogEvent.generation {
+		a.tailnetWatchdogEvent = event
+		a.tailnetWatchdogPending = true
+	}
+	a.tailnetWatchdogMu.Unlock()
+	select {
+	case a.tailnetWatchdog <- struct{}{}:
+	default:
+	}
+}
+
+func (a *agent) takeTailnetWatchdogEvent() (tailnetWatchdogEvent, bool) {
+	a.tailnetWatchdogMu.Lock()
+	defer a.tailnetWatchdogMu.Unlock()
+	event := a.tailnetWatchdogEvent
+	pending := a.tailnetWatchdogPending
+	a.tailnetWatchdogPending = false
+	return event, pending
+}
+
+func (a *agent) completeNetworkTransition(done chan struct{}) {
+	if done == nil {
+		return
+	}
+	a.closeMutex.Lock()
+	a.completeNetworkTransitionLocked(done)
+	a.closeMutex.Unlock()
+}
+
+func (a *agent) completeNetworkTransitionLocked(done chan struct{}) {
+	if done != nil && a.networkTransitionDone == done {
+		close(done)
+		a.networkTransitionDone = nil
+	}
+}
+
+func (a *agent) invalidateTailnetGeneration(generation uint64) (*tailnet.Conn, chan struct{}, bool) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.networkGeneration != generation {
+		return nil, nil, false
+	}
+	network := a.network
+	if a.closing {
+		return network, nil, false
+	}
+	networkTransitionDone := a.networkTransitionDone
+	if networkTransitionDone == nil {
+		networkTransitionDone = make(chan struct{})
+		a.networkTransitionDone = networkTransitionDone
+	}
+	a.network = nil
+	a.statsReporter = nil
+	a.networkGeneration++
+	return network, networkTransitionDone, true
+}
+
+func (a *agent) reportTailnetWatchdogTimeout(generation uint64, operation string) {
+	network, networkTransitionDone, reset := a.invalidateTailnetGeneration(generation)
+	if network != nil {
+		network.Abort()
+		a.completeNetworkTransition(networkTransitionDone)
+	}
+	if !reset {
+		return
+	}
+	a.queueTailnetWatchdogEvent(tailnetWatchdogEvent{
+		generation: generation,
+		operation:  operation,
+	})
 }
 
 // updateCommandEnv updates the provided command environment with the
@@ -1868,6 +2064,7 @@ func (a *agent) createTailnet(
 	derpMap *tailcfg.DERPMap,
 	derpForceWebSockets, disableDirectConnections bool,
 	keySeed int64,
+	networkGeneration uint64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
@@ -1886,6 +2083,9 @@ func (a *agent) createTailnet(
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
 		BlockEndpoints:      disableDirectConnections,
+		WatchdogTimeout: func(operation string) {
+			a.reportTailnetWatchdogTimeout(networkGeneration, operation)
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -2065,7 +2265,7 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	defer func() {
 		cErr := coordinate.Close()
 		if cErr != nil {
-			a.logger.Debug(ctx, "error closing Coordinate client", slog.Error(err))
+			a.logger.Debug(ctx, "error closing Coordinate client", slog.Error(cErr))
 		}
 	}()
 	a.logger.Info(ctx, "connected to coordination RPC")
@@ -2085,6 +2285,17 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 		defer close(errCh)
 		select {
 		case <-ctx.Done():
+			if a.gracefulCtx.Err() == nil {
+				err := coordinate.Close()
+				if err != nil {
+					a.logger.Warn(ctx, "failed to force close remote coordination", slog.Error(err))
+				}
+				err = coordination.Close(a.hardCtx)
+				if err != nil {
+					a.logger.Warn(ctx, "failed to finish closing remote coordination", slog.Error(err))
+				}
+				return
+			}
 			err := coordination.Close(a.hardCtx)
 			if err != nil {
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
@@ -2170,45 +2381,48 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 
 	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
 
-	// Compute the median connection latency!
-	a.logger.Debug(ctx, "starting peer latency measurement for stats")
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	status := a.network.Status()
 	durations := []float64{}
 	p2pConns := 0
 	derpConns := 0
-	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelFunc()
-	for nodeID, peer := range status.Peer {
-		if !peer.Active {
-			continue
-		}
-		addresses, found := a.network.NodeAddresses(nodeID)
-		if !found {
-			continue
-		}
-		if len(addresses) == 0 {
-			continue
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			duration, p2p, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
-			if err != nil {
-				return
+	network, networkAvailable := a.requireNetwork()
+	if networkAvailable {
+		// Compute the median connection latency.
+		a.logger.Debug(ctx, "starting peer latency measurement for stats")
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		status := network.Status()
+		pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelFunc()
+		for nodeID, peer := range status.Peer {
+			if !peer.Active {
+				continue
 			}
-			mu.Lock()
-			defer mu.Unlock()
-			durations = append(durations, float64(duration.Microseconds()))
-			if p2p {
-				p2pConns++
-			} else {
-				derpConns++
+			addresses, found := network.NodeAddresses(nodeID)
+			if !found {
+				continue
 			}
-		}()
+			if len(addresses) == 0 {
+				continue
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				duration, p2p, _, err := network.Ping(pingCtx, addresses[0].Addr())
+				if err != nil {
+					return
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				durations = append(durations, float64(duration.Microseconds()))
+				if p2p {
+					p2pConns++
+				} else {
+					derpConns++
+				}
+			}()
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 	slices.Sort(durations)
 	durationsLength := len(durations)
 	switch {
@@ -2246,6 +2460,11 @@ func (a *agent) requireNetwork() (*tailnet.Conn, bool) {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
 	return a.network, a.network != nil
+}
+func (a *agent) requireStatsReporter() (*statsReporter, bool) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	return a.statsReporter, a.statsReporter != nil
 }
 
 func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
@@ -2336,6 +2555,7 @@ func (a *agent) HTTPDebug() http.Handler {
 func (a *agent) Close() error {
 	a.closeMutex.Lock()
 	network := a.network
+	networkTransitionDone := a.networkTransitionDone
 	coordDisconnected := a.coordDisconnected
 	a.closing = true
 	a.closeMutex.Unlock()
@@ -2471,6 +2691,9 @@ lifecycleWaitLoop:
 	}
 
 	a.hardCancel()
+	if networkTransitionDone != nil {
+		<-networkTransitionDone
+	}
 	if network != nil {
 		_ = network.Close()
 	}
