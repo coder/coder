@@ -10,6 +10,7 @@ import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -30,6 +31,7 @@ import {
 } from "#/components/Tabs/Tabs";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { docs } from "#/utils/docs";
 import { DynamicClientRegistrationSetting } from "./DynamicClientRegistrationSetting";
 
 /**
@@ -126,13 +128,21 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 		<div>
 			{/*
 			 * The header sits outside the tabs, so a tab-specific action here would
-			 * promise to act on content it navigates away from.
+			 * promise to act on content it navigates away from. The docs link is
+			 * tab-agnostic, so it stays on both.
 			 */}
 			<SettingsHeader
 				actions={
-					canCreateApp && activeTab === "applications" ? (
-						<AddApplicationButton />
-					) : undefined
+					<>
+						{canCreateApp && activeTab === "applications" && (
+							<AddApplicationButton />
+						)}
+						<SettingsHeaderDocsLink
+							href={docs(
+								"/admin/integrations/oauth2-provider#dynamic-client-registration",
+							)}
+						/>
+					</>
 				}
 			>
 				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>

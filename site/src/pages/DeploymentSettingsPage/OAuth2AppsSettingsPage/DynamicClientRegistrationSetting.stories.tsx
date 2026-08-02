@@ -31,6 +31,8 @@ export const Disabled: Story = {
 
 		await expect(canvas.getByRole("button", { name: "Enable" })).toBeEnabled();
 		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		// The endpoint is what an admin has to hand a client after enabling.
+		await expect(canvas.getByText("/oauth2/register")).toBeVisible();
 		// Stated in both states. An admin who has already disabled still needs to
 		// know that clients registered earlier were not revoked.
 		await expect(

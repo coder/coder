@@ -44,8 +44,9 @@ export const DynamicClientRegistrationSetting: FC<
 					 * admin who has just disabled needs it as much as one deciding to.
 					 */}
 					<p className="text-sm text-content-secondary m-0">
-						Allow OAuth2 clients to register themselves against this deployment
-						without prior administrator approval (RFC 7591). Disabling stops new
+						Allow OAuth2 clients to register themselves at{" "}
+						<code className="text-xs">/oauth2/register</code> without prior
+						administrator approval (RFC 7591). Disabling stops new
 						registrations. Clients that already registered keep working until
 						you remove them from the Applications tab.
 					</p>
