@@ -130,7 +130,6 @@ export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
-	chatStatus: TypesGen.ChatStatus | null;
 	streamError: ChatDetailError | null;
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
@@ -187,14 +186,8 @@ export type ChatStore = {
 	hasObservedQueuedMessageID: (id: number) => boolean;
 	setActiveChatID: (chatID: string | null) => void;
 	getActiveChatID: () => string | null;
-	// Counts server-reported status events, including repeats of the
-	// current value, so a caller can tell that the server spoke during a
-	// request even when the status did not change.
-	getServerChatStatusVersion: () => number;
-	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
-	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -215,7 +208,6 @@ const createInitialState = (): ChatStoreState => ({
 	messagesByID: new Map(),
 	orderedMessageIDs: [],
 	streamState: null,
-	chatStatus: null,
 	streamError: null,
 	retryState: null,
 	reconnectState: null,
@@ -231,7 +223,6 @@ export const createChatStore = (): ChatStore => {
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
 	let queueConvergenceFence = 0;
-	let serverChatStatusVersion = 0;
 	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
 
@@ -599,15 +590,6 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		setChatStatus: (status) => {
-			if (state.chatStatus === status) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
-		},
 		setActiveChatID: (chatID) => {
 			if (activeChatID === chatID) {
 				return;
@@ -618,17 +600,6 @@ export const createChatStore = (): ChatStore => {
 			queueConvergenceFence++;
 		},
 		getActiveChatID: () => activeChatID,
-		getServerChatStatusVersion: () => serverChatStatusVersion,
-		applyServerChatStatus: (status) => {
-			serverChatStatusVersion++;
-			if (state.chatStatus === status) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
-		},
 		setStreamState: (streamState) => {
 			if (state.streamState === streamState) {
 				return;
@@ -768,7 +739,6 @@ export const selectOrderedMessageIDs = (state: ChatStoreState) =>
 export const selectStreamState = (state: ChatStoreState) => state.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
 	state.streamState !== null;
-export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
@@ -788,20 +758,20 @@ const selectLatestDurableMessage = (
 		: state.messagesByID.get(latestMessageID);
 };
 
-export const selectIsAwaitingFirstStreamChunk = (
+/**
+ * True when the conversation is between turns: no stream output yet and the
+ * latest durable message is not an assistant reply. Deliberately primitive and
+ * status-free, the facade composes it with the cached chat status to decide
+ * whether to show the Thinking indicator.
+ */
+export const selectIsPendingAssistantResponse = (
 	state: ChatStoreState,
 ): boolean => {
-	const latestMessage = selectLatestDurableMessage(state);
-	const latestMessageNeedsAssistantResponse =
-		!latestMessage || latestMessage.role !== "assistant";
-	// Show the Thinking indicator when the store has no stream
-	// data yet, the chat is running, and the conversation is
-	// waiting for an assistant response (any non-assistant latest
-	// message).
-	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
+	if (state.streamState !== null) {
 		return false;
 	}
-	return state.chatStatus === "running";
+	const latestMessage = selectLatestDurableMessage(state);
+	return !latestMessage || latestMessage.role !== "assistant";
 };
 
 export const useChatSelector = <T>(

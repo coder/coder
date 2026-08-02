@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+import { createChatStore, selectIsPendingAssistantResponse } from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -176,42 +176,6 @@ describe("upsertDurableMessage", () => {
 		// Same reference — no reorder needed because the map size
 		// didn't change and the ID already existed.
 		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// setChatStatus
-// ---------------------------------------------------------------------------
-
-describe("setChatStatus", () => {
-	it("updates chatStatus", () => {
-		const store = createChatStore();
-
-		store.setChatStatus("running");
-
-		expect(store.getSnapshot().chatStatus).toBe("running");
-	});
-
-	it("accepts null to clear the status", () => {
-		const store = createChatStore();
-		store.setChatStatus("running");
-
-		store.setChatStatus(null);
-
-		expect(store.getSnapshot().chatStatus).toBeNull();
-	});
-
-	it("does not notify when setting the same status", () => {
-		const store = createChatStore();
-		store.setChatStatus("running");
-
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
-		});
-		store.setChatStatus("running");
-
-		expect(notified).toBe(false);
 	});
 });
 
@@ -550,23 +514,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 
 		store.clearSuppressedQueuedMessageIDs();
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-	});
-
-	it("counts every server status report, including repeats", () => {
-		const store = createChatStore();
-
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.setChatStatus("running");
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(1);
-		expect(store.getSnapshot().chatStatus).toBe("error");
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(2);
-		expect(store.getSnapshot().chatStatus).toBe("error");
 	});
 
 	it("restores a promoted head that a fresh snapshot still queues", () => {
@@ -937,11 +884,11 @@ describe("subscribe", () => {
 			callCount += 1;
 		});
 
-		store.setChatStatus("running");
+		store.setStreamError({ kind: "generic", message: "first" });
 		expect(callCount).toBe(1);
 
 		unsubscribe();
-		store.setChatStatus("error");
+		store.setStreamError({ kind: "generic", message: "second" });
 		expect(callCount).toBe(1);
 	});
 
@@ -956,7 +903,7 @@ describe("subscribe", () => {
 			countB += 1;
 		});
 
-		store.setChatStatus("running");
+		store.setStreamError({ kind: "generic", message: "boom" });
 
 		expect(countA).toBe(1);
 		expect(countB).toBe(1);
@@ -964,94 +911,58 @@ describe("subscribe", () => {
 });
 
 // ---------------------------------------------------------------------------
-// selectIsAwaitingFirstStreamChunk
+// selectIsPendingAssistantResponse
+//
+// The Thinking indicator is the conjunction of this selector and the cached
+// chat status; the status half is covered in durableChat.test.tsx.
 // ---------------------------------------------------------------------------
 
-describe("selectIsAwaitingFirstStreamChunk", () => {
-	it("returns true when running with no stream state and no assistant message", () => {
+describe("selectIsPendingAssistantResponse", () => {
+	it("returns true with no stream state and no assistant message", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
 	});
 
 	it("returns false when the latest message is from the assistant", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
 	});
 
 	it("returns false when stream state is present", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.applyMessagePart({ type: "text", text: "response" });
 
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
 	});
 
-	it("returns false during waiting status when latest message is from user", () => {
+	it("returns true when the latest message is a tool result", () => {
 		const store = createChatStore();
-		store.setChatStatus("waiting");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-
-		// "waiting" means the chat is idle; nothing is generating,
-		// so no Thinking indicator should show.
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
-	});
-
-	it("returns false when chat status is null", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
-	});
-
-	it("returns true when latest message is a tool result during running", () => {
-		const store = createChatStore();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
 		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
 
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
 	});
 
-	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
+	it("returns true after an optimistic send clears the settled turn", () => {
 		const store = createChatStore();
-		// Simulate a settled previous turn: assistant replied,
-		// then server transitioned to "waiting".
+		// A settled previous turn: the assistant replied last.
 		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-		store.setChatStatus("waiting");
 
-		// Verify baseline: not awaiting while idle.
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(false);
 
-		// Simulate handleSend after POST returns (non-queued).
-		// This is the exact sequence from AgentChatPage.tsx.
+		// The sequence handleSend runs once the POST returns (non-queued).
 		store.clearStreamState();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
 
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns true when WS delivers user message + status:running (fresh send)", () => {
-		const store = createChatStore();
-		// Simulate the WS batch: [message(user), status:running].
-		// This is the event order from the server when the user
-		// sends a message. The Thinking indicator must appear
-		// before the first stream chunk arrives.
-		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
-		store.setChatStatus("running");
-		store.clearStreamState();
-
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+		expect(selectIsPendingAssistantResponse(store.getSnapshot())).toBe(true);
 	});
 });
 

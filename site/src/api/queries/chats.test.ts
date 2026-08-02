@@ -10,8 +10,10 @@ import {
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
+	applyServerChatStatusToCaches,
 	archiveChat,
 	CHAT_SUMMARY_STALE_MS,
+	cancelChatDetailPreservingStatus,
 	cancelChatListRefetches,
 	cancelChatMutationRefetches,
 	canonicalizeChatListFilters,
@@ -36,6 +38,9 @@ import {
 	invalidateChatListQueries,
 	invalidatePRStatusChatListQueries,
 	listFiltersFromKey,
+	mergeCommittedChatDetail,
+	mergeCommittedChatList,
+	mergeCommittedChatSearch,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
@@ -43,11 +48,15 @@ import {
 	pinChat,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
+	readCachedChatSnapshotVersion,
+	readCachedChatStatus,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	rollbackOptimisticChatStatus,
 	selectSortedChatList,
 	setChatGroupRole,
 	setChatUserRole,
+	shouldApplyServerChatStatus,
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
@@ -56,6 +65,7 @@ import {
 	updateChatTitle,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	writeOptimisticChatStatus,
 } from "./chats";
 
 vi.mock("#/api/api", () => ({
@@ -64,6 +74,7 @@ vi.mock("#/api/api", () => ({
 			updateChat: vi.fn(),
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
+			getChat: vi.fn(),
 			getChats: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatCostSummary: vi.fn(),
@@ -3013,6 +3024,7 @@ describe("mergeWatchedChatSummary", () => {
 			title: "Stale title",
 			last_model_config_id: "model-new",
 			updated_at: "2025-01-01T00:05:00.000Z",
+			snapshot_version: 2,
 		});
 
 		expect(
@@ -3170,6 +3182,7 @@ describe("mergeWatchedChatSummary", () => {
 			status: "running",
 			last_model_config_id: "model-new",
 			updated_at: "2025-01-01T00:00:00.1203Z",
+			snapshot_version: 2,
 		});
 
 		expect(
@@ -3339,6 +3352,7 @@ describe("mergeWatchedChatSummary", () => {
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
 			updated_at: "2025-01-01T00:05:00.000Z",
+			snapshot_version: 2,
 		});
 
 		expect(
@@ -3388,6 +3402,40 @@ describe("mergeWatchedChatSummary", () => {
 });
 
 describe("mergeWatchedChatIntoCaches", () => {
+	it("keeps each matched query's dataUpdatedAt", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		// A watch event pushes a subset of the fields, so it must not postpone
+		// the refetch that catches up the rest.
+		const seededUpdatedAt = 1_000;
+		const cachedChat = makeChat(chatId, {
+			status: "waiting",
+			snapshot_version: 1,
+		});
+		queryClient.setQueryData(chatKeys.detail(chatId), cachedChat, {
+			updatedAt: seededUpdatedAt,
+		});
+		queryClient.setQueryData(
+			chatKeys.list(),
+			{ pages: [[cachedChat]], pageParams: [0] },
+			{ updatedAt: seededUpdatedAt },
+		);
+
+		mergeWatchedChatIntoCaches(
+			queryClient,
+			makeChat(chatId, { status: "running", snapshot_version: 2 }),
+			{ eventKind: "status_change" },
+		);
+
+		expect(
+			queryClient.getQueryState(chatKeys.detail(chatId))?.dataUpdatedAt,
+		).toBe(seededUpdatedAt);
+		expect(queryClient.getQueryState(chatKeys.list())?.dataUpdatedAt).toBe(
+			seededUpdatedAt,
+		);
+		expect(readCachedChatStatus(queryClient, chatId)).toBe("running");
+	});
+
 	it("merges last_model_config_id into the root list cache and per-chat cache", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -3400,6 +3448,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 			status: "running",
 			last_model_config_id: "model-new",
 			updated_at: "2025-01-01T00:05:00.000Z",
+			snapshot_version: 2,
 		});
 
 		seedInfiniteChats(queryClient, [cachedChat]);
@@ -3440,6 +3489,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 			status: "running",
 			last_model_config_id: "model-new",
 			updated_at: "2025-01-01T00:05:00.000Z",
+			snapshot_version: 2,
 		});
 
 		seedInfiniteChats(queryClient, [parent]);
@@ -3931,5 +3981,799 @@ describe(clearChatUnreadInCaches.name, () => {
 		clearChatUnreadInCaches(queryClient, "chat-1");
 
 		expect(queryClient.getQueryData(chatKeys.list())).toBe(before);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Chat status ordering
+// ---------------------------------------------------------------------------
+
+describe("shouldApplyServerChatStatus", () => {
+	it("applies a strictly newer version, rejects equal and older ones", () => {
+		expect(shouldApplyServerChatStatus(4, 5)).toBe(true);
+		expect(shouldApplyServerChatStatus(5, 5)).toBe(false);
+		expect(shouldApplyServerChatStatus(5, 4)).toBe(false);
+	});
+
+	it("coerces an absent version on either side to zero", () => {
+		// A raw comparison against undefined is false in both directions,
+		// which would reject every write instead of accepting the newer one.
+		expect(shouldApplyServerChatStatus(undefined, 5)).toBe(true);
+		expect(shouldApplyServerChatStatus(5, undefined)).toBe(false);
+		expect(shouldApplyServerChatStatus(undefined, undefined)).toBe(false);
+		expect(shouldApplyServerChatStatus(undefined, 0)).toBe(false);
+	});
+});
+
+describe("mergeCommittedChatDetail", () => {
+	it("applies a payload carrying a newer snapshot version", () => {
+		const prev = makeChat("chat-1", { status: "waiting", snapshot_version: 4 });
+		const next = makeChat("chat-1", { status: "running", snapshot_version: 5 });
+
+		expect(mergeCommittedChatDetail(prev, next)).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+	});
+
+	it("keeps the cached status and version when the payload is older", () => {
+		const prev = makeChat("chat-1", { status: "running", snapshot_version: 7 });
+		const next = makeChat("chat-1", {
+			status: "waiting",
+			snapshot_version: 5,
+			title: "Fresh title",
+		});
+
+		expect(mergeCommittedChatDetail(prev, next)).toMatchObject({
+			status: "running",
+			snapshot_version: 7,
+			// Everything the stale payload is still authoritative for is taken.
+			title: "Fresh title",
+		});
+	});
+
+	it("treats an equal version as a duplicate and keeps the cached status", () => {
+		const prev = makeChat("chat-1", { status: "running", snapshot_version: 5 });
+		const next = makeChat("chat-1", { status: "waiting", snapshot_version: 5 });
+
+		expect(mergeCommittedChatDetail(prev, next)).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+	});
+
+	it("preserves structural sharing for an unchanged payload", () => {
+		const prev = makeChat("chat-1", { status: "running", snapshot_version: 5 });
+		const next = makeChat("chat-1", { status: "running", snapshot_version: 5 });
+
+		// A custom structuralSharing replaces the default, so the merge has to
+		// call replaceEqualDeep itself or every consumer rerenders per fetch.
+		expect(mergeCommittedChatDetail(prev, next)).toBe(prev);
+	});
+
+	it("keeps an optimistic status against an equal-version payload", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+		writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		const prev = queryClient.getQueryData<TypesGen.Chat>(
+			chatKeys.detail("chat-1"),
+		);
+		const next = makeChat("chat-1", { status: "waiting", snapshot_version: 5 });
+
+		expect(mergeCommittedChatDetail(prev, next)).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+	});
+
+	it("drops the optimistic token when a newer server version lands", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+		writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		const prev = queryClient.getQueryData<TypesGen.Chat>(
+			chatKeys.detail("chat-1"),
+		);
+		const next = makeChat("chat-1", { status: "error", snapshot_version: 6 });
+
+		const merged = mergeCommittedChatDetail(prev, next);
+		expect(merged).toMatchObject({ status: "error", snapshot_version: 6 });
+		expect("__optimistic" in merged).toBe(false);
+	});
+
+	it("orders the children a parent payload embeds", () => {
+		const prev = makeChat("parent-1", {
+			children: [
+				makeChat("child-1", { status: "running", snapshot_version: 9 }),
+				makeChat("child-2", { status: "waiting", snapshot_version: 2 }),
+			],
+		});
+		const next = makeChat("parent-1", {
+			children: [
+				makeChat("child-1", {
+					status: "waiting",
+					snapshot_version: 8,
+					title: "Renamed child",
+				}),
+				makeChat("child-2", { status: "error", snapshot_version: 3 }),
+			],
+		});
+
+		const merged = mergeCommittedChatDetail(prev, next);
+
+		// A parent fetch issued before a child's status event must not regress
+		// that child, while a newer child status is still adopted.
+		expect(merged.children?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+			title: "Renamed child",
+		});
+		expect(merged.children?.[1]).toMatchObject({
+			status: "error",
+			snapshot_version: 3,
+		});
+	});
+});
+
+describe("chat detail structuralSharing", () => {
+	it("stops a stale refetch from regressing a newer cached status", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		// The socket already wrote version 9.
+		queryClient.setQueryData(
+			chatKeys.detail(chatId),
+			makeChat(chatId, {
+				status: "running",
+				snapshot_version: 9,
+				title: "Old title",
+			}),
+		);
+		// The refetch in flight since before that carries version 8.
+		vi.mocked(API.experimental.getChat).mockResolvedValue(
+			makeChat(chatId, {
+				status: "waiting",
+				snapshot_version: 8,
+				title: "New title",
+			}),
+		);
+
+		// staleTime keeps a seeded entry fresh, so ask for the fetch explicitly.
+		await queryClient.fetchQuery({ ...chatDetail(chatId), staleTime: 0 });
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
+		).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+			title: "New title",
+		});
+	});
+
+	it("adopts a refetch carrying a newer snapshot version", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatKeys.detail(chatId),
+			makeChat(chatId, { status: "running", snapshot_version: 9 }),
+		);
+		vi.mocked(API.experimental.getChat).mockResolvedValue(
+			makeChat(chatId, { status: "waiting", snapshot_version: 10 }),
+		);
+
+		// staleTime keeps a seeded entry fresh, so ask for the fetch explicitly.
+		await queryClient.fetchQuery({ ...chatDetail(chatId), staleTime: 0 });
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
+		).toMatchObject({ status: "waiting", snapshot_version: 10 });
+	});
+});
+
+describe("mergeCommittedChatList", () => {
+	it("preserves newer cached statuses in rows and embedded children", () => {
+		const cachedChild = makeChat("child-1", {
+			status: "running",
+			snapshot_version: 9,
+		});
+		const prev = {
+			pages: [
+				[
+					makeChat("chat-1", { status: "running", snapshot_version: 9 }),
+					makeChat("parent-1", { children: [cachedChild] }),
+				],
+			],
+			pageParams: [0],
+		};
+		const next = {
+			pages: [
+				[
+					makeChat("chat-1", {
+						status: "waiting",
+						snapshot_version: 8,
+						title: "Renamed",
+					}),
+					makeChat("parent-1", {
+						children: [
+							makeChat("child-1", { status: "waiting", snapshot_version: 8 }),
+						],
+					}),
+				],
+			],
+			pageParams: [0],
+		};
+
+		const merged = mergeCommittedChatList(prev, next);
+
+		expect(merged.pages[0][0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+			title: "Renamed",
+		});
+		expect(merged.pages[0][1].children?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+		});
+	});
+
+	it("returns the cached data when nothing changed", () => {
+		const prev = {
+			pages: [[makeChat("chat-1", { status: "running", snapshot_version: 9 })]],
+			pageParams: [0],
+		};
+		const next = {
+			pages: [[makeChat("chat-1", { status: "running", snapshot_version: 9 })]],
+			pageParams: [0],
+		};
+
+		expect(mergeCommittedChatList(prev, next)).toBe(prev);
+	});
+
+	it("is wired into the list query, so a stale page cannot regress a row", async () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-1", { status: "running", snapshot_version: 9 }),
+		]);
+		vi.mocked(API.experimental.getChats).mockResolvedValue([
+			makeChat("chat-1", {
+				status: "waiting",
+				snapshot_version: 8,
+				title: "Renamed",
+			}),
+		]);
+
+		await queryClient.fetchInfiniteQuery({
+			...infiniteChats(),
+			staleTime: 0,
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+			title: "Renamed",
+		});
+	});
+
+	it("orders against the most advanced copy of a duplicated row", () => {
+		// Pagination can place the same chat on two loaded pages. The stale
+		// copy must not become the baseline just by being scanned last.
+		const prev = {
+			pages: [
+				[makeChat("chat-1", { status: "running", snapshot_version: 9 })],
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 3 })],
+			],
+			pageParams: [0, 1],
+		};
+		const next = {
+			pages: [
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 8 })],
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 8 })],
+			],
+			pageParams: [0, 1],
+		};
+
+		const merged = mergeCommittedChatList(prev, next);
+
+		expect(merged.pages[0][0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+		});
+		expect(merged.pages[1][0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+		});
+	});
+
+	it("keeps an optimistic status over a same-version duplicate", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		]);
+		writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		const optimisticRow = queryClient.getQueryData<InfiniteData>(
+			chatKeys.list(),
+		)?.pages[0][0];
+		if (!optimisticRow) {
+			throw new Error("expected the seeded row");
+		}
+		const prev = {
+			pages: [
+				[optimisticRow],
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 5 })],
+			],
+			pageParams: [0, 1],
+		};
+		const next = {
+			pages: [
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 5 })],
+				[makeChat("chat-1", { status: "waiting", snapshot_version: 5 })],
+			],
+			pageParams: [0, 1],
+		};
+
+		expect(mergeCommittedChatList(prev, next).pages[0][0]).toMatchObject({
+			status: "running",
+		});
+	});
+});
+
+describe("mergeCommittedChatSearch", () => {
+	it("keeps a newer cached status and takes the rest of the payload", () => {
+		const prev = [
+			makeChat("chat-1", { status: "running", snapshot_version: 9 }),
+		];
+		const next = [
+			makeChat("chat-1", {
+				status: "waiting",
+				snapshot_version: 8,
+				title: "Renamed",
+			}),
+		];
+
+		expect(mergeCommittedChatSearch(prev, next)[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 9,
+			title: "Renamed",
+		});
+	});
+
+	it("is wired into the search query, so a stale response cannot regress a row", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatKeys.search("foo"), [
+			makeChat("chat-1", { status: "running", snapshot_version: 9 }),
+		]);
+		vi.mocked(API.experimental.getChats).mockResolvedValue([
+			makeChat("chat-1", { status: "waiting", snapshot_version: 8 }),
+		]);
+
+		await queryClient.fetchQuery({ ...chatSearch("foo"), staleTime: 0 });
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat[]>(chatKeys.search("foo"))?.[0],
+		).toMatchObject({ status: "running", snapshot_version: 9 });
+	});
+});
+
+describe("applyServerChatStatusToCaches", () => {
+	it("writes status and version to the detail, list rows, and children", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", { status: "waiting" });
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-1", { status: "waiting" }),
+			makeChat("parent-1", { children: [child] }),
+		]);
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting" }),
+		);
+
+		applyServerChatStatusToCaches(queryClient, "chat-1", "running", 5);
+		applyServerChatStatusToCaches(queryClient, "child-1", "error", 5);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail("chat-1")),
+		).toMatchObject({ status: "running", snapshot_version: 5 });
+		const chats = readInfiniteChats(queryClient);
+		expect(chats?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+		expect(chats?.[1].children?.[0]).toMatchObject({
+			status: "error",
+			snapshot_version: 5,
+		});
+	});
+
+	it("rejects a status carrying an older version per cache layer", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "running", snapshot_version: 9 }),
+		);
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-1", { status: "waiting", snapshot_version: 2 }),
+		]);
+
+		applyServerChatStatusToCaches(queryClient, "chat-1", "waiting", 5);
+
+		// The detail is already past version 5; the list row is not.
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail("chat-1")),
+		).toMatchObject({ status: "running", snapshot_version: 9 });
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "waiting",
+			snapshot_version: 5,
+		});
+	});
+
+	it("keeps each matched query's dataUpdatedAt", () => {
+		const queryClient = createTestQueryClient();
+		// A distinctly old timestamp: a status write must not refresh the
+		// freshness budget the non-pushed fields depend on.
+		const seededUpdatedAt = 1_000;
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting" }),
+			{ updatedAt: seededUpdatedAt },
+		);
+		queryClient.setQueryData(
+			chatKeys.list(),
+			{ pages: [[makeChat("chat-1", { status: "waiting" })]], pageParams: [0] },
+			{ updatedAt: seededUpdatedAt },
+		);
+
+		applyServerChatStatusToCaches(queryClient, "chat-1", "running", 5);
+
+		expect(
+			queryClient.getQueryState(chatKeys.detail("chat-1"))?.dataUpdatedAt,
+		).toBe(seededUpdatedAt);
+		expect(queryClient.getQueryState(chatKeys.list())?.dataUpdatedAt).toBe(
+			seededUpdatedAt,
+		);
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("running");
+	});
+
+	it("reads back the cached status and version", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting" }),
+		);
+
+		applyServerChatStatusToCaches(queryClient, "chat-1", "running", 5);
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("running");
+		expect(readCachedChatSnapshotVersion(queryClient, "chat-1")).toBe(5);
+		expect(readCachedChatStatus(queryClient, undefined)).toBeNull();
+		expect(readCachedChatSnapshotVersion(queryClient, "missing")).toBe(0);
+	});
+
+	it("writes the child a loaded parent detail embeds", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("parent-1"),
+			makeChat("parent-1", {
+				children: [
+					makeChat("child-1", { status: "waiting", snapshot_version: 4 }),
+				],
+			}),
+		);
+
+		applyServerChatStatusToCaches(queryClient, "child-1", "running", 5);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail("parent-1"))
+				?.children?.[0],
+		).toMatchObject({ status: "running", snapshot_version: 5 });
+	});
+
+	it("writes every cached search result", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatKeys.search("foo"), [
+			makeChat("chat-1", { status: "waiting", snapshot_version: 4 }),
+			makeChat("chat-2", { status: "waiting", snapshot_version: 4 }),
+		]);
+
+		applyServerChatStatusToCaches(queryClient, "chat-1", "running", 5);
+
+		const results = queryClient.getQueryData<TypesGen.Chat[]>(
+			chatKeys.search("foo"),
+		);
+		expect(results?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+		expect(results?.[1].status).toBe("waiting");
+	});
+
+	it("reports whether the chat's own detail took the status", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKeys.detail("chat-1"),
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		// Callers run stream side effects only for the status the open chat
+		// actually holds now.
+		expect(
+			applyServerChatStatusToCaches(queryClient, "chat-1", "running", 6),
+		).toBe(true);
+		expect(
+			applyServerChatStatusToCaches(queryClient, "chat-1", "waiting", 4),
+		).toBe(false);
+		expect(
+			applyServerChatStatusToCaches(queryClient, "chat-1", "waiting", 6),
+		).toBe(false);
+		expect(
+			applyServerChatStatusToCaches(
+				queryClient,
+				"chat-1",
+				"waiting",
+				undefined,
+			),
+		).toBe(false);
+		expect(
+			applyServerChatStatusToCaches(queryClient, "missing", "waiting", 9),
+		).toBe(false);
+	});
+});
+
+describe("cancelChatDetailPreservingStatus", () => {
+	it("keeps a status the socket wrote while the fetch was in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatKeys.detail(chatId),
+			makeChat(chatId, { status: "waiting", snapshot_version: 4 }),
+		);
+		// A refetch that never resolves, so the cancel below reverts the query
+		// to the state it captured when this fetch started.
+		vi.mocked(API.experimental.getChat).mockImplementation(
+			() => new Promise<TypesGen.Chat>(() => {}),
+		);
+		const pendingFetch = queryClient.fetchQuery({
+			...chatDetail(chatId),
+			staleTime: 0,
+		});
+
+		applyServerChatStatusToCaches(queryClient, chatId, "running", 5);
+
+		await cancelChatDetailPreservingStatus(queryClient, chatId, () =>
+			queryClient.cancelQueries({
+				queryKey: chatKeys.detail(chatId),
+				exact: true,
+			}),
+		);
+		await pendingFetch.catch(() => undefined);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
+		).toMatchObject({ status: "running", snapshot_version: 5 });
+	});
+
+	it("leaves a status newer than the snapshot alone", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatKeys.detail(chatId),
+			makeChat(chatId, { status: "waiting", snapshot_version: 4 }),
+		);
+
+		await cancelChatDetailPreservingStatus(queryClient, chatId, async () => {
+			applyServerChatStatusToCaches(queryClient, chatId, "running", 6);
+		});
+
+		// The re-applied snapshot is older than what the cache holds, and equal
+		// or older versions lose.
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatId)),
+		).toMatchObject({ status: "running", snapshot_version: 6 });
+	});
+});
+
+describe("optimistic chat status", () => {
+	const seedChat = (queryClient: QueryClient, chat: TypesGen.Chat) => {
+		queryClient.setQueryData(chatKeys.detail(chat.id), chat);
+		seedInfiniteChats(queryClient, [chat]);
+	};
+
+	it("shows the status immediately without advancing the version", () => {
+		const queryClient = createTestQueryClient();
+		seedChat(
+			queryClient,
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		writeOptimisticChatStatus(queryClient, "chat-1", "running");
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("running");
+		// The send-path fence reads this version; an optimistic write must not
+		// trip it.
+		expect(readCachedChatSnapshotVersion(queryClient, "chat-1")).toBe(5);
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+	});
+
+	it("rolls back to the status the server last reported", () => {
+		const queryClient = createTestQueryClient();
+		seedChat(
+			queryClient,
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		const token = writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		rollbackOptimisticChatStatus(queryClient, "chat-1", token);
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("waiting");
+		expect(readInfiniteChats(queryClient)?.[0].status).toBe("waiting");
+	});
+
+	it("does not roll back once a newer server version arrived", () => {
+		const queryClient = createTestQueryClient();
+		seedChat(
+			queryClient,
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		const token = writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		applyServerChatStatusToCaches(queryClient, "chat-1", "interrupting", 6);
+		rollbackOptimisticChatStatus(queryClient, "chat-1", token);
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("interrupting");
+		expect(readCachedChatSnapshotVersion(queryClient, "chat-1")).toBe(6);
+	});
+
+	it("does not roll back a superseding optimistic write", () => {
+		const queryClient = createTestQueryClient();
+		seedChat(
+			queryClient,
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		const first = writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		writeOptimisticChatStatus(queryClient, "chat-1", "interrupting");
+		rollbackOptimisticChatStatus(queryClient, "chat-1", first);
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("interrupting");
+	});
+
+	it("rolls consecutive optimistic writes back to the server status", () => {
+		const queryClient = createTestQueryClient();
+		seedChat(
+			queryClient,
+			makeChat("chat-1", { status: "waiting", snapshot_version: 5 }),
+		);
+
+		writeOptimisticChatStatus(queryClient, "chat-1", "running");
+		const second = writeOptimisticChatStatus(
+			queryClient,
+			"chat-1",
+			"interrupting",
+		);
+		rollbackOptimisticChatStatus(queryClient, "chat-1", second);
+
+		expect(readCachedChatStatus(queryClient, "chat-1")).toBe("waiting");
+	});
+});
+
+describe("mergeWatchedChatSummary snapshot_version", () => {
+	it("adopts a status payload that only advances the version", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 5,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 6,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "status_change",
+		});
+
+		// Swallowing this would leave the cached key behind the server's, so a
+		// later delayed event would compare against a superseded version.
+		expect(merged).not.toBe(cachedChat);
+		expect(merged.snapshot_version).toBe(6);
+	});
+
+	it("rejects a status payload carrying an older version", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 7,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			snapshot_version: 5,
+			// updated_at is non-monotonic, so a newer timestamp on an older
+			// snapshot must not win.
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({ status: "running", snapshot_version: 7 });
+	});
+
+	it("adopts a newer status carried by a non-status event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 5,
+			title: "Old",
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			snapshot_version: 9,
+			title: "New",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		// Every watch payload is one coherent chat row, so the comparator is
+		// the only thing that has to hold. Unread stays scoped to the event
+		// that announces a transition.
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({
+			status: "waiting",
+			snapshot_version: 9,
+			title: "New",
+			has_unread: false,
+		});
+	});
+
+	it("keeps the cached status when a non-status event is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 9,
+			title: "Old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			snapshot_version: 5,
+			title: "New",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		// The version labels the status the entry holds, so a rejected status
+		// must not advance it either: that would strand the cached status
+		// behind a key no later payload can beat.
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({ status: "running", snapshot_version: 9, title: "New" });
+	});
+
+	it("marks unread only for a status_change on an inactive chat", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			snapshot_version: 5,
+			has_unread: false,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			snapshot_version: 6,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}),
+		).toMatchObject({ status: "waiting", has_unread: true });
 	});
 });

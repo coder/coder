@@ -11,7 +11,12 @@ import {
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatKeys, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	applyServerChatStatusToCaches,
+	chatKeys,
+	readCachedChatSnapshotVersion,
+	readCachedChatStatus,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -79,17 +84,19 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	retryingAt: retry.retrying_at.trim() || undefined,
 });
 
-const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
+const shouldSurfaceReconnectState = (
+	state: ChatStoreState,
+	chatStatus: TypesGen.ChatStatus | null,
+): boolean =>
 	state.streamError === null &&
 	(state.streamState !== null ||
 		state.retryState !== null ||
-		isActiveChatStatus(state.chatStatus));
+		isActiveChatStatus(chatStatus));
 
 interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatRecordUpdatedAt?: number;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
@@ -101,7 +108,6 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
-	acceptServerChatStatus: () => void;
 	clearStreamError: () => void;
 	setCacheQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
@@ -115,7 +121,6 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatRecordUpdatedAt = 0,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -133,17 +138,6 @@ export const useChatStore = (
 	// messages are corrected when switching back to a chat whose
 	// queue was drained while the user was away.
 	const wsQueueUpdateReceivedRef = useRef(false);
-	// Tracks whether the WebSocket has delivered a status event for
-	// the current chat. Once true, the WS is the authoritative
-	// source for chatStatus and the REST-fetched chatRecord.status
-	// must not overwrite it. Without this guard, a React Query
-	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "waiting", causing shouldApplyMessagePart()
-	// to drop all incoming parts.
-	const wsStatusReceivedRef = useRef(false);
-	const [pendingStatusResync, setPendingStatusResync] = useState(false);
-	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
-	const pendingStatusResyncVersionRef = useRef<number | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -175,12 +169,15 @@ export const useChatStore = (
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
-	// True once the initial REST page has resolved for the current
-	// chat. The WebSocket effect gates on this so that
-	// lastMessageIdRef is populated before the socket opens;
-	// otherwise the server replays the entire message history as
-	// its snapshot, defeating pagination.
-	const initialDataLoaded = chatMessages !== undefined;
+	// True once the initial REST pages have resolved for the current chat. The
+	// WebSocket effect gates on this so lastMessageIdRef is populated before
+	// the socket opens (otherwise the server replays the entire message history
+	// as its snapshot, defeating pagination), and so the detail cache exists
+	// before the socket can write a status into it. Gating on a derived boolean
+	// rather than the chat record itself keeps every detail write from
+	// reconnecting the socket.
+	const initialDataLoaded =
+		chatMessages !== undefined && chatRecord !== undefined;
 
 	// Write WebSocket-delivered durable messages into the React
 	// Query infinite cache so that navigating away and back
@@ -315,42 +312,8 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
-		if (pendingStatusResync) {
-			const armedAt = pendingStatusResyncUpdatedAtRef.current;
-			// dataUpdatedAt advances after a fetch even when structural sharing
-			// preserves chatRecord.
-			if (armedAt === null || chatRecordUpdatedAt <= armedAt) {
-				return;
-			}
-			// Preserve a websocket status delivered during the refetch instead of applying its response.
-			const wsAdvanced =
-				store.getServerChatStatusVersion() !==
-				pendingStatusResyncVersionRef.current;
-			if (!wsAdvanced) {
-				store.setChatStatus(chatRecord?.status ?? null);
-				wsStatusReceivedRef.current = false;
-			}
-			pendingStatusResyncUpdatedAtRef.current = null;
-			pendingStatusResyncVersionRef.current = null;
-			setPendingStatusResync(false);
-			return;
-		}
-		// Only hydrate from REST when the WebSocket hasn't delivered
-		// a status event yet. Once the WS is the authoritative
-		// source, a stale REST refetch must not overwrite the
-		// fresher WS-delivered value.
-		if (!wsStatusReceivedRef.current) {
-			store.setChatStatus(chatRecord?.status ?? null);
-		}
-	}, [chatRecord?.status, chatRecordUpdatedAt, store, pendingStatusResync]);
-
-	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
-		wsStatusReceivedRef.current = false;
-		pendingStatusResyncUpdatedAtRef.current = null;
-		pendingStatusResyncVersionRef.current = null;
-		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
 		// Suppression entries are scoped to the current chat; clear
 		// them on chat change so a stale promote suppression doesn't
@@ -391,28 +354,6 @@ export const useChatStore = (
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
-		const updateSidebarChat = (
-			updater: (chat: TypesGen.Chat) => TypesGen.Chat,
-		) => {
-			if (!chatID) {
-				return;
-			}
-			updateInfiniteChatsCache(queryClient, (chats) => {
-				let didUpdate = false;
-				const nextChats = chats.map((chat) => {
-					if (chat.id !== chatID) {
-						return chat;
-					}
-					const updated = updater(chat);
-					if (updated !== chat) {
-						didUpdate = true;
-					}
-					return updated;
-				});
-				return didUpdate ? nextChats : chats;
-			});
-		};
-
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 		store.setActiveChatID(chatID ?? null);
@@ -444,9 +385,8 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		const shouldApplyMessagePart = (): boolean => {
-			return store.getSnapshot().chatStatus !== "waiting";
-		};
+		const shouldApplyMessagePart = (): boolean =>
+			readCachedChatStatus(queryClient, activeChatID) !== "waiting";
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -643,20 +583,28 @@ export const useChatStore = (
 								continue;
 							}
 
-							wsStatusReceivedRef.current = true;
+							// Writes detail, parent details, list rows, embedded
+							// children, and search rows in one pass, each ordered
+							// against its own cached version. A superseded or
+							// versionless status is not this chat's current one,
+							// so its stream side effects must not run either.
+							if (
+								!applyServerChatStatusToCaches(
+									queryClient,
+									activeChatID,
+									nextStatus,
+									streamEvent.snapshot_version,
+								)
+							) {
+								continue;
+							}
 							store.clearRetryState();
-							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {
-								clearChatErrorReasonEvent(chatID);
+								clearChatErrorReasonEvent(activeChatID);
 							}
-							updateSidebarChat((chat) =>
-								chat.status === nextStatus
-									? chat
-									: { ...chat, status: nextStatus },
-							);
 							continue;
 						}
 						case "error": {
@@ -664,14 +612,36 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
-							wsStatusReceivedRef.current = true;
-							store.applyServerChatStatus("error");
+							// An error without a snapshot version did not come from a
+							// committed chat snapshot (a subscription or transport
+							// failure), so it reports the failure without claiming the
+							// chat itself reached the error status.
+							const errorVersion = streamEvent.snapshot_version;
+							if (errorVersion !== undefined) {
+								const applied = applyServerChatStatusToCaches(
+									queryClient,
+									activeChatID,
+									"error",
+									errorVersion,
+								);
+								// The server stamps a status event and the error event
+								// detailing it with one snapshot version, and the status
+								// event is emitted first. So an equal-version error is the
+								// companion of an error status already applied, not a
+								// duplicate: the reason it carries is the only place the
+								// failure detail arrives. A strictly older error still
+								// loses, because the chat has moved past its snapshot.
+								const detailsAppliedErrorStatus =
+									readCachedChatStatus(queryClient, activeChatID) === "error" &&
+									readCachedChatSnapshotVersion(queryClient, activeChatID) ===
+										errorVersion;
+								if (!applied && !detailsAppliedErrorStatus) {
+									continue;
+								}
+							}
 							store.setStreamError(reason);
 							store.clearRetryState();
-							setChatErrorReasonEvent(chatID, reason);
-							updateSidebarChat((chat) =>
-								chat.status === "error" ? chat : { ...chat, status: "error" },
-							);
+							setChatErrorReasonEvent(activeChatID, reason);
 							continue;
 						}
 						case "retry": {
@@ -760,7 +730,12 @@ export const useChatStore = (
 				// interrupted active response work. Idle watcher
 				// reconnects stay silent.
 				const snapshot = store.getSnapshot();
-				if (shouldSurfaceReconnectState(snapshot)) {
+				if (
+					shouldSurfaceReconnectState(
+						snapshot,
+						readCachedChatStatus(queryClient, activeChatID),
+					)
+				) {
 					store.setReconnectState(reconnectState);
 				}
 			},
@@ -788,21 +763,6 @@ export const useChatStore = (
 		store,
 		clearStreamError: () => {
 			store.clearStreamError();
-		},
-		// A failed request can change server-side chat status while the
-		// socket is down, and the socket having already delivered a status
-		// otherwise makes the refetched one inert.
-		acceptServerChatStatus: () => {
-			// A request that resolves after the user navigates away belongs to
-			// the previous chat, whose freshness and status are unrelated to
-			// the one now displayed by this shared store.
-			if (store.getActiveChatID() !== (chatID ?? null)) {
-				return;
-			}
-			pendingStatusResyncUpdatedAtRef.current = chatRecordUpdatedAt;
-			pendingStatusResyncVersionRef.current =
-				store.getServerChatStatusVersion();
-			setPendingStatusResync(true);
 		},
 		setCacheQueuedMessages: (queuedMessages) => {
 			writeQueuedMessagesToCache(queryClient, chatID, queuedMessages);

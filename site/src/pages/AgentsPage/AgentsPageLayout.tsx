@@ -19,6 +19,7 @@ import {
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
 	archiveChat,
+	cancelChatDetailPreservingStatus,
 	cancelChatListRefetches,
 	chatKeys,
 	chatModelConfigs,
@@ -660,12 +661,19 @@ const AgentsPageLayout: FC = () => {
 					// already has data. Cancelling a first-time fetch
 					// reverts the query to pending/idle with no data
 					// and no retry, which AgentChatPage shows as
-					// "Chat not found".
+					// "Chat not found". A cancel also reverts the entry
+					// to its fetch-start state, so the helper re-applies
+					// any status the socket wrote meanwhile.
 					if (queryClient.getQueryData(chatKeys.detail(updatedChat.id))) {
-						void queryClient.cancelQueries({
-							queryKey: chatKeys.detail(updatedChat.id),
-							exact: true,
-						});
+						void cancelChatDetailPreservingStatus(
+							queryClient,
+							updatedChat.id,
+							() =>
+								queryClient.cancelQueries({
+									queryKey: chatKeys.detail(updatedChat.id),
+									exact: true,
+								}),
+						);
 					}
 
 					if (chatEvent.kind === "created") {

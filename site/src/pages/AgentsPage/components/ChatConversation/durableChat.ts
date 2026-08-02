@@ -1,9 +1,10 @@
+import { useQuery } from "react-query";
+import { chat as chatDetailQuery } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	selectChatStatus,
-	selectIsAwaitingFirstStreamChunk,
+	selectIsPendingAssistantResponse,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -13,8 +14,8 @@ import {
 // Read facade for durable chat state (messages, queued messages, chat
 // status). Render consumers read durable state through these hooks so the
 // source can move from the store to the query cache without touching call
-// sites. Today every hook resolves to the store, so output is identical to
-// reading the selectors directly.
+// sites. Chat status resolves to the query cache, which is canonical for it;
+// messages and the queue still resolve to the store.
 //
 // Composition rule: `useChatSelector` feeds its selector result straight to
 // `useSyncExternalStore`, which compares snapshots with Object.is on every
@@ -24,9 +25,9 @@ import {
 // memoizes the derivation against the slices it reads.
 type DurableChatArgs = {
 	store: ChatStore;
-	// Accepted for the query key that will back these reads once durable
-	// state moves to the cache. Unused while the store is the source.
-	chatId?: string;
+	// Required, and explicitly undefined-able: the query key for the durable
+	// reads. Without a chat there is nothing to read.
+	chatId: string | undefined;
 };
 
 // Primitive selector so count consumers subscribe to the size only, not to
@@ -38,9 +39,20 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
+// Module-level so the query result identity is stable across renders.
+const selectChatStatusFromDetail = (
+	chat: TypesGen.Chat | undefined,
+): TypesGen.ChatStatus | null => chat?.status ?? null;
+
 export const useDurableChatStatus = (
 	args: DurableChatArgs,
-): TypesGen.ChatStatus | null => useChatSelector(args.store, selectChatStatus);
+): TypesGen.ChatStatus | null =>
+	useQuery({
+		...chatDetailQuery(args.chatId ?? ""),
+		enabled: Boolean(args.chatId),
+		// Selecting the status keeps consumers off every other detail field.
+		select: selectChatStatusFromDetail,
+	}).data ?? null;
 
 // Flat, ascending message list. messagesByID and orderedMessageIDs stay
 // internal to the store; both durable sources agree on the flat shape.
@@ -76,8 +88,16 @@ export const useDurableQueuedMessages = (
 ): readonly TypesGen.ChatQueuedMessage[] =>
 	useChatSelector(args.store, selectQueuedMessages);
 
-// Delegates to the boolean selector, which reads only the latest message,
-// the chat status, and whether a stream exists. Composing it from the full
-// message list would widen the subscription to any content change.
-export const useIsAwaitingFirstStreamChunk = (args: DurableChatArgs): boolean =>
-	useChatSelector(args.store, selectIsAwaitingFirstStreamChunk);
+// Composed from two narrow primitives rather than one store selector: the
+// status now lives in the query cache, and widening the store subscription to
+// the message list or the stream state would re-render on every chunk.
+export const useIsAwaitingFirstStreamChunk = (
+	args: DurableChatArgs,
+): boolean => {
+	const isPendingAssistantResponse = useChatSelector(
+		args.store,
+		selectIsPendingAssistantResponse,
+	);
+	const chatStatus = useDurableChatStatus(args);
+	return isPendingAssistantResponse && chatStatus === "running";
+};

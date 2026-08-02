@@ -29,14 +29,12 @@ const readInfiniteChats = (
 };
 
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
-	selectChatStatus,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -196,13 +194,49 @@ const createMockSocket = (): MockSocket => {
 	};
 };
 
+/**
+ * Deliberately not the shared helper: that one uses gcTime 0, which evicts a
+ * cache entry seeded without an observer before the socket can write to it.
+ */
+const createTestQueryClient = (): QueryClient =>
+	new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+				gcTime: Number.POSITIVE_INFINITY,
+				refetchOnWindowFocus: false,
+				networkMode: "offlineFirst",
+			},
+		},
+	});
+
+/**
+ * In the app the chat detail query IS the record passed to useChatStore, and
+ * the socket writes status into that cache entry. Tests pass the record as a
+ * prop, so mirror it into the cache the way the query would.
+ */
+const useTestChatStore: typeof useChatStore = (options) => {
+	const queryClient = useQueryClient();
+	const chatRecord = options.chatRecord;
+	if (
+		chatRecord &&
+		queryClient.getQueryData(chatKeys.detail(chatRecord.id)) === undefined
+	) {
+		queryClient.setQueryData(chatKeys.detail(chatRecord.id), chatRecord);
+	}
+	return useChatStore(options);
+};
+
 const createWrapper =
 	(queryClient: QueryClient): FC<PropsWithChildren> =>
 	({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 
-const buildChat = (chatID: string): TypesGen.Chat => ({
+const buildChat = (
+	chatID: string,
+	overrides?: Partial<TypesGen.Chat>,
+): TypesGen.Chat => ({
 	...MockChat,
 	id: chatID,
 	owner_id: "owner-1",
@@ -213,7 +247,26 @@ const buildChat = (chatID: string): TypesGen.Chat => ({
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
+	snapshot_version: 1,
+	...overrides,
 });
+
+/**
+ * Chat status is canonical in the detail cache, so any test that asserts or
+ * depends on it has to seed the entry the socket writes into.
+ */
+const seedChatDetail = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+): void => {
+	queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(chat.id), chat);
+};
+
+const readChatDetail = (
+	queryClient: QueryClient,
+	chatID: string,
+): TypesGen.Chat | undefined =>
+	queryClient.getQueryData<TypesGen.Chat>(chatKeys.detail(chatID));
 
 const buildMessage = (
 	chatID: string,
@@ -283,7 +336,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -356,7 +409,7 @@ describe("useChatStore", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -399,7 +452,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -497,7 +550,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -589,7 +642,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -650,7 +703,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -747,7 +800,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -845,7 +898,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -926,7 +979,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -999,7 +1052,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1093,7 +1146,7 @@ describe("useChatStore", () => {
 		};
 
 		const TestHarness: FC = () => {
-			const { store } = useChatStore({
+			const { store } = useTestChatStore({
 				chatID,
 				chatMessages: [existingMessage],
 				chatRecord: buildChat(chatID),
@@ -1165,7 +1218,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1238,7 +1291,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1285,6 +1338,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 2,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -1352,7 +1406,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					queuedMessages: useDurableQueuedMessages({
 						store,
@@ -1431,7 +1485,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					queuedMessages: useChatSelector(store, selectQueuedMessages),
 				};
@@ -1504,7 +1558,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1575,7 +1629,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1649,7 +1703,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1760,7 +1814,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					streamState: useChatSelector(store, selectStreamState),
 				};
@@ -1829,7 +1883,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1883,7 +1937,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1988,7 +2042,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -2098,7 +2152,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					streamState: useChatSelector(store, selectStreamState),
 				};
@@ -2187,7 +2241,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					queuedMessages: useChatSelector(store, selectQueuedMessages),
 				};
@@ -2241,7 +2295,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2281,6 +2335,7 @@ describe("useChatStore", () => {
 				},
 				{
 					type: "status",
+					snapshot_version: 3,
 					chat_id: chatID,
 					status: { status: "waiting" },
 				},
@@ -2295,24 +2350,15 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("applies a refetched status after acceptServerChatStatus", async () => {
-		const chatID = "chat-resync";
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-
-		const initialProps: { status: TypesGen.ChatStatus; updatedAt: number } = {
-			status: "waiting",
-			updatedAt: 1,
-		};
-		const { result, rerender } = renderHook(
-			({ status, updatedAt }: typeof initialProps) => {
-				const { store, acceptServerChatStatus } = useChatStore({
+	// Status ordering: snapshot_version is the shared key every writer
+	// compares against, so these cover apply / reject / duplicate.
+	const renderStatusHarness = (chatID: string, queryClient: QueryClient) =>
+		renderHook(
+			() => {
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: { ...buildChat(chatID), status },
-					chatRecordUpdatedAt: updatedAt,
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2323,12 +2369,27 @@ describe("useChatStore", () => {
 					clearChatErrorReason: vi.fn(),
 				});
 				return {
-					acceptServerChatStatus,
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
+					streamError: useChatSelector(store, selectStreamError),
 				};
 			},
-			{ wrapper, initialProps },
+			{ wrapper: createWrapper(queryClient) },
 		);
+
+	it("applies a status carrying a newer snapshot version", async () => {
+		const chatID = "chat-status-newer";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "waiting", snapshot_version: 4 }),
+		);
+		seedInfiniteChats(queryClient, [
+			buildChat(chatID, { status: "waiting", snapshot_version: 4 }),
+		]);
+
+		const { result } = renderStatusHarness(chatID, queryClient);
 
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
@@ -2338,41 +2399,464 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: chatID,
+				snapshot_version: 5,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		expect(readChatDetail(queryClient, chatID)?.snapshot_version).toBe(5);
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "running",
+			snapshot_version: 5,
+		});
+	});
+
+	it("rejects a delayed status event carrying an older snapshot version", async () => {
+		const chatID = "chat-status-older";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "waiting", snapshot_version: 4 }),
+		);
+
+		const { result } = renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 7,
 				status: { status: "running" },
 			});
 		});
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 		});
-		rerender({ status: "error", updatedAt: 1 });
-		expect(result.current.chatStatus).toBe("running");
 
 		act(() => {
-			result.current.acceptServerChatStatus();
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 5,
+				status: { status: "waiting" },
+			});
 		});
-		rerender({ status: "waiting", updatedAt: 1 });
-		expect(result.current.chatStatus).toBe("running");
-		rerender({ status: "error", updatedAt: 2 });
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("error");
+
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "running",
+			snapshot_version: 7,
 		});
 	});
 
-	it("hydrates an unchanged status after a successful refetch", async () => {
-		const chatID = "chat-resync-same";
+	it("treats an equal-version status event as a duplicate no-op", async () => {
+		const chatID = "chat-status-duplicate";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "running", snapshot_version: 6 }),
+		);
+
+		renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const before = readChatDetail(queryClient, chatID);
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 6,
+				status: { status: "waiting" },
+			});
+		});
+
+		// Same version, same snapshot: nothing to apply, not even a new object.
+		expect(readChatDetail(queryClient, chatID)).toBe(before);
+	});
+
+	it("keeps the detail query's dataUpdatedAt when a status lands", async () => {
+		const chatID = "chat-status-freshness";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "waiting", snapshot_version: 4 }),
+		);
+		const seededUpdatedAt = queryClient.getQueryState(
+			chatKeys.detail(chatID),
+		)?.dataUpdatedAt;
+
+		const { result } = renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 5,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		expect(
+			queryClient.getQueryState(chatKeys.detail(chatID))?.dataUpdatedAt,
+		).toBe(seededUpdatedAt);
+	});
+
+	it("reports a versionless transport error without writing chat status", async () => {
+		const chatID = "chat-transport-error";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "running", snapshot_version: 4 }),
+		);
+
+		const { result } = renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "Subscription failed", retryable: false },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Subscription failed",
+				retryable: false,
+			});
+		});
+		// No snapshot backs the failure, so the chat is still running.
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "running",
+			snapshot_version: 4,
+		});
+	});
+
+	it("keeps buffered parts, retry state, and the error reason for a superseded status", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-status-superseded-effects";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "running", snapshot_version: 7 }),
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID, {
+						status: "running",
+						snapshot_version: 7,
+					}),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					retryState: useChatSelector(store, selectRetryState),
+				};
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: {
+					attempt: 2,
+					error: "upstream timeout",
+					kind: "timeout",
+					provider: "anthropic",
+					delay_ms: 5000,
+					retrying_at: "2025-01-01T00:01:00.000Z",
+				},
+			});
+		});
+		await act(async () => {});
+		expect(result.current.retryState).not.toBeNull();
+
+		// A delayed "waiting" from an older snapshot. The cache rejects it, so
+		// the turn it would end is not this chat's current one and its stream
+		// side effects must not run either.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 5,
+				status: { status: "waiting" },
+			});
+		});
+		await act(async () => {});
+
+		expect(clearChatErrorReason).not.toHaveBeenCalled();
+		expect(result.current.retryState).not.toBeNull();
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "running",
+			snapshot_version: 7,
+		});
+
+		// Buffered parts survive the same rejected status, so the response
+		// keeps streaming.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "still streaming" },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					snapshot_version: 5,
+					status: { status: "waiting" },
+				},
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "still streaming" },
+			]);
+		});
+
+		// An accepted status ends the turn, clearing the retry indicator that
+		// belonged to it.
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: {
+					attempt: 3,
+					error: "upstream timeout",
+					kind: "timeout",
+					provider: "anthropic",
+					delay_ms: 5000,
+					retrying_at: "2025-01-01T00:02:00.000Z",
+				},
+			});
+		});
+		await act(async () => {});
+		expect(result.current.retryState).not.toBeNull();
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				snapshot_version: 8,
+				status: { status: "waiting" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.retryState).toBeNull();
+		});
+	});
+
+	it("surfaces an error event sharing its status event's snapshot version", async () => {
+		const chatID = "chat-error-companion";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "running", snapshot_version: 7 }),
+		);
+		const setChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useTestChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID, {
+						status: "running",
+						snapshot_version: 7,
+					}),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		// The server emits the status transition and the error detailing it
+		// from one chat snapshot, so both carry the same version.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "status",
+					chat_id: chatID,
+					snapshot_version: 8,
+					status: { status: "error" },
+				},
+				{
+					type: "error",
+					chat_id: chatID,
+					snapshot_version: 8,
+					error: { message: "Upstream failed", retryable: false },
+				},
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toMatchObject({
+				kind: "generic",
+				message: "Upstream failed",
+			});
+		});
+		expect(setChatErrorReason).toHaveBeenCalledWith(
+			chatID,
+			expect.objectContaining({ message: "Upstream failed" }),
+		);
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "error",
+			snapshot_version: 8,
+		});
+	});
+
+	it("does not install a stream error for a superseded error event", async () => {
+		const chatID = "chat-error-superseded";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "running", snapshot_version: 7 }),
+		);
+
+		const { result } = renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				snapshot_version: 5,
+				error: { message: "Old failure", retryable: false },
+			});
+		});
+
+		// The chat already moved past that snapshot, so the failure it reports
+		// is not the current one.
+		expect(result.current.streamError).toBeNull();
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "running",
+			snapshot_version: 7,
+		});
+	});
+
+	it("rejects an older error event while the chat is already in error", async () => {
+		const chatID = "chat-error-older-than-error";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		// A newer error snapshot already landed, so only its own companion may
+		// report a reason.
+		seedChatDetail(
+			queryClient,
+			buildChat(chatID, { status: "error", snapshot_version: 8 }),
+		);
+
+		const { result } = renderStatusHarness(chatID, queryClient);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				snapshot_version: 5,
+				error: { message: "Old failure", retryable: false },
+			});
+		});
+
+		expect(result.current.streamError).toBeNull();
+		expect(readChatDetail(queryClient, chatID)).toMatchObject({
+			status: "error",
+			snapshot_version: 8,
+		});
+	});
+
+	it("does not gate the socket on messages alone", async () => {
+		const chatID = "chat-first-fetch";
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
-		const chatRecord = { ...buildChat(chatID), status: "error" as const };
 
-		const { result, rerender } = renderHook(
-			({ updatedAt }: { updatedAt: number }) => {
-				const { store, acceptServerChatStatus } = useChatStore({
+		const { rerender } = renderHook(
+			({ chatRecord }: { chatRecord: TypesGen.Chat | undefined }) => {
+				useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord,
-					chatRecordUpdatedAt: updatedAt,
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2382,155 +2866,25 @@ describe("useChatStore", () => {
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
-				return {
-					acceptServerChatStatus,
-					chatStatus: useChatSelector(store, selectChatStatus),
-				};
-			},
-			{ wrapper, initialProps: { updatedAt: 1 } },
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
-		});
-		act(() => {
-			mockSocket.emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "running" },
-			});
-		});
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
-		});
-
-		act(() => {
-			result.current.acceptServerChatStatus();
-		});
-		expect(result.current.chatStatus).toBe("running");
-		rerender({ updatedAt: 2 });
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("error");
-		});
-	});
-
-	it("ignores a resync armed by a request from a chat the user left", async () => {
-		const leftChatID = "chat-resync-left";
-		const activeChatID = "chat-resync-active";
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-
-		const { result, rerender } = renderHook(
-			({ chatID, updatedAt }: { chatID: string; updatedAt: number }) => {
-				const { store, acceptServerChatStatus } = useChatStore({
-					chatID,
-					chatMessages: [],
-					chatRecord: { ...buildChat(chatID), status: "waiting" },
-					chatRecordUpdatedAt: updatedAt,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
-					setChatErrorReason: () => {},
-					clearChatErrorReason: () => {},
-				});
-				return {
-					acceptServerChatStatus,
-					chatStatus: useChatSelector(store, selectChatStatus),
-				};
+				return null;
 			},
 			{
 				wrapper,
-				initialProps: { chatID: leftChatID, updatedAt: 1 },
+				initialProps: { chatRecord: undefined } as {
+					chatRecord: TypesGen.Chat | undefined;
+				},
 			},
 		);
 
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(leftChatID, undefined);
-		});
-		// The in-flight request holds the callback from the render it started in.
-		const staleAcceptServerChatStatus = result.current.acceptServerChatStatus;
+		// Messages resolved, detail did not: a status event would have nowhere
+		// to land, so the socket stays closed.
+		expect(watchChat).not.toHaveBeenCalled();
 
-		rerender({ chatID: activeChatID, updatedAt: 5 });
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(activeChatID, undefined);
-		});
-		act(() => {
-			mockSocket.emitData({
-				type: "status",
-				chat_id: activeChatID,
-				status: { status: "running" },
-			});
-		});
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
-		});
-
-		act(() => {
-			staleAcceptServerChatStatus();
-		});
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
-		});
-	});
-
-	it("keeps a websocket status delivered while the resync refetch is in flight", async () => {
-		const chatID = "chat-resync-ws-race";
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const chatRecord = { ...buildChat(chatID), status: "error" as const };
-
-		const { result, rerender } = renderHook(
-			({ updatedAt }: { updatedAt: number }) => {
-				const { store, acceptServerChatStatus } = useChatStore({
-					chatID,
-					chatMessages: [],
-					chatRecord,
-					chatRecordUpdatedAt: updatedAt,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
-					setChatErrorReason: () => {},
-					clearChatErrorReason: () => {},
-				});
-				return {
-					acceptServerChatStatus,
-					chatStatus: useChatSelector(store, selectChatStatus),
-				};
-			},
-			{ wrapper, initialProps: { updatedAt: 1 } },
-		);
+		seedChatDetail(queryClient, buildChat(chatID));
+		rerender({ chatRecord: buildChat(chatID) });
 
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
-		});
-
-		act(() => {
-			result.current.acceptServerChatStatus();
-		});
-		act(() => {
-			mockSocket.emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "running" },
-			});
-		});
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
-		});
-
-		rerender({ updatedAt: 2 });
-		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
 		});
 	});
 
@@ -2548,7 +2902,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2562,7 +2916,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 					streamError: useChatSelector(store, selectStreamError),
 					retryState: useChatSelector(store, selectRetryState),
 				};
@@ -2577,6 +2931,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
+				snapshot_version: 5,
 				chat_id: chatID,
 				error: {
 					message: "Rate limit exceeded",
@@ -2625,7 +2980,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2652,6 +3007,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
+				snapshot_version: 6,
 				chat_id: chatID,
 				error: { message: "  ", retryable: false },
 			});
@@ -2679,7 +3035,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2742,7 +3098,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2757,7 +3113,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					retryState: useChatSelector(store, selectRetryState),
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -2797,6 +3153,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 7,
 				chat_id: chatID,
 				status: { status: "running" },
 			});
@@ -2822,7 +3179,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2906,7 +3263,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2920,7 +3277,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 					subagentStatusOverrides: useChatSelector(
 						store,
 						selectSubagentStatusOverrides,
@@ -2937,6 +3294,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 8,
 				chat_id: subagentChatID,
 				status: { status: "waiting" },
 			});
@@ -2967,7 +3325,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2981,7 +3339,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
@@ -3046,7 +3404,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3121,7 +3479,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3150,6 +3508,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
+				snapshot_version: 9,
 				chat_id: chatID,
 				error: { message: "Rate limit exceeded", retryable: false },
 			});
@@ -3196,7 +3555,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: { ...buildChat(chatID), status: "waiting" },
@@ -3210,7 +3569,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason: vi.fn(),
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
@@ -3243,7 +3602,7 @@ describe("useChatStore", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3294,7 +3653,7 @@ describe("useChatStore", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [msg],
 					chatRecord: buildChat(chatID),
@@ -3357,7 +3716,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3480,7 +3839,7 @@ describe("useChatStore", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3494,7 +3853,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -3508,6 +3867,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 10,
 				chat_id: chatID,
 				status: { status: "running" },
 			});
@@ -3553,7 +3913,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 				};
@@ -3622,7 +3982,7 @@ describe("useChatStore", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 					queuedMessages: useChatSelector(store, selectQueuedMessages),
@@ -3729,11 +4089,11 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					store,
 					streamState: useChatSelector(store, selectStreamState),
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 				};
 			},
@@ -3751,6 +4111,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 11,
 				chat_id: chatID,
 				status: { status: "running" },
 			});
@@ -3798,7 +4159,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("does not let a stale REST chatRecord.status override WS-delivered status", async () => {
+	it("ignores a stale chat record prop, the cache owns the status", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-stale-rest-status";
@@ -3812,7 +4173,7 @@ describe("useChatStore", () => {
 		// Start with a "running" chatRecord so the WS opens.
 		const { result, rerender } = renderHook(
 			(props: { chatRecord: TypesGen.Chat }) => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: props.chatRecord,
@@ -3842,10 +4203,11 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 
-		// Deliver a status event over WS so wsStatusReceivedRef is set.
+		// Deliver a status event over the socket, which owns the cache entry.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 12,
 				chat_id: chatID,
 				status: { status: "running" },
 			});
@@ -3860,11 +4222,13 @@ describe("useChatStore", () => {
 			chatRecord: { ...buildChat(chatID), status: "waiting" },
 		});
 
-		// The store must ignore the stale REST value because the
-		// WS already delivered a status event for this chat.
+		// The chat record is no longer a status source: the socket wrote the
+		// status into the detail cache and only a newer snapshot version can
+		// replace it. Guards against reintroducing a REST-to-store hydration.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 		});
+		expect(readChatDetail(queryClient, chatID)?.snapshot_version).toBe(12);
 	});
 
 	it("preserves stream state when status transitions to waiting", async () => {
@@ -3882,7 +4246,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3930,6 +4294,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 13,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -3958,7 +4323,7 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -4007,6 +4372,7 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 14,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -4056,7 +4422,7 @@ describe("thinking indicator event ordering", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -4099,6 +4465,7 @@ describe("thinking indicator event ordering", () => {
 				},
 				{
 					type: "status",
+					snapshot_version: 15,
 					chat_id: chatID,
 					status: { status: "running" },
 				},
@@ -4142,7 +4509,7 @@ describe("thinking indicator event ordering", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -4176,6 +4543,7 @@ describe("thinking indicator event ordering", () => {
 			mockSocket.emitDataBatch([
 				{
 					type: "status",
+					snapshot_version: 16,
 					chat_id: chatID,
 					status: { status: "running" },
 				},
@@ -4223,7 +4591,7 @@ describe("thinking indicator event ordering", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -4262,6 +4630,7 @@ describe("thinking indicator event ordering", () => {
 				},
 				{
 					type: "status",
+					snapshot_version: 17,
 					chat_id: chatID,
 					status: { status: "waiting" },
 				},
@@ -4282,7 +4651,7 @@ describe("thinking indicator event ordering", () => {
 	});
 });
 
-describe("updateSidebarChat via stream events", () => {
+describe("sidebar cache writes from stream events", () => {
 	it("updates sidebar chat status on status stream event", async () => {
 		immediateAnimationFrame();
 
@@ -4301,7 +4670,7 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const initialChat = buildChat(chatID);
-		// Seed the chats list so updateSidebarChat can find it.
+		// Seed the chats list so the status write can find the row.
 		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = createWrapper(queryClient);
@@ -4310,7 +4679,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4323,7 +4692,7 @@ describe("updateSidebarChat via stream events", () => {
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
-				return { chatStatus: useChatSelector(store, selectChatStatus) };
+				return { chatStatus: useDurableChatStatus({ store, chatId: chatID }) };
 			},
 			{ wrapper },
 		);
@@ -4335,6 +4704,7 @@ describe("updateSidebarChat via stream events", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 18,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -4372,7 +4742,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4443,7 +4813,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4456,7 +4826,7 @@ describe("updateSidebarChat via stream events", () => {
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
-				return { chatStatus: useChatSelector(store, selectChatStatus) };
+				return { chatStatus: useDurableChatStatus({ store, chatId: chatID }) };
 			},
 			{ wrapper },
 		);
@@ -4468,6 +4838,7 @@ describe("updateSidebarChat via stream events", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
+				snapshot_version: 19,
 				chat_id: chatID,
 				error: { message: "something went wrong", retryable: false },
 			});
@@ -4507,7 +4878,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: activeChat,
@@ -4532,6 +4903,7 @@ describe("updateSidebarChat via stream events", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 20,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -4578,7 +4950,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4647,7 +5019,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4660,7 +5032,7 @@ describe("updateSidebarChat via stream events", () => {
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
-				return { chatStatus: useChatSelector(store, selectChatStatus) };
+				return { chatStatus: useDurableChatStatus({ store, chatId: chatID }) };
 			},
 			{ wrapper },
 		);
@@ -4672,6 +5044,7 @@ describe("updateSidebarChat via stream events", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
+				snapshot_version: 21,
 				chat_id: chatID,
 				status: { status: "waiting" },
 			});
@@ -4711,7 +5084,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -4724,7 +5097,7 @@ describe("updateSidebarChat via stream events", () => {
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
-				return { chatStatus: useChatSelector(store, selectChatStatus) };
+				return { chatStatus: useDurableChatStatus({ store, chatId: chatID }) };
 			},
 			{ wrapper },
 		);
@@ -4736,6 +5109,7 @@ describe("updateSidebarChat via stream events", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
+				snapshot_version: 22,
 				chat_id: chatID,
 				error: { message: "something broke", retryable: false },
 			});
@@ -4763,7 +5137,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -4849,7 +5223,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -4935,7 +5309,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -5074,7 +5448,7 @@ describe("store/cache desync protection", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 					store,
@@ -5162,7 +5536,7 @@ describe("store/cache desync protection", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 				};
@@ -5232,7 +5606,7 @@ describe("store/cache desync protection", () => {
 
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+				const { store } = useTestChatStore(options);
 				return {
 					store,
 					messagesByID: useChatSelector(store, selectMessagesByID),
@@ -5302,7 +5676,7 @@ describe("parse errors", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -5317,7 +5691,7 @@ describe("parse errors", () => {
 				});
 				return {
 					streamError: useChatSelector(store, selectStreamError),
-					chatStatus: useChatSelector(store, selectChatStatus),
+					chatStatus: useDurableChatStatus({ store, chatId: chatID }),
 				};
 			},
 			{ wrapper },
@@ -5355,7 +5729,7 @@ describe("parse errors", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -5429,7 +5803,7 @@ describe("parse errors", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { store } = useChatStore({
+				const { store } = useTestChatStore({
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -5532,7 +5906,7 @@ describe("message cache resync over the socket", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [cachedMessage],
 					chatRecord: buildChat(chatID),
@@ -5589,7 +5963,7 @@ describe("message cache resync over the socket", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: cachedMessages,
 					chatRecord: buildChat(chatID),
@@ -5648,7 +6022,7 @@ describe("message cache resync over the socket", () => {
 
 		renderHook(
 			() =>
-				useChatStore({
+				useTestChatStore({
 					chatID,
 					chatMessages: [cachedMessage],
 					chatRecord: buildChat(chatID),

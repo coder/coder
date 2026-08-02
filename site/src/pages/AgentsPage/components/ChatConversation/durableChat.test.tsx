@@ -1,12 +1,13 @@
-import { act, render, renderHook } from "@testing-library/react";
-import type { FC } from "react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { describe, expect, it } from "vitest";
+import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	type ChatStore,
 	createChatStore,
-	selectChatStatus,
-	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -21,6 +22,40 @@ import {
 } from "./durableChat";
 
 const CHAT_ID = "chat-1";
+
+const createTestQueryClient = (): QueryClient =>
+	new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+				refetchOnWindowFocus: false,
+				networkMode: "offlineFirst",
+			},
+		},
+	});
+
+/**
+ * The facade reads status from the detail cache, so every status assertion
+ * needs a seeded entry and a provider around the hook.
+ */
+const seedChatDetail = (
+	queryClient: QueryClient,
+	status: TypesGen.ChatStatus,
+	snapshotVersion = 1,
+): void => {
+	queryClient.setQueryData<TypesGen.Chat>(chatKeys.detail(CHAT_ID), {
+		...MockChat,
+		id: CHAT_ID,
+		status,
+		snapshot_version: snapshotVersion,
+	});
+};
+
+const createWrapper =
+	(queryClient: QueryClient): FC<PropsWithChildren> =>
+	({ children }) => (
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
 
 const buildMessage = (
 	id: number,
@@ -50,40 +85,35 @@ const buildTextPart = (text: string): TypesGen.ChatMessagePart => ({
 });
 
 describe("durableChat facade", () => {
-	it("matches the underlying store selectors", () => {
+	it("reads messages and the queue from the store and status from the cache", () => {
 		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "running");
 		const messages = [
 			buildMessage(1, "user", "hello"),
 			buildMessage(2, "assistant", "hi"),
 		];
 		store.replaceMessages(messages);
 		store.setQueuedMessages([buildQueuedMessage(10, "later")]);
-		store.setChatStatus("running");
 
-		const { result } = renderHook(() => ({
-			facadeStatus: useDurableChatStatus({ store, chatId: CHAT_ID }),
-			selectorStatus: useChatSelector(store, selectChatStatus),
-			facadeMessages: useDurableMessageList({ store, chatId: CHAT_ID }),
-			selectorMessagesByID: useChatSelector(store, selectMessagesByID),
-			selectorOrderedMessageIDs: useChatSelector(
-				store,
-				selectOrderedMessageIDs,
-			),
-			facadeCount: useDurableMessageCount({ store, chatId: CHAT_ID }),
-			facadeQueued: useDurableQueuedMessages({ store, chatId: CHAT_ID }),
-			selectorQueued: useChatSelector(store, selectQueuedMessages),
-			facadeAwaiting: useIsAwaitingFirstStreamChunk({
-				store,
-				chatId: CHAT_ID,
+		const { result } = renderHook(
+			() => ({
+				facadeStatus: useDurableChatStatus({ store, chatId: CHAT_ID }),
+				facadeMessages: useDurableMessageList({ store, chatId: CHAT_ID }),
+				selectorMessagesByID: useChatSelector(store, selectMessagesByID),
+				selectorOrderedMessageIDs: useChatSelector(
+					store,
+					selectOrderedMessageIDs,
+				),
+				facadeCount: useDurableMessageCount({ store, chatId: CHAT_ID }),
+				facadeQueued: useDurableQueuedMessages({ store, chatId: CHAT_ID }),
+				selectorQueued: useChatSelector(store, selectQueuedMessages),
 			}),
-			selectorAwaiting: useChatSelector(
-				store,
-				selectIsAwaitingFirstStreamChunk,
-			),
-		}));
+			{ wrapper: createWrapper(queryClient) },
+		);
 
 		const current = result.current;
-		expect(current.facadeStatus).toBe(current.selectorStatus);
+		expect(current.facadeStatus).toBe("running");
 		expect(current.facadeMessages).toEqual(
 			current.selectorOrderedMessageIDs.map((id) =>
 				current.selectorMessagesByID.get(id),
@@ -92,25 +122,61 @@ describe("durableChat facade", () => {
 		expect(current.facadeMessages).toEqual(messages);
 		expect(current.facadeCount).toBe(current.selectorMessagesByID.size);
 		expect(current.facadeQueued).toBe(current.selectorQueued);
-		expect(current.facadeAwaiting).toBe(current.selectorAwaiting);
 	});
 
-	it("keeps the message list reference stable when an unrelated field changes", () => {
+	it("returns null when no chat is selected", () => {
 		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "running");
+
+		const { result } = renderHook(
+			() => useDurableChatStatus({ store, chatId: undefined }),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current).toBeNull();
+	});
+
+	it("re-renders the status consumer when the cached status changes", async () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "waiting");
+
+		const { result } = renderHook(
+			() => useDurableChatStatus({ store, chatId: CHAT_ID }),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		expect(result.current).toBe("waiting");
+
+		seedChatDetail(queryClient, "running", 2);
+
+		await waitFor(() => {
+			expect(result.current).toBe("running");
+		});
+	});
+
+	it("keeps the message list reference stable when the status changes", async () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "waiting");
 		store.replaceMessages([buildMessage(1, "user", "hello")]);
 
-		const { result } = renderHook(() => ({
-			messages: useDurableMessageList({ store, chatId: CHAT_ID }),
-			status: useDurableChatStatus({ store, chatId: CHAT_ID }),
-		}));
+		const { result } = renderHook(
+			() => ({
+				messages: useDurableMessageList({ store, chatId: CHAT_ID }),
+				status: useDurableChatStatus({ store, chatId: CHAT_ID }),
+			}),
+			{ wrapper: createWrapper(queryClient) },
+		);
 
 		const firstMessages = result.current.messages;
 
-		act(() => {
-			store.setChatStatus("running");
-		});
+		seedChatDetail(queryClient, "running", 2);
 
-		expect(result.current.status).toBe("running");
+		await waitFor(() => {
+			expect(result.current.status).toBe("running");
+		});
 		expect(result.current.messages).toBe(firstMessages);
 
 		act(() => {
@@ -123,6 +189,7 @@ describe("durableChat facade", () => {
 
 	it("does not re-render a queued-message consumer on a message_part update", () => {
 		const store = createChatStore();
+		const queryClient = createTestQueryClient();
 		store.replaceMessages([buildMessage(1, "user", "hello")]);
 
 		let queueRenderCount = 0;
@@ -140,11 +207,12 @@ describe("durableChat facade", () => {
 			return null;
 		};
 
+		const Wrapper = createWrapper(queryClient);
 		render(
-			<>
+			<Wrapper>
 				<QueueProbe store={store} />
 				<MessageProbe store={store} />
-			</>,
+			</Wrapper>,
 		);
 
 		const queueBaseline = queueRenderCount;
@@ -158,20 +226,46 @@ describe("durableChat facade", () => {
 		expect(messageRenderCount).toBe(messageBaseline);
 	});
 
+	it("shows the Thinking indicator only while the cached status is running", async () => {
+		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "waiting");
+		store.replaceMessages([buildMessage(1, "user", "hello")]);
+
+		const { result } = renderHook(
+			() => useIsAwaitingFirstStreamChunk({ store, chatId: CHAT_ID }),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		// The store half is satisfied (user message, no stream), the cached
+		// status is not.
+		expect(result.current).toBe(false);
+
+		seedChatDetail(queryClient, "running", 2);
+
+		await waitFor(() => {
+			expect(result.current).toBe(true);
+		});
+	});
+
 	it("re-renders the awaiting-first-chunk consumer only when the flag flips", () => {
 		const store = createChatStore();
+		const queryClient = createTestQueryClient();
+		seedChatDetail(queryClient, "running");
 		store.replaceMessages([buildMessage(1, "user", "hello")]);
-		store.setChatStatus("running");
 
 		let renderCount = 0;
-		const { result } = renderHook(() => {
-			const isAwaiting = useIsAwaitingFirstStreamChunk({
-				store,
-				chatId: CHAT_ID,
-			});
-			renderCount += 1;
-			return isAwaiting;
-		});
+		const { result } = renderHook(
+			() => {
+				const isAwaiting = useIsAwaitingFirstStreamChunk({
+					store,
+					chatId: CHAT_ID,
+				});
+				renderCount += 1;
+				return isAwaiting;
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
 
 		expect(result.current).toBe(true);
 		const baseline = renderCount;
@@ -196,14 +290,18 @@ describe("durableChat facade", () => {
 
 	it("re-renders the message-count consumer only when the count changes", () => {
 		const store = createChatStore();
+		const queryClient = createTestQueryClient();
 		store.replaceMessages([buildMessage(1, "user", "hello")]);
 
 		let renderCount = 0;
-		const { result } = renderHook(() => {
-			const count = useDurableMessageCount({ store, chatId: CHAT_ID });
-			renderCount += 1;
-			return count;
-		});
+		const { result } = renderHook(
+			() => {
+				const count = useDurableMessageCount({ store, chatId: CHAT_ID });
+				renderCount += 1;
+				return count;
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
 
 		expect(result.current).toBe(1);
 		const baseline = renderCount;

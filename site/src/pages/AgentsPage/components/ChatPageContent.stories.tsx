@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { chatKeys } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -14,6 +16,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
+
+// Chat status is canonical in the detail cache, so a story that depends on it
+// seeds the entry rather than the store.
+const seededChatDetail = (status: TypesGen.ChatStatus) => [
+	{
+		key: chatKeys.detail(CHAT_ID),
+		data: { ...MockChat, id: CHAT_ID, status } satisfies TypesGen.Chat,
+	},
+];
 
 const buildMessage = (
 	id: number,
@@ -65,6 +76,7 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 };
 
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
+	parameters: { queries: seededChatDetail("running") },
 	render: () => {
 		const store = createChatStore();
 		store.replaceMessages([
@@ -78,7 +90,6 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				},
 			]),
 		]);
-		store.setChatStatus("running");
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>

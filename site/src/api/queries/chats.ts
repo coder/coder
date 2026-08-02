@@ -2,6 +2,7 @@ import {
 	type InfiniteData,
 	type QueryClient,
 	queryOptions,
+	replaceEqualDeep,
 	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
@@ -134,7 +135,8 @@ export const chatKeys = {
 	debugRun: (chatId: string, runId: string) =>
 		[...chatKeys.debugRuns(chatId), runId] as const,
 
-	search: (q: string) => [...chatKeys.all, "search", { q }] as const,
+	searches: () => [...chatKeys.all, "search"] as const,
+	search: (q: string) => [...chatKeys.searches(), { q }] as const,
 	byWorkspacePrefix: () => [...chatKeys.all, "by-workspace"] as const,
 	byWorkspace: (workspaceIds: string[]) =>
 		[...chatKeys.byWorkspacePrefix(), workspaceIds.toSorted()] as const,
@@ -371,6 +373,582 @@ export const patchChatEverywhere = (
 const hasLoadedData = (query: { state: { data: unknown } }): boolean =>
 	query.state.data !== undefined;
 
+// ---------------------------------------------------------------------------
+// Chat status ordering
+//
+// Three writers change a chat's status: the per-chat stream socket, the global
+// watch socket, and every REST payload that carries a chat. `snapshot_version`
+// is the only key they share that orders those writes: the server bumps it
+// while holding the chat row lock, so version order is commit order.
+// `updated_at` cannot order status, it comes from transaction_timestamp() and
+// is evaluated before the lock, so it can invert against commit order.
+//
+// The cached `snapshot_version` is the version of the STATUS the entry holds,
+// not of the whole payload: a rejected payload's other fields are still
+// adopted, so advancing the version for them would strand the older status
+// with no way to correct it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Coerces an absent `snapshot_version` to the zero version. Chats built before
+ * the field existed, and fixtures that omit it, still have to compare: every
+ * comparison against a raw `undefined` is false, which would silently reject
+ * every status write instead of accepting it.
+ */
+const chatSnapshotVersion = (version?: number): number => version ?? 0;
+
+/**
+ * Provenance of a status the client wrote ahead of the server. `token`
+ * identifies the write so its own rollback can tell whether it is still the
+ * latest one, and `previousStatus` is the status to restore, carried per cache
+ * entry because layers can hold different statuses.
+ */
+type OptimisticChatStatus = {
+	readonly token: number;
+	readonly previousStatus: TypesGen.ChatStatus;
+};
+
+/**
+ * A chat as held in the query cache. `__optimistic` is client-only provenance:
+ * it is colocated with the entry so it is garbage collected with it, and it is
+ * cleared as soon as a strictly newer server snapshot lands. It never appears
+ * on a payload from the server.
+ */
+type CachedChat = TypesGen.Chat & {
+	readonly __optimistic?: OptimisticChatStatus;
+};
+
+/**
+ * Narrows a cached payload to a chat record. The detail key is also the prefix
+ * of every per-chat sub-resource key, and `structuralSharing` is typed against
+ * `unknown`, so the shape has to be checked before a merge or a patch runs.
+ */
+const isCachedChat = (value: unknown): value is CachedChat =>
+	isPlainObject(value) &&
+	typeof value.id === "string" &&
+	typeof value.status === "string";
+
+type WritableCachedChat = TypesGen.Chat & {
+	__optimistic?: OptimisticChatStatus;
+};
+
+/**
+ * Orders a server-backed status against the one already cached.
+ *
+ * A server payload owns the status only when its `snapshot_version` is
+ * STRICTLY greater. Equal versions describe the same committed snapshot, so a
+ * duplicate is a no-op and an optimistic status pinned at that version
+ * survives until its request settles or rolls back. Older payloads lose.
+ *
+ * Polarity, spelled out because the guard this replaces reads the other way
+ * round: the old code accepted a watched status when
+ * `compareUpdatedAtInstants(cached, watched) <= 0`, that is when the CACHED
+ * instant was not newer than the incoming one. Here the incoming version must
+ * be greater than the cached one, which is the same direction with the equal
+ * case moved from accept to reject.
+ */
+export const shouldApplyServerChatStatus = (
+	cachedVersion: number | undefined,
+	incomingVersion: number | undefined,
+): boolean =>
+	chatSnapshotVersion(incomingVersion) > chatSnapshotVersion(cachedVersion);
+
+/**
+ * Builds the entry for an accepted server status. A strictly newer server
+ * snapshot supersedes any optimistic status, so the provenance token goes with
+ * it.
+ */
+const withServerChatStatus = (
+	chat: CachedChat,
+	status: TypesGen.ChatStatus,
+	snapshotVersion: number,
+): CachedChat => {
+	const next: WritableCachedChat = {
+		...chat,
+		status,
+		snapshot_version: snapshotVersion,
+	};
+	delete next.__optimistic;
+	return next;
+};
+
+/**
+ * Commit-time merge for a single chat, run from `structuralSharing` so it also
+ * covers the payloads react-query writes without asking: a resolving `queryFn`
+ * calls setData unconditionally, so a REST response issued before a socket
+ * status would otherwise regress it.
+ *
+ * Client writes are passed through: they carry the optimistic token and their
+ * writer already applied the ordering rules.
+ */
+const mergeCommittedChatStatus = (
+	prev: CachedChat | undefined,
+	next: CachedChat,
+): CachedChat => {
+	if (!prev || prev === next) {
+		return next;
+	}
+	if (next.__optimistic !== undefined) {
+		return next;
+	}
+	if (
+		shouldApplyServerChatStatus(prev.snapshot_version, next.snapshot_version)
+	) {
+		return next;
+	}
+	// Older or duplicate snapshot: keep the cached status, its version, and any
+	// optimistic provenance, take everything else from the fresh payload.
+	const preserved: CachedChat = {
+		...next,
+		status: prev.status,
+		snapshot_version: prev.snapshot_version,
+	};
+	return prev.__optimistic
+		? { ...preserved, __optimistic: prev.__optimistic }
+		: preserved;
+};
+
+/**
+ * Commit merge for the detail cache, covering the record and the children it
+ * embeds. A parent's detail payload carries its children's statuses, so a
+ * parent fetch issued before a child's status event would otherwise regress
+ * that child.
+ *
+ * A custom `structuralSharing` REPLACES the default one, so it has to call
+ * `replaceEqualDeep` itself. Skipping that would hand every consumer a brand
+ * new Chat object on each fetch.
+ */
+export const mergeCommittedChatDetail = (
+	prev: CachedChat | undefined,
+	next: CachedChat,
+): CachedChat => replaceEqualDeep(prev, mergeCommittedChatRecord(prev, next));
+
+const mergeCommittedChatRecord = (
+	prev: CachedChat | undefined,
+	next: CachedChat,
+): CachedChat => {
+	const merged = mergeCommittedChatStatus(prev, next);
+	const nextChildren = next.children;
+	if (!nextChildren?.length) {
+		return merged;
+	}
+	const cachedChildren = new Map(
+		(prev?.children ?? []).map((child) => [child.id, child]),
+	);
+	if (cachedChildren.size === 0) {
+		return merged;
+	}
+	let changed = false;
+	const children = nextChildren.map((child) => {
+		const mergedChild = mergeCommittedChatStatus(
+			cachedChildren.get(child.id),
+			child,
+		);
+		if (mergedChild !== child) {
+			changed = true;
+		}
+		return mergedChild;
+	});
+	return changed ? { ...merged, children } : merged;
+};
+
+// react-query types structuralSharing as (unknown, unknown) => unknown, so the
+// option is a thin adapter over the typed merge.
+const chatDetailStructuralSharing = (prev: unknown, next: unknown): unknown =>
+	isCachedChat(next)
+		? mergeCommittedChatDetail(isCachedChat(prev) ? prev : undefined, next)
+		: replaceEqualDeep(prev, next);
+
+/**
+ * Picks which of two cached copies of the same chat holds the status a
+ * committed payload has to be ordered against: the strictly newer version,
+ * and on a tie the optimistic one, whose status is the one on screen.
+ */
+const preferCachedChatStatus = (a: CachedChat, b: CachedChat): CachedChat => {
+	if (shouldApplyServerChatStatus(a.snapshot_version, b.snapshot_version)) {
+		return b;
+	}
+	if (shouldApplyServerChatStatus(b.snapshot_version, a.snapshot_version)) {
+		return a;
+	}
+	return b.__optimistic && !a.__optimistic ? b : a;
+};
+
+/**
+ * Indexes cached list rows and embedded children by id. Pagination can place
+ * the same chat on more than one loaded page, so the copy with the most
+ * advanced status wins rather than whichever page is scanned last.
+ */
+const indexChatsById = (
+	data: InfiniteChatsCacheData | undefined,
+): Map<string, CachedChat> => {
+	const byId = new Map<string, CachedChat>();
+	if (!isInfiniteChatsCacheData(data)) {
+		return byId;
+	}
+	const keepNewest = (chat: CachedChat) => {
+		const existing = byId.get(chat.id);
+		if (!existing || preferCachedChatStatus(existing, chat) === chat) {
+			byId.set(chat.id, chat);
+		}
+	};
+	for (const page of data.pages) {
+		for (const chat of page) {
+			keepNewest(chat);
+			for (const child of chat.children ?? []) {
+				keepNewest(child);
+			}
+		}
+	}
+	return byId;
+};
+
+/**
+ * The list version of {@link mergeCommittedChatDetail}. A list refetch also
+ * commits unconditionally, and its rows and embedded children hold the status
+ * a shared viewer's sidebar renders, so they need the same ordering the detail
+ * cache gets.
+ */
+export const mergeCommittedChatList = (
+	prev: InfiniteChatsCacheData | undefined,
+	next: InfiniteChatsCacheData,
+): InfiniteChatsCacheData => {
+	if (!prev || prev === next || !isInfiniteChatsCacheData(next)) {
+		return replaceEqualDeep(prev, next);
+	}
+	const cachedById = indexChatsById(prev);
+	if (cachedById.size === 0) {
+		return replaceEqualDeep(prev, next);
+	}
+	const mergeRow = (chat: CachedChat): CachedChat =>
+		mergeCommittedChatStatus(cachedById.get(chat.id), chat);
+	const merged: InfiniteChatsCacheData = {
+		...next,
+		pages: next.pages.map((page) =>
+			page.map((chat) => {
+				const mergedChat = mergeRow(chat);
+				if (!chat.children?.length) {
+					return mergedChat;
+				}
+				return { ...mergedChat, children: chat.children.map(mergeRow) };
+			}),
+		),
+	};
+	return replaceEqualDeep(prev, merged);
+};
+
+const chatListStructuralSharing = (prev: unknown, next: unknown): unknown =>
+	isInfiniteChatsCacheData(next)
+		? mergeCommittedChatList(
+				isInfiniteChatsCacheData(prev) ? prev : undefined,
+				next,
+			)
+		: replaceEqualDeep(prev, next);
+
+const isCachedChatArray = (value: unknown): value is CachedChat[] =>
+	Array.isArray(value) && value.every(isCachedChat);
+
+/**
+ * The search version of {@link mergeCommittedChatDetail}. Search results are a
+ * plain array under a sibling key, and the sidebar search panel renders the
+ * status each row carries, so a search response has to be ordered too.
+ */
+export const mergeCommittedChatSearch = (
+	prev: readonly CachedChat[] | undefined,
+	next: readonly CachedChat[],
+): readonly CachedChat[] => {
+	if (!prev || prev === next || prev.length === 0) {
+		return replaceEqualDeep(prev, next);
+	}
+	const cachedById = new Map(prev.map((chat) => [chat.id, chat]));
+	return replaceEqualDeep(
+		prev,
+		next.map((chat) => mergeCommittedChatStatus(cachedById.get(chat.id), chat)),
+	);
+};
+
+const chatSearchStructuralSharing = (prev: unknown, next: unknown): unknown =>
+	isCachedChatArray(next)
+		? mergeCommittedChatSearch(isCachedChatArray(prev) ? prev : undefined, next)
+		: replaceEqualDeep(prev, next);
+
+/** Applies `patch` to a chat held by a detail record, root or embedded child. */
+const patchChatInRecord = (
+	record: CachedChat,
+	chatId: string,
+	patch: (chat: CachedChat) => CachedChat,
+): CachedChat => {
+	if (record.id === chatId) {
+		return patch(record);
+	}
+	if (!record.children?.length) {
+		return record;
+	}
+	let changed = false;
+	const children = record.children.map((child) => {
+		if (child.id !== chatId) {
+			return child;
+		}
+		const patched = patch(child);
+		if (patched !== child) {
+			changed = true;
+		}
+		return patched;
+	});
+	return changed ? { ...record, children } : record;
+};
+
+/**
+ * Applies `patch` to the chat in every cache layer that can hold it, keeping
+ * each matched query's own `dataUpdatedAt`. The layers are the chat's own
+ * detail record, any loaded parent detail that embeds it as a child, every
+ * cached list variant's rows and embedded children, and every cached search
+ * result.
+ *
+ * The freshness stamp is preserved because the writers that use this push a
+ * subset of a chat's fields over a socket. Refreshing the stamp would postpone
+ * the refetch that catches up the fields the socket does not push. Mutation
+ * writes want the opposite and use {@link patchChatEverywhere}.
+ */
+const patchChatEverywherePreservingFreshness = (
+	queryClient: QueryClient,
+	chatId: string,
+	patch: (chat: CachedChat) => CachedChat,
+): void => {
+	// The details() prefix also matches every per-chat sub-resource key, so
+	// both the key length and the payload shape are checked.
+	const detailKeyLength = chatKeys.details().length + 1;
+	const detailQueries = queryClient.getQueriesData({
+		queryKey: chatKeys.details(),
+	});
+	for (const [queryKey, data] of detailQueries) {
+		if (queryKey.length !== detailKeyLength || !isCachedChat(data)) {
+			continue;
+		}
+		if (data.id !== chatId && !data.children?.some((c) => c.id === chatId)) {
+			continue;
+		}
+		queryClient.setQueryData<CachedChat | undefined>(
+			queryKey,
+			(record) => (record ? patchChatInRecord(record, chatId, patch) : record),
+			{ updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt },
+		);
+	}
+
+	const listQueries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatKeys.lists(),
+	});
+	for (const [queryKey, data] of listQueries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		queryClient.setQueryData<InfiniteChatsCacheData>(
+			queryKey,
+			(prev) => {
+				if (!isInfiniteChatsCacheData(prev)) {
+					return prev;
+				}
+				let changed = false;
+				const pages = prev.pages.map((page) => {
+					let pageChanged = false;
+					const nextPage = page.map((chat) => {
+						const patched = patchChatInRecord(chat, chatId, patch);
+						if (patched !== chat) {
+							pageChanged = true;
+						}
+						return patched;
+					});
+					if (!pageChanged) {
+						return page;
+					}
+					changed = true;
+					return nextPage;
+				});
+				return changed ? { ...prev, pages } : prev;
+			},
+			{ updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt },
+		);
+	}
+
+	const searchQueries = queryClient.getQueriesData({
+		queryKey: chatKeys.searches(),
+	});
+	for (const [queryKey, data] of searchQueries) {
+		if (!isCachedChatArray(data)) {
+			continue;
+		}
+		queryClient.setQueryData<CachedChat[]>(
+			queryKey,
+			(prev) => {
+				if (!isCachedChatArray(prev)) {
+					return prev;
+				}
+				let changed = false;
+				const next = prev.map((chat) => {
+					if (chat.id !== chatId) {
+						return chat;
+					}
+					const patched = patch(chat);
+					if (patched !== chat) {
+						changed = true;
+					}
+					return patched;
+				});
+				return changed ? next : prev;
+			},
+			{ updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt },
+		);
+	}
+};
+
+/**
+ * Writes a server-reported status into every cache layer, per layer ordered by
+ * `snapshot_version`. Status and version are written together so the next
+ * comparison is against the key of the status actually held.
+ *
+ * Returns whether the chat's own detail entry took the status. That entry is
+ * the one the open chat renders from, so it decides whether the caller may run
+ * the side effects that belong to an authoritative status: a superseded or
+ * versionless payload reports false and must leave stream state alone.
+ */
+export const applyServerChatStatusToCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+	status: TypesGen.ChatStatus,
+	snapshotVersion: number | undefined,
+): boolean => {
+	const cachedDetail = queryClient.getQueryData<CachedChat>(
+		chatKeys.detail(chatId),
+	);
+	const accepted =
+		cachedDetail !== undefined &&
+		shouldApplyServerChatStatus(cachedDetail.snapshot_version, snapshotVersion);
+	patchChatEverywherePreservingFreshness(queryClient, chatId, (chat) =>
+		shouldApplyServerChatStatus(chat.snapshot_version, snapshotVersion)
+			? withServerChatStatus(chat, status, chatSnapshotVersion(snapshotVersion))
+			: chat,
+	);
+	return accepted;
+};
+
+/** Reads the status the cache holds for a chat, or null when it holds none. */
+export const readCachedChatStatus = (
+	queryClient: QueryClient,
+	chatId: string | undefined,
+): TypesGen.ChatStatus | null => {
+	if (!chatId) {
+		return null;
+	}
+	return (
+		queryClient.getQueryData<CachedChat>(chatKeys.detail(chatId))?.status ??
+		null
+	);
+};
+
+/** Reads the snapshot version the cache holds for a chat's status. */
+export const readCachedChatSnapshotVersion = (
+	queryClient: QueryClient,
+	chatId: string | undefined,
+): number => {
+	if (!chatId) {
+		return 0;
+	}
+	return chatSnapshotVersion(
+		queryClient.getQueryData<CachedChat>(chatKeys.detail(chatId))
+			?.snapshot_version,
+	);
+};
+
+let lastOptimisticChatStatusToken = 0;
+
+/**
+ * Writes a status the client expects the server to reach, so the running
+ * indicator appears without waiting for a round trip.
+ *
+ * The write deliberately does NOT advance `snapshot_version`: no server
+ * snapshot backs it, and advancing would make the send-path fence read its own
+ * write as a server response. Its provenance token lets the matching rollback
+ * tell whether it is still the write in effect. Returns the token.
+ */
+export const writeOptimisticChatStatus = (
+	queryClient: QueryClient,
+	chatId: string,
+	status: TypesGen.ChatStatus,
+): number => {
+	lastOptimisticChatStatusToken += 1;
+	const token = lastOptimisticChatStatusToken;
+	patchChatEverywherePreservingFreshness(queryClient, chatId, (chat) => ({
+		...chat,
+		status,
+		// Keep the status the server last reported, not the one an earlier
+		// optimistic write put there, so consecutive writes roll back to a
+		// server-backed value.
+		__optimistic: {
+			token,
+			previousStatus: chat.__optimistic?.previousStatus ?? chat.status,
+		},
+	}));
+	return token;
+};
+
+/**
+ * Undoes {@link writeOptimisticChatStatus} when its request failed. Restores
+ * only where that exact write is still the one in effect: a newer optimistic
+ * write replaced the token, and a strictly newer server status dropped it, and
+ * in both cases the cached status is no longer this write's to undo.
+ *
+ * The token is left in place. It is inert once the status matches the restored
+ * value again, and it keeps a same-version server payload from re-applying the
+ * status this rollback just took back.
+ */
+export const rollbackOptimisticChatStatus = (
+	queryClient: QueryClient,
+	chatId: string,
+	token: number,
+): void => {
+	patchChatEverywherePreservingFreshness(queryClient, chatId, (chat) => {
+		const optimistic = chat.__optimistic;
+		if (!optimistic || optimistic.token !== token) {
+			return chat;
+		}
+		if (chat.status === optimistic.previousStatus) {
+			return chat;
+		}
+		return { ...chat, status: optimistic.previousStatus };
+	});
+};
+
+/**
+ * Runs a detail-query cancellation without losing the status the cache holds.
+ *
+ * Cancelling a fetch reverts the query to the state it had when that fetch
+ * started, which silently undoes any status the socket wrote while the fetch
+ * was in flight. The status is re-applied afterwards through the same ordered
+ * write the socket uses, so it is a no-op when no revert happened: the
+ * re-applied version is then equal to the cached one, and equal versions lose.
+ *
+ * An optimistic status pinned at the cached version is not restored, because
+ * it is not server-backed and shares the version the revert restored. It
+ * self-heals when the request that wrote it reports its own status.
+ */
+export const cancelChatDetailPreservingStatus = async (
+	queryClient: QueryClient,
+	chatId: string,
+	cancel: () => Promise<void>,
+): Promise<void> => {
+	const cached = queryClient.getQueryData<CachedChat>(chatKeys.detail(chatId));
+	await cancel();
+	if (!cached) {
+		return;
+	}
+	applyServerChatStatusToCaches(
+		queryClient,
+		chatId,
+		cached.status,
+		cached.snapshot_version,
+	);
+};
+
 /**
  * Cancels the in-flight sidebar list and chat detail fetches that a
  * mutation's optimistic write would otherwise race, in parallel.
@@ -391,11 +969,13 @@ export const cancelChatMutationRefetches = (
 			queryKey: chatKeys.lists(),
 			predicate: hasLoadedData,
 		}),
-		queryClient.cancelQueries({
-			queryKey: chatKeys.detail(chatId),
-			exact: true,
-			predicate: hasLoadedData,
-		}),
+		cancelChatDetailPreservingStatus(queryClient, chatId, () =>
+			queryClient.cancelQueries({
+				queryKey: chatKeys.detail(chatId),
+				exact: true,
+				predicate: hasLoadedData,
+			}),
+		),
 	]);
 
 /**
@@ -702,9 +1282,11 @@ const diffStatusEqual = (
 /**
  * Merges event-scoped chat fields into a cached summary, using updated_at
  * as a stale guard while still adopting the latest DB-backed model config.
+ * Status is the exception: it is ordered by snapshot_version, the only key
+ * that agrees with commit order.
  */
 export const mergeWatchedChatSummary = (
-	cachedChat: TypesGen.Chat,
+	cachedChat: CachedChat,
 	watchedChat: TypesGen.Chat,
 	{ eventKind, activeChatId }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
@@ -719,8 +1301,21 @@ export const mergeWatchedChatSummary = (
 		watchedChat.updated_at,
 	);
 	const isFreshEnough = updatedAtComparison <= 0;
-	const nextStatus =
-		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+	// Status keeps its own guard: updated_at is not monotonic, so it cannot
+	// order a status against one the per-chat socket already applied. Every
+	// event kind publishes a coherent chat row, so any of them may carry the
+	// status forward as long as the version comparator accepts it.
+	const appliesStatus = shouldApplyServerChatStatus(
+		cachedChat.snapshot_version,
+		watchedChat.snapshot_version,
+	);
+	const nextStatus = appliesStatus ? watchedChat.status : cachedChat.status;
+	// The version travels with the status it labels. A payload that only
+	// advances the version still has to advance the cached one, otherwise a
+	// later delayed event compares against a key that was already superseded.
+	const nextSnapshotVersion = appliesStatus
+		? chatSnapshotVersion(watchedChat.snapshot_version)
+		: cachedChat.snapshot_version;
 	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
 	// apply title_change payloads even when the chat summary timestamp is older.
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
@@ -759,8 +1354,10 @@ export const mergeWatchedChatSummary = (
 	const nextSummary = isChatSummaryEvent
 		? watchedChat.summary
 		: cachedChat.summary;
+	// Unread is a property of the status transition the server announced, not
+	// of a status picked up in passing, so it stays scoped to status_change.
 	const nextHasUnread =
-		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+		isStatusEvent && appliesStatus && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
 	const nextUpdatedAt =
@@ -771,6 +1368,7 @@ export const mergeWatchedChatSummary = (
 	// against a timestamp that should already have been superseded.
 	if (
 		nextStatus === cachedChat.status &&
+		nextSnapshotVersion === cachedChat.snapshot_version &&
 		nextTitle === cachedChat.title &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
@@ -785,9 +1383,10 @@ export const mergeWatchedChatSummary = (
 		return cachedChat;
 	}
 
-	return {
+	const merged: WritableCachedChat = {
 		...cachedChat,
 		status: nextStatus,
+		snapshot_version: nextSnapshotVersion,
 		title: nextTitle,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
@@ -799,44 +1398,29 @@ export const mergeWatchedChatSummary = (
 		updated_at: nextUpdatedAt,
 		context: nextContext,
 	};
+	if (appliesStatus) {
+		// A strictly newer server status supersedes an optimistic one.
+		delete merged.__optimistic;
+	}
+	return merged;
 };
 
 /**
- * Applies the same event-scoped merge and stale guard across the list,
- * parent-child, and per-chat caches, covering all three cache layers.
+ * Applies the same event-scoped merge and stale guard to every cache layer
+ * that can hold the chat: list rows, embedded children, detail records, and
+ * search results. Each write keeps its query's own `dataUpdatedAt`, because a
+ * watch event pushes a subset of the fields and must not postpone the refetch
+ * that catches up the rest.
  */
 export const mergeWatchedChatIntoCaches = (
 	queryClient: QueryClient,
 	watchedChat: TypesGen.Chat,
 	options: MergeWatchedChatOptions,
 ) => {
-	const mergeCachedChat = (cachedChat: TypesGen.Chat) =>
-		mergeWatchedChatSummary(cachedChat, watchedChat, options);
-
-	updateInfiniteChatsCache(queryClient, (chats) => {
-		let didUpdate = false;
-		const nextChats = chats.map((chat) => {
-			if (chat.id !== watchedChat.id) {
-				return chat;
-			}
-			const mergedChat = mergeCachedChat(chat);
-			if (mergedChat !== chat) {
-				didUpdate = true;
-			}
-			return mergedChat;
-		});
-		return didUpdate ? nextChats : chats;
-	});
-
-	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
-	queryClient.setQueryData<TypesGen.Chat | undefined>(
-		chatKeys.detail(watchedChat.id),
-		(cachedChat) => {
-			if (!cachedChat) {
-				return cachedChat;
-			}
-			return mergeCachedChat(cachedChat);
-		},
+	patchChatEverywherePreservingFreshness(
+		queryClient,
+		watchedChat.id,
+		(cachedChat) => mergeWatchedChatSummary(cachedChat, watchedChat, options),
 	);
 };
 
@@ -1057,6 +1641,9 @@ export const infiniteChats = (filters?: InfiniteChatsFilters) => {
 		// fields the watch socket does not push.
 		staleTime: CHAT_SUMMARY_STALE_MS,
 		select: selectSortedChatList,
+		// Rows and embedded children carry status too, and a list refetch
+		// commits as unconditionally as the detail one does.
+		structuralSharing: chatListStructuralSharing,
 		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
@@ -1069,6 +1656,9 @@ export const chatSearch = (q: string) =>
 				limit: CHAT_SEARCH_LIMIT,
 				q,
 			}),
+		// Search rows carry status too, and the response commits as
+		// unconditionally as the detail one does.
+		structuralSharing: chatSearchStructuralSharing,
 	});
 
 export const chat = (chatId: string) => ({
@@ -1079,6 +1669,9 @@ export const chat = (chatId: string) => ({
 	// children that the watch payloads do not fully cover.
 	staleTime: CHAT_SUMMARY_STALE_MS,
 	refetchOnWindowFocus: true,
+	// A resolving fetch commits unconditionally, so ordering the status it
+	// carries against the cached one has to happen at commit time.
+	structuralSharing: chatDetailStructuralSharing,
 });
 
 export const chatACL = (chatId: string) => ({

@@ -41,11 +41,14 @@ import {
 	mcpServerConfigs,
 	patchChatEverywhere,
 	promoteChatQueuedMessage,
+	readCachedChatSnapshotVersion,
+	rollbackOptimisticChatStatus,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	userChatDebugLogging,
 	userChatProviderConfigs,
 	userCompactionThresholds,
+	writeOptimisticChatStatus,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
@@ -153,24 +156,25 @@ export function getPersistedDraftInputValue(
 	).text;
 }
 
-/** @internal Exported for testing. */
+/**
+ * Restores the transient store slices an optimistic request overwrote. Chat
+ * status is not among them: it lives in the query cache, and its rollback is
+ * token-scoped through `rollbackOptimisticChatStatus`.
+ *
+ * @internal Exported for testing.
+ */
 export const restoreOptimisticRequestSnapshot = (
 	store: Pick<
 		ChatStore,
-		| "batch"
-		| "setChatStatus"
-		| "setQueuedMessages"
-		| "setStreamError"
-		| "setStreamState"
+		"batch" | "setQueuedMessages" | "setStreamError" | "setStreamState"
 	>,
 	snapshot: Pick<
 		ChatStoreState,
-		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
+		"queuedMessages" | "streamError" | "streamState"
 	>,
 ): void => {
 	store.batch(() => {
 		store.setQueuedMessages(snapshot.queuedMessages);
-		store.setChatStatus(snapshot.chatStatus);
 		store.setStreamState(snapshot.streamState);
 		store.setStreamError(snapshot.streamError);
 	});
@@ -195,13 +199,13 @@ export const runPromoteQueuedMessage = async (params: {
 		| "clearStreamError"
 		| "clearStreamState"
 		| "getSnapshot"
-		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
 		| "setStreamState"
 		| "suppressQueuedMessageID"
 		| "unsuppressQueuedMessageID"
 	>;
+	queryClient: QueryClient;
 	promoteQueuedMessage: (id: number) => Promise<void>;
 	agentId: string | undefined;
 	clearChatErrorReason: (chatID: string) => void;
@@ -210,6 +214,7 @@ export const runPromoteQueuedMessage = async (params: {
 	const {
 		id,
 		store,
+		queryClient,
 		promoteQueuedMessage,
 		agentId,
 		clearChatErrorReason,
@@ -223,8 +228,10 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
-		store.setChatStatus("running");
 	});
+	const optimisticStatusToken = agentId
+		? writeOptimisticChatStatus(queryClient, agentId, "running")
+		: undefined;
 	if (agentId) {
 		clearChatErrorReason(agentId);
 	}
@@ -232,10 +239,43 @@ export const runPromoteQueuedMessage = async (params: {
 		await promoteQueuedMessage(id);
 	} catch (error) {
 		store.unsuppressQueuedMessageID(id);
+		if (agentId && optimisticStatusToken !== undefined) {
+			rollbackOptimisticChatStatus(queryClient, agentId, optimisticStatusToken);
+		}
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
 		handleUsageLimitError(error);
 		throw error;
 	}
+};
+
+/**
+ * Asserts the turn a send just started, unless the server already reported a
+ * status while the request was in flight.
+ *
+ * The cached snapshot version is the fence: optimistic writes never advance
+ * it, so a change means a server status landed during the request, and that
+ * status is newer than anything this path can claim.
+ *
+ * @internal Exported for testing.
+ */
+export const assertTurnStartedAfterSend = (params: {
+	store: Pick<ChatStore, "clearStreamState">;
+	queryClient: QueryClient;
+	chatId: string;
+	snapshotVersionBeforeSend: number;
+}): void => {
+	const { store, queryClient, chatId, snapshotVersionBeforeSend } = params;
+	if (
+		readCachedChatSnapshotVersion(queryClient, chatId) !==
+		snapshotVersionBeforeSend
+	) {
+		return;
+	}
+	store.clearStreamState();
+	// The server accepted the message, so it will start processing. A status
+	// event carries a newer snapshot version and supersedes this write,
+	// whichever status it reports.
+	writeOptimisticChatStatus(queryClient, chatId, "running");
 };
 
 const buildPromotedQueueReconciliation = (
@@ -1207,7 +1247,6 @@ const AgentChatPage: FC = () => {
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const {
 		store,
-		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
 		getCacheQueuedMessages,
@@ -1216,17 +1255,13 @@ const AgentChatPage: FC = () => {
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
-		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
 	});
-	const liveChatStatus =
-		useDurableChatStatus({ store, chatId: agentId }) ??
-		chatRecord?.status ??
-		null;
+	const liveChatStatus = useDurableChatStatus({ store, chatId: agentId });
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
@@ -1418,6 +1453,7 @@ const AgentChatPage: FC = () => {
 		runPromoteQueuedMessage({
 			id,
 			store,
+			queryClient,
 			promoteQueuedMessage,
 			agentId,
 			clearChatErrorReason,
@@ -1641,11 +1677,20 @@ const AgentChatPage: FC = () => {
 			clearChatErrorReason(agentId);
 			clearStreamError();
 			store.clearStreamState();
-			store.setChatStatus("running");
+			const optimisticStatusToken = writeOptimisticChatStatus(
+				queryClient,
+				agentId,
+				"running",
+			);
 			scrollToBottomRef.current?.();
 			try {
 				await compact();
 			} catch (error) {
+				rollbackOptimisticChatStatus(
+					queryClient,
+					agentId,
+					optimisticStatusToken,
+				);
 				restoreOptimisticRequestSnapshot(store, previousSnapshot);
 				if (
 					isApiError(error) &&
@@ -1700,9 +1745,13 @@ const AgentChatPage: FC = () => {
 			clearStreamError();
 			store.batch(() => {
 				store.setQueuedMessages([]);
-				store.setChatStatus("running");
 				store.clearStreamState();
 			});
+			const optimisticStatusToken = writeOptimisticChatStatus(
+				queryClient,
+				agentId,
+				"running",
+			);
 			await submitEditAndScroll({
 				editMessage,
 				editArgs: {
@@ -1712,10 +1761,17 @@ const AgentChatPage: FC = () => {
 				},
 				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
+					rollbackOptimisticChatStatus(
+						queryClient,
+						agentId,
+						optimisticStatusToken,
+					);
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
-					// Hook dispatch failures can park an idle chat in error before returning the request error.
-					acceptServerChatStatus();
+					// Hook dispatch failures can park an idle chat in error before
+					// returning the request error. The refetched detail carries a
+					// snapshot version, so the comparator decides whether it is
+					// newer than any status the socket delivered meanwhile.
 					void queryClient.invalidateQueries({
 						queryKey: chatKeys.detail(agentId),
 						exact: true,
@@ -1754,7 +1810,13 @@ const AgentChatPage: FC = () => {
 		// An errored-chat send may promote the queue head that existed when the request began.
 		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
 		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
-		const statusVersionBeforeSend = store.getServerChatStatusVersion();
+		// The cached snapshot version is the send-path fence: optimistic
+		// writes never advance it, so it changes only when the server
+		// reported a status during the request.
+		const snapshotVersionBeforeSend = readCachedChatSnapshotVersion(
+			queryClient,
+			agentId,
+		);
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
@@ -1765,8 +1827,10 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
-			// Hook dispatch failures can park an idle chat in error before returning the request error.
-			acceptServerChatStatus();
+			// Hook dispatch failures can park an idle chat in error before
+			// returning the request error. The refetched detail carries a
+			// snapshot version, so the comparator decides whether it is newer
+			// than any status the socket delivered meanwhile.
 			void queryClient.invalidateQueries({
 				queryKey: chatKeys.detail(agentId),
 				exact: true,
@@ -1776,16 +1840,12 @@ const AgentChatPage: FC = () => {
 		const isActiveChat = store.getActiveChatID() === agentId;
 		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
 		if (!response.queued && isActiveChat) {
-			store.clearStreamState();
-			// Optimistically set status to "running" so the
-			// Thinking indicator appears immediately.
-			// The server accepted the message (not queued),
-			// so it will start processing. The WebSocket
-			// status:running event no-ops via the
-			// setChatStatus guard. If the server transitions
-			// to error/pending instead, the WebSocket event
-			// overrides this optimistic value.
-			store.setChatStatus("running");
+			assertTurnStartedAfterSend({
+				store,
+				queryClient,
+				chatId: agentId,
+				snapshotVersionBeforeSend,
+			});
 		}
 		// Upsert the full batch because a queued send can insert a promoted head below
 		// the highest cached ID, which a reconnect would skip.
@@ -1815,12 +1875,13 @@ const AgentChatPage: FC = () => {
 					setCacheQueuedMessages(reconciledQueue);
 					// A promoted head starts a turn, but any server status received during the
 					// request is newer and must win.
-					if (
-						isActiveChat &&
-						store.getServerChatStatusVersion() === statusVersionBeforeSend
-					) {
-						store.clearStreamState();
-						store.setChatStatus("running");
+					if (isActiveChat) {
+						assertTurnStartedAfterSend({
+							store,
+							queryClient,
+							chatId: agentId,
+							snapshotVersionBeforeSend,
+						});
 					}
 					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
 						void settlePromotedQueueHead(

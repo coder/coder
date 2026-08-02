@@ -855,13 +855,9 @@ const buildMessage = (
 ): TypesGen.ChatMessage =>
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
-const buildStoreWithMessages = (
-	msgs: TypesGen.ChatMessage[],
-	status: TypesGen.ChatStatus = "waiting",
-) => {
+const buildStoreWithMessages = (msgs: TypesGen.ChatMessage[]) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
-	store.setChatStatus(status);
 	return store;
 };
 
@@ -1103,7 +1099,6 @@ const resetScrollStoryStore = (
 	count = 80,
 ) => {
 	store.replaceMessages(buildLongConversation(count));
-	store.setChatStatus("waiting");
 };
 
 const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
@@ -1430,7 +1425,6 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
 	play: async ({ canvasElement }) => {
 		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
-		stickyClipUpdateStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 

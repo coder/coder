@@ -1,14 +1,22 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
+import { QueryClient } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
+import { applyServerChatStatusToCaches, chatKeys } from "#/api/queries/chats";
+import type {
+	Chat,
+	ChatMessage,
+	ChatQueuedMessage,
+} from "#/api/typesGenerated";
 import {
+	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
+	assertTurnStartedAfterSend,
 	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
@@ -181,7 +189,7 @@ describe("getPersistedDraftInputValue", () => {
 });
 
 describe("restoreOptimisticRequestSnapshot", () => {
-	it("restores queued messages, stream output, status, and stream error", () => {
+	it("restores queued messages, stream output, and stream error", () => {
 		const store = createChatStore();
 		store.setQueuedMessages([
 			{
@@ -191,14 +199,12 @@ describe("restoreOptimisticRequestSnapshot", () => {
 				content: [{ type: "text" as const, text: "queued" }],
 			},
 		]);
-		store.setChatStatus("running");
 		store.applyMessagePart({ type: "text", text: "partial response" });
 		store.setStreamError({ kind: "generic", message: "old error" });
 		const previousSnapshot = store.getSnapshot();
 
 		store.batch(() => {
 			store.setQueuedMessages([]);
-			store.setChatStatus("waiting");
 			store.clearStreamState();
 			store.clearStreamError();
 		});
@@ -209,7 +215,6 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		expect(restoredSnapshot.queuedMessages).toEqual(
 			previousSnapshot.queuedMessages,
 		);
-		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
 	});
@@ -227,13 +232,29 @@ describe("runPromoteQueuedMessage", () => {
 		content: [{ type: "text", text }],
 	});
 
+	const seedChatDetail = (
+		queryClient: QueryClient,
+		status: Chat["status"],
+	): void => {
+		queryClient.setQueryData<Chat>(chatKeys.detail("chat-1"), {
+			...MockChat,
+			id: "chat-1",
+			status,
+			snapshot_version: 4,
+		});
+	};
+
+	const readCachedStatus = (queryClient: QueryClient): Chat | undefined =>
+		queryClient.getQueryData<Chat>(chatKeys.detail("chat-1"));
+
 	it("suppresses the promoted ID and removes it optimistically", async () => {
 		const store = createChatStore();
+		const queryClient = new QueryClient();
+		seedChatDetail(queryClient, "waiting");
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const c = buildQueuedMessage(3, "C");
 		store.setQueuedMessages([a, b, c]);
-		store.setChatStatus("running");
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
@@ -242,6 +263,7 @@ describe("runPromoteQueuedMessage", () => {
 		await runPromoteQueuedMessage({
 			id: b.id,
 			store,
+			queryClient,
 			promoteQueuedMessage: promote,
 			agentId: "chat-1",
 			clearChatErrorReason,
@@ -253,15 +275,19 @@ describe("runPromoteQueuedMessage", () => {
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-		expect(snapshot.chatStatus).toBe("running");
+		const cached = readCachedStatus(queryClient);
+		expect(cached?.status).toBe("running");
+		// An optimistic write never advances the version.
+		expect(cached?.snapshot_version).toBe(4);
 	});
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
 		const store = createChatStore();
+		const queryClient = new QueryClient();
+		seedChatDetail(queryClient, "waiting");
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		store.setQueuedMessages([a, b]);
-		store.setChatStatus("waiting");
 
 		const apiError = new Error("boom");
 		const promote = vi.fn(async (_id: number) => {
@@ -274,6 +300,7 @@ describe("runPromoteQueuedMessage", () => {
 			runPromoteQueuedMessage({
 				id: b.id,
 				store,
+				queryClient,
 				promoteQueuedMessage: promote,
 				agentId: "chat-1",
 				clearChatErrorReason,
@@ -285,8 +312,59 @@ describe("runPromoteQueuedMessage", () => {
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
-		expect(snapshot.chatStatus).toBe("waiting");
+		expect(readCachedStatus(queryClient)?.status).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
+describe("assertTurnStartedAfterSend", () => {
+	const seedDetail = (queryClient: QueryClient, snapshotVersion: number) => {
+		queryClient.setQueryData<Chat>(chatKeys.detail("chat-1"), {
+			...MockChat,
+			id: "chat-1",
+			status: "waiting",
+			snapshot_version: snapshotVersion,
+		});
+	};
+
+	it("clears the stream and shows running when no server status landed", () => {
+		const queryClient = new QueryClient();
+		seedDetail(queryClient, 4);
+		const clearStreamState = vi.fn();
+
+		assertTurnStartedAfterSend({
+			store: { clearStreamState },
+			queryClient,
+			chatId: "chat-1",
+			snapshotVersionBeforeSend: 4,
+		});
+
+		expect(clearStreamState).toHaveBeenCalledTimes(1);
+		const cached = queryClient.getQueryData<Chat>(chatKeys.detail("chat-1"));
+		expect(cached?.status).toBe("running");
+		// An optimistic write never advances the version.
+		expect(cached?.snapshot_version).toBe(4);
+	});
+
+	it("does nothing when a server status landed during the request", () => {
+		const queryClient = new QueryClient();
+		seedDetail(queryClient, 4);
+		const clearStreamState = vi.fn();
+		// The socket reported the turn's real status while the POST was in
+		// flight; it is newer than anything this path can assert.
+		applyServerChatStatusToCaches(queryClient, "chat-1", "error", 5);
+
+		assertTurnStartedAfterSend({
+			store: { clearStreamState },
+			queryClient,
+			chatId: "chat-1",
+			snapshotVersionBeforeSend: 4,
+		});
+
+		expect(clearStreamState).not.toHaveBeenCalled();
+		expect(
+			queryClient.getQueryData<Chat>(chatKeys.detail("chat-1"))?.status,
+		).toBe("error");
 	});
 });
 
