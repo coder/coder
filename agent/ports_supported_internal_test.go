@@ -59,15 +59,17 @@ func TestOSListeningPortsGetter_IPv6(t *testing.T) {
 	}
 	defer l.Close()
 
+	// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
+	want := uint16(l.Addr().(*net.TCPAddr).Port)
+
 	ports, err := uut.GetListeningPorts()
 	require.NoError(t, err)
 	found := false
 	for _, port := range ports {
-		// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
-		if port.Port == uint16(l.Addr().(*net.TCPAddr).Port) {
+		if port.Port == want {
 			found = true
 			break
 		}
 	}
-	require.True(t, found, "port %d not found in %v", l.Addr().(*net.TCPAddr).Port, ports)
+	require.True(t, found, "port %d not found in %v", want, ports)
 }
