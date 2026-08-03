@@ -1163,28 +1163,22 @@ type AIBridgeSessionThreadsParams struct {
 func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSessionThreadsResponse {
 	session := p.Session
 	interceptions := p.Interceptions
-	tokenUsages := p.TokenUsages
-	toolUsages := p.ToolUsages
-	userPrompts := p.UserPrompts
-	modelThoughts := p.ModelThoughts
-	topDomains := p.TopDomains
-	networkCalls := p.NetworkCalls
 
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
-	for _, tu := range tokenUsages {
+	for _, tu := range p.TokenUsages {
 		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
 	}
 	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(interceptions))
-	for _, tu := range toolUsages {
+	for _, tu := range p.ToolUsages {
 		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
 	}
 	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(interceptions))
-	for _, up := range userPrompts {
+	for _, up := range p.UserPrompts {
 		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
 	}
 	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought, len(interceptions))
-	for _, mt := range modelThoughts {
+	for _, mt := range p.ModelThoughts {
 		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
 	}
 
@@ -1222,7 +1216,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 
 	// Aggregate session-level token usage metadata from all token
 	// usages in the session (not just the page).
-	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
+	sessionTokenMeta := aggregateTokenMetadata(p.TokenUsages)
 
 	resp := codersdk.AIBridgeSessionThreadsResponse{
 		ID: session.SessionID,
@@ -1268,7 +1262,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			Blocked: session.NetworkCallsBlocked,
 		}
 	}
-	for _, d := range topDomains {
+	for _, d := range p.TopDomains {
 		resp.NetworkTopDomains = append(resp.NetworkTopDomains, codersdk.AIBridgeSessionNetworkDomain{
 			Domain: d.Domain,
 			Count:  d.Count,
@@ -1277,7 +1271,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 		// from the last row processed.
 		resp.NetworkDomainCount = d.TotalDomains
 	}
-	resp.NetworkCallLogs = AgentFirewallLogs(networkCalls)
+	resp.NetworkCallLogs = AgentFirewallLogs(p.NetworkCalls)
 	return resp
 }
 
