@@ -83,6 +83,18 @@ export const useFilterCombobox = <Id extends string>({
 		setOpen(true);
 	};
 
+	/** Opens or closes the category list without focusing the search input. */
+	const toggleFilterMenu = () => {
+		if (open) {
+			setOpen(false);
+			setBrowseModeSafe(null);
+			exitFacetMode();
+			return;
+		}
+		openCategorySuggestions();
+		setActiveFacet(null);
+	};
+
 	const activeFacetMeta = facets.find((facet) => facet.id === activeFacet);
 	const activeOptions = activeFacetMeta?.menu.searchOptions;
 	const chipValues = filterValuesToChips(filter.values, chipKeys);
@@ -453,6 +465,7 @@ export const useFilterCombobox = <Id extends string>({
 		optionByToken,
 		selectFacet,
 		exitActiveFacet,
+		toggleFilterMenu,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleInputValueChange,

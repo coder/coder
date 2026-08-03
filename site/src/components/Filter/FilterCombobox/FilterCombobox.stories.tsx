@@ -113,6 +113,7 @@ export const OpenFilterMenu: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const input = canvas.getByPlaceholderText("Search and filter…");
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
@@ -121,6 +122,7 @@ export const OpenFilterMenu: Story = {
 			canvas.getByRole("option", { name: /Template/i }),
 		).toBeVisible();
 		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await expect(input).not.toHaveFocus();
 	},
 };
 

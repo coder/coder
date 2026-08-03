@@ -19,7 +19,6 @@ import {
 	ComboboxItem,
 	ComboboxLabel,
 	ComboboxList,
-	ComboboxTrigger,
 	ComboboxValue,
 } from "./Combobox";
 import { chipToken } from "./filterQuery";
@@ -65,6 +64,7 @@ export function FilterCombobox<Id extends string = string>({
 		searchResultsLoading,
 		chipValues,
 		optionItems,
+		toggleFilterMenu,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleInputValueChange,
@@ -156,17 +156,22 @@ export function FilterCombobox<Id extends string = string>({
 					align="inline-end"
 					className="w-10 self-stretch border-0 border-l border-solid border-border p-0"
 				>
-					<ComboboxTrigger
-						render={
-							<InputGroupButton
-								variant="subtle"
-								aria-label="Toggle filters"
-								className="h-full min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
-							/>
-						}
+					<InputGroupButton
+						type="button"
+						variant="subtle"
+						aria-label="Toggle filters"
+						aria-expanded={open}
+						aria-haspopup="listbox"
+						className="h-full min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
+						onMouseDown={(event) => {
+							// Keep focus where it is. Base UI's ComboboxTrigger would
+							// focus the input and light up the group focus ring.
+							event.preventDefault();
+						}}
+						onClick={toggleFilterMenu}
 					>
 						<ListFilterIcon className="size-icon-sm" />
-					</ComboboxTrigger>
+					</InputGroupButton>
 				</InputGroupAddon>
 			</ComboboxInputGroup>
 			<ComboboxContent>
