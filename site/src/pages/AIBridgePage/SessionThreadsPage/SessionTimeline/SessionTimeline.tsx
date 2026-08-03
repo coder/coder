@@ -1,8 +1,8 @@
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
+	AgentFirewallLog,
 	AIBridgeAgenticAction,
-	AIBridgeSessionNetworkCall,
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeThread,
 	MinimalUser,
@@ -414,7 +414,7 @@ interface SessionTimelineProps {
 	// networkCallSummary is nil when the session did not pass through Agent
 	// Firewall, in which case the network calls panel is not rendered.
 	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
-	networkCalls: readonly AIBridgeSessionNetworkCall[];
+	networkCalls: readonly AgentFirewallLog[];
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;

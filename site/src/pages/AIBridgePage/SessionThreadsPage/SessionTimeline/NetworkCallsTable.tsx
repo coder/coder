@@ -1,7 +1,7 @@
 import { BanIcon, CheckIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
-	AIBridgeSessionNetworkCall,
+	AgentFirewallLog,
 	AIBridgeSessionNetworkCallSummary,
 } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -14,7 +14,7 @@ interface NetworkCallsTableProps {
 	// session, so its total can exceed the number of rows in `calls`, which is
 	// capped server-side.
 	summary: AIBridgeSessionNetworkCallSummary;
-	calls: readonly AIBridgeSessionNetworkCall[];
+	calls: readonly AgentFirewallLog[];
 }
 
 export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
@@ -75,7 +75,7 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 };
 
 interface NetworkCallRowProps {
-	call: AIBridgeSessionNetworkCall;
+	call: AgentFirewallLog;
 }
 
 const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
