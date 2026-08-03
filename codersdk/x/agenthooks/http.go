@@ -226,6 +226,15 @@ func (b *bufferedResponse) WriteHeader(status int) {
 	if b.wroteHeader {
 		return
 	}
+	// net/http sends informational 1xx responses (except 101, which is
+	// final) immediately without committing, and still accepts the
+	// handler's real final status afterwards. Interim responses carry
+	// nothing the dispatcher uses, so the buffer drops them instead of
+	// forwarding, and keeps accepting the first non-1xx status so the
+	// signed response is the final one the handler produced.
+	if status >= 100 && status <= 199 && status != http.StatusSwitchingProtocols {
+		return
+	}
 	b.status = status
 	b.wroteHeader = true
 }

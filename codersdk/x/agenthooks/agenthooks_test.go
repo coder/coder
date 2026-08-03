@@ -688,6 +688,38 @@ func TestSignResponsesBodylessStatus(t *testing.T) {
 	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
 }
 
+// TestSignResponsesInformationalStatus pins that an interim 1xx such as
+// 103 Early Hints does not commit the response: the handler's final status
+// and body still produce a signed response, matching net/http, which sends
+// informational responses without locking the final WriteHeader.
+func TestSignResponsesInformationalStatus(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusEarlyHints)
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte(`{"user_message":"hinted"}`))
+	})))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"user_message":"hinted"}`, buffer.String())
+
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
 // TestSignResponsesRefusesTamperedBody pins that the wrapper cannot be
 // used as a signing oracle: a captured bearer token replayed with a
 // different body is rejected before the wrapped handler runs, because the
