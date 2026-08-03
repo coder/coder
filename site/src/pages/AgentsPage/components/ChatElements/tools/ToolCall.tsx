@@ -54,7 +54,8 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 	hookRewritten: false,
 });
 
-// Keep attribution at the provider boundary because renderer props omit `hookRewritten`.
+// Some renderer branches render no `ToolCall.Header`, so emitting the
+// badge here rather than in the header keeps attribution on those cards.
 const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
 	hookRewritten,
 	children,
