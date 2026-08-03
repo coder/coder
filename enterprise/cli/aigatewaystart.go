@@ -271,6 +271,9 @@ type standaloneGateway struct {
 	tlsKeyFile  string
 
 	// State.
+	drpcClosed             atomic.Bool
+	providerRefreshStopped atomic.Bool
+	listenerClosed         atomic.Bool
 	// providersLoaded is an initial-load latch. Reconnects refresh providers
 	// through the watch loop without resetting readiness.
 	providersLoaded atomic.Bool
@@ -280,15 +283,23 @@ type standaloneGateway struct {
 	providerLogger slog.Logger
 }
 
-// runStandaloneGateway starts the aibridged daemon and serves the standalone
-// AI Gateway. The daemon dials coderd asynchronously, so HTTP serving does not
-// wait for the DRPC connection. It manages the daemon life cycle.
+// runStandaloneGateway starts the aibridged daemon, serves the standalone
+// AI Gateway and manages the daemon life cycle. The daemon dials coderd
+// asynchronously. HTTP serving does not wait for the DRPC connection.
 func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) error {
-	// The aibridged daemon must outlive ctx so in-flight HTTP requests
-	// retain their DRPC connection during graceful HTTP shutdown.
+	gateway, err := newStandaloneGateway(params)
+	if err != nil {
+		return err
+	}
+	return gateway.run(ctx)
+}
+
+func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, error) {
+	// The aibridged daemon must outlive the serving context so in-flight HTTP
+	// requests retain their DRPC connection during graceful HTTP shutdown.
 	daemon, err := aibridged.New(context.Background(), params.pool, params.dialer, params.logger.Named("aibridged"), params.tracer)
 	if err != nil {
-		return xerrors.Errorf("start AI Gateway daemon: %w", err)
+		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
 	}
 
 	providerLogger := params.logger.Named("providers")
@@ -308,13 +319,21 @@ func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) e
 		Handler:           newGatewayMux(gateway.daemon, gateway.ready, gatewayMiddleware(params.bridgeConfig, params.tracer)),
 		ReadHeaderTimeout: time.Minute,
 	}
+	return gateway, nil
+}
 
-	serveErr := gateway.serve(ctx)
-	var daemonShutdownErr error
-	if err := shutdownWithTimeout(daemon.Shutdown, daemonShutdownTimeout); err != nil {
-		daemonShutdownErr = xerrors.Errorf("shutdown AI Gateway daemon: %w", err)
-	}
+func (s *standaloneGateway) run(ctx context.Context) error {
+	serveErr := s.serve(ctx)
+	daemonShutdownErr := s.shutdownDaemon()
 	return errors.Join(serveErr, daemonShutdownErr)
+}
+
+func (s *standaloneGateway) shutdownDaemon() error {
+	if err := shutdownWithTimeout(s.daemon.Shutdown, daemonShutdownTimeout); err != nil {
+		return xerrors.Errorf("shutdown AI Gateway daemon: %w", err)
+	}
+	s.drpcClosed.Store(true)
+	return nil
 }
 
 func (s *standaloneGateway) serve(ctx context.Context) error {
@@ -388,6 +407,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	var provReloadStopErr error
 	select {
 	case <-provReloadDone:
+		s.providerRefreshStopped.Store(true)
 	case <-provReloadShutdownCtx.Done():
 		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
@@ -406,6 +426,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 		}
 	}
 	serveWG.Wait()
+	s.listenerClosed.Store(true)
 	return errors.Join(runErr, provReloadStopErr, httpShutdownErr)
 }
 
