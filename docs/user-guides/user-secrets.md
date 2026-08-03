@@ -40,9 +40,8 @@ or the agent restarts. To pick up a change to a secret while a workspace is
 running, restart the workspace.
 
 Coder controls where a secret is delivered, not whether it is still valid.
-Changing or deleting a secret in Coder does not revoke a credential that a
-workspace has already received. If a credential is exposed, rotate or revoke
-it in the system that issued it.
+Changing or deleting a secret in Coder does not revoke a credential that a workspace has already received.
+If a credential is exposed, rotate or revoke it in the system that issued it.
 
 ### Environment variable secrets
 
