@@ -239,7 +239,9 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 								<AlertDescription>
 									Cost controls features will move to AI Governance in v2.36.{" "}
 									<Link
-										href={docs("/ai-coder/ai-gateway/cost-controls")}
+										href={docs(
+											"/ai-coder/ai-gateway/cost-controls#migrate-from-coder-agents-cost-control",
+										)}
 										target="_blank"
 										rel="noreferrer"
 									>
