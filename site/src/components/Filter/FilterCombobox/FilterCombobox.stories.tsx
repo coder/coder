@@ -3,10 +3,8 @@ import { CircleDotIcon, LayoutGridIcon, UserIcon } from "lucide-react";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { UseFilterResult } from "#/components/Filter/Filter";
-import { MockMenu } from "#/components/Filter/storyHelpers";
 import { FilterCombobox } from "./FilterCombobox";
-import type { FilterFacet, FilterSearchResult } from "./types";
+import type { FilterCategory, FilterOption, SearchResult } from "./types";
 
 const meta: Meta<typeof FilterCombobox> = {
 	title: "components/Filter/FilterCombobox",
@@ -16,39 +14,63 @@ const meta: Meta<typeof FilterCombobox> = {
 export default meta;
 type Story = StoryObj<typeof FilterCombobox>;
 
-const statusMenu = {
-	...MockMenu,
-	searchOptions: [
-		{ label: "Running", value: "running" },
-		{ label: "Stopped", value: "stopped" },
-	],
-};
+const statusOptions: FilterOption[] = [
+	{ label: "Running", value: "running" },
+	{ label: "Stopped", value: "stopped" },
+];
 
-const ownerMenu = {
-	...MockMenu,
-	searchOptions: [
-		{
-			label: "alice",
-			value: "alice",
-			startIcon: <Avatar fallback="alice" size="md" />,
-		},
-		{
-			label: "bob",
-			value: "bob",
-			startIcon: <Avatar fallback="bob" size="md" />,
-		},
-	],
-};
-
-const facets: FilterFacet[] = [
-	{ id: "status", label: "Status", icon: CircleDotIcon, menu: statusMenu },
-	{ id: "template", label: "Template", icon: LayoutGridIcon, menu: MockMenu },
+const ownerOptions: FilterOption[] = [
 	{
-		id: "owner",
+		label: "alice",
+		value: "alice",
+		startIcon: <Avatar fallback="alice" size="md" />,
+	},
+	{
+		label: "bob",
+		value: "bob",
+		startIcon: <Avatar fallback="bob" size="md" />,
+	},
+];
+
+const templateOptions: FilterOption[] = [
+	{ label: "docker", value: "docker" },
+	{ label: "kubernetes", value: "kubernetes" },
+];
+
+const filterOptions = (
+	options: readonly FilterOption[],
+	query: string,
+): FilterOption[] => {
+	const normalized = query.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return [...options];
+	}
+	return options.filter(
+		(option) =>
+			option.label.toLowerCase().includes(normalized) ||
+			option.value.toLowerCase().includes(normalized),
+	);
+};
+
+const categories: FilterCategory[] = [
+	{
+		key: "status",
+		label: "Status",
+		icon: <CircleDotIcon />,
+		getOptions: async (query) => filterOptions(statusOptions, query),
+	},
+	{
+		key: "template",
+		label: "Template",
+		icon: <LayoutGridIcon />,
+		getOptions: async (query) => filterOptions(templateOptions, query),
+	},
+	{
+		key: "owner",
 		label: "Owner",
 		aliases: ["user"],
-		icon: UserIcon,
-		menu: ownerMenu,
+		icon: <UserIcon />,
+		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
 ];
 
@@ -57,38 +79,21 @@ const FilterComboboxHarness = ({
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel,
+	categories: categoriesProp = categories,
 }: {
 	initialQuery?: string;
-	getSearchResults?: (query: string) => Promise<FilterSearchResult[]>;
-	onSearchResultSelect?: (result: FilterSearchResult) => void;
+	getSearchResults?: (query: string) => Promise<SearchResult[]>;
+	onSearchResultSelect?: (result: SearchResult) => void;
 	searchResultsLabel?: string;
+	categories?: readonly FilterCategory[];
 }) => {
 	const [query, setQuery] = useState(initialQuery);
-	const values = Object.fromEntries(
-		[...query.matchAll(/(\w+):"([^"]+)"|(\w+):(\S+)/g)].map((match) => [
-			match[1] ?? match[3],
-			match[2] ?? match[4],
-		]),
-	);
-
-	const filter: UseFilterResult = {
-		query,
-		values,
-		used: query !== "" && query !== "owner:me",
-		update: (next) => {
-			setQuery(typeof next === "string" ? next : query);
-		},
-		debounceUpdate: (next) => {
-			setQuery(typeof next === "string" ? next : query);
-		},
-		cancelDebounce: () => {},
-	};
 
 	return (
 		<FilterCombobox
-			filter={filter}
-			facets={facets}
-			chipKeys={["owner", "status", "template"]}
+			value={query}
+			onChange={setQuery}
+			categories={categoriesProp}
 			placeholder="Search and filter…"
 			className="max-w-lg"
 			getSearchResults={getSearchResults}
@@ -148,7 +153,7 @@ export const TypeFacetPrefix: Story = {
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
 		await expect(canvas.getByText("status:")).toBeVisible();
-		await expect(canvas.getByText("Running")).toBeVisible();
+		await waitFor(() => expect(canvas.getByText("Running")).toBeVisible());
 	},
 };
 
@@ -165,7 +170,7 @@ export const TypeaheadMatchingCategories: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.keyboard("{Enter}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
-		await expect(canvas.getByText("alice")).toBeVisible();
+		await waitFor(() => expect(canvas.getByText("alice")).toBeVisible());
 	},
 };
 
@@ -183,7 +188,7 @@ export const LiveResourcePreviews: Story = {
 				}
 				return [
 					{
-						id: "ws-1",
+						value: "ws-1",
 						label: "devbox",
 						subtitle: "alice · docker",
 						href: "/@alice/devbox",
@@ -205,72 +210,40 @@ export const LiveResourcePreviews: Story = {
 	},
 };
 
-const CrossCategoryValueSuggestionsHarness = () => {
-	const [ownerQuery, setOwnerQuery] = useState("");
-	const ownerOptions = [
-		{ label: "testuser01", value: "testuser01" },
-		{ label: "alice", value: "alice" },
-	].filter(
-		(option) =>
-			option.label.toLowerCase().includes(ownerQuery.toLowerCase()) ||
-			option.value.toLowerCase().includes(ownerQuery.toLowerCase()),
-	);
-
-	const crossFacets: FilterFacet[] = [
-		{ id: "status", label: "Status", icon: CircleDotIcon, menu: statusMenu },
-		{
-			id: "owner",
-			label: "Owner",
-			aliases: ["user"],
-			icon: UserIcon,
-			menu: {
-				...MockMenu,
-				setQuery: setOwnerQuery,
-				searchOptions: ownerOptions,
-			},
-		},
-	];
-
-	const [query, setQuery] = useState("");
-	const values = Object.fromEntries(
-		[...query.matchAll(/(\w+):"([^"]+)"|(\w+):(\S+)/g)].map((match) => [
-			match[1] ?? match[3],
-			match[2] ?? match[4],
-		]),
-	);
-
-	const filter: UseFilterResult = {
-		query,
-		values,
-		used: query !== "",
-		update: (next) => {
-			setQuery(typeof next === "string" ? next : query);
-		},
-		debounceUpdate: (next) => {
-			setQuery(typeof next === "string" ? next : query);
-		},
-		cancelDebounce: () => {},
-	};
-
-	return (
-		<FilterCombobox
-			filter={filter}
-			facets={crossFacets}
-			chipKeys={["owner", "status"]}
-			placeholder="Search and filter…"
-			className="max-w-lg"
-		/>
-	);
-};
-
 export const CrossCategoryValueSuggestions: Story = {
-	render: () => <CrossCategoryValueSuggestionsHarness />,
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "status",
+					label: "Status",
+					icon: <CircleDotIcon />,
+					getOptions: async (query) => filterOptions(statusOptions, query),
+				},
+				{
+					key: "owner",
+					label: "Owner",
+					aliases: ["user"],
+					icon: <UserIcon />,
+					getOptions: async (query) =>
+						filterOptions(
+							[
+								{ label: "testuser01", value: "testuser01" },
+								{ label: "alice", value: "alice" },
+							],
+							query,
+						),
+				},
+			]}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const input = canvas.getByPlaceholderText("Search and filter…");
 		await userEvent.click(input);
 		await userEvent.type(input, "test");
-		await expect(canvas.getByText("Owner")).toBeVisible();
+		await waitFor(() => expect(canvas.getByText("Owner")).toBeVisible());
 		await expect(
 			canvas.getByRole("option", { name: /testuser01/i }),
 		).toBeVisible();

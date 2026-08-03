@@ -7,10 +7,7 @@ import {
 	type WorkspaceStatus,
 	WorkspaceStatuses,
 } from "#/api/typesGenerated";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockBuildInfo,
@@ -137,12 +134,7 @@ const allWorkspaces = [
 
 const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 	query: "owner:me",
-	menus: {
-		user: MockMenu,
-		template: MockMenu,
-		status: MockMenu,
-		organizations: MockMenu,
-	},
+	menus: {},
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,

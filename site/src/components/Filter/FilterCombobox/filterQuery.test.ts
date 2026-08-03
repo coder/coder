@@ -5,9 +5,9 @@ import {
 	composeFilterQuery,
 	extractFreeText,
 	filterValuesToChips,
-	matchFacets,
+	matchCategories,
 	parseChipToken,
-	parseTypedFacetPrefix,
+	parseTypedCategoryPrefix,
 	stringifyChipValues,
 } from "./filterQuery";
 
@@ -39,7 +39,7 @@ describe("filterQuery", () => {
 		expect(parseChipToken("unknown:x", CHIP_KEYS)).toBeNull();
 	});
 
-	it("keeps one value per facet when converting chips", () => {
+	it("keeps one value per category when converting chips", () => {
 		expect(
 			chipsToValues(["owner:me", "owner:alice", "status:running"], CHIP_KEYS),
 		).toEqual({
@@ -49,110 +49,109 @@ describe("filterQuery", () => {
 		});
 	});
 
-	it("matches typed facet prefixes by id, label, and alias", () => {
-		const facets = [
-			{ id: "owner" as const, label: "Owner", aliases: ["user"] },
-			{ id: "status" as const, label: "Status" },
+	it("matches typed category prefixes by key, label, and alias", () => {
+		const categories = [
+			{ key: "owner", label: "Owner", aliases: ["user"] },
+			{ key: "status", label: "Status" },
 		];
 
-		expect(parseTypedFacetPrefix("owner:me", facets)).toEqual({
-			facetId: "owner",
+		expect(parseTypedCategoryPrefix("owner:me", categories)).toEqual({
+			categoryKey: "owner",
 			query: "me",
 			freeText: "",
 		});
-		expect(parseTypedFacetPrefix("user:", facets)).toEqual({
-			facetId: "owner",
+		expect(parseTypedCategoryPrefix("user:", categories)).toEqual({
+			categoryKey: "owner",
 			query: "",
 			freeText: "",
 		});
-		expect(parseTypedFacetPrefix("Status:running", facets)).toEqual({
-			facetId: "status",
+		expect(parseTypedCategoryPrefix("Status:running", categories)).toEqual({
+			categoryKey: "status",
 			query: "running",
 			freeText: "",
 		});
-		expect(parseTypedFacetPrefix("nope:", facets)).toBeNull();
+		expect(parseTypedCategoryPrefix("nope:", categories)).toBeNull();
 	});
 
-	it("matches a facet typed after free-text name search", () => {
-		const facets = [
-			{ id: "owner" as const, label: "Owner", aliases: ["user"] },
-		];
+	it("matches a category typed after free-text name search", () => {
+		const categories = [{ key: "owner", label: "Owner", aliases: ["user"] }];
 
-		expect(parseTypedFacetPrefix("pink owner:", facets)).toEqual({
-			facetId: "owner",
+		expect(parseTypedCategoryPrefix("pink owner:", categories)).toEqual({
+			categoryKey: "owner",
 			query: "",
 			freeText: "pink",
 		});
 		expect(
-			parseTypedFacetPrefix("pink-mockingbird-23 user:al", facets),
+			parseTypedCategoryPrefix("pink-mockingbird-23 user:al", categories),
 		).toEqual({
-			facetId: "owner",
+			categoryKey: "owner",
 			query: "al",
 			freeText: "pink-mockingbird-23",
 		});
 	});
 
-	it("matches category typeahead prefixes on id, label, and alias", () => {
-		const facets = [
-			{ id: "owner" as const, label: "Owner", aliases: ["user"] },
-			{ id: "status" as const, label: "Status" },
-			{ id: "template" as const, label: "Template" },
-			{ id: "organization" as const, label: "Organization" },
+	it("matches category typeahead prefixes on key, label, and alias", () => {
+		const categories = [
+			{ key: "owner", label: "Owner", aliases: ["user"] },
+			{ key: "status", label: "Status" },
+			{ key: "template", label: "Template" },
+			{ key: "organization", label: "Organization" },
 		];
 
-		expect(matchFacets("ow", facets).map((facet) => facet.id)).toEqual([
+		expect(matchCategories("ow", categories).map((c) => c.key)).toEqual([
 			"owner",
 		]);
-		expect(matchFacets("stat", facets).map((facet) => facet.id)).toEqual([
+		expect(matchCategories("stat", categories).map((c) => c.key)).toEqual([
 			"status",
 		]);
-		expect(matchFacets("user", facets).map((facet) => facet.id)).toEqual([
+		expect(matchCategories("user", categories).map((c) => c.key)).toEqual([
 			"owner",
 		]);
-		expect(matchFacets("o", facets).map((facet) => facet.id)).toEqual([
+		expect(matchCategories("o", categories).map((c) => c.key)).toEqual([
 			"owner",
 			"organization",
 		]);
-		expect(matchFacets("do", facets)).toEqual([]);
-		expect(matchFacets("  ", facets)).toEqual([]);
+		expect(matchCategories("do", categories)).toEqual([]);
+		expect(matchCategories("  ", categories)).toEqual([]);
 	});
 
 	it("collects cross-category value suggestions", () => {
-		const facets = [
-			{
-				id: "owner" as const,
-				label: "Owner",
-				menu: {
-					searchOptions: [
-						{ label: "testuser01", value: "testuser01" },
-						{ label: "alice", value: "alice" },
-					],
-				},
-			},
-			{
-				id: "status" as const,
-				label: "Status",
-				menu: {
-					searchOptions: [
-						{ label: "Running", value: "running" },
-						{ label: "Stopped", value: "stopped" },
-					],
-				},
-			},
+		const categories = [
+			{ key: "owner", label: "Owner" },
+			{ key: "status", label: "Status" },
 		];
+		const optionsByKey = new Map([
+			[
+				"owner",
+				[
+					{ label: "testuser01", value: "testuser01" },
+					{ label: "alice", value: "alice" },
+				],
+			],
+			[
+				"status",
+				[
+					{ label: "Running", value: "running" },
+					{ label: "Stopped", value: "stopped" },
+				],
+			],
+		]);
 
 		expect(
-			collectValueSuggestions("test", facets, []).map(
+			collectValueSuggestions("test", categories, optionsByKey, []).map(
 				(suggestion) => suggestion.token,
 			),
 		).toEqual(["owner:testuser01"]);
 		expect(
-			collectValueSuggestions("stop", facets, []).map(
-				(suggestion) => `${suggestion.facetLabel}: ${suggestion.option.label}`,
+			collectValueSuggestions("stop", categories, optionsByKey, []).map(
+				(suggestion) =>
+					`${suggestion.categoryLabel}: ${suggestion.option.label}`,
 			),
 		).toEqual(["Status: Stopped"]);
 		expect(
-			collectValueSuggestions("test", facets, ["owner:testuser01"]),
+			collectValueSuggestions("test", categories, optionsByKey, [
+				"owner:testuser01",
+			]),
 		).toEqual([]);
 	});
 });

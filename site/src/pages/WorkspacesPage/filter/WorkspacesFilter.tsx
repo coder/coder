@@ -11,98 +11,80 @@ import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	FilterCombobox,
-	type FilterFacet,
-	type FilterSearchResult,
+	type FilterCategory,
+	type SearchResult,
 } from "#/components/Filter/FilterCombobox";
-import type { UserFilterMenu } from "#/components/Filter/UserFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import type { OrganizationsFilterMenu } from "#/modules/tableFiltering/options";
-import type { StatusFilterMenu, TemplateFilterMenu } from "./menus";
-
-type FilterFacetId = "status" | "template" | "organization" | "owner";
-
-const WORKSPACE_CHIP_KEYS = [
-	"owner",
-	"status",
-	"template",
-	"organization",
-] as const satisfies readonly FilterFacetId[];
+import {
+	getOrganizationFilterOptions,
+	getOwnerFilterOptions,
+	getStatusFilterOptions,
+	getTemplateFilterOptions,
+} from "./categoryOptions";
 
 const WORKSPACE_PREVIEW_LIMIT = 5;
 
 export type WorkspaceFilterState = {
 	filter: UseFilterResult;
 	error?: unknown;
-	menus: {
-		user?: UserFilterMenu;
-		template: TemplateFilterMenu;
-		status: StatusFilterMenu;
-		organizations?: OrganizationsFilterMenu;
-	};
 };
 
 type WorkspaceFilterProps = Readonly<{
 	filter: UseFilterResult;
 	error: unknown;
-	templateMenu: TemplateFilterMenu;
-	statusMenu: StatusFilterMenu;
-	userMenu?: UserFilterMenu;
-	organizationsMenu?: OrganizationsFilterMenu;
 }>;
 
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
 	error: _error,
-	templateMenu,
-	statusMenu,
-	userMenu,
-	organizationsMenu,
 }) => {
 	const { showOrganizations } = useDashboard();
+	const { permissions, user: me } = useAuthenticated();
+	const canFilterByUser = permissions.viewDeploymentConfig;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	const facets = useMemo(() => {
-		const next: FilterFacet<FilterFacetId>[] = [
-			{ id: "status", label: "Status", icon: CircleDotIcon, menu: statusMenu },
+	const categories = useMemo(() => {
+		const next: FilterCategory[] = [
 			{
-				id: "template",
+				key: "status",
+				label: "Status",
+				icon: <CircleDotIcon />,
+				getOptions: getStatusFilterOptions,
+			},
+			{
+				key: "template",
 				label: "Template",
-				icon: LayoutGridIcon,
-				menu: templateMenu,
+				icon: <LayoutGridIcon />,
+				getOptions: getTemplateFilterOptions,
 			},
 		];
 
-		if (showOrganizations && organizationsMenu) {
+		if (showOrganizations) {
 			next.push({
-				id: "organization",
+				key: "organization",
 				label: "Organization",
-				icon: Building2Icon,
-				menu: organizationsMenu,
+				icon: <Building2Icon />,
+				getOptions: getOrganizationFilterOptions,
 			});
 		}
 
-		if (userMenu) {
+		if (canFilterByUser) {
 			next.push({
-				id: "owner",
+				key: "owner",
 				label: "Owner",
 				aliases: ["user"],
-				icon: UserIcon,
-				menu: userMenu,
+				icon: <UserIcon />,
+				getOptions: (query) => getOwnerFilterOptions(query, me),
 			});
 		}
 
 		return next;
-	}, [
-		organizationsMenu,
-		showOrganizations,
-		statusMenu,
-		templateMenu,
-		userMenu,
-	]);
+	}, [canFilterByUser, me, showOrganizations]);
 
 	const getSearchResults = useCallback(
-		async (query: string): Promise<FilterSearchResult[]> => {
+		async (query: string): Promise<SearchResult[]> => {
 			const response = await queryClient.fetchQuery(
 				workspaces({
 					q: query,
@@ -112,7 +94,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			);
 
 			return response.workspaces.map((workspace) => ({
-				id: workspace.id,
+				value: workspace.id,
 				label: workspace.name,
 				subtitle: [
 					workspace.owner_name,
@@ -128,7 +110,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	);
 
 	const onSearchResultSelect = useCallback(
-		(result: FilterSearchResult) => {
+		(result: SearchResult) => {
 			if (result.href) {
 				navigate(result.href);
 			}
@@ -138,9 +120,9 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 
 	return (
 		<FilterCombobox
-			filter={filter}
-			facets={facets}
-			chipKeys={WORKSPACE_CHIP_KEYS}
+			value={filter.query}
+			onChange={filter.update}
+			categories={categories}
 			placeholder="Search and filter workspaces…"
 			className="max-w-lg"
 			getSearchResults={getSearchResults}

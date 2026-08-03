@@ -1,4 +1,8 @@
 export { FilterCombobox } from "./FilterCombobox";
+export type {
+	CategoryMatchSource,
+	CategoryValueSuggestion,
+} from "./filterQuery";
 export {
 	chipsToValues,
 	chipToken,
@@ -7,14 +11,16 @@ export {
 	dedupeChipsByFacet,
 	extractFreeText,
 	filterValuesToChips,
-	matchFacets,
+	matchCategories,
 	parseChipToken,
-	parseTypedFacetPrefix,
+	parseFilterValues,
+	parseTypedCategoryPrefix,
+	queryToChips,
 	stringifyChipValues,
 } from "./filterQuery";
 export type {
-	FilterFacet,
-	FilterFacetMenu,
-	FilterSearchResult,
+	FilterCategory,
+	FilterOption,
+	SearchResult,
 } from "./types";
 export { parseSearchResultToken, searchResultToken } from "./types";

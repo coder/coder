@@ -1,7 +1,6 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
-import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	InputGroupAddon,
 	InputGroupButton,
@@ -22,42 +21,42 @@ import {
 	ComboboxValue,
 } from "./Combobox";
 import { chipToken } from "./filterQuery";
-import type { FilterFacet, FilterSearchResult } from "./types";
+import type { FilterCategory, SearchResult } from "./types";
 import { searchResultToken } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
-type FilterComboboxProps<Id extends string = string> = Readonly<{
-	filter: UseFilterResult;
-	facets: readonly FilterFacet<Id>[];
-	/** Stable chip key order for URL serialization. Defaults to facet ids. */
-	chipKeys?: readonly Id[];
+type FilterComboboxProps = Readonly<{
+	value: string;
+	onChange: (query: string) => void;
+	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
 	/** Debounced free-text resource previews (e.g. matching workspaces). */
-	getSearchResults?: (query: string) => Promise<FilterSearchResult[]>;
-	onSearchResultSelect?: (result: FilterSearchResult) => void;
+	getSearchResults?: (query: string) => Promise<SearchResult[]>;
+	onSearchResultSelect?: (result: SearchResult) => void;
 	searchResultsLabel?: string;
 }>;
 
-export function FilterCombobox<Id extends string = string>({
-	filter,
-	facets,
-	chipKeys,
+export function FilterCombobox({
+	value,
+	onChange,
+	categories,
 	placeholder = "Search and filter…",
 	className,
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel = "Results",
-}: FilterComboboxProps<Id>) {
+}: FilterComboboxProps) {
 	const {
 		open,
 		browseMode,
 		inputValue,
 		committedFreeText,
-		activeFacet,
-		activeFacetMeta,
+		activeCategoryKey,
+		activeCategory,
 		activeOptions,
-		listedFacets,
+		activeOptionsLoading,
+		listedCategories,
 		valueSuggestions,
 		valueSuggestionsLoading,
 		searchResults,
@@ -71,14 +70,15 @@ export function FilterCombobox<Id extends string = string>({
 		handleOpenChange,
 		handleValueChange,
 	} = useFilterCombobox({
-		filter,
-		facets,
-		chipKeys,
+		value,
+		onChange,
+		categories,
 		getSearchResults,
 		onSearchResultSelect,
 	});
 
-	const showTypeahead = activeFacet === null && browseMode === "typeahead";
+	const showTypeahead =
+		activeCategoryKey === null && browseMode === "typeahead";
 	const showValueSuggestions =
 		showTypeahead &&
 		inputValue.trim().length > 0 &&
@@ -89,11 +89,12 @@ export function FilterCombobox<Id extends string = string>({
 		Boolean(getSearchResults) &&
 		(searchResultsLoading || searchResults.length > 0);
 
-	const valueSuggestionsByFacet = new Map<string, typeof valueSuggestions>();
+	const valueSuggestionsByCategory = new Map<string, typeof valueSuggestions>();
 	for (const suggestion of valueSuggestions) {
-		const group = valueSuggestionsByFacet.get(suggestion.facetLabel) ?? [];
+		const group =
+			valueSuggestionsByCategory.get(suggestion.categoryLabel) ?? [];
 		group.push(suggestion);
-		valueSuggestionsByFacet.set(suggestion.facetLabel, group);
+		valueSuggestionsByCategory.set(suggestion.categoryLabel, group);
 	}
 
 	return (
@@ -121,7 +122,7 @@ export function FilterCombobox<Id extends string = string>({
 								{selected.map((token) => (
 									<ComboboxChip key={token}>{token}</ComboboxChip>
 								))}
-								{activeFacetMeta && committedFreeText.length > 0 && (
+								{activeCategory && committedFreeText.length > 0 && (
 									<Badge
 										variant="outline"
 										size="md"
@@ -131,19 +132,19 @@ export function FilterCombobox<Id extends string = string>({
 										{committedFreeText}
 									</Badge>
 								)}
-								{activeFacetMeta && (
+								{activeCategory && (
 									<Badge
 										variant="dashed"
 										size="md"
 										data-slot="combobox-chip-draft"
 										className="font-medium"
 									>
-										{activeFacetMeta.id}:
+										{activeCategory.key}:
 									</Badge>
 								)}
 								<ComboboxChipsInput
 									placeholder={
-										selected.length > 0 || activeFacetMeta ? "" : placeholder
+										selected.length > 0 || activeCategory ? "" : placeholder
 									}
 									onFocus={handleInputFocus}
 									onKeyDown={handleInputKeyDown}
@@ -177,7 +178,7 @@ export function FilterCombobox<Id extends string = string>({
 			<ComboboxContent>
 				{showTypeahead ? (
 					<>
-						{listedFacets.length === 0 &&
+						{listedCategories.length === 0 &&
 							!showValueSuggestions &&
 							!showSearchSection &&
 							!valueSuggestionsLoading &&
@@ -185,30 +186,31 @@ export function FilterCombobox<Id extends string = string>({
 								<ComboboxEmpty>No filters found.</ComboboxEmpty>
 							)}
 						<ComboboxList className="p-3 data-[empty]:p-3">
-							{listedFacets.map((facet) => {
-								const Icon = facet.icon;
-								return (
-									<ComboboxItem
-										className="gap-2 px-2 py-2.5"
-										key={facet.id}
-										value={facet.id}
-										showIndicator={false}
-									>
-										<Icon className="size-icon-sm text-content-secondary" />
-										<span className="text-content-primary">{facet.label}</span>
-									</ComboboxItem>
-								);
-							})}
+							{listedCategories.map((category) => (
+								<ComboboxItem
+									className="gap-2 px-2 py-2.5"
+									key={category.key}
+									value={category.key}
+									showIndicator={false}
+								>
+									{category.icon && (
+										<span className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm">
+											{category.icon}
+										</span>
+									)}
+									<span className="text-content-primary">{category.label}</span>
+								</ComboboxItem>
+							))}
 							{showValueSuggestions &&
 								(valueSuggestionsLoading && valueSuggestions.length === 0 ? (
 									<div className="flex items-center justify-center px-2 py-2.5">
 										<Spinner loading size="sm" />
 									</div>
 								) : (
-									[...valueSuggestionsByFacet.entries()].map(
-										([facetLabel, suggestions]) => (
-											<ComboboxGroup key={facetLabel}>
-												<ComboboxLabel>{facetLabel}</ComboboxLabel>
+									[...valueSuggestionsByCategory.entries()].map(
+										([categoryLabel, suggestions]) => (
+											<ComboboxGroup key={categoryLabel}>
+												<ComboboxLabel>{categoryLabel}</ComboboxLabel>
 												{suggestions.map((suggestion) => (
 													<ComboboxItem
 														className="gap-2 px-2 py-2.5"
@@ -237,8 +239,8 @@ export function FilterCombobox<Id extends string = string>({
 										searchResults.map((result) => (
 											<ComboboxItem
 												className="gap-2 px-2 py-2.5"
-												key={result.id}
-												value={searchResultToken(result.id)}
+												key={result.value}
+												value={searchResultToken(result.value)}
 												showIndicator={false}
 											>
 												{result.startIcon ??
@@ -266,7 +268,7 @@ export function FilterCombobox<Id extends string = string>({
 							)}
 						</ComboboxList>
 					</>
-				) : activeOptions === undefined ? (
+				) : activeOptionsLoading || activeOptions === undefined ? (
 					<div className="px-3 py-6 text-center text-sm text-content-secondary">
 						Loading…
 					</div>
@@ -274,13 +276,13 @@ export function FilterCombobox<Id extends string = string>({
 					<>
 						<ComboboxEmpty>No filters found.</ComboboxEmpty>
 						<ComboboxList className="p-3 data-[empty]:p-3">
-							{activeFacet !== null && (
+							{activeCategoryKey !== null && (
 								<ComboboxGroup>
-									{activeFacetMeta && (
-										<ComboboxLabel>{activeFacetMeta.label}</ComboboxLabel>
+									{activeCategory && (
+										<ComboboxLabel>{activeCategory.label}</ComboboxLabel>
 									)}
 									{activeOptions.map((option) => {
-										const item = chipToken(activeFacet, option.value);
+										const item = chipToken(activeCategoryKey, option.value);
 										return (
 											<ComboboxItem
 												className="gap-2 px-2 py-2.5"

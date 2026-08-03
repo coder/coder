@@ -113,14 +113,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
-				<WorkspacesFilter
-					filter={filterState.filter}
-					error={error}
-					statusMenu={filterState.menus.status}
-					templateMenu={filterState.menus.template}
-					userMenu={filterState.menus.user}
-					organizationsMenu={filterState.menus.organizations}
-				/>
+				<WorkspacesFilter filter={filterState.filter} error={error} />
 			</div>
 
 			{checkedWorkspaces.length > 0 && (

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { FilterOption } from "./types";
 
 const FILTER_TOKEN_RE = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
@@ -22,6 +23,28 @@ export const parseChipToken = (
 	return { key, value };
 };
 
+/** Structured `key:value` tokens from a query string for known chip keys. */
+export const parseFilterValues = (
+	query: string,
+	chipKeys: readonly string[],
+): Record<string, string | undefined> => {
+	const values: Record<string, string | undefined> = {};
+	for (const key of chipKeys) {
+		values[key] = undefined;
+	}
+
+	for (const match of query.matchAll(FILTER_TOKEN_RE)) {
+		const key = match[1] ?? match[3];
+		const value = match[2] ?? match[4];
+		if (!key || !value || !chipKeys.includes(key)) {
+			continue;
+		}
+		values[key] = value;
+	}
+
+	return values;
+};
+
 export const filterValuesToChips = (
 	values: Record<string, string | undefined>,
 	chipKeys: readonly string[],
@@ -34,6 +57,13 @@ export const filterValuesToChips = (
 		}
 	}
 	return chips;
+};
+
+export const queryToChips = (
+	query: string,
+	chipKeys: readonly string[],
+): string[] => {
+	return filterValuesToChips(parseFilterValues(query, chipKeys), chipKeys);
 };
 
 export const dedupeChipsByFacet = (
@@ -102,14 +132,16 @@ export const composeFilterQuery = (
 		.join(" ");
 };
 
-export const parseTypedFacetPrefix = <Id extends string>(
+export type CategoryMatchSource = {
+	key: string;
+	label: string;
+	aliases?: readonly string[];
+};
+
+export const parseTypedCategoryPrefix = (
 	raw: string,
-	facets: readonly {
-		id: Id;
-		label: string;
-		aliases?: readonly string[];
-	}[],
-): { facetId: Id; query: string; freeText: string } | null => {
+	categories: readonly CategoryMatchSource[],
+): { categoryKey: string; query: string; freeText: string } | null => {
 	// Allow `owner:` at the start, or after name search text: `pink owner:`.
 	const match = /^(.*?)\s*(\w+)\s*:(.*)$/.exec(raw);
 	if (!match) {
@@ -121,57 +153,51 @@ export const parseTypedFacetPrefix = <Id extends string>(
 		return null;
 	}
 
-	const facet = facets.find((entry) => {
-		if (entry.id === typedKey || entry.label.toLowerCase() === typedKey) {
+	const category = categories.find((entry) => {
+		if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
 			return true;
 		}
 		return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
 	});
-	if (!facet) {
+	if (!category) {
 		return null;
 	}
 
 	return {
-		facetId: facet.id,
+		categoryKey: category.key,
 		query: match[3] ?? "",
 		freeText: (match[1] ?? "").trim(),
 	};
 };
 
-type FacetMatchSource<Id extends string> = {
-	id: Id;
-	label: string;
-	aliases?: readonly string[];
-};
-
-/** Categories whose id, label, or alias starts with the typed query. */
-export const matchFacets = <Id extends string, T extends FacetMatchSource<Id>>(
+/** Categories whose key, label, or alias starts with the typed query. */
+export const matchCategories = <T extends CategoryMatchSource>(
 	query: string,
-	facets: readonly T[],
+	categories: readonly T[],
 ): T[] => {
 	const normalized = query.trim().toLowerCase();
 	if (normalized.length === 0) {
 		return [];
 	}
 
-	return facets.filter((facet) => {
-		if (facet.id.toLowerCase().startsWith(normalized)) {
+	return categories.filter((category) => {
+		if (category.key.toLowerCase().startsWith(normalized)) {
 			return true;
 		}
-		if (facet.label.toLowerCase().startsWith(normalized)) {
+		if (category.label.toLowerCase().startsWith(normalized)) {
 			return true;
 		}
 		return (
-			facet.aliases?.some((alias) =>
+			category.aliases?.some((alias) =>
 				alias.toLowerCase().startsWith(normalized),
 			) ?? false
 		);
 	});
 };
 
-export type FacetValueSuggestion<Id extends string = string> = {
-	facetId: Id;
-	facetLabel: string;
+export type CategoryValueSuggestion = {
+	categoryKey: string;
+	categoryLabel: string;
 	option: {
 		label: string;
 		value: string;
@@ -180,51 +206,40 @@ export type FacetValueSuggestion<Id extends string = string> = {
 	token: string;
 };
 
-const DEFAULT_SUGGESTIONS_PER_FACET = 5;
+const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
 const DEFAULT_SUGGESTIONS_TOTAL = 15;
 
-/** Matching `key:value` options across facets for free-text typeahead. */
-export const collectValueSuggestions = <Id extends string>(
+/** Matching `key:value` options across categories for free-text typeahead. */
+export const collectValueSuggestions = (
 	query: string,
-	facets: readonly {
-		id: Id;
-		label: string;
-		menu: {
-			searchOptions:
-				| readonly {
-						label: string;
-						value: string;
-						startIcon?: ReactNode;
-				  }[]
-				| undefined;
-		};
-	}[],
+	categories: readonly CategoryMatchSource[],
+	optionsByKey: ReadonlyMap<string, readonly FilterOption[]>,
 	selectedTokens: readonly string[],
-	limits?: Readonly<{ perFacet?: number; total?: number }>,
-): FacetValueSuggestion<Id>[] => {
+	limits?: Readonly<{ perCategory?: number; total?: number }>,
+): CategoryValueSuggestion[] => {
 	const normalized = query.trim().toLowerCase();
 	if (normalized.length === 0) {
 		return [];
 	}
 
-	const perFacet = limits?.perFacet ?? DEFAULT_SUGGESTIONS_PER_FACET;
+	const perCategory = limits?.perCategory ?? DEFAULT_SUGGESTIONS_PER_CATEGORY;
 	const total = limits?.total ?? DEFAULT_SUGGESTIONS_TOTAL;
 	const selected = new Set(selectedTokens);
-	const suggestions: FacetValueSuggestion<Id>[] = [];
+	const suggestions: CategoryValueSuggestion[] = [];
 
-	for (const facet of facets) {
-		const options = facet.menu.searchOptions;
+	for (const category of categories) {
+		const options = optionsByKey.get(category.key);
 		if (!options || suggestions.length >= total) {
 			continue;
 		}
 
 		let taken = 0;
 		for (const option of options) {
-			if (taken >= perFacet || suggestions.length >= total) {
+			if (taken >= perCategory || suggestions.length >= total) {
 				break;
 			}
 
-			const token = chipToken(facet.id, option.value);
+			const token = chipToken(category.key, option.value);
 			if (selected.has(token)) {
 				continue;
 			}
@@ -237,8 +252,8 @@ export const collectValueSuggestions = <Id extends string>(
 			}
 
 			suggestions.push({
-				facetId: facet.id,
-				facetLabel: facet.label,
+				categoryKey: category.key,
+				categoryLabel: category.label,
 				option,
 				token,
 			});
