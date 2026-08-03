@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
@@ -6,10 +6,12 @@ import { useDebouncedValue } from "#/hooks/debounce";
 import {
 	chipsToValues,
 	chipToken,
+	collectValueSuggestions,
 	composeFilterQuery,
 	extractFreeText,
 	filterValuesToChips,
 	matchFacets,
+	parseChipToken,
 	parseTypedFacetPrefix,
 } from "./filterQuery";
 import {
@@ -98,6 +100,36 @@ export const useFilterCombobox = <Id extends string>({
 	const listedFacetsRef = useRef(listedFacets);
 	listedFacetsRef.current = listedFacets;
 
+	// Drive every facet menu from free-text typeahead so options stay in sync.
+	useEffect(() => {
+		if (activeFacet !== null || browseMode !== "typeahead") {
+			return;
+		}
+		const query = inputValue.trim();
+		for (const facet of facets) {
+			facet.menu.setQuery(query);
+		}
+	}, [activeFacet, browseMode, facets, inputValue]);
+
+	const valueSuggestions = useMemo(() => {
+		if (activeFacet !== null || browseMode !== "typeahead") {
+			return [];
+		}
+		return collectValueSuggestions(inputValue, facets, chipValues);
+	}, [activeFacet, browseMode, chipValues, facets, inputValue]);
+	const valueSuggestionsRef = useRef(valueSuggestions);
+	valueSuggestionsRef.current = valueSuggestions;
+
+	const valueSuggestionsLoading =
+		activeFacet === null &&
+		browseMode === "typeahead" &&
+		inputValue.trim().length > 0 &&
+		facets.some(
+			(facet) =>
+				facet.menu.isSearching === true ||
+				facet.menu.searchOptions === undefined,
+		);
+
 	const previewQuerySource =
 		activeFacet === null && browseMode === "typeahead" ? inputValue.trim() : "";
 	const debouncedPreviewQuery = useDebouncedValue(
@@ -140,11 +172,19 @@ export const useFilterCombobox = <Id extends string>({
 		if (activeFacet === null && browseMode === "typeahead") {
 			return [
 				...listedFacets.map((facet) => facet.id),
+				...valueSuggestions.map((suggestion) => suggestion.token),
 				...searchResults.map((result) => searchResultToken(result.id)),
 			];
 		}
 		return [] as string[];
-	}, [activeFacet, activeOptions, browseMode, listedFacets, searchResults]);
+	}, [
+		activeFacet,
+		activeOptions,
+		browseMode,
+		listedFacets,
+		searchResults,
+		valueSuggestions,
+	]);
 	const optionItemsRef = useRef(optionItems);
 	optionItemsRef.current = optionItems;
 
@@ -179,13 +219,18 @@ export const useFilterCombobox = <Id extends string>({
 		facet?.menu.setQuery(query);
 	};
 
-	const updateFromChips = (tokens: string[]) => {
+	const updateFromChips = (tokens: string[], freeText?: string) => {
+		const nextFreeText =
+			freeText === undefined ? committedFreeTextRef.current : freeText;
+		if (freeText !== undefined) {
+			setCommittedNameSearch(freeText);
+		}
 		filter.cancelDebounce();
 		filter.update(
 			composeFilterQuery(
 				chipsToValues(tokens, chipKeys),
 				chipKeys,
-				committedFreeTextRef.current,
+				nextFreeText,
 			),
 		);
 	};
@@ -206,6 +251,15 @@ export const useFilterCombobox = <Id extends string>({
 		enterFacetMode(facetId);
 	};
 
+	const selectValueSuggestion = (token: string) => {
+		updateFromChips([...chipValues, token], "");
+		facetModeRef.current = false;
+		setBrowseModeSafe(null);
+		setActiveFacet(null);
+		setInputValue("");
+		setOpen(false);
+	};
+
 	const selectSearchResult = (result: FilterSearchResult) => {
 		onSearchResultSelectRef.current?.(result);
 		facetModeRef.current = false;
@@ -218,14 +272,7 @@ export const useFilterCombobox = <Id extends string>({
 		if (activeFacet !== null || facetModeRef.current) {
 			return;
 		}
-		const trimmed = inputValue.trim();
-		if (trimmed.length === 0) {
-			openCategorySuggestions();
-			return;
-		}
-		if (matchFacets(inputValue, facets).length > 0 || hasSearchResults) {
-			openCategorySuggestions();
-		}
+		openCategorySuggestions();
 	};
 
 	const handleInputValueChange = (
@@ -266,22 +313,7 @@ export const useFilterCombobox = <Id extends string>({
 		filter.debounceUpdate(
 			composeFilterQuery(filter.values, chipKeys, nextValue),
 		);
-
-		if (nextValue.trim().length === 0) {
-			openCategorySuggestions();
-			return;
-		}
-
-		const matches = matchFacets(nextValue, facets);
-		if (matches.length > 0 || hasSearchResults) {
-			openCategorySuggestions();
-			return;
-		}
-
-		if (browseModeRef.current === "typeahead") {
-			setBrowseModeSafe(null);
-			setOpen(false);
-		}
+		openCategorySuggestions();
 	};
 
 	const handleOpenChange = (
@@ -325,6 +357,15 @@ export const useFilterCombobox = <Id extends string>({
 			const matchedFacet = facets.find((facet) => facet.id === added);
 			if (activeFacet === null && matchedFacet) {
 				selectFacet(matchedFacet.id, { clearMatchedQuery: true });
+				return;
+			}
+
+			if (
+				activeFacet === null &&
+				browseModeRef.current === "typeahead" &&
+				parseChipToken(added, chipKeys)
+			) {
+				selectValueSuggestion(added);
 				return;
 			}
 		}
@@ -386,6 +427,11 @@ export const useFilterCombobox = <Id extends string>({
 		);
 		if (topFacet) {
 			selectFacet(topFacet.id, { clearMatchedQuery: true });
+			return;
+		}
+
+		if (parseChipToken(topItem, chipKeys)) {
+			selectValueSuggestion(topItem);
 		}
 	};
 
@@ -398,6 +444,8 @@ export const useFilterCombobox = <Id extends string>({
 		activeFacetMeta,
 		activeOptions,
 		listedFacets,
+		valueSuggestions,
+		valueSuggestionsLoading,
 		searchResults,
 		searchResultsLoading,
 		chipValues,

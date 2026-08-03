@@ -2,6 +2,7 @@ export { FilterCombobox } from "./FilterCombobox";
 export {
 	chipsToValues,
 	chipToken,
+	collectValueSuggestions,
 	composeFilterQuery,
 	dedupeChipsByFacet,
 	extractFreeText,
@@ -16,7 +17,4 @@ export type {
 	FilterFacetMenu,
 	FilterSearchResult,
 } from "./types";
-export {
-	parseSearchResultToken,
-	searchResultToken,
-} from "./types";
+export { parseSearchResultToken, searchResultToken } from "./types";

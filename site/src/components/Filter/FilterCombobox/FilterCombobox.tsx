@@ -22,6 +22,7 @@ import {
 	ComboboxTrigger,
 	ComboboxValue,
 } from "./Combobox";
+import { chipToken } from "./filterQuery";
 import type { FilterFacet, FilterSearchResult } from "./types";
 import { searchResultToken } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
@@ -58,11 +59,12 @@ export function FilterCombobox<Id extends string = string>({
 		activeFacetMeta,
 		activeOptions,
 		listedFacets,
+		valueSuggestions,
+		valueSuggestionsLoading,
 		searchResults,
 		searchResultsLoading,
 		chipValues,
 		optionItems,
-		optionByToken,
 		selectFacet,
 		handleInputFocus,
 		handleInputKeyDown,
@@ -78,11 +80,22 @@ export function FilterCombobox<Id extends string = string>({
 	});
 
 	const showTypeahead = activeFacet === null && browseMode === "typeahead";
+	const showValueSuggestions =
+		showTypeahead &&
+		inputValue.trim().length > 0 &&
+		(valueSuggestionsLoading || valueSuggestions.length > 0);
 	const showSearchSection =
 		showTypeahead &&
 		inputValue.trim().length > 0 &&
 		Boolean(getSearchResults) &&
 		(searchResultsLoading || searchResults.length > 0);
+
+	const valueSuggestionsByFacet = new Map<string, typeof valueSuggestions>();
+	for (const suggestion of valueSuggestions) {
+		const group = valueSuggestionsByFacet.get(suggestion.facetLabel) ?? [];
+		group.push(suggestion);
+		valueSuggestionsByFacet.set(suggestion.facetLabel, group);
+	}
 
 	return (
 		<Combobox
@@ -194,7 +207,9 @@ export function FilterCombobox<Id extends string = string>({
 				) : showTypeahead ? (
 					<>
 						{listedFacets.length === 0 &&
+							!showValueSuggestions &&
 							!showSearchSection &&
+							!valueSuggestionsLoading &&
 							!searchResultsLoading && (
 								<ComboboxEmpty>No filters found.</ComboboxEmpty>
 							)}
@@ -213,6 +228,33 @@ export function FilterCombobox<Id extends string = string>({
 									</ComboboxItem>
 								);
 							})}
+							{showValueSuggestions &&
+								(valueSuggestionsLoading && valueSuggestions.length === 0 ? (
+									<div className="flex items-center justify-center px-2 py-2.5">
+										<Spinner loading size="sm" />
+									</div>
+								) : (
+									[...valueSuggestionsByFacet.entries()].map(
+										([facetLabel, suggestions]) => (
+											<ComboboxGroup key={facetLabel}>
+												<ComboboxLabel>{facetLabel}</ComboboxLabel>
+												{suggestions.map((suggestion) => (
+													<ComboboxItem
+														className="gap-2 px-2 py-2.5"
+														key={suggestion.token}
+														value={suggestion.token}
+														showIndicator={false}
+													>
+														{suggestion.option.startIcon}
+														<span className="text-content-primary">
+															{suggestion.option.label}
+														</span>
+													</ComboboxItem>
+												))}
+											</ComboboxGroup>
+										),
+									)
+								))}
 							{showSearchSection && (
 								<ComboboxGroup>
 									<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
@@ -260,23 +302,30 @@ export function FilterCombobox<Id extends string = string>({
 				) : (
 					<>
 						<ComboboxEmpty>No filters found.</ComboboxEmpty>
-						<ComboboxList className="p-3">
-							{(item) => {
-								const option = optionByToken.get(item);
-								return (
-									<ComboboxItem
-										className="gap-2 px-2 py-2.5"
-										key={item}
-										value={item}
-										showIndicator={false}
-									>
-										{option?.startIcon}
-										<span className="text-content-primary">
-											{option?.label ?? item}
-										</span>
-									</ComboboxItem>
-								);
-							}}
+						<ComboboxList className="p-3 data-[empty]:p-3">
+							{activeFacet !== null && (
+								<ComboboxGroup>
+									{activeFacetMeta && (
+										<ComboboxLabel>{activeFacetMeta.label}</ComboboxLabel>
+									)}
+									{activeOptions.map((option) => {
+										const item = chipToken(activeFacet, option.value);
+										return (
+											<ComboboxItem
+												className="gap-2 px-2 py-2.5"
+												key={item}
+												value={item}
+												showIndicator={false}
+											>
+												{option.startIcon}
+												<span className="text-content-primary">
+													{option.label}
+												</span>
+											</ComboboxItem>
+										);
+									})}
+								</ComboboxGroup>
+							)}
 						</ComboboxList>
 					</>
 				)}

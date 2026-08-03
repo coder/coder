@@ -5,6 +5,7 @@ import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 export type FilterFacetMenu = {
 	searchOptions: SelectFilterOption[] | undefined;
 	setQuery: (query: string) => void;
+	isSearching?: boolean;
 };
 
 export type FilterFacet<Id extends string = string> = {

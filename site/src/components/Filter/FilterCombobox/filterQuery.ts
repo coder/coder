@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 const FILTER_TOKEN_RE = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
@@ -165,4 +167,84 @@ export const matchFacets = <Id extends string, T extends FacetMatchSource<Id>>(
 			) ?? false
 		);
 	});
+};
+
+export type FacetValueSuggestion<Id extends string = string> = {
+	facetId: Id;
+	facetLabel: string;
+	option: {
+		label: string;
+		value: string;
+		startIcon?: ReactNode;
+	};
+	token: string;
+};
+
+const DEFAULT_SUGGESTIONS_PER_FACET = 5;
+const DEFAULT_SUGGESTIONS_TOTAL = 15;
+
+/** Matching `key:value` options across facets for free-text typeahead. */
+export const collectValueSuggestions = <Id extends string>(
+	query: string,
+	facets: readonly {
+		id: Id;
+		label: string;
+		menu: {
+			searchOptions:
+				| readonly {
+						label: string;
+						value: string;
+						startIcon?: ReactNode;
+				  }[]
+				| undefined;
+		};
+	}[],
+	selectedTokens: readonly string[],
+	limits?: Readonly<{ perFacet?: number; total?: number }>,
+): FacetValueSuggestion<Id>[] => {
+	const normalized = query.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return [];
+	}
+
+	const perFacet = limits?.perFacet ?? DEFAULT_SUGGESTIONS_PER_FACET;
+	const total = limits?.total ?? DEFAULT_SUGGESTIONS_TOTAL;
+	const selected = new Set(selectedTokens);
+	const suggestions: FacetValueSuggestion<Id>[] = [];
+
+	for (const facet of facets) {
+		const options = facet.menu.searchOptions;
+		if (!options || suggestions.length >= total) {
+			continue;
+		}
+
+		let taken = 0;
+		for (const option of options) {
+			if (taken >= perFacet || suggestions.length >= total) {
+				break;
+			}
+
+			const token = chipToken(facet.id, option.value);
+			if (selected.has(token)) {
+				continue;
+			}
+
+			if (
+				!option.label.toLowerCase().includes(normalized) &&
+				!option.value.toLowerCase().includes(normalized)
+			) {
+				continue;
+			}
+
+			suggestions.push({
+				facetId: facet.id,
+				facetLabel: facet.label,
+				option,
+				token,
+			});
+			taken += 1;
+		}
+	}
+
+	return suggestions;
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	chipsToValues,
+	collectValueSuggestions,
 	composeFilterQuery,
 	extractFreeText,
 	filterValuesToChips,
@@ -114,5 +115,44 @@ describe("filterQuery", () => {
 		]);
 		expect(matchFacets("do", facets)).toEqual([]);
 		expect(matchFacets("  ", facets)).toEqual([]);
+	});
+
+	it("collects cross-category value suggestions", () => {
+		const facets = [
+			{
+				id: "owner" as const,
+				label: "Owner",
+				menu: {
+					searchOptions: [
+						{ label: "testuser01", value: "testuser01" },
+						{ label: "alice", value: "alice" },
+					],
+				},
+			},
+			{
+				id: "status" as const,
+				label: "Status",
+				menu: {
+					searchOptions: [
+						{ label: "Running", value: "running" },
+						{ label: "Stopped", value: "stopped" },
+					],
+				},
+			},
+		];
+
+		expect(
+			collectValueSuggestions("test", facets, []).map(
+				(suggestion) => suggestion.token,
+			),
+		).toEqual(["owner:testuser01"]);
+		expect(
+			collectValueSuggestions("stop", facets, []).map(
+				(suggestion) => `${suggestion.facetLabel}: ${suggestion.option.label}`,
+			),
+		).toEqual(["Status: Stopped"]);
+		expect(
+			collectValueSuggestions("test", facets, ["owner:testuser01"]),
+		).toEqual([]);
 	});
 });
