@@ -48,7 +48,12 @@ export const getStatusFilterOptions = async (
 			label: display.text,
 			value: status,
 			startIcon: (
-				<StatusIndicatorDot variant={getStatusIndicatorVariant(status)} />
+				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+					<StatusIndicatorDot
+						variant={getStatusIndicatorVariant(status)}
+						size="md"
+					/>
+				</span>
 			),
 		} satisfies FilterOption;
 	});
