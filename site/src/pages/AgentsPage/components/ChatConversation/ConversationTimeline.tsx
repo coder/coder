@@ -1044,24 +1044,27 @@ const StickyUserMessage = memo<{
 					fileBlocks?: readonly TypesGen.ChatMessagePart[],
 				) => {
 					onEditUserMessage(messageId, text, fileBlocks);
+					// One frame later, so the edited message has been laid out.
+					// `scroll-margin-top` on the sentinel lands it on the pin line.
 					requestAnimationFrame(() => {
-						const sentinel = sentinelRef.current;
-						if (!sentinel) return;
-						const scroller = sentinel.closest(
-							".overflow-y-auto",
-						) as HTMLElement | null;
-						if (!scroller) return;
-						const offset =
-							sentinel.getBoundingClientRect().top -
-							scroller.getBoundingClientRect().top;
-						scroller.scrollBy({ top: offset, behavior: "smooth" });
+						sentinelRef.current?.scrollIntoView({
+							behavior: "smooth",
+							block: "start",
+						});
 					});
 				}
 			: undefined;
 
 		return (
 			<>
-				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
+				{/* `scroll-mt-2` matches the 8px pin line, so both the jump
+				    arrows and the post-edit scroll land the prompt exactly where
+				    it comes to rest when pinned. */}
+				<div
+					ref={setSentinelRef}
+					className="h-0 scroll-mt-2"
+					data-user-sentinel
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
