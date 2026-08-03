@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
@@ -399,7 +400,7 @@ func (s *taskStarter) startGenerationSession(
 	// Re-arm the claim until its response is applied so a replacement task
 	// can replay session_start effects.
 	defer func() { complete(completed) }()
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return sessionStartResult{}, true, chathooks.GenerationDispatchError(agenthooks.EventSessionStart, err)
 	}
@@ -940,7 +941,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
-	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact)
+	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return chathooks.GenerationDispatchError(agenthooks.EventPreCompact, err)
 	}
@@ -987,7 +988,7 @@ func (s *taskStarter) generateCompaction(
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
 	// on crash.
-	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact)
+	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact, dispatch.CapacityClassGeneration)
 	var postCommitErr error
 	if postDispatchErr != nil {
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostCompact, postDispatchErr)
@@ -1349,7 +1350,7 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "load stop hook state")
 	}
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventStop, err), fence)
 	}
