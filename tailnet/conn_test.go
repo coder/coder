@@ -2,7 +2,9 @@ package tailnet_test
 
 import (
 	"context"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"strings"
 	"testing"
@@ -38,6 +40,96 @@ func TestTailnet(t *testing.T) {
 		require.NoError(t, err)
 		err = conn.Close()
 		require.NoError(t, err)
+	})
+	t.Run("AbortClosesListenersImmediately", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		conn, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+			Logger:    testutil.Logger(t).Named("abort"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+
+		listener, err := conn.Listen("tcp", ":35566")
+		require.NoError(t, err)
+		conn.Abort()
+
+		_ = testutil.TryReceive(ctx, t, conn.Closed())
+		_, err = listener.Accept()
+		require.ErrorIs(t, err, net.ErrClosed)
+		_, err = conn.DialContextTCP(ctx, netip.AddrPort{})
+		require.ErrorIs(t, err, tailnet.ErrConnClosed)
+		_, err = conn.DialContextUDP(ctx, netip.AddrPort{})
+		require.ErrorIs(t, err, tailnet.ErrConnClosed)
+
+		closeDone := make(chan error, 1)
+		go func() {
+			closeDone <- conn.Close()
+		}()
+		require.NoError(t, testutil.TryReceive(ctx, t, closeDone))
+	})
+	t.Run("ReconnectsFrontendAfterAbort", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+		workspaceIP := tailnet.TailscaleServicePrefix.RandomAddr()
+
+		poisoned, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(workspaceIP, 128)},
+			Logger:    logger.Named("poisoned"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		poisoned.Abort()
+		_ = testutil.TryReceive(ctx, t, poisoned.Closed())
+
+		recovered, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(workspaceIP, 128)},
+			Logger:    logger.Named("recovered"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		browser, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+			Logger:    logger.Named("browser"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = recovered.Close()
+			_ = browser.Close()
+		})
+		stitch(t, browser, recovered)
+		stitch(t, recovered, browser)
+		require.True(t, browser.AwaitReachable(ctx, workspaceIP))
+
+		listener, err := recovered.Listen("tcp", ":35567")
+		require.NoError(t, err)
+		server := &http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("workspace frontend recovered"))
+			}),
+		}
+		go func() {
+			_ = server.Serve(listener)
+		}()
+		t.Cleanup(func() {
+			_ = server.Close()
+		})
+
+		transport := &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return browser.DialContextTCP(ctx, netip.AddrPortFrom(workspaceIP, 35567))
+			},
+		}
+		t.Cleanup(transport.CloseIdleConnections)
+		response, err := (&http.Client{Transport: transport}).Get("http://workspace.test/")
+		require.NoError(t, err)
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		require.Equal(t, "workspace frontend recovered", string(body))
 	})
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()

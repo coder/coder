@@ -106,6 +106,9 @@ type Options struct {
 	Logger         slog.Logger
 	ListenPort     uint16
 
+	// WatchdogTimeout is called once if a wireguard engine operation exceeds
+	// the watchdog timeout. The callback must not block.
+	WatchdogTimeout func(operation string)
 	// CaptureHook is a callback that captures Disco packets and packets sent
 	// into the tailnet tunnel.
 	CaptureHook capture.Callback
@@ -233,7 +236,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}
 
-	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
+	if options.WatchdogTimeout == nil {
+		wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
+	} else {
+		wireguardEngine = wgengine.NewWatchdogWithTimeoutCallback(wireguardEngine, options.WatchdogTimeout)
+	}
 	sys.Set(wireguardEngine)
 
 	magicConn := sys.MagicSock.Get()
@@ -322,6 +329,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	server := &Conn{
 		id:               uuid.New(),
 		closed:           make(chan struct{}),
+		cleanupDone:      make(chan struct{}),
+		dataPlaneClosed:  make(chan struct{}),
 		logger:           options.Logger,
 		magicConn:        magicConn,
 		dialer:           dialer,
@@ -440,10 +449,13 @@ func (p ServicePrefix) AsNetip() netip.Prefix {
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
 	// Unique ID used for telemetry.
-	id     uuid.UUID
-	mutex  sync.Mutex
-	closed chan struct{}
-	logger slog.Logger
+	id              uuid.UUID
+	mutex           sync.Mutex
+	closed          chan struct{}
+	cleanupDone     chan struct{}
+	dataPlaneClosed chan struct{}
+	aborted         bool
+	logger          slog.Logger
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -669,22 +681,66 @@ func (c *Conn) Closed() <-chan struct{} {
 	return c.closed
 }
 
+// Abort stops the data plane synchronously, then attempts to clean up the
+// poisoned wireguard engine in the background.
+func (c *Conn) Abort() {
+	started, _ := c.beginClose(true)
+	if !started {
+		<-c.dataPlaneClosed
+		return
+	}
+	c.closeNetStack()
+	close(c.dataPlaneClosed)
+	go c.closeResources()
+}
+
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
+	started, aborted := c.beginClose(false)
+	if started {
+		c.closeNetStack()
+		close(c.dataPlaneClosed)
+		c.closeResources()
+		return nil
+	}
+	<-c.dataPlaneClosed
+	if !aborted {
+		<-c.cleanupDone
+	}
+	return nil
+}
+
+func (c *Conn) beginClose(abort bool) (bool, bool) {
 	c.logger.Info(context.Background(), "closing tailnet Conn")
 	c.watchCancel()
-	c.configMaps.close()
-	c.nodeUpdater.close()
+
 	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	select {
 	case <-c.closed:
-		c.mutex.Unlock()
-		return nil
+		return false, c.aborted
 	default:
 	}
+
+	c.aborted = abort
 	close(c.closed)
+	for _, l := range c.listeners {
+		_ = l.closeNoLock()
+	}
+	c.listeners = nil
+	return true, abort
+}
+
+func (c *Conn) closeNetStack() {
+	_ = c.netStack.Close()
+	c.logger.Debug(context.Background(), "closed netstack")
+}
+
+func (c *Conn) closeResources() {
+	defer close(c.cleanupDone)
+	c.configMaps.close()
+	c.nodeUpdater.close()
 	c.telemetryWg.Wait()
-	c.mutex.Unlock()
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -699,21 +755,10 @@ func (c *Conn) Close() error {
 		}()
 	}
 
-	_ = c.netStack.Close()
-	c.logger.Debug(context.Background(), "closed netstack")
 	_ = c.wireguardMonitor.Close()
 	_ = c.dialer.Close()
 	// Stops internals, e.g. tunDevice, magicConn and dnsManager.
 	c.wireguardEngine.Close()
-
-	c.mutex.Lock()
-	for _, l := range c.listeners {
-		_ = l.closeNoLock()
-	}
-	c.listeners = nil
-	c.mutex.Unlock()
-
-	return nil
 }
 
 func (c *Conn) isClosed() bool {
@@ -768,11 +813,17 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 }
 
 func (c *Conn) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
+	if c.isClosed() {
+		return nil, ErrConnClosed
+	}
 	c.logger.Debug(ctx, "dial tcp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextTCP(ctx, ipp)
 }
 
 func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
+	if c.isClosed() {
+		return nil, ErrConnClosed
+	}
 	c.logger.Debug(ctx, "dial udp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextUDP(ctx, ipp)
 }

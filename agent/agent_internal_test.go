@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"net/netip"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	agentsdk "github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -141,4 +143,120 @@ func TestClassifyCoordinatorRPCExit(t *testing.T) {
 			require.Equal(t, tc.initiator, initiator)
 		})
 	}
+}
+func TestInvalidateTailnetGeneration(t *testing.T) {
+	t.Parallel()
+
+	uut := &agent{
+		networkGeneration: 4,
+		statsReporter:     &statsReporter{},
+	}
+
+	network, networkTransitionDone, reset := uut.invalidateTailnetGeneration(3)
+	require.Nil(t, network)
+	require.Nil(t, networkTransitionDone)
+	require.False(t, reset)
+	require.NotNil(t, uut.statsReporter)
+	require.Equal(t, uint64(4), uut.networkGeneration)
+
+	network, networkTransitionDone, reset = uut.invalidateTailnetGeneration(4)
+	require.Nil(t, network)
+	require.NotNil(t, networkTransitionDone)
+	require.Equal(t, networkTransitionDone, uut.networkTransitionDone)
+	require.True(t, reset)
+	require.Nil(t, uut.statsReporter)
+	require.Equal(t, uint64(5), uut.networkGeneration)
+	uut.completeNetworkTransition(networkTransitionDone)
+	require.Nil(t, uut.networkTransitionDone)
+	_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, networkTransitionDone)
+
+	uut.closing = true
+	_, _, reset = uut.invalidateTailnetGeneration(5)
+	require.False(t, reset)
+}
+
+func TestRecoverTailnetAfterWatchdog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	network, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Logger:    logger.Named("tailnet"),
+	})
+	require.NoError(t, err)
+
+	uut := &agent{
+		logger:            logger,
+		hardCtx:           ctx,
+		tailnetWatchdog:   make(chan struct{}, 1),
+		networkGeneration: 8,
+		network:           network,
+	}
+	uut.reportTailnetWatchdogTimeout(7, "UpdateStatus")
+	require.Same(t, network, uut.network)
+	select {
+	case <-uut.tailnetWatchdog:
+		t.Fatal("stale watchdog event was queued")
+	default:
+	}
+
+	uut.reportTailnetWatchdogTimeout(8, "Reconfig")
+
+	err = uut.recoverTailnetAfterWatchdog(ctx)
+	require.ErrorIs(t, err, errTailnetWatchdogTimeout)
+	require.ErrorContains(t, err, "Reconfig")
+	require.Equal(t, uint64(9), uut.networkGeneration)
+	require.Nil(t, uut.network)
+	require.Nil(t, uut.networkTransitionDone)
+	_ = testutil.TryReceive(ctx, t, network.Closed())
+	require.NoError(t, network.Close())
+
+	uut.closing = true
+	uut.network = network
+	require.NotPanics(t, func() {
+		uut.reportTailnetWatchdogTimeout(9, "Ping")
+	})
+}
+
+func TestDiscardHandledTailnetWatchdogEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	uut := &agent{
+		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		hardCtx:           ctx,
+		tailnetWatchdog:   make(chan struct{}, 1),
+		networkGeneration: 8,
+	}
+	uut.reportTailnetWatchdogTimeout(8, "Reconfig")
+	require.Equal(t, uint64(9), uut.networkGeneration)
+
+	uut.discardHandledTailnetWatchdogEvents()
+	select {
+	case <-uut.tailnetWatchdog:
+		t.Fatal("handled watchdog event remained queued")
+	default:
+	}
+}
+
+func TestQueueTailnetWatchdogEventKeepsNewestGeneration(t *testing.T) {
+	t.Parallel()
+
+	uut := &agent{
+		tailnetWatchdog: make(chan struct{}, 1),
+	}
+	assertNewest := func(first, second, want tailnetWatchdogEvent) {
+		t.Helper()
+		uut.queueTailnetWatchdogEvent(first)
+		uut.queueTailnetWatchdogEvent(second)
+		<-uut.tailnetWatchdog
+		got, ok := uut.takeTailnetWatchdogEvent()
+		require.True(t, ok)
+		require.Equal(t, want, got)
+	}
+	older := tailnetWatchdogEvent{generation: 8, operation: "Reconfig"}
+	newer := tailnetWatchdogEvent{generation: 10, operation: "UpdateStatus"}
+	assertNewest(older, newer, newer)
+	assertNewest(newer, older, newer)
 }

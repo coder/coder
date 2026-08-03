@@ -361,8 +361,6 @@ github.com/coder/serpent v0.15.0 h1:jobR7DnPsxzEMD0cRiailwlY+4v6HAPS/8emIgBpaIU=
 github.com/coder/serpent v0.15.0/go.mod h1:7OIvFBYMd+OqarMy5einBl8AtRr8LliopVU7pyrwucY=
 github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuOD6a/zVP3rcxezNsoDseTUw=
 github.com/coder/ssh v0.0.0-20231128192721-70855dedb788/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
-github.com/coder/tailscale v1.1.1-0.20260529105257-b7c5fc6e6399 h1:4IhFSmu0DSfWrvmHCb8aXDjWqSEYoIDA1L7Ar82Dm84=
-github.com/coder/tailscale v1.1.1-0.20260529105257-b7c5fc6e6399/go.mod h1:IatCC3hlq/ncu6DjZ+GJ/hNjSf5TmO+Xtc6B20k0q/c=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/coder/terraform-provider-coder/v2 v2.19.0 h1:ShiwZiUZ3wyUt4+ccrdWlUKu+24aDgzMLD6Yf6xKtAw=
@@ -1220,6 +1218,8 @@ github.com/unrolled/secure v1.17.0 h1:Io7ifFgo99Bnh0J7+Q+qcMzWM6kaDPCA5FroFZEdbW
 github.com/unrolled/secure v1.17.0/go.mod h1:BmF5hyM6tXczk3MpQkFf1hpKSRqCyhqcbiQtiAF7+40=
 github.com/urfave/cli/v2 v2.27.5 h1:WoHEJLdsXr6dDWoJgMq/CboDmyY/8HMMH1fTECbih+w=
 github.com/urfave/cli/v2 v2.27.5/go.mod h1:3Sevf16NykTbInEnD0yKkjDAeZDS0A6bzhBH5hrMvTQ=
+github.com/usman-heracles/tailscale v1.1.1-0.20260802160905-8eaea8ff0d67 h1:A1pkWMOOBm8A1yiirmeGJightxOWZ0UV+AbtJoK/7SI=
+github.com/usman-heracles/tailscale v1.1.1-0.20260802160905-8eaea8ff0d67/go.mod h1:kHIqIaZBNdlYKkPi7VrmwfGlq/zcuZEpNt/zybpXovE=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.73.0 h1:ocTOORnBWtJ+P8t/6wAjdkchMzdfHmWx2VD/DPbgZ7s=
