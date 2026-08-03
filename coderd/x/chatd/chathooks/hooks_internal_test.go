@@ -107,6 +107,11 @@ func TestRejectDuplicateToolUseIDs(t *testing.T) {
 
 func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 	t.Helper()
+	return newTestTriggerWithAliases(t, handler, nil)
+}
+
+func newTestTriggerWithAliases(t *testing.T, handler http.Handler, toolNameAliases map[string]string) *Trigger {
+	t.Helper()
 	consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), handler)
 	t.Cleanup(consumer.Close)
 	return NewTrigger(dispatch.New(
@@ -118,7 +123,7 @@ func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 		"test-deployment",
 		"test-version",
 		prometheus.NewRegistry(),
-	), nil)
+	), toolNameAliases)
 }
 
 func TestHookTriggerDisabled(t *testing.T) {
@@ -228,6 +233,48 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 
 	_, err := trigger.Trigger(ctx, chat, Message{}, agenthooks.EventType("bogus"), dispatch.CapacityClassGeneration)
 	require.ErrorContains(t, err, "unsupported hook event")
+}
+
+func TestHookTriggerToolNameCanonicalization(t *testing.T) {
+	t.Parallel()
+
+	requests := make(chan agenthooks.Request, 1)
+	trigger := newTestTriggerWithAliases(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requests <- request
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}), map[string]string{"close_agent": "interrupt_agent"})
+	chat := Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	reportedToolName := func(t *testing.T, toolName string, event agenthooks.EventType) string {
+		t.Helper()
+		_, err := trigger.Trigger(ctx, chat, Message{ToolUseID: "call_1", ToolName: toolName, ToolInput: json.RawMessage(`{}`)}, event, dispatch.CapacityClassGeneration)
+		require.NoError(t, err)
+		request := <-requests
+		switch event {
+		case agenthooks.EventPreToolUse:
+			var data agenthooks.PreToolUseData
+			require.NoError(t, json.Unmarshal(request.Data, &data))
+			return data.ToolName
+		default:
+			var data agenthooks.PostToolUseData
+			require.NoError(t, json.Unmarshal(request.Data, &data))
+			return data.ToolName
+		}
+	}
+
+	// A call through a deprecated alias executes the canonical builtin,
+	// so events report the canonical name.
+	require.Equal(t, "interrupt_agent", reportedToolName(t, "close_agent", agenthooks.EventPreToolUse))
+	require.Equal(t, "interrupt_agent", reportedToolName(t, "close_agent", agenthooks.EventPostToolUse))
+	// Dynamic tool names cannot collide with an alias (appendDynamicTools
+	// reserves alias names), so any other name reports verbatim: the
+	// event names the tool that actually executes.
+	require.Equal(t, "my_dynamic_tool", reportedToolName(t, "my_dynamic_tool", agenthooks.EventPreToolUse))
+	require.Equal(t, "my_dynamic_tool", reportedToolName(t, "my_dynamic_tool", agenthooks.EventPostToolUse))
 }
 
 func TestRestoreToolCallOrder(t *testing.T) {

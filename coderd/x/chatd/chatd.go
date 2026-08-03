@@ -4085,6 +4085,17 @@ func appendDynamicTools(
 			delete(dynamicToolNames, info.Name)
 		}
 	}
+	// Deprecated alias names are reserved too: hook events and input
+	// validation resolve an alias to its canonical builtin
+	// unconditionally, so a dynamic tool named after one would execute
+	// client-side while being reported and validated as the builtin.
+	for alias := range subagentToolNameAliases {
+		if dynamicToolNames[alias] {
+			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+				slog.F("tool_name", alias))
+			delete(dynamicToolNames, alias)
+		}
+	}
 
 	var filteredDefs []codersdk.DynamicTool
 	for _, dt := range dynamicToolDefs {

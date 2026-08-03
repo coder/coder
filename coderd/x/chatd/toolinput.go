@@ -56,7 +56,8 @@ func validateOverriddenToolInputs(prepared generationPrepared, preflight chathoo
 // validateBuiltinToolInput only guards tools whose input coderd decodes
 // itself: builtin tools and provider tools with a local runner. Dynamic
 // calls are executed by the client and MCP calls by their own server, and
-// a dynamic tool cannot shadow a builtin name.
+// a dynamic tool cannot shadow a builtin name or a deprecated builtin
+// alias (appendDynamicTools reserves both).
 func validateBuiltinToolInput(prepared generationPrepared, toolName string, input []byte) error {
 	// Execution resolves a deprecated alias to its canonical tool, so
 	// skipping that here would let the old name bypass validation.
