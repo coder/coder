@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { WorkspaceTimingsResponse } from "./storybookData";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 
@@ -12,9 +11,6 @@ const meta: Meta<typeof WorkspaceTimings> = {
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
 		agentConnectionTimings: WorkspaceTimingsResponse.agent_connection_timings,
-	},
-	parameters: {
-		chromatic,
 	},
 };
 

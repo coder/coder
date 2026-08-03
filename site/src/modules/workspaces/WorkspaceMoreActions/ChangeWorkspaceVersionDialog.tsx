@@ -16,8 +16,7 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 import { FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
@@ -26,7 +25,8 @@ import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage
 import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 
-type ChangeWorkspaceVersionDialogProps = DialogProps & {
+type ChangeWorkspaceVersionDialogProps = {
+	open: boolean;
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;
@@ -34,7 +34,7 @@ type ChangeWorkspaceVersionDialogProps = DialogProps & {
 
 export const ChangeWorkspaceVersionDialog: FC<
 	ChangeWorkspaceVersionDialogProps
-> = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
+> = ({ workspace, onClose, onConfirm, open }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
 		select: (data) => [...data].reverse(),
@@ -65,7 +65,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 
 	return (
 		<ConfirmDialog
-			{...dialogProps}
+			open={open}
 			onClose={onClose}
 			onConfirm={() => {
 				if (newVersion) {

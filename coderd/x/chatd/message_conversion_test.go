@@ -271,6 +271,22 @@ func TestCurrentTurnStepCount_CountsAssistantMessagesAfterLatestUser(t *testing.
 	require.Equal(t, 2, got)
 }
 
+func TestCurrentTurnStepCount_IgnoresHookModelContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+		hookContext,
+		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 2, got)
+}
+
 func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	t.Parallel()
 
@@ -545,6 +561,22 @@ func TestDecisionDetectsStopAfterToolFromCommittedHistory(t *testing.T) {
 	require.False(t, got)
 }
 
+func TestDecisionDetectsStopAfterToolAcrossHookContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("plan")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("plan-1", "propose_plan", json.RawMessage(`{}`))),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("plan-1", "propose_plan", json.RawMessage(`{"ok":true}`), false, false)),
+		hookContext,
+	}
+	got, err := historyHasStopAfterToolResult(messages, map[string]struct{}{"propose_plan": {}})
+	require.NoError(t, err)
+	require.True(t, got)
+}
+
 func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	t.Parallel()
 
@@ -799,4 +831,73 @@ func (s *partialConversionLogSink) entriesAtLevelWithMessage(level slog.Level, m
 		}
 	}
 	return entries
+}
+
+func TestBuildCommitStepMessages_MarksHookRewrittenToolCalls(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{
+					ToolCallID: "rewritten",
+					ToolName:   "execute",
+					Input:      `{"command":"echo admitted"}`,
+				},
+				fantasy.ToolCallContent{
+					ToolCallID: "untouched",
+					ToolName:   "execute",
+					Input:      `{"command":"echo original"}`,
+				},
+			},
+		},
+		hookRewrittenToolCalls: map[string]json.RawMessage{"rewritten": {}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	parts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.Equal(t, "rewritten", parts[0].ToolCallID)
+	require.True(t, parts[0].HookRewritten)
+	require.Equal(t, "untouched", parts[1].ToolCallID)
+	require.False(t, parts[1].HookRewritten)
+}
+
+func TestBuildCommitStepMessages_SkipsProviderExecutedRewriteAttribution(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{
+					ToolCallID:       "shared",
+					ToolName:         "web_search",
+					Input:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				fantasy.ToolCallContent{
+					ToolCallID: "shared",
+					ToolName:   "execute",
+					Input:      `{"command":"echo admitted"}`,
+				},
+			},
+		},
+		hookRewrittenToolCalls: map[string]json.RawMessage{"shared": {}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	parts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.True(t, parts[0].ProviderExecuted)
+	require.False(t, parts[0].HookRewritten)
+	require.False(t, parts[1].ProviderExecuted)
+	require.True(t, parts[1].HookRewritten)
 }

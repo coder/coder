@@ -1,28 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
-import type {
-	Experiment,
-	FeatureName,
-	UserAISpendStatus,
-} from "#/api/typesGenerated";
+import type { FeatureName, UserAISpendStatus } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
 const mockAISpend: UserAISpendStatus = {
 	user_id: MockUserOwner.id,
-	spend_limit_micros: 1_200_000_000,
 	effective_group_id: "grp-789",
-	limit_source: "group",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
 	current_spend_micros: 819_000_000,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",
 };
 
-const aiCostControl: { features: FeatureName[]; experiments: Experiment[] } = {
+const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],
-	experiments: ["ai-gateway-cost-control"],
 };
 
 const meta: Meta<typeof UserDropdown> = {
@@ -58,7 +55,7 @@ const Example: Story = {
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("hides AI spend without cost control", async () => {
+		await step("hides AI spend without the aibridge feature", async () => {
 			await openDropdown(canvasElement);
 			expect(screen.queryByText(/AI spend/i)).not.toBeInTheDocument();
 		});
@@ -76,7 +73,7 @@ export const WithAISpend: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$819 / $1,200 USD"),
 			);
-			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(document.body).toHaveTextContent("(Estimated AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "68");
@@ -100,7 +97,7 @@ export const AISpendWarning: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$1,080 / $1,200 USD"),
 			);
-			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(document.body).toHaveTextContent("(Estimated AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "90");
@@ -147,7 +144,7 @@ export const AISpendExceeded: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$1,500 / $1,200 USD"),
 			);
-			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(document.body).toHaveTextContent("(Estimated AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "100");
@@ -159,7 +156,7 @@ export const AISpendUnlimited: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: null } },
+			{ key: meAISpendKey, data: { ...mockAISpend, effective_budget: null } },
 		],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -168,7 +165,7 @@ export const AISpendUnlimited: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$819 / Unlimited USD"),
 			);
-			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(document.body).toHaveTextContent("(Estimated AI spend/month)");
 			expect(
 				screen.queryByRole("progressbar", { name: "AI spend usage" }),
 			).not.toBeInTheDocument();
@@ -205,7 +202,10 @@ export const AISpendZeroLimit: Story = {
 				data: {
 					...mockAISpend,
 					current_spend_micros: 0,
-					spend_limit_micros: 0,
+					effective_budget: {
+						spend_limit_micros: 0,
+						limit_source: "group",
+					},
 				},
 			},
 		],
@@ -272,7 +272,7 @@ export const AISpendHiddenOnInvalidData: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on invalid data", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText("(AI spend/month)")).not.toBeInTheDocument();
+			expect(screen.queryByText(/spend\/month/)).not.toBeInTheDocument();
 		});
 	},
 };
@@ -281,13 +281,19 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: -1 } },
+			{
+				key: meAISpendKey,
+				data: {
+					...mockAISpend,
+					effective_budget: { spend_limit_micros: -1, limit_source: "group" },
+				},
+			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on a negative limit", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText("(AI spend/month)")).not.toBeInTheDocument();
+			expect(screen.queryByText(/spend\/month/)).not.toBeInTheDocument();
 		});
 	},
 };

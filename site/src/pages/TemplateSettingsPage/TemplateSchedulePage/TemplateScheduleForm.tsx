@@ -618,6 +618,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					updateInactiveWorkspaces={(update: boolean) =>
 						form.setFieldValue("update_workspace_last_used_at", update)
 					}
+					dormantWorkspacesChecked={
+						form.values.update_workspace_dormant_at ?? false
+					}
+					inactiveWorkspacesChecked={
+						form.values.update_workspace_last_used_at ?? false
+					}
 					dormantValueChanged={
 						form.initialValues.time_til_dormant_ms !==
 						form.values.time_til_dormant_ms

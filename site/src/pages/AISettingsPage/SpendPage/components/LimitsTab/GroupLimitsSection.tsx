@@ -3,7 +3,7 @@ import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { paginateItems } from "#/utils/paginateItems";
 import { SpendSectionHeader } from "../SpendSectionHeader";
@@ -173,15 +173,18 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 				)}
 			</div>
 			{pendingDeleteGroupId && (
-				<ConfirmDeleteDialog
-					entity="group override"
+				<ConfirmDialog
+					type="delete"
+					title="Delete group override"
+					confirmText="Delete group override"
+					description="Are you sure you want to delete this group override? This action is irreversible."
 					onConfirm={() => {
 						void onDeleteGroupOverride(pendingDeleteGroupId);
 						setPendingDeleteGroupId(null);
 					}}
-					isPending={deletePending}
+					confirmLoading={deletePending}
 					open
-					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
+					onClose={() => setPendingDeleteGroupId(null)}
 				/>
 			)}
 		</section>

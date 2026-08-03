@@ -11,7 +11,7 @@ import {
 	HealthyDot,
 	Main,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const ProvisionerDaemonsPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -26,7 +26,7 @@ const ProvisionerDaemonsPage: FC = () => {
 					<HealthyDot severity={daemons.severity} />
 					Provisioner Daemons
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="ProvisionerDaemons" />
+				<MuteWarningsButton healthcheck="ProvisionerDaemons" />
 			</Header>
 
 			<Main>
@@ -41,6 +41,8 @@ const ProvisionerDaemonsPage: FC = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
+							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>

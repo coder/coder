@@ -10,7 +10,7 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
@@ -813,6 +813,84 @@ export const UsageLimitExceeded: Story = {
 				toJSON: () => ({}),
 			},
 		),
+	},
+};
+
+export const HookDispatchFailed: Story = {
+	args: {
+		...defaultArgs,
+		createError: Object.assign(
+			new Error("Request failed with status code 502"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 502,
+					statusText: "Bad Gateway",
+					data: {
+						kind: "hook_dispatch_failed",
+						message: "Chat lifecycle hook dispatch failed.",
+						detail:
+							"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Lifecycle hook failed")).toBeVisible();
+		await expect(
+			canvas.getByText("Chat lifecycle hook dispatch failed."),
+		).toBeVisible();
+		await expect(
+			canvas.getByText(
+				"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
+			),
+		).toBeVisible();
+		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
+	},
+};
+
+export const HookDenied: Story = {
+	args: {
+		...defaultArgs,
+		createError: Object.assign(
+			new Error("Request failed with status code 403"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 403,
+					statusText: "Forbidden",
+					data: {
+						kind: "hook_denied",
+						message: "This prompt is blocked by policy.",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("This prompt is blocked by policy."),
+		).toBeVisible();
+		await expect(
+			canvas.queryByText("Blocked by policy"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Go to workspaces"),
+		).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
 	},
 };
 

@@ -327,13 +327,13 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm helm actionlint aqua:crate-ci/typos"
+          install-args: "go node pnpm helm aqua:crate-ci/typos"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -368,7 +368,8 @@ jobs:
         run: helm version --short
 
       - name: make lint
-        run: make --output-sync=line -j lint
+        # Bound concurrent lint targets to keep peak memory below the runner limit.
+        run: make --output-sync=line -j"$(nproc)" lint
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -410,7 +411,10 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "actionlint zizmor"
+          install-args: "go zizmor"
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
@@ -573,6 +577,7 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
@@ -984,6 +989,19 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
+      # Cache the Coder release binaries downloaded by the outdatedCLI /
+      # outdatedAgent e2e tests so most runs skip the flaky GitHub release
+      # download entirely. The cache key is keyed off the file that pins the
+      # downloaded versions, so it invalidates when those versions change.
+      - name: Restore e2e Coder release binary cache
+        id: coder-e2e-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/constants.ts') }}
+          restore-keys: |
+            coder-e2e-cache-${{ runner.os }}-
+
       # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
         if: ${{ !matrix.variant.premium }}
@@ -999,6 +1017,16 @@ jobs:
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
+
+      - name: Save e2e Coder release binary cache
+        # Only the default branch is trusted to write the cache, so PR runs
+        # cannot poison the cache that subsequent runs restore from. Skip when
+        # the cache already had an exact key hit (no new content).
+        if: always() && github.ref == 'refs/heads/main' && steps.coder-e2e-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/coder-e2e-cache
+          key: ${{ steps.coder-e2e-cache.outputs.cache-primary-key }}
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -1261,7 +1289,7 @@ jobs:
       - name: Install rcodesign
         run: |
           set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
           sudo tar -xzf /tmp/rcodesign.tar.gz \
             -C /usr/bin \
             --strip-components=1 \
@@ -1295,7 +1323,7 @@ jobs:
           touch /tmp/ev_cert.pem
           chmod 600 /tmp/ev_cert.pem
           echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 

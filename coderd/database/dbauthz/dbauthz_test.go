@@ -1069,6 +1069,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesByChatID(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetAIBridgeChatCost", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		row := database.GetAIBridgeChatCostRow{TotalCostMicros: 1000, RequestCount: 2}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatModelUsageCostByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		row := database.GetChatModelUsageCostByChatIDRow{ChatID: chat.ID, TotalCostMicros: 1000, PricedMessageCount: 2}
@@ -1281,11 +1288,12 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("InsertChatMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.InsertChatMessagesParams{ChatID: chat.ID})
-		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
+		msgs := []database.InsertChatMessagesRow{testutil.Fake(s.T(), faker, database.InsertChatMessagesRow{ChatID: chat.ID})}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatMessages(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msgs)
 	}))
+
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageParams{ChatID: chat.ID})
@@ -5038,6 +5046,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(0), nil).AnyTimes()
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
+	s.Run("GetActiveUsersAuthorizationRoles", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetActiveUsersAuthorizationRoles(gomock.Any()).Return([]database.GetActiveUsersAuthorizationRolesRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.GetActiveUsersAuthorizationRolesRow{})
+	}))
 	s.Run("GetAuthorizationUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetAuthorizationUserRoles(gomock.Any(), u.ID).Return(database.GetAuthorizationUserRolesRow{}, nil).AnyTimes()
@@ -5647,6 +5659,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		arg := database.UpsertTelemetryItemParams{Key: "test", Value: "value"}
 		dbm.EXPECT().UpsertTelemetryItem(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetOAuth2DCREnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetOAuth2DCREnabled(gomock.Any()).Return(false, sql.ErrNoRows).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("UpsertOAuth2DCREnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertOAuth2DCREnabled(gomock.Any(), true).Return(nil).AnyTimes()
+		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetOAuth2GithubDefaultEligible", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetOAuth2GithubDefaultEligible(gomock.Any()).Return(false, sql.ErrNoRows).AnyTimes()
@@ -6704,6 +6724,27 @@ func (s *MethodTestSuite) TestUsageEvents() {
 			EndDate:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
+
+	s.Run("ListUsageEventCreatedAtsByTypeSince", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListUsageEventCreatedAtsByTypeSinceParams{
+			EventType: "hb_agent_runtime_v1",
+			Since:     dbtime.Now(),
+		}
+		db.EXPECT().ListUsageEventCreatedAtsByTypeSince(gomock.Any(), params).Return([]time.Time{}, nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
+	// GetTotalChatMessageRuntimeMsInRange exists solely to compute usage
+	// event payloads, so it asserts usage event creation rather than chat
+	// read permissions.
+	s.Run("GetTotalChatMessageRuntimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetTotalChatMessageRuntimeMsInRangeParams{
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
+		}
+		db.EXPECT().GetTotalChatMessageRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
 }
 
 // Ensures that the prebuilds actor may never insert an api key.
@@ -6720,6 +6761,41 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	faker := gofakeit.New(0)
 	_, err := dbz.InsertAPIKey(ctx, testutil.Fake(t, faker, database.InsertAPIKeyParams{}))
 	require.True(t, dbauthz.IsNotAuthorizedError(err))
+}
+
+// TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied mechanically
+// checks the invariant the query's authz gate relies on: it exposes a
+// deployment-wide aggregate behind usage_event create at site scope, which no
+// human-assignable role holds. Owner is excluded from usage_event via
+// allPermsExcept in roles.go; org roles such as org-admin do carry
+// usage_event permissions, but only at org scope, which cannot satisfy a
+// site-scoped check. If either of those ever changes, this test fails.
+func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	var roles []rbac.RoleIdentifier
+	for _, role := range rbac.SiteBuiltInRoles() {
+		roles = append(roles, role.Identifier)
+	}
+	for _, role := range rbac.OrganizationRoles(orgID) {
+		roles = append(roles, role.Identifier)
+	}
+	require.NotEmpty(t, roles)
+
+	for _, role := range roles {
+		subj := rbac.Subject{
+			ID:    uuid.NewString(),
+			Roles: rbac.RoleIdentifiers{role},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), subj)
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+		dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		_, err := dbz.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{})
+		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
+	}
 }
 
 func (s *MethodTestSuite) TestAIBridge() {
@@ -6893,6 +6969,18 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(params, emptyPreparedAuthorized{}).Asserts()
 	}))
 
+	s.Run("GetAIBridgeSessionTopDomains", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetAIBridgeSessionTopDomainsParams{SessionID: "sess", Limit: 5}
+		db.EXPECT().GetAIBridgeSessionTopDomains(gomock.Any(), params).Return([]database.GetAIBridgeSessionTopDomainsRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.GetAIBridgeSessionTopDomainsRow{})
+	}))
+
+	s.Run("ListAIBridgeSessionNetworkCalls", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeSessionNetworkCallsParams{SessionID: "sess", Limit: 1000}
+		db.EXPECT().ListAIBridgeSessionNetworkCalls(gomock.Any(), params).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.BoundaryLog{})
+	}))
+
 	s.Run("ListAIBridgeTokenUsagesByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{{1}}
 		db.EXPECT().ListAIBridgeTokenUsagesByInterceptionIDs(gomock.Any(), ids).Return([]database.AIBridgeTokenUsage{}, nil).AnyTimes()
@@ -6988,6 +7076,22 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Returns([]database.GetGroupMembersAISpendRow{row1, row2})
 	}))
 
+	s.Run("ExportOrganizationAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.ExportOrganizationAISpendRow{OrganizationID: org.ID})
+		row2 := testutil.Fake(s.T(), faker, database.ExportOrganizationAISpendRow{OrganizationID: org.ID})
+		arg := database.ExportOrganizationAISpendParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC(),
+		}
+		dbm.EXPECT().ExportOrganizationAISpend(gomock.Any(), arg).
+			Return([]database.ExportOrganizationAISpendRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(row1, policy.ActionRead, row2, policy.ActionRead).
+			Returns([]database.ExportOrganizationAISpendRow{row1, row2})
+	}))
+
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAIBudget{GroupID: g.ID})
@@ -7067,6 +7171,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
 		dbm.EXPECT().GetUserAISpendSince(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
+	}))
+
+	s.Run("GetOverBudgetUsersPerGroup", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		periodStart := time.Now().UTC().Truncate(24 * time.Hour)
+		dbm.EXPECT().GetOverBudgetUsersPerGroup(gomock.Any(), periodStart).
+			Return([]database.GetOverBudgetUsersPerGroupRow{}, nil).AnyTimes()
+		check.Args(periodStart).Asserts(rbac.ResourceGroup.All(), policy.ActionRead)
 	}))
 
 	s.Run("IncrementUserAIDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
