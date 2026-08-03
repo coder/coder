@@ -396,6 +396,15 @@ func (d *Dispatcher) post(
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", d.userAgent)
+		// The response signature binds the exact bytes the consumer's
+		// handler produced, so both ends must hash the same
+		// representation. Requesting the identity encoding keeps
+		// conforming middleware from compressing the response and,
+		// because the header is set explicitly, keeps Go's transport
+		// from transparently gunzipping it; either transformation would
+		// make VerifyResponse hash different bytes than were signed and
+		// fail valid dispatches closed.
+		req.Header.Set("Accept-Encoding", "identity")
 
 		httpResponse, requestErr := d.client.Do(req)
 		if requestErr != nil {

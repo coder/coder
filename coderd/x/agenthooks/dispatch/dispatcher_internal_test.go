@@ -1,14 +1,18 @@
 package dispatch
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -70,6 +75,75 @@ func TestDispatcherSuccess(t *testing.T) {
 	response, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
 	require.NoError(t, err)
 	require.Equal(t, agenthooks.Response{}, response)
+}
+
+// TestDispatcherRequestsIdentityEncoding pins that dispatch requests ask
+// for the identity content encoding. The response signature binds the
+// exact bytes the consumer's handler wrote; without this header the
+// transport advertises gzip, conforming middleware around the consumer's
+// handler compresses the signed bytes, the transport transparently
+// gunzips them, and VerifyResponse hashes a different representation than
+// was signed, failing every valid dispatch closed.
+func TestDispatcherRequestsIdentityEncoding(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: "new"})
+
+	var acceptEncoding atomic.Value
+	gzipMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			acceptEncoding.Store(r.Header.Get("Accept-Encoding"))
+			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				next.ServeHTTP(rw, r)
+				return
+			}
+			rw.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(rw)
+			defer gz.Close()
+			next.ServeHTTP(gzipResponseWriter{ResponseWriter: rw, writer: gz}, r)
+		})
+	}
+	handler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte(`{"user_message":"noted"}`))
+	})
+
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.SignResponses(
+		[]byte(testSecret),
+		"http://"+server.Listener.Addr().String(),
+		gzipMiddleware(handler),
+	)
+	server.Start()
+	t.Cleanup(server.Close)
+
+	dispatcher := newTestDispatcher(t, server.Client(), server.URL, 2*time.Second)
+	response, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	require.NoError(t, err)
+	require.Equal(t, "noted", response.UserMessage)
+	require.Equal(t, "identity", acceptEncoding.Load())
+}
+
+// gzipResponseWriter routes body bytes through a gzip writer while headers
+// and status go to the wrapped writer, mimicking common gzip middleware.
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer io.Writer
+}
+
+func (w gzipResponseWriter) Write(p []byte) (int, error) { return w.writer.Write(p) }
+
+func (w gzipResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (w gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, xerrors.New("response writer does not support hijacking")
+	}
+	return hijacker.Hijack()
 }
 
 func TestDispatcherRejectsCleartextURL(t *testing.T) {

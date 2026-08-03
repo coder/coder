@@ -720,6 +720,40 @@ func TestSignResponsesInformationalStatus(t *testing.T) {
 	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
 }
 
+// TestSignResponsesFreezesHeadersAtCommit pins net/http header-commit
+// semantics: mutations after the first write are not forwarded, so a late
+// Content-Length rewrite cannot make the outer writer drop the signed body
+// and late headers cannot desynchronize the response from its signature.
+func TestSignResponsesFreezesHeadersAtCommit(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.SignResponses(testSecret, testAudience, http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{"user_message":"frozen"}`))
+		// Too late: the first Write committed the header snapshot.
+		rw.Header().Set("Content-Length", "0")
+		rw.Header().Set("X-Late", "mutation")
+	})))
+	t.Cleanup(server.Close)
+
+	var requestClaims agenthooks.Claims
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		requestClaims = *claims
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Empty(t, response.Header.Get("X-Late"))
+
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(response.Body)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"user_message":"frozen"}`, buffer.String())
+
+	signature := response.Header.Get(agenthooks.SignatureHeader)
+	require.NotEmpty(t, signature)
+	require.NoError(t, agenthooks.VerifyResponse(signature, testSecret, requestClaims, buffer.Bytes()))
+}
+
 // TestSignResponsesRefusesTamperedBody pins that the wrapper cannot be
 // used as a signing oracle: a captured bearer token replayed with a
 // different body is rejected before the wrapped handler runs, because the

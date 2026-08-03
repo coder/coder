@@ -172,9 +172,9 @@ func SignResponses(secret []byte, expectedAudience string, next http.Handler) ht
 				http.Error(rw, "sign response", http.StatusInternalServerError)
 				return
 			}
-			buffer.header.Set(SignatureHeader, signature)
+			buffer.committed.Set(SignatureHeader, signature)
 		}
-		for key, values := range buffer.header {
+		for key, values := range buffer.committed {
 			rw.Header()[key] = values
 		}
 		rw.WriteHeader(buffer.status)
@@ -184,11 +184,18 @@ func SignResponses(secret []byte, expectedAudience string, next http.Handler) ht
 
 // bufferedResponse captures a handler's response so it can be signed before
 // any byte reaches the network. It mirrors net/http commit semantics: the
-// first WriteHeader wins, Write commits an implicit 200, and later status
-// changes are ignored, so a handler that wrote an error status cannot be
-// converted into a signed 2xx by a subsequent WriteHeader call.
+// first WriteHeader wins, Write commits an implicit 200, later status
+// changes are ignored, and the headers are snapshotted at the commit, so a
+// handler that wrote an error status cannot be converted into a signed 2xx
+// and header mutations after the first write cannot desynchronize the
+// forwarded headers from the signed body.
 type bufferedResponse struct {
-	header      http.Header
+	header http.Header
+	// committed is the header snapshot frozen by the first effective
+	// WriteHeader, exactly like net/http, which writes the headers to the
+	// wire at that point. Only this snapshot is forwarded upstream;
+	// mutations to header after the commit have no effect.
+	committed   http.Header
 	body        bytes.Buffer
 	status      int
 	wroteHeader bool
@@ -237,6 +244,7 @@ func (b *bufferedResponse) WriteHeader(status int) {
 	}
 	b.status = status
 	b.wroteHeader = true
+	b.committed = b.header.Clone()
 }
 
 // commitStatus locks in the implicit 200 a real ResponseWriter would send

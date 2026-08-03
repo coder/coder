@@ -122,6 +122,7 @@ Every `2xx` response must also carry a `Coder-Hook-Signature` header: an `HS256`
 Responses steer chats, so Coder rejects an unsigned or mismatched response as a protocol error and fails the dispatch closed; without this requirement, anyone able to inject traffic on the return path could allow, deny, or rewrite tool input without knowing the secret.
 `agenthooks.NewHTTPHandler` signs responses automatically, and `agenthooks.SignResponses` wraps any other `http.Handler` to do the same; both take the consumer's own URL and fully authenticate each request (bearer token, audience, and the claims' binding to the exact body bytes) before any handler logic runs, so neither can be used as a signing oracle for a replayed token with a different body.
 Consumers not using the Go SDK must apply the same discipline: verify the request token against the exact body before acting on it, and mint the response token with the same claim set they verified.
+Coder requests the `identity` content encoding; respond with the exact bytes the signature was computed over, without applying a content encoding, or the body hash will not match.
 
 | Field           | Effect                                                                                                                                                                         |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
