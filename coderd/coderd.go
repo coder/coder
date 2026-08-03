@@ -384,13 +384,17 @@ func New(options *Options) *API {
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
 
-	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
-			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
-		})
+	// Only reload when an option deviates from the defaults so the zero
+	// value keeps the stock builtin roles. Constructing the full options
+	// struct here (rather than mirroring individual fields in the guard)
+	// ensures a newly added RoleOptions field cannot be silently ignored.
+	roleOptions := rbac.RoleOptions{
+		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+	}
+	if roleOptions != (rbac.RoleOptions{}) {
+		rbac.ReloadBuiltinRoles(&roleOptions)
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
