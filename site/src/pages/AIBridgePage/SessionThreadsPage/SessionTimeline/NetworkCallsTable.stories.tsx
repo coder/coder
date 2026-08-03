@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent } from "storybook/test";
 import { MockAIBridgeSessionNetworkCalls } from "#/testHelpers/entities";
 import { NetworkCallsTable } from "./NetworkCallsTable";
 
@@ -17,27 +17,26 @@ type Story = StoryObj<typeof NetworkCallsTable>;
 
 export const Default: Story = {
 	play: async ({ canvas }) => {
-		// Header shows the total from the summary.
 		await canvas.findByText("Network calls (4)");
-		// Both allowed and blocked calls render with their status labels.
 		await expect(canvas.getAllByText("Allowed")).toHaveLength(2);
 		await expect(canvas.getAllByText("Blocked")).toHaveLength(2);
-		// A blocked destination from the mock is listed.
 		await expect(
 			canvas.getByText("https://registry.npmjs.org/lodash"),
 		).toBeInTheDocument();
 	},
 };
 
-// The blocked-count badge in the header reflects the summary, not the number
-// of rendered rows.
+// The header badge counts every blocked call in the session, so it can exceed
+// the number of blocked rows on screen once the list is capped.
 export const BlockedBadge: Story = {
+	args: {
+		summary: { total: 4, blocked: 9 },
+	},
 	play: async ({ canvas }) => {
-		const header = canvas.getByText("Network calls (4)").closest("div");
-		if (!header) {
-			throw new Error("network calls header not found");
-		}
-		await expect(within(header).getByText("2")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Blocked network calls: 9"),
+		).toBeInTheDocument();
+		await expect(canvas.getAllByText("Blocked")).toHaveLength(2);
 	},
 };
 
@@ -48,26 +47,25 @@ export const NoBlockedCalls: Story = {
 	},
 	play: async ({ canvas }) => {
 		await canvas.findByText("Network calls (1)");
-		// With zero blocked calls the warning badge is omitted.
 		await expect(canvas.queryByText("Blocked")).not.toBeInTheDocument();
 	},
 };
 
-// Expanding a row reveals its detail fields.
 export const ExpandRow: Story = {
 	play: async ({ canvas }) => {
 		await expect(canvas.queryByText("Protocol")).not.toBeInTheDocument();
 
-		const rowButtons = canvas.getAllByRole("button", { expanded: false });
-		// The first row button toggles the first call's detail open.
-		await userEvent.click(rowButtons[0]);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: /https:\/\/api\.github\.com\/repos\/coder\/coder/,
+			}),
+		);
 
 		await expect(canvas.getByText("Protocol")).toBeInTheDocument();
 		await expect(canvas.getByText("Matched rule")).toBeInTheDocument();
 	},
 };
 
-// Collapsing the panel header hides the list of calls.
 export const CollapsePanel: Story = {
 	play: async ({ canvas }) => {
 		await expect(
@@ -92,6 +90,24 @@ export const Empty: Story = {
 		await expect(
 			canvas.getByText("No network calls were recorded for this session."),
 		).toBeInTheDocument();
+	},
+};
+
+// A summary total with no rows to show is not a state the server produces. The
+// panel still shows a single message rather than claiming both that nothing was
+// recorded and that the list was capped.
+export const EmptyListWithSummaryTotal: Story = {
+	args: {
+		summary: { total: 4, blocked: 2 },
+		calls: [],
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText("No network calls were recorded for this session."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText(/Showing the first/),
+		).not.toBeInTheDocument();
 	},
 };
 

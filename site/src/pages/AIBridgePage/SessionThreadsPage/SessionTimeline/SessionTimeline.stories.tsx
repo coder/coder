@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -139,12 +140,19 @@ type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
 
-// The network calls panel is rendered above the threads when the session
-// passed through Agent Firewall.
+// A summary is present only for sessions that passed through Agent Firewall.
+// The panel sits above the threads because its counts are session-scoped
+// rather than tied to any one thread.
 export const WithNetworkCalls: Story = {
 	args: {
 		networkCallSummary: { total: 4, blocked: 2 },
 		networkCalls: MockAIBridgeSessionNetworkCalls,
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Network calls (4)")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("https://api.github.com/repos/coder/coder"),
+		).toBeInTheDocument();
 	},
 };
 

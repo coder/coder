@@ -411,8 +411,10 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 interface SessionTimelineProps {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
-	// networkCallSummary is nil when the session did not pass through Agent
-	// Firewall, in which case the network calls panel is not rendered.
+	/**
+	 * Undefined when the session did not pass through Agent Firewall, in which
+	 * case the network calls panel is not rendered.
+	 */
 	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
 	networkCalls: readonly AgentFirewallLog[];
 	hasNextPage: boolean;
@@ -533,7 +535,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
-					{/* network calls panel, session-scoped, above the threads */}
 					{networkCallSummary && (
 						<div className="mb-4">
 							<NetworkCallsTable
