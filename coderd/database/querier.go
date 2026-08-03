@@ -1255,6 +1255,26 @@ type sqlcQuerier interface {
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error)
 	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
+	// Returns the individual Agent Firewall network calls made during an AI
+	// session, ordered chronologically. All protocols are included, unlike
+	// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+	// covers the same events the network_calls summary in ListAIBridgeSessions
+	// counts. The list is capped at @limit_ rows, so its length equals the summary
+	// total only for sessions at or below the cap. The summary stays authoritative
+	// for whole-session totals.
+	//
+	// Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+	// interception's boundary logs fall in the open interval (this seq, next
+	// interception's seq) within the same firewall session. The exclusive lower
+	// bound drops the interception's own LLM-provider call. next_seq considers all
+	// interceptions in the firewall session so windows never bleed across AI
+	// sessions that share one firewall session, and falls back to the maximum
+	// sequence_number for the last interception so the window stays an
+	// index-satisfiable range.
+	// created_at leads because a session can span several firewall sessions, whose
+	// sequence numbers are independent streams. id breaks remaining ties so the row
+	// that lands on the limit boundary is stable across identical requests.
+	ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error)
 	// Returns all interceptions belonging to paginated threads within a session.
 	// Threads are paginated by (started_at, thread_id) cursor.
 	ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error)

@@ -365,7 +365,7 @@ export const WithMemberAIBudget: Story = {
 		);
 		await expect(
 			await body.findByText(
-				/^Monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
+				/^Estimated monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
 			),
 		).toBeInTheDocument();
 		await userEvent.click(
@@ -434,7 +434,9 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 			}),
 		);
 		await expect(
-			await body.findByText(/^Monthly AI spend for this user\. Resets .*\.$/),
+			await body.findByText(
+				/^Estimated monthly AI spend for this user\. Resets .*\.$/,
+			),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

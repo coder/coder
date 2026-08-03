@@ -31,7 +31,7 @@ export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 				/>
 			)}
 			<div className="mt-1 text-xs text-content-secondary">
-				(AI spend/month)
+				(Estimated AI spend/month)
 			</div>
 		</div>
 	);
