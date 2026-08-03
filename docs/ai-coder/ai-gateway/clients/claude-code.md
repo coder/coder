@@ -55,7 +55,7 @@ Template admins can pre-configure Claude Code for a seamless experience. Admins 
 ```tf
 module "claude-code" {
   source            = "registry.coder.com/coder/claude-code/coder"
-  version           = "5.2.0"
+  version           = "~> 5.2"
   agent_id          = coder_agent.main.id
   workdir           = "/path/to/project" # Set to your project directory
   enable_ai_gateway = true
