@@ -54,9 +54,9 @@ export ANTHROPIC_API_KEY="<your-coder-api-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 ```
 
-## Running Mux in a Coder workspace
+## Run Mux in a Coder workspace
 
-If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
+To run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
 
 ```tf
 data "coder_workspace" "me" {}
