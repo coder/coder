@@ -65,7 +65,6 @@ export function FilterCombobox<Id extends string = string>({
 		searchResultsLoading,
 		chipValues,
 		optionItems,
-		selectFacet,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleInputValueChange,
@@ -171,40 +170,7 @@ export function FilterCombobox<Id extends string = string>({
 				</InputGroupAddon>
 			</ComboboxInputGroup>
 			<ComboboxContent>
-				{activeFacet === null && browseMode === "trigger" ? (
-					<div className="flex flex-col gap-2 p-4">
-						<span className="text-sm font-normal text-content-secondary">
-							Filter by
-						</span>
-						<div className="flex flex-wrap gap-2">
-							{facets.map((facet) => {
-								const Icon = facet.icon;
-								return (
-									<Badge
-										key={facet.id}
-										asChild
-										variant="outline"
-										size="md"
-										svgSize="sm"
-										hover
-										className="px-1.5 py-0.5 text-xs font-medium"
-									>
-										<button
-											type="button"
-											onMouseDown={(event) => {
-												event.preventDefault();
-											}}
-											onClick={() => selectFacet(facet.id)}
-										>
-											<Icon />
-											{facet.label}
-										</button>
-									</Badge>
-								);
-							})}
-						</div>
-					</div>
-				) : showTypeahead ? (
+				{showTypeahead ? (
 					<>
 						{listedFacets.length === 0 &&
 							!showValueSuggestions &&

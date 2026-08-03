@@ -36,7 +36,7 @@ type UseFilterComboboxOptions<Id extends string> = {
 };
 
 /** Why the popup is open when no facet is active. */
-export type FilterComboboxBrowseMode = "trigger" | "typeahead";
+export type FilterComboboxBrowseMode = "typeahead";
 
 export const useFilterCombobox = <Id extends string>({
 	filter,
@@ -335,7 +335,7 @@ export const useFilterCombobox = <Id extends string>({
 			exitFacetMode();
 		} else if (eventDetails.reason === "trigger-press") {
 			facetModeRef.current = false;
-			setBrowseModeSafe("trigger");
+			setBrowseModeSafe("typeahead");
 			setActiveFacet(null);
 		}
 	};

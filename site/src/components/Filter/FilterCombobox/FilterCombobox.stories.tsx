@@ -116,8 +116,11 @@ export const OpenFilterMenu: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		await expect(canvas.getByText("Filter by")).toBeVisible();
-		await expect(canvas.getByRole("button", { name: /Status/i })).toBeVisible();
+		await expect(canvas.getByRole("option", { name: /Status/i })).toBeVisible();
+		await expect(
+			canvas.getByRole("option", { name: /Template/i }),
+		).toBeVisible();
+		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
 	},
 };
 
