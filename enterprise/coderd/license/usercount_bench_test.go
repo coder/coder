@@ -39,10 +39,9 @@ import (
 //
 //	go test ./enterprise/coderd/license/ -bench BenchmarkCountWorkspaceCapableUsers -benchtime 5x -run '^$' -v
 func BenchmarkCountWorkspaceCapableUsers(b *testing.B) {
-	// Workspace-create flows only through explicit grants under
-	// MinimumImplicitMember, so capability actually varies between users.
-	rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
-	b.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+	// Workspace-create flows only through explicit grants (the
+	// organization-workspace-access role), so capability actually varies
+	// between users.
 
 	ctx := context.Background()
 	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())

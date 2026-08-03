@@ -60,8 +60,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
-	const showDefaultRoles =
-		canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
+	const showDefaultRoles = canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
 
 	return (
 		<div className="flex flex-col gap-8">

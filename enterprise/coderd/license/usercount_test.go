@@ -61,9 +61,9 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("ElevationBundledParity", func(t *testing.T) {
-		// MinimumImplicitMember off (default): organization-member bundles
-		// the workspace-ops elevation, so every active org member counts
+	t.Run("DefaultRolesParity", func(t *testing.T) {
+		// Orgs keep the default default_org_member_roles, which include
+		// organization-workspace-access, so every active org member counts
 		// and the workspace-capable count matches the legacy count except
 		// for zero-org plain members.
 		rbac.ReloadBuiltinRoles(nil)
@@ -108,12 +108,11 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.Equal(t, int64(4), count, "zero-org plain member must not count")
 	})
 
-	t.Run("MinimumImplicitMember", func(t *testing.T) {
-		// MinimumImplicitMember on: organization-member carries only the
-		// floor. Workspace-create flows exclusively through the
-		// organization-workspace-access role, granted explicitly or via
-		// default_org_member_roles.
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
+	t.Run("MinimumMember", func(t *testing.T) {
+		// organization-member carries only the floor. Workspace-create
+		// flows exclusively through the organization-workspace-access
+		// role, granted explicitly or via default_org_member_roles.
+		rbac.ReloadBuiltinRoles(nil)
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
 		db, _ := dbtestutil.NewDB(t)
@@ -155,7 +154,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	t.Run("MultiOrgSplitCapability", func(t *testing.T) {
 		// Users whose capability differs between their organizations:
 		// workspace-create in any one org is sufficient to be counted.
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
+		rbac.ReloadBuiltinRoles(nil)
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
 		db, _ := dbtestutil.NewDB(t)
@@ -186,7 +185,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("CustomOrgRole", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
+		rbac.ReloadBuiltinRoles(nil)
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
 		db, _ := dbtestutil.NewDB(t)
@@ -254,7 +253,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		// Permission-based counting is gated on both the experiment and a
 		// valid license carrying the AI Governance addon. Without either,
 		// the legacy active user count applies.
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
+		rbac.ReloadBuiltinRoles(nil)
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
 		db, _ := dbtestutil.NewDB(t)
