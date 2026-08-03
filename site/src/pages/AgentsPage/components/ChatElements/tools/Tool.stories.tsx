@@ -3299,9 +3299,6 @@ export const AllToolIconsTranscript: Story = {
 	},
 };
 
-// The badge reaches tools implicitly through the policy provider, so a
-// renderer reachable only through a branch that skips it would drop the
-// attribution with no type or runtime error.
 const policyCaseLabel = (name: string, index: number) =>
 	`policy case ${name} ${index}`;
 

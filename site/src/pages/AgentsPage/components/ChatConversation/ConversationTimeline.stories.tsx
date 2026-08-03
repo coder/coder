@@ -2676,8 +2676,6 @@ export const GroupedReadFilesRewrittenByHook: Story = {
 			expect(
 				await canvas.findByRole("button", { name: /Read b\.ts/ }),
 			).toBeVisible();
-			// Each rewritten call owns a group labelled by its badge, so the
-			// per-file attribution is readable from the group it encloses.
 			const attributed = canvas
 				.getAllByRole("group", { name: "Modified by policy" })
 				.map((group) => group.textContent ?? "");

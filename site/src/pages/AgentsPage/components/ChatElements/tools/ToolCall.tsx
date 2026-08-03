@@ -54,14 +54,7 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 	hookRewritten: false,
 });
 
-/**
- * Renders the badge itself rather than delegating to the shared header,
- * so a renderer branch that returns early without a `ToolCall.Header`
- * keeps the attribution. Renderers never receive `hookRewritten`.
- *
- * The group labelled by the badge binds the notice to the card it
- * describes, which is what lets a nested row be attributed on its own.
- */
+// Keep attribution at the provider boundary because renderer props omit `hookRewritten`.
 const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
 	hookRewritten,
 	children,
