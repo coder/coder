@@ -244,7 +244,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
 
 1. Stop the app and the VPN service:
 
-    ```powershell
+    ```ps1
     Get-Process -Name "Coder Desktop" -ErrorAction SilentlyContinue | Stop-Process -Force
     Stop-Service -Name "Coder Desktop" -Force
     ```
