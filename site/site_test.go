@@ -576,7 +576,7 @@ func TestServingFiles(t *testing.T) {
 	require.NoError(t, err)
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
-	client := &http.Client{}
+	client := srv.Client()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -865,7 +865,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
-			client := &http.Client{}
+			client := srv.Client()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
