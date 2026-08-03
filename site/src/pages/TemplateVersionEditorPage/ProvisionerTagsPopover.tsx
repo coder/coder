@@ -1,9 +1,9 @@
-import Link from "@mui/material/Link";
 import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection, VerticalForm } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import { Link } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,
@@ -51,6 +51,8 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 										href={docs("/admin/provisioners")}
 										target="_blank"
 										rel="noreferrer"
+										className="p-0"
+										showExternalIcon={false}
 									>
 										Learn more...
 									</Link>
