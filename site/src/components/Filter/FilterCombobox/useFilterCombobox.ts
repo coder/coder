@@ -17,10 +17,10 @@ import { parseSearchResultToken, searchResultToken } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-export const filterComboboxSearchResultsKey = (query: string) =>
+const filterComboboxSearchResultsKey = (query: string) =>
 	["filterCombobox", "searchResults", query] as const;
 
-export const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
+const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
 	["filterCombobox", "options", categoryKey, query] as const;
 
 type UseFilterComboboxOptions = {
@@ -32,7 +32,7 @@ type UseFilterComboboxOptions = {
 };
 
 /** Why the popup is open when no category is active. */
-export type FilterComboboxBrowseMode = "typeahead";
+type FilterComboboxBrowseMode = "typeahead";
 
 export const useFilterCombobox = ({
 	value,
@@ -66,6 +66,7 @@ export const useFilterCombobox = ({
 	getSearchResultsRef.current = getSearchResults;
 	const onSearchResultSelectRef = useRef(onSearchResultSelect);
 	onSearchResultSelectRef.current = onSearchResultSelect;
+	const storeInputRef = useRef<HTMLInputElement | null>(null);
 	const hasSearchResults = Boolean(getSearchResults);
 	const categoriesRef = useRef(categories);
 	categoriesRef.current = categories;
@@ -119,7 +120,8 @@ export const useFilterCombobox = ({
 		setOpen(true);
 	};
 
-	/** Opens or closes the category list without focusing the search input. */
+	/** Opens or closes the category list. Focuses the input when opening so
+	 * keyboard list navigation via aria-activedescendant works. */
 	const toggleFilterMenu = () => {
 		if (open) {
 			setOpen(false);
@@ -129,6 +131,9 @@ export const useFilterCombobox = ({
 		}
 		openCategorySuggestions();
 		setActiveCategoryKey(null);
+		queueMicrotask(() => {
+			storeInputRef.current?.focus();
+		});
 	};
 
 	const activeCategory = categories.find(
@@ -516,6 +521,7 @@ export const useFilterCombobox = ({
 
 	const handleInputKeyDown = (event: {
 		key: string;
+		shiftKey?: boolean;
 		preventDefault: () => void;
 		preventBaseUIHandler?: () => void;
 	}) => {
@@ -526,7 +532,9 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		if (event.key !== "Enter" || browseModeRef.current !== "typeahead") {
+		const isTabComplete = event.key === "Tab" && !event.shiftKey;
+		const isCompleteKey = event.key === "Enter" || isTabComplete;
+		if (!isCompleteKey || browseModeRef.current !== "typeahead") {
 			return;
 		}
 
@@ -562,6 +570,10 @@ export const useFilterCombobox = ({
 		}
 	};
 
+	const setInputRef = (node: HTMLInputElement | null) => {
+		storeInputRef.current = node;
+	};
+
 	return {
 		open,
 		browseMode,
@@ -581,6 +593,7 @@ export const useFilterCombobox = ({
 		selectCategory,
 		exitActiveCategory,
 		toggleFilterMenu,
+		setInputRef,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleInputValueChange,

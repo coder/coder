@@ -28,7 +28,7 @@ export type SearchResult = {
 	href?: string;
 };
 
-export const SEARCH_RESULT_TOKEN_PREFIX = "__search:";
+const SEARCH_RESULT_TOKEN_PREFIX = "__search:";
 
 export const searchResultToken = (value: string) =>
 	`${SEARCH_RESULT_TOKEN_PREFIX}${value}`;

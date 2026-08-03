@@ -24,7 +24,7 @@ export const parseChipToken = (
 };
 
 /** Structured `key:value` tokens from a query string for known chip keys. */
-export const parseFilterValues = (
+const parseFilterValues = (
 	query: string,
 	chipKeys: readonly string[],
 ): Record<string, string | undefined> => {
@@ -66,7 +66,7 @@ export const queryToChips = (
 	return filterValuesToChips(parseFilterValues(query, chipKeys), chipKeys);
 };
 
-export const dedupeChipsByFacet = (
+const dedupeChipsByFacet = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
 ): string[] => {
@@ -132,7 +132,7 @@ export const composeFilterQuery = (
 		.join(" ");
 };
 
-export type CategoryMatchSource = {
+type CategoryMatchSource = {
 	key: string;
 	label: string;
 	aliases?: readonly string[];
@@ -195,7 +195,7 @@ export const matchCategories = <T extends CategoryMatchSource>(
 	});
 };
 
-export type CategoryValueSuggestion = {
+type CategoryValueSuggestion = {
 	categoryKey: string;
 	categoryLabel: string;
 	option: {

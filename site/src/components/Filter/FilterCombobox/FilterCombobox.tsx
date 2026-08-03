@@ -18,6 +18,7 @@ import {
 	ComboboxItem,
 	ComboboxLabel,
 	ComboboxList,
+	ComboboxStatus,
 	ComboboxValue,
 } from "./Combobox";
 import { chipToken } from "./filterQuery";
@@ -64,6 +65,7 @@ export function FilterCombobox({
 		chipValues,
 		optionItems,
 		toggleFilterMenu,
+		setInputRef,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleInputValueChange,
@@ -97,6 +99,25 @@ export function FilterCombobox({
 		valueSuggestionsByCategory.set(suggestion.categoryLabel, group);
 	}
 
+	const statusMessage = (() => {
+		if (activeCategory) {
+			if (activeOptionsLoading) {
+				return `Loading ${activeCategory.label} options`;
+			}
+			return `Filtering by ${activeCategory.label}`;
+		}
+		if (!showTypeahead) {
+			return "";
+		}
+		if (
+			(valueSuggestionsLoading && valueSuggestions.length === 0) ||
+			(searchResultsLoading && searchResults.length === 0)
+		) {
+			return "Loading suggestions";
+		}
+		return "";
+	})();
+
 	return (
 		<Combobox
 			multiple
@@ -113,7 +134,7 @@ export function FilterCombobox({
 		>
 			<ComboboxInputGroup className={className}>
 				<InputGroupAddon>
-					<SearchIcon className="size-icon-sm" />
+					<SearchIcon aria-hidden className="size-icon-sm" />
 				</InputGroupAddon>
 				<ComboboxChips>
 					<ComboboxValue>
@@ -128,6 +149,7 @@ export function FilterCombobox({
 										size="md"
 										data-slot="combobox-chip-search"
 										className="font-medium"
+										aria-hidden
 									>
 										{committedFreeText}
 									</Badge>
@@ -138,11 +160,14 @@ export function FilterCombobox({
 										size="md"
 										data-slot="combobox-chip-draft"
 										className="font-medium"
+										aria-hidden
 									>
 										{activeCategory.key}:
 									</Badge>
 								)}
 								<ComboboxChipsInput
+									ref={setInputRef}
+									aria-label={placeholder}
 									placeholder={
 										selected.length > 0 || activeCategory ? "" : placeholder
 									}
@@ -165,17 +190,20 @@ export function FilterCombobox({
 						aria-haspopup="listbox"
 						className="h-full min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
 						onMouseDown={(event) => {
-							// Keep focus where it is. Base UI's ComboboxTrigger would
-							// focus the input and light up the group focus ring.
+							// Prevent the button from taking focus on pointer open.
+							// toggleFilterMenu focuses the combobox input next so
+							// aria-activedescendant keyboard navigation still works.
 							event.preventDefault();
 						}}
 						onClick={toggleFilterMenu}
 					>
-						<ListFilterIcon className="size-icon-sm" />
+						<ListFilterIcon aria-hidden className="size-icon-sm" />
 					</InputGroupButton>
 				</InputGroupAddon>
 			</ComboboxInputGroup>
 			<ComboboxContent>
+				{/* Keep mounted so polite status announcements stay consistent. */}
+				<ComboboxStatus>{statusMessage}</ComboboxStatus>
 				{showTypeahead ? (
 					<>
 						{listedCategories.length === 0 &&
@@ -194,7 +222,10 @@ export function FilterCombobox({
 									showIndicator={false}
 								>
 									{category.icon && (
-										<span className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm">
+										<span
+											aria-hidden
+											className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm"
+										>
 											{category.icon}
 										</span>
 									)}
@@ -203,7 +234,10 @@ export function FilterCombobox({
 							))}
 							{showValueSuggestions &&
 								(valueSuggestionsLoading && valueSuggestions.length === 0 ? (
-									<div className="flex items-center justify-center px-2 py-2.5">
+									<div
+										className="flex items-center justify-center px-2 py-2.5"
+										aria-hidden
+									>
 										<Spinner loading size="sm" />
 									</div>
 								) : (
@@ -218,7 +252,11 @@ export function FilterCombobox({
 														value={suggestion.token}
 														showIndicator={false}
 													>
-														{suggestion.option.startIcon}
+														{suggestion.option.startIcon ? (
+															<span aria-hidden>
+																{suggestion.option.startIcon}
+															</span>
+														) : null}
 														<span className="text-content-primary">
 															{suggestion.option.label}
 														</span>
@@ -232,7 +270,10 @@ export function FilterCombobox({
 								<ComboboxGroup>
 									<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
 									{searchResultsLoading && searchResults.length === 0 ? (
-										<div className="flex items-center justify-center px-2 py-2.5">
+										<div
+											className="flex items-center justify-center px-2 py-2.5"
+											aria-hidden
+										>
 											<Spinner loading size="sm" />
 										</div>
 									) : (
@@ -243,14 +284,18 @@ export function FilterCombobox({
 												value={searchResultToken(result.value)}
 												showIndicator={false}
 											>
-												{result.startIcon ??
-													(result.imageUrl !== undefined ? (
-														<Avatar
-															src={result.imageUrl}
-															fallback={result.label}
-															size="md"
-														/>
-													) : null)}
+												{(result.startIcon ?? result.imageUrl !== undefined) ? (
+													<span aria-hidden>
+														{result.startIcon ??
+															(result.imageUrl !== undefined ? (
+																<Avatar
+																	src={result.imageUrl}
+																	fallback={result.label}
+																	size="md"
+																/>
+															) : null)}
+													</span>
+												) : null}
 												<span className="flex min-w-0 flex-col">
 													<span className="truncate text-content-primary">
 														{result.label}
@@ -269,7 +314,10 @@ export function FilterCombobox({
 						</ComboboxList>
 					</>
 				) : activeOptionsLoading || activeOptions === undefined ? (
-					<div className="px-3 py-6 text-center text-sm text-content-secondary">
+					<div
+						className="px-3 py-6 text-center text-sm text-content-secondary"
+						aria-hidden
+					>
 						Loading…
 					</div>
 				) : (
@@ -290,7 +338,9 @@ export function FilterCombobox({
 												value={item}
 												showIndicator={false}
 											>
-												{option.startIcon}
+												{option.startIcon ? (
+													<span aria-hidden>{option.startIcon}</span>
+												) : null}
 												<span className="text-content-primary">
 													{option.label}
 												</span>
