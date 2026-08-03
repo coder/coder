@@ -477,7 +477,15 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	t.Cleanup(consumer.Close)
 	server := newHookTestServer(t, db, ps, consumer)
 
-	upload := codersdk.ChatMessageFile(uuid.New(), "image/png", "edited.png")
+	chatFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "edited.png",
+		Mimetype:       "image/png",
+		Data:           []byte("png-bytes"),
+	})
+	require.NoError(t, err)
+	upload := codersdk.ChatMessageFile(chatFile.ID, chatFile.Mimetype, chatFile.Name)
 	reference := codersdk.ChatMessageFileReference("main.go", 1, 3, "package main")
 	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
@@ -490,6 +498,11 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, linkedFiles, 1)
+	require.Equal(t, chatFile.ID, linkedFiles[0].ID)
+
 	parts, err := chatprompt.ParseContent(result.Message)
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.ChatMessagePart{
