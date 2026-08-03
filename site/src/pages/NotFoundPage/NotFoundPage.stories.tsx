@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import NotFoundPage from "./404Page";
+import NotFoundPage from "./NotFoundPage";
 
 const meta: Meta<typeof NotFoundPage> = {
 	title: "components/NotFoundPage",
