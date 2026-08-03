@@ -1,9 +1,8 @@
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import TextField from "@mui/material/TextField";
 import type { FC } from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
@@ -62,35 +61,36 @@ const VariableField: FC<VariableInputProps> = ({
 	defaultValue,
 }) => {
 	if (isBoolean(variable)) {
+		const trueId = `${variable.name}-true`;
+		const falseId = `${variable.name}-false`;
+
 		return (
 			<RadioGroup
 				id={variable.name}
 				defaultValue={variable.default_value}
-				onChange={(event) => {
-					onChange(event.target.value);
-				}}
+				disabled={disabled}
+				onValueChange={onChange}
 			>
-				<FormControlLabel
-					disabled={disabled}
-					value="true"
-					control={<Radio size="small" />}
-					label="True"
-				/>
-				<FormControlLabel
-					disabled={disabled}
-					value="false"
-					control={<Radio size="small" />}
-					label="False"
-				/>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={trueId} value="true" />
+					<Label htmlFor={trueId} className="font-normal cursor-pointer">
+						True
+					</Label>
+				</div>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={falseId} value="false" />
+					<Label htmlFor={falseId} className="font-normal cursor-pointer">
+						False
+					</Label>
+				</div>
 			</RadioGroup>
 		);
 	}
 
 	return (
-		<TextField
+		<Input
 			autoComplete="off"
 			id={variable.name}
-			size="small"
 			disabled={disabled}
 			placeholder={variable.sensitive ? "" : variable.default_value}
 			required={variable.required}
@@ -105,7 +105,7 @@ const VariableField: FC<VariableInputProps> = ({
 					? "number"
 					: variable.sensitive
 						? "password"
-						: "string"
+						: "text"
 			}
 		/>
 	);
