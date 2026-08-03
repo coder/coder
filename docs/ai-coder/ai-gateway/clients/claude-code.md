@@ -62,9 +62,7 @@ module "claude-code" {
 }
 ```
 
-See the
-[Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code)
-for the full list of inputs and outputs.
+Visit the [Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code) for the full list of inputs and outputs.
 
 ## VS Code Extension
 
