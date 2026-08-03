@@ -938,6 +938,7 @@ const StickyUserMessage = memo<{
 				if (tooTall) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
+					container.style.setProperty("--fade-display", "none");
 					container.style.setProperty("--pin-slack", "0px");
 					spacer.style.height = "0px";
 					return;
@@ -950,16 +951,22 @@ const StickyUserMessage = memo<{
 					Math.max(fullHeight - scrolledPast, MIN_HEIGHT),
 				);
 				container.style.setProperty("--clip-h", `${visible}px`);
-				container.style.setProperty(
-					"--fade-opacity",
+				const fade =
 					scrolledPast <= 0
-						? "0"
-						: String(
-								Math.max(
-									0,
-									Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
-								),
-							),
+						? 0
+						: Math.max(
+								0,
+								Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
+							);
+				container.style.setProperty("--fade-opacity", String(fade));
+				// The frosted band carries `backdrop-filter` and a mask. Both promote
+				// a compositing layer and open a stacking context even at zero
+				// opacity, which changes how the text under the band is antialiased,
+				// so it is kept out of rendering until the fade has something to
+				// show.
+				container.style.setProperty(
+					"--fade-display",
+					fade > 0 ? "block" : "none",
 				);
 				// `max-height` only shrinks the bubble, so the pinned box is the
 				// clipped bubble plus the action row, and the browser pushes it out
@@ -1043,11 +1050,14 @@ const StickyUserMessage = memo<{
 				>
 					{/* Frosted band below the clipped bubble. It reaches past the
 					    sticky box on purpose, so the fade covers the transcript
-					    scrolling underneath. */}
+					    scrolling underneath. Out of rendering until the fade has
+					    something to show: the blur and mask promote a layer whether
+					    or not the band is opaque. */}
 					<div
 						aria-hidden
 						className="pointer-events-none absolute inset-x-0 top-0 backdrop-blur-[1px] bg-surface-primary/15"
 						style={{
+							display: "var(--fade-display, none)",
 							opacity: "var(--fade-opacity, 0)",
 							height: "calc(var(--clip-h, 0px) + 48px)",
 							maskImage:
