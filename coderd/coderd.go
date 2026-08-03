@@ -351,7 +351,7 @@ type Options struct {
 
 // @securitydefinitions.apiKey Authorization
 // @in header
-// @name Authorizaiton
+// @name Authorization
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
