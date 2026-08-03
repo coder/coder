@@ -272,9 +272,7 @@ export const AISpendHiddenOnInvalidData: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on invalid data", async () => {
 			await openDropdown(canvasElement);
-			expect(
-				screen.queryByText("(Estimated AI spend/month)"),
-			).not.toBeInTheDocument();
+			expect(screen.queryByText(/spend\/month/)).not.toBeInTheDocument();
 		});
 	},
 };
@@ -295,9 +293,7 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on a negative limit", async () => {
 			await openDropdown(canvasElement);
-			expect(
-				screen.queryByText("(Estimated AI spend/month)"),
-			).not.toBeInTheDocument();
+			expect(screen.queryByText(/spend\/month/)).not.toBeInTheDocument();
 		});
 	},
 };

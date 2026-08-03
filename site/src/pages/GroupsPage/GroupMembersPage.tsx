@@ -52,12 +52,13 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
 } from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
-import { SpendEstimateDocsLink, StatusIconTooltip } from "./StatusIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 type MemberWithSpend = ReducedUser & {

@@ -6,8 +6,6 @@ import {
 	HelpPopoverIconTrigger,
 	HelpPopoverText,
 } from "#/components/HelpPopover/HelpPopover";
-import { Link } from "#/components/Link/Link";
-import { docs } from "#/utils/docs";
 
 type StatusIconKind = "info" | "warning";
 
@@ -29,15 +27,4 @@ export const StatusIconTooltip: FC<{
 			<HelpPopoverText>{message}</HelpPopoverText>
 		</HelpPopoverContent>
 	</HelpPopover>
-);
-
-/** Links to the AI Governance cost controls docs. */
-export const SpendEstimateDocsLink: FC = () => (
-	<Link
-		href={docs("/ai-coder/ai-gateway/cost-controls#how-spend-is-estimated")}
-		target="_blank"
-		rel="noreferrer"
-	>
-		How spend is estimated
-	</Link>
 );

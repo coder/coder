@@ -25,7 +25,8 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
-import { SpendEstimateDocsLink, StatusIconTooltip } from "./StatusIconTooltip";
+import { SpendEstimateDocsLink } from "./AICostControl";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
 
