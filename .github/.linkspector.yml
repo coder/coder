@@ -29,7 +29,6 @@ ignorePatterns:
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"
-  # Broadened from stackoverflow.com/questions: /a/ answer links also 403 from runner IPs
   - pattern: "stackoverflow.com"
   - pattern: "developer.hashicorp.com/terraform/language"
   - pattern: "platform.openai.com"
