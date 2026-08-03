@@ -263,8 +263,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     Start-Process "C:\Program Files\Coder Desktop\CoderDesktop.exe"
     ```
 
-4. After re-enabling Coder Connect in the tray, verify the NRPT rule and the
-   Wintun adapter exist:
+4. After re-enabling Coder Connect in the tray, verify the NRPT rule and the Wintun adapter exist:
 
     ```ps1
     Get-DnsClientNrptRule | Where-Object { $_.Namespace -like "*.coder" }
