@@ -8,6 +8,7 @@ import {
 	matchCategories,
 	parseChipToken,
 	parseTypedCategoryPrefix,
+	queryToChips,
 	stringifyChipValues,
 } from "./filterQuery";
 
@@ -18,11 +19,35 @@ describe("filterQuery", () => {
 		const values = { owner: "me", status: "running", template: undefined };
 		const query = composeFilterQuery(values, CHIP_KEYS, "devbox");
 		expect(query).toBe("owner:me status:running devbox");
-		expect(extractFreeText(query)).toBe("devbox");
+		expect(extractFreeText(query, CHIP_KEYS)).toBe("devbox");
 		expect(filterValuesToChips(values, CHIP_KEYS)).toEqual([
 			"owner:me",
 			"status:running",
 		]);
+	});
+
+	it("preserves unrecognized key:value tokens as free text", () => {
+		// Documented backend filters that are not chip categories must survive.
+		expect(
+			extractFreeText("owner:me dormant:true outdated:true", CHIP_KEYS),
+		).toBe("dormant:true outdated:true");
+		// Hyphenated keys must not be corrupted into a bare "has-" search.
+		expect(extractFreeText("owner:me has-agent:connected", CHIP_KEYS)).toBe(
+			"has-agent:connected",
+		);
+		// Quoted values are kept intact.
+		expect(extractFreeText('name:"my box" owner:me', CHIP_KEYS)).toBe(
+			'name:"my box"',
+		);
+	});
+
+	it("round-trips a query mixing chips and backend-only filters", () => {
+		const query = "owner:me dormant:true";
+		const chips = queryToChips(query, CHIP_KEYS);
+		const freeText = extractFreeText(query, CHIP_KEYS);
+		expect(
+			composeFilterQuery(chipsToValues(chips, CHIP_KEYS), CHIP_KEYS, freeText),
+		).toBe("owner:me dormant:true");
 	});
 
 	it("quotes chip values that contain spaces", () => {

@@ -18,28 +18,17 @@ const ComboboxAnchorContext =
 type ComboboxProps<
 	Value = string,
 	Multiple extends boolean | undefined = true,
-> = Omit<ComboboxPrimitive.Root.Props<Value, Multiple>, "autoHighlight"> & {
-	/**
-	 * Whether the first matching item is highlighted automatically.
-	 * Use `"always"` to highlight the first item as soon as the list opens,
-	 * including when options load asynchronously.
-	 */
-	autoHighlight?: boolean | "always";
-};
+> = ComboboxPrimitive.Root.Props<Value, Multiple>;
 
 export function Combobox<
 	Value = string,
 	Multiple extends boolean | undefined = true,
->({ autoHighlight, ...props }: ComboboxProps<Value, Multiple>) {
+>(props: ComboboxProps<Value, Multiple>) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
 
 	return (
 		<ComboboxAnchorContext.Provider value={anchorRef}>
-			<ComboboxPrimitive.Root
-				{...props}
-				// Base UI runtime accepts "always"; public Root types only allow boolean.
-				autoHighlight={autoHighlight as boolean | undefined}
-			/>
+			<ComboboxPrimitive.Root {...props} />
 		</ComboboxAnchorContext.Provider>
 	);
 }

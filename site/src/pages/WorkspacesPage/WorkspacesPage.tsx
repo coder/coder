@@ -100,10 +100,11 @@ const WorkspacesPage: FC = () => {
 		});
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
-	const filterState = useWorkspacesFilter({
+	const filter = useFilter({
+		fallbackFilter: "owner:me",
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onFilterChange: () => {
+		onUpdate: () => {
 			pagination.goToPage(1);
 			resetChecked();
 		},
@@ -112,7 +113,7 @@ const WorkspacesPage: FC = () => {
 	const workspacesQueryOptions = workspaces({
 		limit: pagination.limit,
 		offset: pagination.offset,
-		q: filterState.filter.query,
+		q: filter.query,
 	});
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
@@ -197,7 +198,7 @@ const WorkspacesPage: FC = () => {
 				page={pagination.page}
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
-				filterState={filterState}
+				filterState={{ filter }}
 				isRunningBatchAction={batchActions.isProcessing}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
@@ -273,24 +274,3 @@ const WorkspacesPage: FC = () => {
 };
 
 export default WorkspacesPage;
-
-type UseWorkspacesFilterOptions = {
-	searchParams: URLSearchParams;
-	onSearchParamsChange: (newParams: URLSearchParams) => void;
-	onFilterChange: () => void;
-};
-
-const useWorkspacesFilter = ({
-	searchParams,
-	onSearchParamsChange,
-	onFilterChange,
-}: UseWorkspacesFilterOptions) => {
-	const filter = useFilter({
-		fallbackFilter: "owner:me",
-		searchParams,
-		onSearchParamsChange,
-		onUpdate: onFilterChange,
-	});
-
-	return { filter };
-};

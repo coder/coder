@@ -1,4 +1,7 @@
-import { API } from "#/api/api";
+import type { QueryClient } from "react-query";
+import { permittedOrganizations } from "#/api/queries/organizations";
+import { templates } from "#/api/queries/templates";
+import { users } from "#/api/queries/users";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { FilterOption } from "#/components/Filter/FilterCombobox";
@@ -71,13 +74,16 @@ export const getStatusFilterOptions = async (
 
 export const getTemplateFilterOptions = async (
 	query: string,
+	queryClient: QueryClient,
 ): Promise<FilterOption[]> => {
-	const templates = await API.getTemplates();
+	// Fetch through the shared `templates` query so the dropdown and the page's
+	// own template list read from one cache instead of diverging.
+	const allTemplates = await queryClient.fetchQuery(templates());
 	const normalized = query.trim().toLowerCase();
 	const filtered =
 		normalized.length === 0
-			? templates
-			: templates.filter(
+			? allTemplates
+			: allTemplates.filter(
 					(template) =>
 						template.name.toLowerCase().includes(normalized) ||
 						template.display_name.toLowerCase().includes(normalized),
@@ -100,8 +106,9 @@ export const getTemplateFilterOptions = async (
 export const getOwnerFilterOptions = async (
 	query: string,
 	me: Readonly<{ username: string; avatar_url?: string }>,
+	queryClient: QueryClient,
 ): Promise<FilterOption[]> => {
-	const usersRes = await API.getUsers({ q: query, limit: 25 });
+	const usersRes = await queryClient.fetchQuery(users({ q: query, limit: 25 }));
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
@@ -124,37 +131,29 @@ export const getOwnerFilterOptions = async (
 	];
 };
 
-export const getOrganizationFilterOptions = async (): Promise<
-	FilterOption[]
-> => {
-	const organizations = await API.getOrganizations();
-	const permissions = await API.checkAuthorization({
-		checks: Object.fromEntries(
-			organizations.map((organization) => [
-				organization.id,
-				{
-					object: {
-						resource_type: "audit_log",
-						organization_id: organization.id,
-					},
-					action: "read",
-				},
-			]),
-		),
-	});
+export const getOrganizationFilterOptions = async (
+	queryClient: QueryClient,
+): Promise<FilterOption[]> => {
+	// Reuse the shared `permittedOrganizations` query, which fetches the org list
+	// and applies the `audit_log:read` authorization gate, rather than duplicating
+	// that logic under a private key.
+	const permitted = await queryClient.fetchQuery(
+		permittedOrganizations({
+			object: { resource_type: "audit_log" },
+			action: "read",
+		}),
+	);
 
-	return organizations
-		.filter((organization) => permissions[organization.id])
-		.map((organization) => ({
-			label: organization.display_name || organization.name,
-			value: organization.name,
-			startIcon: (
-				<Avatar
-					key={organization.id}
-					size="md"
-					fallback={organization.display_name || organization.name}
-					src={organization.icon}
-				/>
-			),
-		}));
+	return permitted.map((organization) => ({
+		label: organization.display_name || organization.name,
+		value: organization.name,
+		startIcon: (
+			<Avatar
+				key={organization.id}
+				size="md"
+				fallback={organization.display_name || organization.name}
+				src={organization.icon}
+			/>
+		),
+	}));
 };

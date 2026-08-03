@@ -1,6 +1,7 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import {
 	InputGroupAddon,
 	InputGroupButton,
@@ -32,6 +33,8 @@ type FilterComboboxProps = Readonly<{
 	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
+	/** Marks the input invalid (e.g. the server rejected the filter query). */
+	invalid?: boolean;
 	/** Debounced free-text resource previews (e.g. matching workspaces). */
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
@@ -44,22 +47,26 @@ export function FilterCombobox({
 	categories,
 	placeholder = "Search and filter…",
 	className,
+	invalid = false,
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel = "Results",
 }: FilterComboboxProps) {
 	const {
 		open,
-		browseMode,
+		isBrowsing,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
 		activeOptionsLoading,
+		activeOptionsError,
+		retryActiveOptions,
 		listedCategories,
 		valueSuggestions,
 		valueSuggestionsLoading,
+		typeaheadError,
 		searchResults,
 		searchResultsLoading,
 		chipValues,
@@ -68,6 +75,7 @@ export function FilterCombobox({
 		setInputRef,
 		handleInputFocus,
 		handleInputKeyDown,
+		handleItemHighlighted,
 		handleInputValueChange,
 		handleOpenChange,
 		handleValueChange,
@@ -79,8 +87,7 @@ export function FilterCombobox({
 		onSearchResultSelect,
 	});
 
-	const showTypeahead =
-		activeCategoryKey === null && browseMode === "typeahead";
+	const showTypeahead = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = showTypeahead && inputValue.trim().length > 0;
 	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
 	const showSearchSection = hasTypeaheadQuery && searchResults.length > 0;
@@ -115,7 +122,7 @@ export function FilterCombobox({
 	return (
 		<Combobox
 			multiple
-			autoHighlight="always"
+			autoHighlight
 			filter={null}
 			openOnInputClick={false}
 			open={open}
@@ -124,6 +131,7 @@ export function FilterCombobox({
 			onValueChange={handleValueChange}
 			inputValue={inputValue}
 			onInputValueChange={handleInputValueChange}
+			onItemHighlighted={handleItemHighlighted}
 			items={optionItems}
 		>
 			<ComboboxInputGroup className={className}>
@@ -162,6 +170,7 @@ export function FilterCombobox({
 								<ComboboxChipsInput
 									ref={setInputRef}
 									aria-label={placeholder}
+									aria-invalid={invalid || undefined}
 									placeholder={
 										selected.length > 0 || activeCategory ? "" : placeholder
 									}
@@ -203,7 +212,8 @@ export function FilterCombobox({
 						{listedCategories.length === 0 &&
 							!showValueSuggestions &&
 							!showSearchSection &&
-							!typeaheadLoading && (
+							!typeaheadLoading &&
+							!typeaheadError && (
 								<ComboboxEmpty>No filters found.</ComboboxEmpty>
 							)}
 						<ComboboxList className="p-3 data-[empty]:p-3">
@@ -291,8 +301,23 @@ export function FilterCombobox({
 									<Spinner loading size="sm" />
 								</div>
 							)}
+							{typeaheadError && !typeaheadLoading && (
+								<div className="px-2 py-2.5 text-center text-sm text-content-secondary">
+									Couldn&rsquo;t load suggestions.
+								</div>
+							)}
 						</ComboboxList>
 					</>
+				) : activeOptionsError ? (
+					<div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-content-secondary">
+						<span>
+							Couldn&rsquo;t load{" "}
+							{activeCategory ? activeCategory.label : "filter"} options.
+						</span>
+						<Button size="sm" variant="outline" onClick={retryActiveOptions}>
+							Retry
+						</Button>
+					</div>
 				) : activeOptionsLoading || activeOptions === undefined ? (
 					<div
 						className="px-3 py-6 text-center text-sm text-content-secondary"

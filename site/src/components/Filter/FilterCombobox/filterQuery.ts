@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { FilterOption } from "./types";
 
-const FILTER_TOKEN_RE = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
+const FILTER_TOKEN_RE = /([\w-]+):"([^"]+)"|([\w-]+):(\S+)/g;
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
@@ -102,9 +102,25 @@ export const chipsToValues = (
 	return next;
 };
 
-/** Structured `key:value` tokens only; bare text is treated as free-text search. */
-export const extractFreeText = (query: string): string => {
-	return query.replace(FILTER_TOKEN_RE, " ").replace(/\s+/g, " ").trim();
+/**
+ * Everything that is not a recognized chip token, preserved verbatim.
+ *
+ * Only `key:value` tokens whose key is a known chip category are stripped; bare
+ * words and unrecognized `key:value` tokens (documented backend filters such as
+ * `dormant:true` or `has-agent:connected`) are carried through unchanged so the
+ * query round-trips instead of being silently dropped or corrupted.
+ */
+export const extractFreeText = (
+	query: string,
+	chipKeys: readonly string[],
+): string => {
+	return query
+		.replace(FILTER_TOKEN_RE, (match, quotedKey, _quoted, bareKey) => {
+			const key = quotedKey ?? bareKey;
+			return chipKeys.includes(key) ? " " : match;
+		})
+		.replace(/\s+/g, " ")
+		.trim();
 };
 
 export const stringifyChipValues = (

@@ -134,7 +134,6 @@ const allWorkspaces = [
 
 const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 	query: "owner:me",
-	menus: {},
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,
@@ -542,5 +541,29 @@ export const WithCheckedWorkspaces: Story = {
 		workspaces: allWorkspaces.slice(0, 5),
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
+	},
+};
+
+// An invalid filter query returns an API validation error. The page suppresses
+// its ErrorAlert for validation errors, so the message must surface on the
+// filter itself and the input must be marked invalid.
+export const WithFilterError: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		error: mockApiError({
+			message: "Invalid filter query.",
+			validations: [
+				{ field: "q", detail: 'Query param "q" has an invalid value.' },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/invalid value/i);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter workspaces…",
+		});
+		expect(input).toHaveAttribute("aria-invalid", "true");
 	},
 };

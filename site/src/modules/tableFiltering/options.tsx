@@ -41,7 +41,7 @@ export const useOrganizationsFilterMenu = ({
 						startIcon: (
 							<Avatar
 								key={organization.id}
-								size="md"
+								size="sm"
 								fallback={organization.display_name || organization.name}
 								src={organization.icon}
 							/>
@@ -76,7 +76,7 @@ export const useOrganizationsFilterMenu = ({
 					startIcon: (
 						<Avatar
 							key={organization.id}
-							size="md"
+							size="sm"
 							fallback={organization.display_name || organization.name}
 							src={organization.icon}
 						/>

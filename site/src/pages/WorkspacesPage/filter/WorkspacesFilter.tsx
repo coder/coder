@@ -7,6 +7,11 @@ import {
 import { type FC, useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import {
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
@@ -37,7 +42,7 @@ type WorkspaceFilterProps = Readonly<{
 
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
-	error: _error,
+	error,
 }) => {
 	const { showOrganizations } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
@@ -57,7 +62,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "template",
 				label: "Template",
 				icon: <LayoutGridIcon />,
-				getOptions: getTemplateFilterOptions,
+				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 		];
 
@@ -66,7 +71,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "organization",
 				label: "Organization",
 				icon: <Building2Icon />,
-				getOptions: getOrganizationFilterOptions,
+				getOptions: () => getOrganizationFilterOptions(queryClient),
 			});
 		}
 
@@ -76,12 +81,12 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Owner",
 				aliases: ["user"],
 				icon: <UserIcon />,
-				getOptions: (query) => getOwnerFilterOptions(query, me),
+				getOptions: (query) => getOwnerFilterOptions(query, me, queryClient),
 			});
 		}
 
 		return next;
-	}, [canFilterByUser, me, showOrganizations]);
+	}, [canFilterByUser, me, showOrganizations, queryClient]);
 
 	const getSearchResults = useCallback(
 		async (query: string): Promise<SearchResult[]> => {
@@ -118,16 +123,28 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		[navigate],
 	);
 
+	// The page hides its ErrorAlert for API validation errors, so the filter
+	// owns surfacing the actionable "invalid query" message.
+	const showValidationError = hasError(error) && isApiValidationError(error);
+
 	return (
-		<FilterCombobox
-			value={filter.query}
-			onChange={filter.update}
-			categories={categories}
-			placeholder="Search and filter workspaces…"
-			className="max-w-lg"
-			getSearchResults={getSearchResults}
-			onSearchResultSelect={onSearchResultSelect}
-			searchResultsLabel="Workspaces"
-		/>
+		<div className="flex flex-col gap-2">
+			<FilterCombobox
+				value={filter.query}
+				onChange={filter.update}
+				categories={categories}
+				placeholder="Search and filter workspaces…"
+				className="max-w-lg"
+				invalid={showValidationError}
+				getSearchResults={getSearchResults}
+				onSearchResultSelect={onSearchResultSelect}
+				searchResultsLabel="Workspaces"
+			/>
+			{showValidationError && (
+				<span className="text-sm text-content-destructive">
+					{getValidationErrorMessage(error)}
+				</span>
+			)}
+		</div>
 	);
 };

@@ -214,6 +214,34 @@ export const TabCompletesTopCategory: Story = {
 	},
 };
 
+// Regression: Enter must commit the highlighted row, not the first option.
+// Categories render as status, template, owner; arrowing to the second row
+// and pressing Enter must open Template, not Status.
+export const EnterCommitsHighlightedCategory: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Template/i })).toBeVisible(),
+		);
+		await userEvent.keyboard("{ArrowDown}");
+		await userEvent.keyboard("{ArrowDown}");
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Template/i })).toHaveAttribute(
+				"data-highlighted",
+			),
+		);
+		await userEvent.keyboard("{Enter}");
+		await expect(canvas.getByText("template:")).toBeVisible();
+		await expect(canvas.queryByText("status:")).not.toBeInTheDocument();
+	},
+};
+
 export const LiveResourcePreviews: Story = {
 	render: () => (
 		<FilterComboboxHarness
