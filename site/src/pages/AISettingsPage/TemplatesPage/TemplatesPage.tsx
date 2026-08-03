@@ -1,9 +1,11 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
 import { templates, updateTemplateMeta } from "#/api/queries/templates";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplatesFilter } from "#/pages/TemplatesPage/TemplatesFilter";
 import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -12,8 +14,14 @@ const TemplatesPage: FC = () => {
 	const queryClient = useQueryClient();
 	const canManageTemplates =
 		permissions.editDeploymentConfig && permissions.updateTemplates;
+	const [searchParams, setSearchParams] = useSearchParams();
+	const filterState = useTemplatesFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		enabled: canManageTemplates,
+	});
 	const templatesQuery = useQuery({
-		...templates(),
+		...templates({ q: filterState.filter.query }),
 		enabled: canManageTemplates,
 	});
 	const updateTemplateMutation = useMutation(updateTemplateMeta(queryClient));
@@ -60,6 +68,7 @@ const TemplatesPage: FC = () => {
 			<title>{pageTitle("Templates", "AI Settings")}</title>
 
 			<TemplatesPageView
+				filterState={filterState}
 				templates={templatesQuery.data}
 				isLoading={templatesQuery.isLoading}
 				error={templatesQuery.error}

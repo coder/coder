@@ -5,7 +5,10 @@ import { getTemplatesQueryKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import TemplatesPage from "./TemplatesPage";
 
 const secondTemplate: Template = {
@@ -27,7 +30,7 @@ let refetchedTemplates: Template[] = [];
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPage",
 	component: TemplatesPage,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -37,7 +40,7 @@ const meta = {
 		},
 		queries: [
 			{
-				key: getTemplatesQueryKey(),
+				key: getTemplatesQueryKey({ q: "" }),
 				data: [MockTemplate],
 			},
 		],
@@ -54,11 +57,44 @@ export const HasBothPermissions: Story = {
 	},
 };
 
+export const ServerSideFilter: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getTemplatesQueryKey({ q: "" }),
+				data: [MockTemplate, secondTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockImplementation((options) => {
+			const query = options && "q" in options ? options.q : "";
+			return Promise.resolve(
+				query === "Second" ? [secondTemplate] : [MockTemplate, secondTemplate],
+			);
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		expect(await canvas.findByText("Test Template")).toBeVisible();
+		expect(canvas.getByText("Second Template")).toBeVisible();
+
+		await user.type(canvas.getByRole("textbox", { name: "Filter" }), "Second");
+
+		await waitFor(() =>
+			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
+		);
+		expect(await canvas.findByText("Second Template")).toBeVisible();
+		expect(canvas.queryByText("Test Template")).not.toBeInTheDocument();
+	},
+};
+
 export const ConcurrentToggles: Story = {
 	parameters: {
 		queries: [
 			{
-				key: getTemplatesQueryKey(),
+				key: getTemplatesQueryKey({ q: "" }),
 				data: [MockTemplate, secondTemplate],
 			},
 		],
@@ -99,10 +135,10 @@ export const ConcurrentToggles: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 		const firstSwitch = await canvas.findByRole("switch", {
-			name: "Allow Coder Agents to use Test Template in My Organization",
+			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
 		});
 		const secondSwitch = canvas.getByRole("switch", {
-			name: "Allow Coder Agents to use Second Template in My Organization",
+			name: "Allow Coder Agents to create workspaces with Second Template in My Organization",
 		});
 		await user.click(firstSwitch);
 		await user.click(secondSwitch);

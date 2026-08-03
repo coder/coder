@@ -48,8 +48,7 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { TemplatesFilter } from "./TemplatesFilter";
-import type { TemplateFilterState } from "./TemplatesPage";
+import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
 
 const TemplateHelpPopover: FC = () => {
 	return (

@@ -1,5 +1,11 @@
 import type { FC } from "react";
-import { DetailedError, getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	DetailedError,
+	getErrorDetail,
+	getErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -20,10 +26,21 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import {
+	type TemplateFilterState,
+	TemplatesFilter,
+} from "#/pages/TemplatesPage/TemplatesFilter";
 import { createDayString } from "#/utils/createDayString";
 import { formatTemplateActiveDevelopers } from "#/utils/templates";
 
+const getTemplateLabel = (template: TypesGen.Template) =>
+	template.display_name || template.name;
+
+const getTemplateOrganization = (template: TypesGen.Template) =>
+	template.organization_display_name || template.organization_name;
+
 interface TemplatesPageViewProps {
+	filterState: TemplateFilterState;
 	templates: TypesGen.Template[] | undefined;
 	isLoading: boolean;
 	error: unknown;
@@ -50,9 +67,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	isPending,
 	onToggleAgentsAllowed,
 }) => {
-	const label = template.display_name || template.name;
-	const organization =
-		template.organization_display_name || template.organization_name;
+	const label = getTemplateLabel(template);
+	const organization = getTemplateOrganization(template);
 
 	return (
 		<TableRow>
@@ -96,7 +112,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						onToggleAgentsAllowed(template, agentsAllowed)
 					}
 					disabled={isPending}
-					aria-label={`Allow Coder Agents to use ${label} in ${organization}`}
+					aria-label={`Allow Coder Agents to create workspaces with ${label} in ${organization}`}
 				/>
 			</TableCell>
 		</TableRow>
@@ -104,6 +120,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 };
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+	filterState,
 	templates,
 	isLoading,
 	error,
@@ -112,6 +129,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	pendingTemplateIDs,
 	updateErrors,
 }) => {
+	const hasValidationError = hasError(error) && isApiValidationError(error);
+
 	return (
 		<div>
 			<SettingsHeader>
@@ -121,7 +140,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{error ? (
+			<TemplatesFilter
+				filter={filterState.filter}
+				error={error}
+				userMenu={filterState.menus.user}
+			/>
+			{hasError(error) && !hasValidationError ? (
 				<div className="flex flex-col gap-4">
 					<ErrorAlert
 						error={
@@ -135,10 +159,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						Retry
 					</Button>
 				</div>
-			) : (
+			) : hasValidationError ? null : (
 				<>
 					<Table
-						aria-label="Coder Agents template access"
+						aria-label="Templates Coder Agents can use to create workspaces"
 						className="table-fixed"
 					>
 						<TableHeader>
@@ -147,17 +171,25 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 								<TableHead className="w-44">Last updated</TableHead>
 								<TableHead className="w-44">Used by</TableHead>
 								<TableHead className="w-36 text-right">
-									Agents allowed
+									New workspaces
 								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody size="lg">
-							{isLoading ? (
+							{isLoading || !templates ? (
 								<TableLoader />
-							) : !templates || templates.length === 0 ? (
+							) : templates.length === 0 ? (
 								<TableEmpty
-									message="No templates found."
-									description="Create a template before configuring Coder Agents access."
+									message={
+										filterState.filter.used
+											? "No results matched your search"
+											: "No templates found."
+									}
+									description={
+										filterState.filter.used
+											? undefined
+											: "Create a template before configuring Coder Agents access."
+									}
 									isCompact
 									className="min-h-52"
 								/>
@@ -181,7 +213,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 								role="alert"
 								className="m-0 pt-3 text-xs text-content-destructive"
 							>
-								{`${template.display_name || template.name}: ${getErrorMessage(
+								{`${getTemplateLabel(template)}: ${getErrorMessage(
 									updateErrors.get(template.id),
 									"Failed to update Coder Agents access.",
 								)}`}

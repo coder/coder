@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockTemplate } from "#/testHelpers/entities";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
+import type { TemplateFilterState } from "#/pages/TemplatesPage/TemplatesFilter";
+import { MockTemplate, mockApiError } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const templates = [
@@ -44,12 +47,19 @@ const templates = [
 	}),
 );
 
+const filterState = getDefaultFilterProps<TemplateFilterState>({
+	menus: {},
+	values: {},
+});
+
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
+	decorators: [withDashboardProvider],
 	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },
 	args: {
+		filterState,
 		templates,
 		isLoading: false,
 		error: undefined,
@@ -71,14 +81,25 @@ export const MixedToggles: Story = {
 			canvas.getAllByText(MockTemplate.organization_display_name)[0],
 		).toBeVisible();
 		expect(canvas.getByText("125 developers")).toBeVisible();
+		const table = canvas.getByRole("table", {
+			name: "Templates Coder Agents can use to create workspaces",
+		});
+		expect(
+			within(table).getByRole("columnheader", {
+				name: "Coder Agents workspace creation",
+			}),
+		).toBeInTheDocument();
+		const rows = within(table).getAllByRole("row");
+		expect(within(rows[1]).getByText("Docker containers")).toBeVisible();
+		expect(within(rows[2]).getByText("Product ops engineering")).toBeVisible();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
 			}),
 		).toBeChecked();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Product ops engineering in My Organization",
+				name: "Allow Coder Agents to create workspaces with Product ops engineering in My Organization",
 			}),
 		).not.toBeChecked();
 	},
@@ -89,7 +110,7 @@ export const ToggleTemplate: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
 			}),
 		);
 		expect(args.onToggleAgentsAllowed).toHaveBeenCalledWith(
@@ -122,6 +143,29 @@ export const LoadError: Story = {
 	},
 };
 
+export const ValidationError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Invalid template search query.",
+			validations: [
+				{
+					field: "search",
+					detail: "The template filter is invalid.",
+				},
+			],
+		}),
+		templates: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("The template filter is invalid."),
+		).toBeVisible();
+		expect(canvas.queryByRole("table")).not.toBeInTheDocument();
+		expect(canvas.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		templates: [],
@@ -133,6 +177,26 @@ export const Empty: Story = {
 			canvas.getByText(
 				"Create a template before configuring Coder Agents access.",
 			),
+		).toBeVisible();
+	},
+};
+
+export const FilteredEmpty: Story = {
+	args: {
+		templates: [],
+		filterState: {
+			...filterState,
+			filter: {
+				...filterState.filter,
+				query: "missing",
+				used: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("No results matched your search"),
 		).toBeVisible();
 	},
 };
@@ -157,16 +221,14 @@ export const MixedOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers in Engineering",
-			}),
-		).toBeChecked();
-		expect(
-			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers in Product",
-			}),
-		).toBeChecked();
+		const engineeringSwitch = await canvas.findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces with Docker containers in Engineering",
+		});
+		const productSwitch = canvas.getByRole("switch", {
+			name: "Allow Coder Agents to create workspaces with Docker containers in Product",
+		});
+		expect(engineeringSwitch).toBeChecked();
+		expect(productSwitch).toBeChecked();
 	},
 };
 
@@ -178,12 +240,12 @@ export const UpdatingOneTemplate: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByRole("switch", {
-				name: "Allow Coder Agents to use Product ops engineering in My Organization",
+				name: "Allow Coder Agents to create workspaces with Product ops engineering in My Organization",
 			}),
 		).toBeDisabled();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
 			}),
 		).toBeEnabled();
 	},
