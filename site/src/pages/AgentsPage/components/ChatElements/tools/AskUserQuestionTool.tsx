@@ -32,7 +32,6 @@ type QuestionAnswer =
 type AskUserQuestionToolProps = {
 	questions: AskUserQuestion[];
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
@@ -371,7 +370,6 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
-	isError,
 	errorMessage,
 	isChatCompleted = false,
 	isLatestAskUserQuestion = false,
@@ -534,12 +532,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		handleSubmit();
 	};
 
-	if (isError) {
+	if (status === "error") {
 		return (
 			<div className="w-full" role="alert">
 				<ToolCall.Root
 					status={status}
-					isError
 					errorMessage={errorMessage || "Failed to ask questions"}
 					hasContent={false}
 				>

@@ -491,7 +491,6 @@ describe("mergeTools", () => {
 			name: "bash",
 			args: { cmd: "ls" },
 			result: "ok",
-			isError: false,
 			status: "completed",
 		});
 	});
@@ -511,7 +510,6 @@ describe("mergeTools", () => {
 			[{ id: "1", name: "bash" }],
 			[{ id: "1", name: "bash", result: "fail", isError: true }],
 		);
-		expect(merged[0].isError).toBe(true);
 		expect(merged[0].status).toBe("error");
 	});
 

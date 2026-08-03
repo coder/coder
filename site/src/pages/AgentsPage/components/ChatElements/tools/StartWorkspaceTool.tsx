@@ -7,7 +7,6 @@ interface StartWorkspaceToolProps {
 	status: ToolStatus;
 	buildId?: string;
 	workspaceName: string;
-	isError: boolean;
 	errorMessage?: string;
 	noBuild?: boolean;
 	labelOverride?: string;
@@ -17,12 +16,12 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	status,
 	buildId,
 	workspaceName,
-	isError,
 	errorMessage,
 	noBuild,
 	labelOverride,
 }) => {
 	const isRunning = status === "running";
+	const isError = status === "error";
 
 	const label = isRunning
 		? "Starting workspace…"
@@ -40,7 +39,6 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to start workspace"}
 			hasContent={hasBuildLogs}
 			defaultExpanded={isRunning}

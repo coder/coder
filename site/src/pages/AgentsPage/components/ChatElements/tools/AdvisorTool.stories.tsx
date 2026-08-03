@@ -138,6 +138,20 @@ export const RunningWithStreamedAdvice: Story = {
 	},
 };
 
+/** A body that reads as an error mid-stream must not present the failure card. */
+export const RunningWithErrorShapedPartial: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		result: { type: "error", error: "envelopes look like this" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Consulting advisor…")).toBeInTheDocument();
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
 export const LimitReached: Story = {
 	args: {
 		status: "completed",
@@ -221,8 +235,7 @@ export const EmptyAdvice: Story = {
 
 export const BlankError: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		args: { question: sampleQuestion },
 		result: {
 			type: "error",
@@ -277,8 +290,8 @@ export const StatusErrorWithStringResult: Story = {
 };
 
 // Exercises the plain-string result branch in AdvisorRenderer (Tool.tsx),
-// where a non-object `result` is treated as raw advice text when
-// `isError` is false.
+// where a non-object `result` is treated as raw advice text when the
+// tool call did not fail.
 export const PlainStringResult: Story = {
 	args: {
 		status: "completed",

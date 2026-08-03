@@ -105,7 +105,6 @@ describe("groupSequentialReadFileBlocks", () => {
 	const tool = (id: string, name = "read_file"): MergedTool => ({
 		id,
 		name,
-		isError: false,
 		status: "completed",
 	});
 	const tools = [tool("read-1"), tool("read-2"), tool("execute-1", "execute")];

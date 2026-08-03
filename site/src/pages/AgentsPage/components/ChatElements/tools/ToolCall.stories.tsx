@@ -51,7 +51,6 @@ export const Failed: Story = {
 	render: () => (
 		<ToolCall.Root
 			status="error"
-			isError
 			errorMessage="Failed to read file"
 			hasContent={false}
 		>
@@ -70,11 +69,10 @@ export const Failed: Story = {
 	},
 };
 
-export const RunningWithBackendError: Story = {
+export const RunningWithErrorCopy: Story = {
 	render: () => (
 		<ToolCall.Root
 			status="running"
-			isError
 			errorMessage="Failed to read file"
 			hasContent={false}
 		>
@@ -83,7 +81,8 @@ export const RunningWithBackendError: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Reading README.md")).toBeVisible();
+		// Every caller passes `errorMessage` as fallback copy regardless of
+		// outcome. Only `status` decides whether the row reads as failed.
 		expect(
 			canvas.getByRole("img", { name: "Tool call running" }),
 		).toBeVisible();

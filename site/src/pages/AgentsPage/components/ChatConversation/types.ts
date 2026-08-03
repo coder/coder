@@ -22,7 +22,6 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
-	isError: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;

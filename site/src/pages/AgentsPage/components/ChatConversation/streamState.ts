@@ -253,7 +253,6 @@ export const buildStreamTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
-			isError: result?.isError ?? false,
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
@@ -268,7 +267,6 @@ export const buildStreamTools = (
 					id: result.id,
 					name: result.name,
 					result: result.result,
-					isError: result.isError,
 					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,
 				});

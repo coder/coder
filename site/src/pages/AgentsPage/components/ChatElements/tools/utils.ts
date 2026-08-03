@@ -154,21 +154,26 @@ export const isSubagentRunningStatus = (status: string): boolean => {
 
 export const mapSubagentStatusToToolStatus = (
 	subagentStatus: string,
-	fallback: ToolStatus,
+	callStatus: ToolStatus,
 ): ToolStatus => {
 	const normalized = normalizeStatus(subagentStatus);
 	if (!normalized) {
-		return fallback;
+		return callStatus;
 	}
 	if (isSubagentSuccessStatus(normalized)) {
 		return "completed";
+	}
+	if (callStatus === "error") {
+		// A failed call is finished, so a stale snapshot cannot put the row
+		// back into a running state.
+		return "error";
 	}
 	if (isSubagentRunningStatus(normalized)) {
 		// If the tool call itself has already completed, don't
 		// override to "running". The spawn/await tool is done;
 		// the sub-agent may still be working in the background
 		// but that doesn't mean the tool call is still running.
-		return fallback === "completed" ? "completed" : "running";
+		return callStatus === "completed" ? "completed" : "running";
 	}
 	switch (normalized) {
 		case "waiting":
@@ -177,7 +182,7 @@ export const mapSubagentStatusToToolStatus = (
 		case "error":
 			return "error";
 		default:
-			return fallback;
+			return callStatus;
 	}
 };
 

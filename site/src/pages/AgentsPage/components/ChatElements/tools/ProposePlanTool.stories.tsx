@@ -146,8 +146,7 @@ export const CompletedCopyButton: Story = {
 
 export const ErrorState: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		args: { path: defaultPlanPath },
 		result: "Failed to read file: file not found",
 	},

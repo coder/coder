@@ -14,9 +14,8 @@ export const ListAgentsTool: React.FC<{
 	agents: unknown[];
 	total: number;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
-}> = ({ agents, total, status, isError, errorMessage }) => {
+}> = ({ agents, total, status, errorMessage }) => {
 	const location = useLocation();
 	const hasContent = agents.length > 0;
 	const isRunning = status === "running";
@@ -31,7 +30,6 @@ export const ListAgentsTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to list agents"}
 			hasContent={hasContent}
 		>

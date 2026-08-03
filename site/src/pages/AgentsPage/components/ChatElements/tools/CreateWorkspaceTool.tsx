@@ -16,7 +16,6 @@ export const CreateWorkspaceTool: React.FC<{
 	workspaceName: string;
 	resultJson: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	buildId?: string;
 	created?: boolean;
@@ -25,13 +24,13 @@ export const CreateWorkspaceTool: React.FC<{
 	workspaceName,
 	resultJson,
 	status,
-	isError,
 	errorMessage,
 	buildId,
 	created = true,
 	labelOverride,
 }) => {
 	const isRunning = status === "running";
+	const isError = status === "error";
 	const rec = parseArgs(resultJson);
 	const ownerName = rec ? asString(rec.owner_name) : "";
 	const wsName = rec ? asString(rec.workspace_name) : workspaceName;
@@ -55,7 +54,6 @@ export const CreateWorkspaceTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to create workspace"}
 			hasContent={hasBuildLogs}
 			defaultExpanded={isRunning}

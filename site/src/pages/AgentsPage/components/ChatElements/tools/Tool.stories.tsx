@@ -50,7 +50,6 @@ type ToolShowcaseItem = {
 	status?: React.ComponentProps<typeof Tool>["status"];
 	args?: unknown;
 	result?: unknown;
-	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
@@ -227,7 +226,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		name: "read_file",
 		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
 		status: "error",
-		isError: true,
 		result: { error: "File not found" },
 	},
 	{
@@ -362,7 +360,6 @@ export const ExecuteError: Story = {
 	args: {
 		name: "execute",
 		status: "error",
-		isError: true,
 		args: { command: longExecuteCommand },
 		shellToolDisplayMode: "always_collapsed",
 		result: {
@@ -392,7 +389,6 @@ export const ExecuteDeniedByHook: Story = {
 	args: {
 		name: "execute",
 		status: "error",
-		isError: true,
 		args: { command: "cat /etc/secrets" },
 		result: {
 			error:
@@ -546,7 +542,6 @@ export const ProcessOutputStringError: Story = {
 	args: {
 		name: "process_output",
 		status: "error",
-		isError: true,
 		result: "permission denied",
 	},
 	play: async ({ canvasElement }) => {
@@ -840,7 +835,6 @@ export const SubagentNoErrorWhenCompleted: Story = {
 			error: "provider metadata noise",
 		},
 		status: "error",
-		isError: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1193,7 +1187,6 @@ export const ListAgentsError: Story = {
 	args: {
 		name: "list_agents",
 		status: "error",
-		isError: true,
 		args: {},
 		result: "list_agents is only available on root chats",
 	},
@@ -1476,7 +1469,6 @@ export const MCPToolError: Story = {
 	args: {
 		name: "linear__list_issues",
 		status: "error",
-		isError: true,
 		args: { project: "backend" },
 		result: { error: "Authentication token expired" },
 		mcpServerConfigId: "mcp-server-1",
@@ -1705,7 +1697,6 @@ export const WriteFileDeniedByHook: Story = {
 	args: {
 		name: "write_file",
 		status: "error",
-		isError: true,
 		codeDiffDisplayMode: "auto",
 		args: {
 			path: "src/utils/helpers.ts",
@@ -1884,7 +1875,6 @@ export const EditFilesError: Story = {
 	args: {
 		name: "edit_files",
 		status: "error",
-		isError: true,
 		args: {
 			files: [
 				{
@@ -2129,7 +2119,6 @@ export const ComputerError: Story = {
 	args: {
 		name: "computer",
 		status: "error",
-		isError: true,
 		result: {
 			data: "",
 			text: "",
@@ -2221,7 +2210,6 @@ export const GenericToolFailed: Story = {
 	args: {
 		name: "some_custom_tool",
 		status: "error",
-		isError: true,
 		args: { input: "test data" },
 		result: { error: "Connection refused: could not reach upstream service" },
 	},
@@ -2243,7 +2231,6 @@ export const GenericToolFailedNoResult: Story = {
 	args: {
 		name: "web_search",
 		status: "error",
-		isError: true,
 	},
 	play: async ({ canvasElement }) => {
 		expect(
@@ -2256,7 +2243,6 @@ export const GenericToolStringError: Story = {
 	args: {
 		name: "web_search",
 		status: "error",
-		isError: true,
 		result: "Network unreachable",
 	},
 	play: async ({ canvasElement }) => {
@@ -2271,7 +2257,6 @@ export const GenericMCPToolStringError: Story = {
 	args: {
 		name: "linear__list_issues",
 		status: "error",
-		isError: true,
 		result: "Authentication token expired",
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
@@ -2353,7 +2338,6 @@ export const SubagentWaitTimedOut: Story = {
 	args: {
 		name: "wait_agent",
 		status: "error",
-		isError: true,
 		args: { chat_id: "timed-out-child" },
 		result: "timed out waiting for delegated subagent completion",
 	},
@@ -2372,7 +2356,6 @@ export const SubagentWaitTimedOutWithTitle: Story = {
 	args: {
 		name: "wait_agent",
 		status: "error",
-		isError: true,
 		args: { chat_id: "timed-out-child" },
 		result: {
 			chat_id: "timed-out-child",
@@ -2392,7 +2375,6 @@ export const SubagentWaitTimedOutTitleFromMap: Story = {
 	args: {
 		name: "wait_agent",
 		status: "error",
-		isError: true,
 		args: { chat_id: "timed-out-child" },
 		result: "timed out waiting for delegated subagent completion",
 		subagentTitles: new Map([["timed-out-child", "Refactor auth module"]]),
@@ -2408,7 +2390,6 @@ export const SubagentWaitTimedOutStructured: Story = {
 	args: {
 		name: "wait_agent",
 		status: "completed",
-		isError: false,
 		args: { chat_id: "timed-out-child" },
 		result: {
 			chat_id: "timed-out-child",
@@ -2433,7 +2414,6 @@ export const SubagentSpawnError: Story = {
 	args: {
 		name: "spawn_agent",
 		status: "error",
-		isError: true,
 		args: {
 			title: "Database migration",
 			prompt: "Run the pending migrations.",
@@ -2459,7 +2439,6 @@ export const SubagentWaitError: Story = {
 	args: {
 		name: "wait_agent",
 		status: "error",
-		isError: true,
 		args: { chat_id: "error-child" },
 		result: {
 			chat_id: "error-child",
@@ -2476,11 +2455,32 @@ export const SubagentWaitError: Story = {
 	},
 };
 
+export const SubagentWaitErrorWhileChildStillRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		args: { chat_id: "still-running-child" },
+		result: {
+			chat_id: "still-running-child",
+			error: "connection reset",
+			status: "running",
+			title: "Lint codebase",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The failed tool call wins over the sub-agent snapshot, which is
+		// only a possibly-stale report about a different entity.
+		expect(canvas.getByText(/Failed waiting for/)).toBeInTheDocument();
+		expect(canvas.queryByText(/Waiting for/)).not.toBeInTheDocument();
+		expect(canvas.getByText("Lint codebase")).toBeInTheDocument();
+	},
+};
+
 export const MCPToolFailedUnifiedStyle: Story = {
 	args: {
 		name: "linear__list_issues",
 		status: "error",
-		isError: true,
 		args: { project: "backend" },
 		result: { error: "Authentication token expired" },
 		mcpServerConfigId: "mcp-server-1",
@@ -2552,7 +2552,6 @@ export const SpawnComputerUseAgentError: Story = {
 	args: {
 		name: "spawn_computer_use_agent",
 		status: "error",
-		isError: true,
 		result: {
 			chat_id: "desktop-child-1",
 			status: "error",
@@ -2646,7 +2645,6 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 	args: {
 		name: "wait_agent",
 		status: "error",
-		isError: true,
 		args: { chat_id: "desktop-child-1" },
 		result: {
 			chat_id: "desktop-child-1",
@@ -2705,7 +2703,6 @@ export const ReadSkillError: Story = {
 	args: {
 		name: "read_skill",
 		status: "error",
-		isError: true,
 		args: { name: "nonexistent-skill" },
 		result: { error: 'skill "nonexistent-skill" not found' },
 	},
@@ -2762,7 +2759,6 @@ export const ReadSkillFileError: Story = {
 	args: {
 		name: "read_skill_file",
 		status: "error",
-		isError: true,
 		args: { name: "deep-review", path: "missing-file.md" },
 		result: { error: "file not found" },
 	},
@@ -2852,7 +2848,6 @@ export const StartWorkspaceError: Story = {
 	args: {
 		name: "start_workspace",
 		status: "error",
-		isError: true,
 		result: {
 			error: "workspace was deleted; use create_workspace to make a new one",
 		},
@@ -3060,7 +3055,6 @@ export const CreateWorkspaceError: Story = {
 	args: {
 		name: "create_workspace",
 		status: "error",
-		isError: true,
 		result: {
 			error: "template not found",
 		},
@@ -3122,7 +3116,6 @@ export const AllToolIconsTranscript: Story = {
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
 							killedBySignal={tool.killedBySignal}
 							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}

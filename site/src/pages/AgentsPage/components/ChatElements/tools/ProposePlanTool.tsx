@@ -20,7 +20,6 @@ export const ProposePlanTool: React.FC<{
 	fileID?: string;
 	path: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	onImplementPlan?: () => Promise<void> | void;
 }> = ({
@@ -28,7 +27,6 @@ export const ProposePlanTool: React.FC<{
 	fileID,
 	path,
 	status,
-	isError,
 	errorMessage,
 	onImplementPlan,
 }) => {
@@ -55,9 +53,9 @@ export const ProposePlanTool: React.FC<{
 	const displayContent = hasInlineContent
 		? (inlineContent ?? "")
 		: (fileQuery.data ?? "");
-	const isRunning = status === "running";
 	const filename = getPathBasename(path || "PLAN.md") || "PLAN.md";
-	const effectiveError = isError || Boolean(fetchError);
+	const effectiveStatus = fetchError ? "error" : status;
+	const isRunning = effectiveStatus === "running";
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
 	const implementPlanMutation = useMutation({
@@ -67,8 +65,7 @@ export const ProposePlanTool: React.FC<{
 		},
 	});
 	const canImplementPlan =
-		status === "completed" &&
-		!effectiveError &&
+		effectiveStatus === "completed" &&
 		!fetchLoading &&
 		hasDisplayContent &&
 		Boolean(onImplementPlan);
@@ -76,8 +73,7 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<ToolCall.Root
-				status={status}
-				isError={effectiveError}
+				status={effectiveStatus}
 				errorMessage={effectiveErrorMessage || "Failed to propose plan"}
 				hasContent={false}
 			>
@@ -127,7 +123,7 @@ export const ProposePlanTool: React.FC<{
 				</>
 			) : (
 				!fetchLoading &&
-				!effectiveError && (
+				effectiveStatus !== "error" && (
 					<p className="text-[13px] text-content-secondary italic">
 						No plan content.
 					</p>

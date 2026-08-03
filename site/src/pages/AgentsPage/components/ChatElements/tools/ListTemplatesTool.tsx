@@ -12,9 +12,8 @@ export const ListTemplatesTool: React.FC<{
 	templates: unknown[];
 	count: number;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
-}> = ({ templates, count, status, isError, errorMessage }) => {
+}> = ({ templates, count, status, errorMessage }) => {
 	const hasContent = templates.length > 0;
 	const isRunning = status === "running";
 
@@ -29,7 +28,6 @@ export const ListTemplatesTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to list templates"}
 			hasContent={hasContent}
 		>

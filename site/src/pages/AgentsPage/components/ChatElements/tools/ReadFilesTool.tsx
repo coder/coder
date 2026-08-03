@@ -8,7 +8,6 @@ type ReadFileItem = {
 	path: string;
 	content: string;
 	status: MergedTool["status"];
-	isError: boolean;
 	errorMessage?: string;
 };
 
@@ -27,20 +26,23 @@ export const ReadFilesTool: FC<{
 		new Set(),
 	);
 	const items = tools.map(getReadFileItem);
-	const isRunning = tools.some((tool) => tool.status === "running");
-	const isError = tools.some((tool) => tool.isError);
+	const groupStatus = tools.some((tool) => tool.status === "running")
+		? "running"
+		: tools.some((tool) => tool.status === "error")
+			? "error"
+			: "completed";
 	const hasContent = items.length > 0;
-	const label = isRunning
-		? `Reading ${tools.length} files…`
-		: `Read ${tools.length} files`;
+	const label =
+		groupStatus === "running"
+			? `Reading ${tools.length} files…`
+			: `Read ${tools.length} files`;
 	const errorMessage = items.find((item) => item.errorMessage)?.errorMessage;
 
 	return (
 		<div data-tool-call="">
 			<ToolCall.Root
 				className="w-full"
-				status={isRunning ? "running" : isError ? "error" : "completed"}
-				isError={isError}
+				status={groupStatus}
 				errorMessage={errorMessage || "Failed to read one or more files"}
 				hasContent={hasContent}
 				expanded={expanded}
@@ -55,7 +57,6 @@ export const ReadFilesTool: FC<{
 									path={item.path}
 									content={item.content}
 									status={item.status}
-									isError={item.isError}
 									errorMessage={item.errorMessage}
 									expanded={expandedFileIDs.has(item.id)}
 									onExpandedChange={(nextExpanded) => {

@@ -405,7 +405,6 @@ export const BlockList: FC<{
 									key={block.id}
 									name="Tool"
 									status="running"
-									isError={false}
 									shellToolDisplayMode={shellToolDisplayMode}
 									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
@@ -425,7 +424,6 @@ export const BlockList: FC<{
 								args={tool.args}
 								result={tool.result}
 								status={tool.status}
-								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
 								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
@@ -485,7 +483,6 @@ export const BlockList: FC<{
 					args={tool.args}
 					result={tool.result}
 					status={tool.status}
-					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
 					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}

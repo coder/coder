@@ -9,9 +9,8 @@ import type { ToolStatus } from "./utils";
 export const ReadTemplateTool: React.FC<{
 	templateName: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
-}> = ({ templateName, status, isError, errorMessage }) => {
+}> = ({ templateName, status, errorMessage }) => {
 	const isRunning = status === "running";
 
 	const label = isRunning
@@ -23,7 +22,6 @@ export const ReadTemplateTool: React.FC<{
 	return (
 		<ToolCall.Root
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to read template"}
 			hasContent={false}
 		>

@@ -243,7 +243,6 @@ const buildParsedReadFileEntry = ({
 	status,
 	content = "",
 	errorMessage,
-	isError = status === "error",
 }: {
 	messageId: number;
 	toolId: string;
@@ -251,7 +250,6 @@ const buildParsedReadFileEntry = ({
 	status: "completed" | "error" | "running";
 	content?: string;
 	errorMessage?: string;
-	isError?: boolean;
 }): ParsedMessageEntry => {
 	const args = { path };
 	const result =
@@ -287,7 +285,6 @@ const buildParsedReadFileEntry = ({
 					name: "read_file",
 					args,
 					result,
-					isError,
 					status,
 				},
 			],
@@ -2368,7 +2365,6 @@ export const ToolDisplayModesFromPreferences: Story = {
 							name: "execute",
 							args: { command: "pnpm test" },
 							result: { output: "tests passed" },
-							isError: false,
 							status: "completed",
 						},
 						{
@@ -2388,7 +2384,6 @@ export const ToolDisplayModesFromPreferences: Story = {
 								],
 							},
 							result: { ok: true },
-							isError: false,
 							status: "completed",
 						},
 					],
@@ -2697,6 +2692,41 @@ export const SequentialReadFilesRunningState: Story = {
 		expect(
 			canvas.getByRole("button", { name: /reading 3 files/i }),
 		).toBeInTheDocument();
+	},
+};
+
+export const SequentialReadFilesMixedRunningAndError: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-mixed-error",
+				path: "site/src/missing.ts",
+				status: "error",
+				errorMessage: "permission denied",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-mixed-running",
+				path: "site/src/streaming.ts",
+				status: "running",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A file still reading keeps the whole group reading; the failure
+		// surfaces once the straggler settles.
+		expect(
+			canvas.getByRole("button", { name: /reading 2 files/i }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "permission denied" }),
+		).not.toBeInTheDocument();
 	},
 };
 

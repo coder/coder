@@ -165,7 +165,6 @@ export const mergeTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
-			isError: result?.isError ?? false,
 			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
@@ -179,7 +178,6 @@ export const mergeTools = (
 				id: result.id,
 				name: result.name,
 				result: result.result,
-				isError: result.isError,
 				status: result.isError ? "error" : "completed",
 				mcpServerConfigId: result.mcpServerConfigId,
 			});
