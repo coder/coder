@@ -22,7 +22,7 @@ const linkVariants = cva(
 	},
 );
 
-type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
+export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
 	VariantProps<typeof linkVariants> & {
 		asChild?: boolean;
 		showExternalIcon?: boolean;
