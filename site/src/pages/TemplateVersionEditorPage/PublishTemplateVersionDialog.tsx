@@ -56,6 +56,7 @@ export const PublishTemplateVersionDialog: FC<
 	});
 	const getFieldHelpers = getFormHelpers(form, publishingError);
 	const messageField = getFieldHelpers("message");
+	const messageErrorId = `${messageField.id}-error`;
 	const handleClose = () => {
 		form.resetForm();
 		onClose();
@@ -98,12 +99,18 @@ export const PublishTemplateVersionDialog: FC<
 									disabled={isPublishing}
 									rows={5}
 									aria-invalid={messageField.error}
+									aria-describedby={
+										messageField.error ? messageErrorId : undefined
+									}
 									className={cn(
 										messageField.error && "border-border-destructive",
 									)}
 								/>
 								{messageField.error && (
-									<span className="text-xs text-content-destructive">
+									<span
+										id={messageErrorId}
+										className="text-xs text-content-destructive"
+									>
 										{messageField.helperText}
 									</span>
 								)}
