@@ -217,12 +217,10 @@ coder secret update api-key --file ""
 ```
 
 Environment variable names and file paths are unique among your own secrets.
-Coder rejects an update that uses an environment variable name or file path
-that another of your secrets already uses.
+Coder rejects an update that uses an environment variable name or file path that another of your secrets already uses.
 
-Clearing a target frees it for your other secrets to use. If another secret
-takes it, setting the original target back is rejected until you free it
-again.
+Clearing a target frees it for your other secrets to use.
+If another secret takes it, setting the original target back is rejected until you free it again.
 
 ## List and delete secrets
 
