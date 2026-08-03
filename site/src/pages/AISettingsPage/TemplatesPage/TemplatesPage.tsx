@@ -26,7 +26,7 @@ const TemplatesPage: FC = () => {
 		ReadonlyMap<string, unknown>
 	>(new Map());
 
-	const toggleAgentsAllowed = (
+	const toggleAgentsAllowed = async (
 		template: TypesGen.Template,
 		agentsAllowed: boolean,
 	) => {
@@ -39,26 +39,20 @@ const TemplatesPage: FC = () => {
 			next.delete(template.id);
 			return next;
 		});
-		updateTemplateMutation.mutate(
-			{
+		try {
+			await updateTemplateMutation.mutateAsync({
 				template,
 				data: { agents_allowed: agentsAllowed },
-			},
-			{
-				onError: (error) => {
-					setUpdateErrors((current) =>
-						new Map(current).set(template.id, error),
-					);
-				},
-				onSettled: () => {
-					setPendingTemplateIDs((current) => {
-						const next = new Set(current);
-						next.delete(template.id);
-						return next;
-					});
-				},
-			},
-		);
+			});
+		} catch (error) {
+			setUpdateErrors((current) => new Map(current).set(template.id, error));
+		} finally {
+			setPendingTemplateIDs((current) => {
+				const next = new Set(current);
+				next.delete(template.id);
+				return next;
+			});
+		}
 	};
 
 	return (

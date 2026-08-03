@@ -33,7 +33,6 @@ interface TemplatesPageViewProps {
 		agentsAllowed: boolean,
 	) => void;
 	pendingTemplateIDs: ReadonlySet<string>;
-	// Update failures keyed by template ID.
 	updateErrors: ReadonlyMap<string, unknown>;
 }
 
@@ -97,7 +96,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						onToggleAgentsAllowed(template, agentsAllowed)
 					}
 					disabled={isPending}
-					aria-label={`Allow Coder Agents to use ${label}`}
+					aria-label={`Allow Coder Agents to use ${label} in ${organization}`}
 				/>
 			</TableCell>
 		</TableRow>
@@ -184,7 +183,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							>
 								{`${template.display_name || template.name}: ${getErrorMessage(
 									updateErrors.get(template.id),
-									"Failed to update template access.",
+									"Failed to update Coder Agents access.",
 								)}`}
 							</p>
 						))}

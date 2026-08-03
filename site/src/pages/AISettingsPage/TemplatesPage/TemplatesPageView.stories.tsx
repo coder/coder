@@ -73,12 +73,12 @@ export const MixedToggles: Story = {
 		expect(canvas.getByText("125 developers")).toBeVisible();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers",
+				name: "Allow Coder Agents to use Docker containers in My Organization",
 			}),
 		).toBeChecked();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Product ops engineering",
+				name: "Allow Coder Agents to use Product ops engineering in My Organization",
 			}),
 		).not.toBeChecked();
 	},
@@ -89,7 +89,7 @@ export const ToggleTemplate: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers",
+				name: "Allow Coder Agents to use Docker containers in My Organization",
 			}),
 		);
 		expect(args.onToggleAgentsAllowed).toHaveBeenCalledWith(
@@ -140,15 +140,15 @@ export const Empty: Story = {
 export const MixedOrganizations: Story = {
 	args: {
 		templates: [
-			templates[0],
 			{
-				...templates[1],
+				...templates[0],
 				organization_id: "engineering-id",
 				organization_name: "engineering",
 				organization_display_name: "Engineering",
 			},
 			{
-				...templates[2],
+				...templates[0],
+				id: "product-template-id",
 				organization_id: "product-id",
 				organization_name: "product",
 				organization_display_name: "Product",
@@ -157,8 +157,16 @@ export const MixedOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Engineering")).toBeVisible();
-		expect(canvas.getByText("Product")).toBeVisible();
+		expect(
+			await canvas.findByRole("switch", {
+				name: "Allow Coder Agents to use Docker containers in Engineering",
+			}),
+		).toBeChecked();
+		expect(
+			canvas.getByRole("switch", {
+				name: "Allow Coder Agents to use Docker containers in Product",
+			}),
+		).toBeChecked();
 	},
 };
 
@@ -170,12 +178,12 @@ export const UpdatingOneTemplate: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByRole("switch", {
-				name: "Allow Coder Agents to use Product ops engineering",
+				name: "Allow Coder Agents to use Product ops engineering in My Organization",
 			}),
 		).toBeDisabled();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to use Docker containers",
+				name: "Allow Coder Agents to use Docker containers in My Organization",
 			}),
 		).toBeEnabled();
 	},
@@ -185,7 +193,7 @@ export const MutationError: Story = {
 	args: {
 		updateErrors: new Map<string, unknown>([
 			["t-01", "Template access is locked."],
-			["t-03", "Something went wrong."],
+			["t-03", {}],
 		]),
 	},
 	play: async ({ canvasElement }) => {
@@ -195,7 +203,9 @@ export const MutationError: Story = {
 		expect(alerts[0]).toHaveTextContent(
 			"Docker containers: Template access is locked.",
 		);
-		expect(alerts[1]).toHaveTextContent("AI webinar: Something went wrong.");
+		expect(alerts[1]).toHaveTextContent(
+			"AI webinar: Failed to update Coder Agents access.",
+		);
 		expect(canvas.getByText("Docker containers")).toBeVisible();
 	},
 };
