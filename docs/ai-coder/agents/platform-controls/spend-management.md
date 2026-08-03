@@ -1,4 +1,4 @@
-# Spend Management
+# Spend management
 
 Coder controls agent spend with AI Gateway budgets, and surfaces the resulting spend to both admins and users.
 
@@ -40,9 +40,9 @@ The API reference documents how to [get](../../../reference/api/enterprise.md#ge
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
 
-## Viewing spend
+## Spend details
 
-There is no dedicated deployment-wide spend dashboard.
+Coder has no dedicated deployment-wide spend dashboard.
 Spend is shown where it is actionable:
 
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
@@ -50,7 +50,7 @@ Spend is shown where it is actionable:
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
 
-Per-user, per-group, per-model, and per-provider spend can be exported as CSV by an organization administrator:
+Organization administrators can export per-user, per-group, per-model, and per-provider spend to CSV:
 
 ```sh
 curl -X GET "https://coder.example.com/api/v2/organizations/$ORGANIZATION/ai/spend/export" \

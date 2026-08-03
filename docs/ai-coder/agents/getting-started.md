@@ -224,7 +224,7 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Capping spend with [AI Gateway budgets](./platform-controls/usage-insights.md).
+- Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
