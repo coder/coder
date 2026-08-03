@@ -117,7 +117,7 @@ export const BaseTemplateParametersStep: FC<
 	);
 
 	return (
-		<div className="[&_[id$='-description']]:text-xs">
+		<>
 			<TemplateBuilderTitle>Configure base template</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Your base template requires customizations.
@@ -138,7 +138,7 @@ export const BaseTemplateParametersStep: FC<
 								"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
 								"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
 								"[&_p]:mb-3 [&_p]:text-content-secondary",
-								"[&_li]:text-content-secondary [&_li]:marker:text-content-secondary",
+								"[&_li]:text-content-secondary",
 								"[&_a]:font-normal",
 								"[&_code]:text-[length:inherit]",
 							)}
@@ -148,6 +148,6 @@ export const BaseTemplateParametersStep: FC<
 					</div>
 				)}
 			</TemplateConfiguration>
-		</div>
+		</>
 	);
 };

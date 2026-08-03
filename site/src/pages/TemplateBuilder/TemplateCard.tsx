@@ -78,7 +78,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 					<Link
 						href={detailsUrl}
 						target="_blank"
-						className="text-sm font-normal"
+						className="text-xs font-normal"
 					>
 						View details
 					</Link>
