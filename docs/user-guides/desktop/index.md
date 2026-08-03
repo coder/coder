@@ -258,7 +258,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
 
 3. Start the service again and relaunch the app:
 
-    ```powershell
+    ```ps1
     Start-Service -Name "Coder Desktop"
     Start-Process "C:\Program Files\Coder Desktop\CoderDesktop.exe"
     ```
