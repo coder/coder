@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -72,6 +73,11 @@ func TestPagination(t *testing.T) {
 			Offset:        "-1",
 			ExpectedError: invalidValues,
 		},
+		{
+			Name:          "LimitAboveMax",
+			Limit:         strconv.Itoa(coderd.MaxPaginationLimit + 1),
+			ExpectedError: invalidValues,
+		},
 
 		// Valid values
 		{
@@ -94,10 +100,34 @@ func TestPagination(t *testing.T) {
 			},
 		},
 		{
+			// An omitted limit resolves to the maximum page size so the
+			// query is never unbounded.
+			Name: "DefaultsToMaxWhenAbsent",
+			ExpectedParams: codersdk.Pagination{
+				AfterID: uuid.Nil,
+				Limit:   coderd.MaxPaginationLimit,
+			},
+		},
+		{
+			// An explicit limit must be positive; 0 is rejected.
+			Name:          "ZeroLimitRejected",
+			Limit:         "0",
+			ExpectedError: invalidValues,
+		},
+		{
+			Name:  "LimitAtMax",
+			Limit: strconv.Itoa(coderd.MaxPaginationLimit),
+			ExpectedParams: codersdk.Pagination{
+				AfterID: uuid.Nil,
+				Limit:   coderd.MaxPaginationLimit,
+			},
+		},
+		{
 			Name:   "ValidOffset",
 			Offset: "150",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
+				Limit:   coderd.MaxPaginationLimit,
 				Offset:  150,
 			},
 		},
@@ -106,6 +136,7 @@ func TestPagination(t *testing.T) {
 			AfterID: "5f2005fc-acc4-4e5e-a7fa-be017359c60b",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.MustParse("5f2005fc-acc4-4e5e-a7fa-be017359c60b"),
+				Limit:   coderd.MaxPaginationLimit,
 			},
 		},
 	}
