@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import MuiLink from "@mui/material/Link";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
@@ -7,6 +6,7 @@ import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature, UserStatusChangeCount } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -141,10 +141,21 @@ const LicensesSettingsPageView: FC<Props> = ({
 								<span className="text-content-secondary text-center max-w-[464px] mt-2">
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
-									<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
-									<MuiLink href="https://coder.com/trial">
+									<Link
+										href="mailto:sales@coder.com"
+										className="m-0 p-0 text-base"
+										showExternalIcon={false}
+									>
+										sales
+									</Link>{" "}
+									or{" "}
+									<Link
+										href="https://coder.com/trial"
+										className="m-0 p-0 text-base"
+										showExternalIcon={false}
+									>
 										request a trial license
-									</MuiLink>{" "}
+									</Link>{" "}
 									to get started.
 								</span>
 							</div>
