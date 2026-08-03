@@ -109,7 +109,7 @@ export const EmptyTableUserWithPermission: Story = {
 	},
 };
 
-export const DefaultRolesEnabled: Story = {
+export const DefaultRolesSection: Story = {
 	args: {
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
@@ -151,7 +151,7 @@ export const DefaultRolesEmpty: Story = {
 	},
 };
 
-export const DefaultRolesHiddenWithoutEditPermission: Story = {
+export const DefaultRolesReadOnlyWithoutEditPermission: Story = {
 	args: {
 		defaultRolesEntitled: true,
 		canEditDefaultRoles: false,
@@ -162,7 +162,11 @@ export const DefaultRolesHiddenWithoutEditPermission: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		expect(body.queryByText("Default Roles")).toBeNull();
+		// The section is visible read-only; only the edit button is hidden.
+		await body.findByText("Default Roles");
+		expect(
+			body.queryByRole("button", { name: /edit default roles/i }),
+		).toBeNull();
 	},
 };
 

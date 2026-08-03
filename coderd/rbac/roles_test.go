@@ -203,48 +203,41 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
-// TestMemberWorkspaceElevation verifies that organization-member and
-// organization-service-account carry only the floor: the workspace-ops
-// elevation is never bundled in and must be granted explicitly via
-// organization-workspace-access (typically attached through
-// default_org_member_roles).
+// TestMemberRolesExcludeWorkspacePerms verifies that organization-member
+// and organization-service-account grant no workspace permissions, and
+// that the registered organization-workspace-access role is what carries
+// them.
 //
-//nolint:tparallel,paralleltest
-func TestMemberWorkspaceElevation(t *testing.T) {
+// Reads the global builtin role registry via RoleByName, which sibling
+// tests reload, so it must run serially.
+//
+//nolint:paralleltest
+func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	orgSettings := rbac.OrgSettings{
 		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
 	}
 
 	hasResource := func(perms []rbac.Permission, resource string) bool {
-		for _, p := range perms {
-			if p.ResourceType == resource && !p.Negate {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(perms, func(p rbac.Permission) bool {
+			return p.ResourceType == resource && !p.Negate
+		})
 	}
 
-	// ResourceWorkspace is granted by the elevation
-	// (OrgWorkspaceAccessMemberPerms) and not by the floor, so it acts as
-	// a witness for whether the elevation is bundled in.
-	elevationWitness := rbac.ResourceWorkspace.Type
-	// ResourceOrganizationMember is part of the floor; floor must always
-	// be present.
-	floorWitness := rbac.ResourceOrganizationMember.Type
-
-	rbac.ReloadBuiltinRoles(nil)
-	t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
 	member := rbac.OrgMemberPermissions(orgSettings).Member
-	require.False(t, hasResource(member, elevationWitness), "organization-member must not include the elevation")
-	require.True(t, hasResource(member, floorWitness), "organization-member should include the floor")
+	require.False(t, hasResource(member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
+	require.True(t, hasResource(member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
 
 	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-	require.False(t, hasResource(sa, elevationWitness), "organization-service-account must not include the elevation")
-	require.True(t, hasResource(sa, floorWitness), "organization-service-account should include the floor")
+	require.False(t, hasResource(sa, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
+	require.True(t, hasResource(sa, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
 
-	// The elevation is available via organization-workspace-access.
-	require.True(t, hasResource(rbac.OrgWorkspaceAccessMemberPerms(), elevationWitness), "organization-workspace-access should carry the elevation")
+	// The registered organization-workspace-access role is the grant
+	// path for workspace permissions.
+	orgID := uuid.New()
+	wsAccess, err := rbac.RoleByName(rbac.ScopedRoleOrgWorkspaceAccess(orgID))
+	require.NoError(t, err)
+	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceWorkspace.Type),
+		"organization-workspace-access should grant workspace permissions")
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid

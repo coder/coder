@@ -28,12 +28,8 @@ import (
 // counting: only users the RBAC engine authorizes to create workspaces
 // consume seats, so members without workspace-create ("gateway accounts")
 // are excluded.
-//
-// The subtests toggle the global builtin roles via ReloadBuiltinRoles, so
-// they must run serially.
-//
-//nolint:tparallel,paralleltest
 func TestCountWorkspaceCapableUsers(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
@@ -62,13 +58,11 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	}
 
 	t.Run("DefaultRolesParity", func(t *testing.T) {
+		t.Parallel()
 		// Orgs keep the default default_org_member_roles, which include
 		// organization-workspace-access, so every active org member counts
 		// and the workspace-capable count matches the legacy count except
 		// for zero-org plain members.
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 
@@ -108,13 +102,12 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.Equal(t, int64(4), count, "zero-org plain member must not count")
 	})
 
-	t.Run("MinimumMember", func(t *testing.T) {
-		// organization-member carries only the floor. Workspace-create
-		// flows exclusively through the organization-workspace-access
-		// role, granted explicitly or via default_org_member_roles.
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
+	t.Run("EmptyDefaultRoles", func(t *testing.T) {
+		t.Parallel()
+		// organization-member carries no workspace permissions on its
+		// own. With default_org_member_roles cleared, workspace-create
+		// flows exclusively through an explicit
+		// organization-workspace-access grant.
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 		emptyDefaultRoles(t, db, org)
@@ -152,11 +145,9 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("MultiOrgSplitCapability", func(t *testing.T) {
+		t.Parallel()
 		// Users whose capability differs between their organizations:
 		// workspace-create in any one org is sufficient to be counted.
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
 		db, _ := dbtestutil.NewDB(t)
 		orgA := dbgen.Organization(t, db, database.Organization{})
 		orgB := dbgen.Organization(t, db, database.Organization{})
@@ -185,9 +176,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("CustomOrgRole", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
+		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 		emptyDefaultRoles(t, db, org)
@@ -228,9 +217,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("MalformedRoleNotCounted", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
+		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 
@@ -250,12 +237,10 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("EntitlementsAddonGate", func(t *testing.T) {
+		t.Parallel()
 		// Permission-based counting is gated on both the experiment and a
 		// valid license carrying the AI Governance addon. Without either,
 		// the legacy active user count applies.
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 		emptyDefaultRoles(t, db, org)
@@ -312,6 +297,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	})
 
 	t.Run("LicensesEntitlementsCountFn", func(t *testing.T) {
+		t.Parallel()
 		// Exercises LicensesEntitlements directly: the count function is
 		// only invoked when a valid license carries the addon, grace
 		// period licenses still gate the count, and count errors fall
@@ -628,24 +614,22 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 
 // TestCountWorkspaceCapableUsersErrors covers the count's database
 // failure paths, which abort the count rather than skewing it.
-//
-// Reads the builtin role registry that sibling tests reload, so it must
-// run serially.
-//
-//nolint:paralleltest
 func TestCountWorkspaceCapableUsersErrors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
 	prefetchParams := database.CustomRolesParams{IncludeSystemRoles: true}
 
 	t.Run("NilAuthorizer", func(t *testing.T) {
+		t.Parallel()
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		_, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), mDB, nil)
 		require.ErrorContains(t, err, "dev error")
 	})
 
 	t.Run("PrefetchError", func(t *testing.T) {
+		t.Parallel()
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return(nil, xerrors.New("boom"))
 
@@ -654,6 +638,7 @@ func TestCountWorkspaceCapableUsersErrors(t *testing.T) {
 	})
 
 	t.Run("RolesQueryError", func(t *testing.T) {
+		t.Parallel()
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return([]database.CustomRole{}, nil)
 		mDB.EXPECT().GetActiveUsersAuthorizationRoles(gomock.Any()).Return(nil, xerrors.New("boom"))
@@ -663,6 +648,7 @@ func TestCountWorkspaceCapableUsersErrors(t *testing.T) {
 	})
 
 	t.Run("ExpandLookupError", func(t *testing.T) {
+		t.Parallel()
 		// A custom role that was not prefetched (deleted, or created
 		// mid-count) is looked up individually; a database failure there
 		// aborts the count.

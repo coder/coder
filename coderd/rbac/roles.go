@@ -3,7 +3,7 @@ package rbac
 import (
 	"encoding/json"
 	"errors"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -222,9 +222,14 @@ func DefaultOrgMemberRoles() []string {
 	return []string{orgWorkspaceAccess}
 }
 
-// OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
-// organization-workspace-access role.
-func OrgWorkspaceAccessMemberPerms() []Permission {
+// orgWorkspaceAccessMemberPerms returns the member-scoped permissions
+// granted by the organization-workspace-access role: the ability to
+// create and operate your own workspaces in the organization. The
+// organization-member role intentionally does not include these
+// permissions (see OrgMemberPermissions), so workspace access is only
+// held by members that have this role, typically through the
+// organization's default_org_member_roles.
+func orgWorkspaceAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
@@ -717,7 +722,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ByOrgID: map[string]OrgPermissions{
 					organizationID.String(): {
 						Org:    []Permission{},
-						Member: OrgWorkspaceAccessMemberPerms(),
+						Member: orgWorkspaceAccessMemberPerms(),
 					},
 				},
 			}
@@ -1063,8 +1068,8 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		}
 	}
 	// Deterministic ordering of permissions
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].ResourceType < list[j].ResourceType
+	slices.SortFunc(list, func(a, b Permission) int {
+		return strings.Compare(a.ResourceType, b.ResourceType)
 	})
 	return list
 }
@@ -1133,6 +1138,16 @@ type OrgRolePermissions struct {
 // OrgMemberPermissions returns the permissions for the organization-member
 // system role, which can vary based on the organization's workspace sharing
 // settings.
+//
+// organization-member carries only the "floor": the minimum permission
+// set every member of an organization holds (read-self records,
+// notifications, and similar). It deliberately grants no workspace
+// access. The ability to create and use workspaces lives exclusively on
+// the organization-workspace-access role (see
+// orgWorkspaceAccessMemberPerms), which organizations attach to members
+// through default_org_member_roles or explicit assignment. This is what
+// makes restricted "gateway account" members possible: clear the
+// default roles and members keep the floor but cannot touch workspaces.
 func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
