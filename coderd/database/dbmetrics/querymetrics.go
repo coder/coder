@@ -4753,6 +4753,14 @@ func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSessionNetworkCalls(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionNetworkCalls").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionNetworkCalls").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeSessionThreads(ctx, arg)

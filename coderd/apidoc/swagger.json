@@ -13876,6 +13876,13 @@
 						"type": "string"
 					}
 				},
+				"network_call_logs": {
+					"description": "NetworkCallLogs is the chronological list of individual network calls made\nduring the session, holding the earliest calls up to a server-side cap.\nNetworkCalls remains authoritative for whole-session totals, so a shorter\nlist than NetworkCalls.Total means the list was truncated. Empty when the\nsession did not pass through Agent Firewall.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentFirewallLog"
+					}
+				},
 				"network_calls": {
 					"description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
 					"allOf": [

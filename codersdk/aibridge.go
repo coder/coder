@@ -202,7 +202,13 @@ type AIBridgeSessionThreadsResponse struct {
 	// domains, used to render a "+N more" overflow beyond the listed domains.
 	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
 	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
-	Threads            []AIBridgeThread               `json:"threads"`
+	// NetworkCallLogs is the chronological list of individual network calls made
+	// during the session, holding the earliest calls up to a server-side cap.
+	// NetworkCalls remains authoritative for whole-session totals, so a shorter
+	// list than NetworkCalls.Total means the list was truncated. Empty when the
+	// session did not pass through Agent Firewall.
+	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
+	Threads         []AIBridgeThread   `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage
