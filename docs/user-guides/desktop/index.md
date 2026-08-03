@@ -222,8 +222,7 @@ They only restart the running tunnel and flush DNS caches.
     scutil --nc list | grep "com.coder.Coder-Desktop"
     ```
 
-6. Relaunch **Coder Desktop** from your Applications folder and toggle
-   **Coder Connect** back on.
+6. Relaunch **Coder Desktop** from your `/Applications` folder and toggle **Coder Connect** back on.
 
 To verify the tunnel is healthy after relaunching, query the built-in sentinel
 hostname against Coder Desktop's embedded DNS server:
