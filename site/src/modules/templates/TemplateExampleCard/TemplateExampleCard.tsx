@@ -53,7 +53,6 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<span className="block text-[13px] leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
-						href={`/starter-templates/${example.id}`}
 						className="inline-block text-[13px] mt-1 p-0"
 						asChild
 						showExternalIcon={false}
