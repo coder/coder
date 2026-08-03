@@ -17945,6 +17945,10 @@ const docTemplate = `{
                 "file_name": {
                     "type": "string"
                 },
+                "hook_rewritten": {
+                    "description": "HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.",
+                    "type": "boolean"
+                },
                 "is_error": {
                     "type": "boolean"
                 },

@@ -2884,6 +2884,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2979,6 +2980,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "valid": true
   },
   "file_name": "string",
+  "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
   "mcp_server_config_id": {
@@ -3035,6 +3037,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3148,6 +3151,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3230,6 +3234,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3459,6 +3464,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3624,6 +3630,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -3704,6 +3711,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3772,6 +3780,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3889,6 +3898,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "valid": true
     },
     "file_name": "string",
+    "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
     "mcp_server_config_id": {
@@ -4590,6 +4600,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -4671,6 +4682,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -4753,6 +4765,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -7289,6 +7302,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -7370,6 +7384,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {

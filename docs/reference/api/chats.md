@@ -1674,6 +1674,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1756,6 +1757,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1891,6 +1893,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -1972,6 +1975,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2054,6 +2058,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2190,6 +2195,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2271,6 +2277,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2695,6 +2702,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2775,6 +2783,7 @@ Experimental: this endpoint is subject to change.
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2843,6 +2852,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
