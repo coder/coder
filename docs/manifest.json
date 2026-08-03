@@ -1571,6 +1571,11 @@
 			"icon_path": "./images/icons/notes.svg",
 			"children": [
 				{
+					"title": "Glossary",
+					"description": "Definitions of Coder terms and product names",
+					"path": "./reference/glossary.md"
+				},
+				{
 					"title": "REST API",
 					"description": "Reference for the Coder REST API, including endpoints, authentication, and schemas.",
 					"path": "./reference/api/index.md",
