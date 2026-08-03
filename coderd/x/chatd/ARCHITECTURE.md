@@ -915,6 +915,8 @@ The consumer can observe activity, add model-only or user-visible context, repla
 
 Lifecycle hooks fail closed. If the consumer cannot be reached or returns an invalid response, Coder stops the triggering operation rather than continuing without the consumer's decision. Affected chats can enter an error state until the consumer recovers or hooks are disabled.
 
+Concurrent dispatches are capped per replica, and each dispatch declares whether it admits new work into a chat or belongs to work a chat already admitted. Admission can hold only part of the cap, so a burst of new submissions cannot consume the capacity that already-admitted work depends on. The caller declares this, because the event type does not determine it: a subagent spawn submits a prompt from inside a running turn, and editing a message starts a session at admission time.
+
 Coder stores no hook-specific dispatch or decision state. Delivery is best-effort and can duplicate, and a failed dispatch is never redelivered, so the consumer owns durable policy state, audit records, and deduplication based on stable event identifiers.
 
 # Stream loop

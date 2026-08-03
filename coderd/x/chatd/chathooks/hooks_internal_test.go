@@ -65,9 +65,9 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	turnID := uuid.New()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	_, err := trigger.Trigger(ctx, ChatFor(chat, &turnID), Message{Source: SessionStartSource(nil)}, agenthooks.EventSessionStart)
+	_, err := trigger.Trigger(ctx, ChatFor(chat, &turnID), Message{Source: SessionStartSource(nil)}, agenthooks.EventSessionStart, dispatch.CapacityClassGeneration)
 	require.NoError(t, err)
-	_, err = trigger.Trigger(ctx, ChatFor(chat, &turnID), Message{Source: SessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}})}, agenthooks.EventSessionStart)
+	_, err = trigger.Trigger(ctx, ChatFor(chat, &turnID), Message{Source: SessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}})}, agenthooks.EventSessionStart, dispatch.CapacityClassGeneration)
 	require.NoError(t, err)
 
 	startup := <-receivedCh
@@ -120,7 +120,7 @@ func TestHookTriggerDisabled(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			require.False(t, trigger.Enabled())
-			result, err := trigger.Trigger(t.Context(), Chat{ID: uuid.New()}, Message{}, agenthooks.EventStop)
+			result, err := trigger.Trigger(t.Context(), Chat{ID: uuid.New()}, Message{}, agenthooks.EventStop, dispatch.CapacityClassGeneration)
 			require.NoError(t, err)
 			require.Empty(t, result.GetModelContext())
 			require.Empty(t, result.GetUserMessage())
@@ -145,7 +145,7 @@ func TestHookTriggerDeny(t *testing.T) {
 		ToolUseID: "call_1",
 		ToolName:  "execute",
 		ToolInput: json.RawMessage(`{}`),
-	}, agenthooks.EventPreToolUse)
+	}, agenthooks.EventPreToolUse, dispatch.CapacityClassGeneration)
 	require.Nil(t, result)
 	var denied *deniedError
 	require.ErrorAs(t, err, &denied)
@@ -174,7 +174,7 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	dispatchEvent := func(t *testing.T, msg Message, event agenthooks.EventType) agenthooks.Request {
 		t.Helper()
-		_, err := trigger.Trigger(ctx, chat, msg, event)
+		_, err := trigger.Trigger(ctx, chat, msg, event, dispatch.CapacityClassGeneration)
 		require.NoError(t, err)
 		request := <-requests
 		require.Equal(t, event, request.Type)
@@ -215,7 +215,7 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 		dispatchEvent(t, Message{}, event)
 	}
 
-	_, err := trigger.Trigger(ctx, chat, Message{}, agenthooks.EventType("bogus"))
+	_, err := trigger.Trigger(ctx, chat, Message{}, agenthooks.EventType("bogus"), dispatch.CapacityClassGeneration)
 	require.ErrorContains(t, err, "unsupported hook event")
 }
 
