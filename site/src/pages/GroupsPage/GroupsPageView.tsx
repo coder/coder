@@ -25,6 +25,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
@@ -94,7 +95,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 										message="AI spend couldn't be loaded, so budgets aren't shown."
 									/>
 								) : (
-									<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+									<StatusIconTooltip
+										message={
+											<>
+												Estimated AI spend compared to the group's AI budget for
+												the active period. <SpendEstimateDocsLink />
+											</>
+										}
+									/>
 								)}
 							</div>
 						</TableHead>
