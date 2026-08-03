@@ -1,30 +1,53 @@
 import { useMemo, useRef, useState } from "react";
+import { useQuery } from "react-query";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
+import { useDebouncedValue } from "#/hooks/debounce";
 import {
 	chipsToValues,
 	chipToken,
 	composeFilterQuery,
 	extractFreeText,
 	filterValuesToChips,
+	matchFacets,
 	parseTypedFacetPrefix,
 } from "./filterQuery";
-import type { FilterFacet } from "./types";
+import {
+	type FilterFacet,
+	type FilterSearchResult,
+	parseSearchResultToken,
+	searchResultToken,
+} from "./types";
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+export const filterComboboxSearchResultsKey = (query: string) =>
+	["filterCombobox", "searchResults", query] as const;
 
 type UseFilterComboboxOptions<Id extends string> = {
 	filter: UseFilterResult;
 	facets: readonly FilterFacet<Id>[];
 	/** Stable chip key order for serialization. Defaults to facet ids. */
 	chipKeys?: readonly Id[];
+	getSearchResults?: (query: string) => Promise<FilterSearchResult[]>;
+	onSearchResultSelect?: (result: FilterSearchResult) => void;
 };
+
+/** Why the popup is open when no facet is active. */
+export type FilterComboboxBrowseMode = "trigger" | "typeahead";
 
 export const useFilterCombobox = <Id extends string>({
 	filter,
 	facets,
 	chipKeys: chipKeysProp,
+	getSearchResults,
+	onSearchResultSelect,
 }: UseFilterComboboxOptions<Id>) => {
 	const chipKeys = chipKeysProp ?? facets.map((facet) => facet.id);
 	const [open, setOpen] = useState(false);
+	const [browseMode, setBrowseMode] = useState<FilterComboboxBrowseMode | null>(
+		null,
+	);
 	const [activeFacet, setActiveFacet] = useState<Id | null>(null);
 	const [inputValue, setInputValue] = useState(() =>
 		extractFreeText(filter.query),
@@ -34,6 +57,17 @@ export const useFilterCombobox = <Id extends string>({
 	);
 	const committedFreeTextRef = useRef(committedFreeText);
 	const facetModeRef = useRef(false);
+	const browseModeRef = useRef<FilterComboboxBrowseMode | null>(null);
+	const getSearchResultsRef = useRef(getSearchResults);
+	getSearchResultsRef.current = getSearchResults;
+	const onSearchResultSelectRef = useRef(onSearchResultSelect);
+	onSearchResultSelectRef.current = onSearchResultSelect;
+	const hasSearchResults = Boolean(getSearchResults);
+
+	const setBrowseModeSafe = (next: FilterComboboxBrowseMode | null) => {
+		browseModeRef.current = next;
+		setBrowseMode(next);
+	};
 
 	const setCommittedNameSearch = (value: string) => {
 		const next = value.trim();
@@ -41,16 +75,78 @@ export const useFilterCombobox = <Id extends string>({
 		setCommittedFreeText(next);
 	};
 
+	const openCategorySuggestions = () => {
+		facetModeRef.current = false;
+		setBrowseModeSafe("typeahead");
+		setOpen(true);
+	};
+
 	const activeFacetMeta = facets.find((facet) => facet.id === activeFacet);
 	const activeOptions = activeFacetMeta?.menu.searchOptions;
 	const chipValues = filterValuesToChips(filter.values, chipKeys);
 
-	const optionItems = useMemo(() => {
-		if (!activeFacet || !activeOptions) {
-			return [] as string[];
+	/** Categories shown in typeahead: all when empty, prefix matches while typing. */
+	const listedFacets = useMemo(() => {
+		if (activeFacet !== null || browseMode !== "typeahead") {
+			return [] as FilterFacet<Id>[];
 		}
-		return activeOptions.map((option) => chipToken(activeFacet, option.value));
-	}, [activeFacet, activeOptions]);
+		if (inputValue.trim().length === 0) {
+			return [...facets];
+		}
+		return matchFacets(inputValue, facets);
+	}, [activeFacet, browseMode, facets, inputValue]);
+	const listedFacetsRef = useRef(listedFacets);
+	listedFacetsRef.current = listedFacets;
+
+	const previewQuerySource =
+		activeFacet === null && browseMode === "typeahead" ? inputValue.trim() : "";
+	const debouncedPreviewQuery = useDebouncedValue(
+		previewQuerySource,
+		SEARCH_DEBOUNCE_MS,
+	);
+	const previewQueryPending =
+		hasSearchResults &&
+		previewQuerySource.length > 0 &&
+		previewQuerySource !== debouncedPreviewQuery;
+
+	const searchResultsQuery = useQuery({
+		queryKey: filterComboboxSearchResultsKey(debouncedPreviewQuery),
+		queryFn: () => {
+			const loader = getSearchResultsRef.current;
+			if (!loader) {
+				return Promise.resolve([] as FilterSearchResult[]);
+			}
+			return loader(debouncedPreviewQuery);
+		},
+		enabled:
+			hasSearchResults &&
+			debouncedPreviewQuery.length > 0 &&
+			activeFacet === null &&
+			browseMode === "typeahead",
+	});
+
+	const searchResults = searchResultsQuery.data ?? [];
+	const searchResultsLoading =
+		previewQueryPending || searchResultsQuery.isFetching;
+	const searchResultsRef = useRef(searchResults);
+	searchResultsRef.current = searchResults;
+
+	const optionItems = useMemo(() => {
+		if (activeFacet && activeOptions) {
+			return activeOptions.map((option) =>
+				chipToken(activeFacet, option.value),
+			);
+		}
+		if (activeFacet === null && browseMode === "typeahead") {
+			return [
+				...listedFacets.map((facet) => facet.id),
+				...searchResults.map((result) => searchResultToken(result.id)),
+			];
+		}
+		return [] as string[];
+	}, [activeFacet, activeOptions, browseMode, listedFacets, searchResults]);
+	const optionItemsRef = useRef(optionItems);
+	optionItemsRef.current = optionItems;
 
 	const optionByToken = useMemo(() => {
 		const map = new Map<string, SelectFilterOption>();
@@ -75,6 +171,7 @@ export const useFilterCombobox = <Id extends string>({
 
 	const enterFacetMode = (facetId: Id, query = "") => {
 		facetModeRef.current = true;
+		setBrowseModeSafe(null);
 		setActiveFacet(facetId);
 		setInputValue(query);
 		setOpen(true);
@@ -93,13 +190,42 @@ export const useFilterCombobox = <Id extends string>({
 		);
 	};
 
-	const selectFacet = (facetId: Id) => {
+	const selectFacet = (
+		facetId: Id,
+		options?: Readonly<{ clearMatchedQuery?: boolean }>,
+	) => {
 		filter.cancelDebounce();
-		if (activeFacet === null) {
+		if (options?.clearMatchedQuery) {
+			// Typed text matched a category name; do not keep it as free-text search.
+			setCommittedNameSearch("");
+			filter.update(composeFilterQuery(filter.values, chipKeys, ""));
+		} else if (activeFacet === null) {
 			setCommittedNameSearch(inputValue);
 			filter.update(composeFilterQuery(filter.values, chipKeys, inputValue));
 		}
 		enterFacetMode(facetId);
+	};
+
+	const selectSearchResult = (result: FilterSearchResult) => {
+		onSearchResultSelectRef.current?.(result);
+		facetModeRef.current = false;
+		setBrowseModeSafe(null);
+		setActiveFacet(null);
+		setOpen(false);
+	};
+
+	const handleInputFocus = () => {
+		if (activeFacet !== null || facetModeRef.current) {
+			return;
+		}
+		const trimmed = inputValue.trim();
+		if (trimmed.length === 0) {
+			openCategorySuggestions();
+			return;
+		}
+		if (matchFacets(inputValue, facets).length > 0 || hasSearchResults) {
+			openCategorySuggestions();
+		}
 	};
 
 	const handleInputValueChange = (
@@ -130,6 +256,7 @@ export const useFilterCombobox = <Id extends string>({
 			setInputValue(nextValue);
 			activeFacetMeta.menu.setQuery(nextValue);
 			facetModeRef.current = true;
+			setBrowseModeSafe(null);
 			setOpen(true);
 			return;
 		}
@@ -139,6 +266,22 @@ export const useFilterCombobox = <Id extends string>({
 		filter.debounceUpdate(
 			composeFilterQuery(filter.values, chipKeys, nextValue),
 		);
+
+		if (nextValue.trim().length === 0) {
+			openCategorySuggestions();
+			return;
+		}
+
+		const matches = matchFacets(nextValue, facets);
+		if (matches.length > 0 || hasSearchResults) {
+			openCategorySuggestions();
+			return;
+		}
+
+		if (browseModeRef.current === "typeahead") {
+			setBrowseModeSafe(null);
+			setOpen(false);
+		}
 	};
 
 	const handleOpenChange = (
@@ -148,6 +291,7 @@ export const useFilterCombobox = <Id extends string>({
 		if (
 			nextOpen &&
 			!facetModeRef.current &&
+			browseModeRef.current !== "typeahead" &&
 			eventDetails.reason !== "trigger-press"
 		) {
 			return;
@@ -155,16 +299,39 @@ export const useFilterCombobox = <Id extends string>({
 
 		setOpen(nextOpen);
 		if (!nextOpen) {
+			setBrowseModeSafe(null);
 			exitFacetMode();
 		} else if (eventDetails.reason === "trigger-press") {
 			facetModeRef.current = false;
+			setBrowseModeSafe("trigger");
 			setActiveFacet(null);
 		}
 	};
 
 	const handleValueChange = (nextTokens: string[]) => {
+		const added = nextTokens.find((token) => !chipValues.includes(token));
+		if (added) {
+			const searchId = parseSearchResultToken(added);
+			if (searchId) {
+				const result = searchResultsRef.current.find(
+					(entry) => entry.id === searchId,
+				);
+				if (result) {
+					selectSearchResult(result);
+				}
+				return;
+			}
+
+			const matchedFacet = facets.find((facet) => facet.id === added);
+			if (activeFacet === null && matchedFacet) {
+				selectFacet(matchedFacet.id, { clearMatchedQuery: true });
+				return;
+			}
+		}
+
 		updateFromChips(nextTokens);
 		facetModeRef.current = false;
+		setBrowseModeSafe(null);
 		setActiveFacet(null);
 		setInputValue(committedFreeTextRef.current);
 		setOpen(false);
@@ -173,23 +340,73 @@ export const useFilterCombobox = <Id extends string>({
 	const exitActiveFacet = () => {
 		activeFacetMeta?.menu.setQuery("");
 		facetModeRef.current = false;
+		setBrowseModeSafe(null);
 		setActiveFacet(null);
 		restoreFreeTextInput();
 		setOpen(false);
 	};
 
+	const handleInputKeyDown = (event: {
+		key: string;
+		preventDefault: () => void;
+		preventBaseUIHandler?: () => void;
+	}) => {
+		if (event.key === "Backspace" && inputValue === "" && activeFacetMeta) {
+			event.preventDefault();
+			event.preventBaseUIHandler?.();
+			exitActiveFacet();
+			return;
+		}
+
+		if (event.key !== "Enter" || browseModeRef.current !== "typeahead") {
+			return;
+		}
+
+		const topItem = optionItemsRef.current[0];
+		if (!topItem) {
+			return;
+		}
+
+		event.preventDefault();
+		event.preventBaseUIHandler?.();
+
+		const searchId = parseSearchResultToken(topItem);
+		if (searchId) {
+			const result = searchResultsRef.current.find(
+				(entry) => entry.id === searchId,
+			);
+			if (result) {
+				selectSearchResult(result);
+			}
+			return;
+		}
+
+		const topFacet = listedFacetsRef.current.find(
+			(facet) => facet.id === topItem,
+		);
+		if (topFacet) {
+			selectFacet(topFacet.id, { clearMatchedQuery: true });
+		}
+	};
+
 	return {
 		open,
+		browseMode,
 		inputValue,
 		committedFreeText,
 		activeFacet,
 		activeFacetMeta,
 		activeOptions,
+		listedFacets,
+		searchResults,
+		searchResultsLoading,
 		chipValues,
 		optionItems,
 		optionByToken,
 		selectFacet,
 		exitActiveFacet,
+		handleInputFocus,
+		handleInputKeyDown,
 		handleInputValueChange,
 		handleOpenChange,
 		handleValueChange,

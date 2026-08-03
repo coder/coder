@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CircleDotIcon, LayoutGridIcon, UserIcon } from "lucide-react";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { MockMenu } from "#/components/Filter/storyHelpers";
 import { FilterCombobox } from "./FilterCombobox";
-import type { FilterFacet } from "./types";
+import type { FilterFacet, FilterSearchResult } from "./types";
 
 const meta: Meta<typeof FilterCombobox> = {
 	title: "components/Filter/FilterCombobox",
@@ -54,8 +54,14 @@ const facets: FilterFacet[] = [
 
 const FilterComboboxHarness = ({
 	initialQuery = "owner:me",
+	getSearchResults,
+	onSearchResultSelect,
+	searchResultsLabel,
 }: {
 	initialQuery?: string;
+	getSearchResults?: (query: string) => Promise<FilterSearchResult[]>;
+	onSearchResultSelect?: (result: FilterSearchResult) => void;
+	searchResultsLabel?: string;
 }) => {
 	const [query, setQuery] = useState(initialQuery);
 	const values = Object.fromEntries(
@@ -85,6 +91,9 @@ const FilterComboboxHarness = ({
 			chipKeys={["owner", "status", "template"]}
 			placeholder="Search and filter…"
 			className="max-w-lg"
+			getSearchResults={getSearchResults}
+			onSearchResultSelect={onSearchResultSelect}
+			searchResultsLabel={searchResultsLabel}
 		/>
 	);
 };
@@ -112,6 +121,20 @@ export const OpenFilterMenu: Story = {
 	},
 };
 
+export const FocusShowsCategories: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByPlaceholderText("Search and filter…");
+		await userEvent.click(input);
+		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await expect(canvas.getByRole("option", { name: /Status/i })).toBeVisible();
+		await expect(
+			canvas.getByRole("option", { name: /Template/i }),
+		).toBeVisible();
+	},
+};
+
 export const TypeFacetPrefix: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
@@ -120,6 +143,59 @@ export const TypeFacetPrefix: Story = {
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
 		await expect(canvas.getByText("status:")).toBeVisible();
-		await expect(canvas.getByText(/status:\s*Running/i)).toBeVisible();
+		await expect(canvas.getByText("Running")).toBeVisible();
+	},
+};
+
+export const TypeaheadMatchingCategories: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByPlaceholderText("Search and filter…");
+		await userEvent.click(input);
+		await userEvent.type(input, "ow");
+		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await expect(
+			canvas.queryByRole("option", { name: /Status/i }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Enter}");
+		await expect(canvas.getByText("owner:")).toBeVisible();
+		await expect(canvas.getByText("alice")).toBeVisible();
+	},
+};
+
+export const LiveResourcePreviews: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			searchResultsLabel="Workspaces"
+			getSearchResults={async (query) => {
+				await new Promise((resolve) => {
+					window.setTimeout(resolve, 400);
+				});
+				if (!query.toLowerCase().includes("dev")) {
+					return [];
+				}
+				return [
+					{
+						id: "ws-1",
+						label: "devbox",
+						subtitle: "alice · docker",
+						href: "/@alice/devbox",
+					},
+				];
+			}}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByPlaceholderText("Search and filter…");
+		await userEvent.click(input);
+		await userEvent.type(input, "dev");
+		await expect(canvas.getByText("Workspaces")).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.getByRole("option", { name: /devbox/i })).toBeVisible(),
+		);
+		await expect(canvas.getByText("alice · docker")).toBeVisible();
 	},
 };

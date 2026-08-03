@@ -4,6 +4,7 @@ import {
 	composeFilterQuery,
 	extractFreeText,
 	filterValuesToChips,
+	matchFacets,
 	parseChipToken,
 	parseTypedFacetPrefix,
 	stringifyChipValues,
@@ -88,5 +89,30 @@ describe("filterQuery", () => {
 			query: "al",
 			freeText: "pink-mockingbird-23",
 		});
+	});
+
+	it("matches category typeahead prefixes on id, label, and alias", () => {
+		const facets = [
+			{ id: "owner" as const, label: "Owner", aliases: ["user"] },
+			{ id: "status" as const, label: "Status" },
+			{ id: "template" as const, label: "Template" },
+			{ id: "organization" as const, label: "Organization" },
+		];
+
+		expect(matchFacets("ow", facets).map((facet) => facet.id)).toEqual([
+			"owner",
+		]);
+		expect(matchFacets("stat", facets).map((facet) => facet.id)).toEqual([
+			"status",
+		]);
+		expect(matchFacets("user", facets).map((facet) => facet.id)).toEqual([
+			"owner",
+		]);
+		expect(matchFacets("o", facets).map((facet) => facet.id)).toEqual([
+			"owner",
+			"organization",
+		]);
+		expect(matchFacets("do", facets)).toEqual([]);
+		expect(matchFacets("  ", facets)).toEqual([]);
 	});
 });

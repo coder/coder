@@ -135,3 +135,34 @@ export const parseTypedFacetPrefix = <Id extends string>(
 		freeText: (match[1] ?? "").trim(),
 	};
 };
+
+type FacetMatchSource<Id extends string> = {
+	id: Id;
+	label: string;
+	aliases?: readonly string[];
+};
+
+/** Categories whose id, label, or alias starts with the typed query. */
+export const matchFacets = <Id extends string, T extends FacetMatchSource<Id>>(
+	query: string,
+	facets: readonly T[],
+): T[] => {
+	const normalized = query.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return [];
+	}
+
+	return facets.filter((facet) => {
+		if (facet.id.toLowerCase().startsWith(normalized)) {
+			return true;
+		}
+		if (facet.label.toLowerCase().startsWith(normalized)) {
+			return true;
+		}
+		return (
+			facet.aliases?.some((alias) =>
+				alias.toLowerCase().startsWith(normalized),
+			) ?? false
+		);
+	});
+};

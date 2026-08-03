@@ -4,11 +4,15 @@ import {
 	LayoutGridIcon,
 	UserIcon,
 } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { type FC, useCallback, useMemo } from "react";
+import { useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	FilterCombobox,
 	type FilterFacet,
+	type FilterSearchResult,
 } from "#/components/Filter/FilterCombobox";
 import type { UserFilterMenu } from "#/components/Filter/UserFilter";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -23,6 +27,8 @@ const WORKSPACE_CHIP_KEYS = [
 	"template",
 	"organization",
 ] as const satisfies readonly FilterFacetId[];
+
+const WORKSPACE_PREVIEW_LIMIT = 5;
 
 export type WorkspaceFilterState = {
 	filter: UseFilterResult;
@@ -53,6 +59,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	organizationsMenu,
 }) => {
 	const { showOrganizations } = useDashboard();
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	const facets = useMemo(() => {
 		const next: FilterFacet<FilterFacetId>[] = [
@@ -93,6 +101,41 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		userMenu,
 	]);
 
+	const getSearchResults = useCallback(
+		async (query: string): Promise<FilterSearchResult[]> => {
+			const response = await queryClient.fetchQuery(
+				workspaces({
+					q: query,
+					limit: WORKSPACE_PREVIEW_LIMIT,
+					offset: 0,
+				}),
+			);
+
+			return response.workspaces.map((workspace) => ({
+				id: workspace.id,
+				label: workspace.name,
+				subtitle: [
+					workspace.owner_name,
+					workspace.template_display_name || workspace.template_name,
+				]
+					.filter(Boolean)
+					.join(" · "),
+				imageUrl: workspace.owner_avatar_url,
+				href: `/@${workspace.owner_name}/${workspace.name}`,
+			}));
+		},
+		[queryClient],
+	);
+
+	const onSearchResultSelect = useCallback(
+		(result: FilterSearchResult) => {
+			if (result.href) {
+				navigate(result.href);
+			}
+		},
+		[navigate],
+	);
+
 	return (
 		<FilterCombobox
 			filter={filter}
@@ -100,6 +143,9 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			chipKeys={WORKSPACE_CHIP_KEYS}
 			placeholder="Search and filter workspaces…"
 			className="max-w-lg"
+			getSearchResults={getSearchResults}
+			onSearchResultSelect={onSearchResultSelect}
+			searchResultsLabel="Workspaces"
 		/>
 	);
 };

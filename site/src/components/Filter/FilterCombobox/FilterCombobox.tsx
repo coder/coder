@@ -1,10 +1,12 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Combobox,
 	ComboboxChip,
@@ -12,13 +14,16 @@ import {
 	ComboboxChipsInput,
 	ComboboxContent,
 	ComboboxEmpty,
+	ComboboxGroup,
 	ComboboxInputGroup,
 	ComboboxItem,
+	ComboboxLabel,
 	ComboboxList,
 	ComboboxTrigger,
 	ComboboxValue,
 } from "./Combobox";
-import type { FilterFacet } from "./types";
+import type { FilterFacet, FilterSearchResult } from "./types";
+import { searchResultToken } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
 type FilterComboboxProps<Id extends string = string> = Readonly<{
@@ -28,6 +33,10 @@ type FilterComboboxProps<Id extends string = string> = Readonly<{
 	chipKeys?: readonly Id[];
 	placeholder?: string;
 	className?: string;
+	/** Debounced free-text resource previews (e.g. matching workspaces). */
+	getSearchResults?: (query: string) => Promise<FilterSearchResult[]>;
+	onSearchResultSelect?: (result: FilterSearchResult) => void;
+	searchResultsLabel?: string;
 }>;
 
 export function FilterCombobox<Id extends string = string>({
@@ -36,23 +45,44 @@ export function FilterCombobox<Id extends string = string>({
 	chipKeys,
 	placeholder = "Search and filter…",
 	className,
+	getSearchResults,
+	onSearchResultSelect,
+	searchResultsLabel = "Results",
 }: FilterComboboxProps<Id>) {
 	const {
 		open,
+		browseMode,
 		inputValue,
 		committedFreeText,
 		activeFacet,
 		activeFacetMeta,
 		activeOptions,
+		listedFacets,
+		searchResults,
+		searchResultsLoading,
 		chipValues,
 		optionItems,
 		optionByToken,
 		selectFacet,
-		exitActiveFacet,
+		handleInputFocus,
+		handleInputKeyDown,
 		handleInputValueChange,
 		handleOpenChange,
 		handleValueChange,
-	} = useFilterCombobox({ filter, facets, chipKeys });
+	} = useFilterCombobox({
+		filter,
+		facets,
+		chipKeys,
+		getSearchResults,
+		onSearchResultSelect,
+	});
+
+	const showTypeahead = activeFacet === null && browseMode === "typeahead";
+	const showSearchSection =
+		showTypeahead &&
+		inputValue.trim().length > 0 &&
+		Boolean(getSearchResults) &&
+		(searchResultsLoading || searchResults.length > 0);
 
 	return (
 		<Combobox
@@ -103,16 +133,8 @@ export function FilterCombobox<Id extends string = string>({
 									placeholder={
 										selected.length > 0 || activeFacetMeta ? "" : placeholder
 									}
-									onKeyDown={(event) => {
-										if (
-											event.key === "Backspace" &&
-											inputValue === "" &&
-											activeFacetMeta
-										) {
-											event.preventDefault();
-											exitActiveFacet();
-										}
-									}}
+									onFocus={handleInputFocus}
+									onKeyDown={handleInputKeyDown}
 								/>
 							</>
 						)}
@@ -136,7 +158,7 @@ export function FilterCombobox<Id extends string = string>({
 				</InputGroupAddon>
 			</ComboboxInputGroup>
 			<ComboboxContent>
-				{activeFacet === null ? (
+				{activeFacet === null && browseMode === "trigger" ? (
 					<div className="flex flex-col gap-2 p-4">
 						<span className="text-sm font-normal text-content-secondary">
 							Filter by
@@ -169,6 +191,68 @@ export function FilterCombobox<Id extends string = string>({
 							})}
 						</div>
 					</div>
+				) : showTypeahead ? (
+					<>
+						{listedFacets.length === 0 &&
+							!showSearchSection &&
+							!searchResultsLoading && (
+								<ComboboxEmpty>No filters found.</ComboboxEmpty>
+							)}
+						<ComboboxList className="p-3 data-[empty]:p-3">
+							{listedFacets.map((facet) => {
+								const Icon = facet.icon;
+								return (
+									<ComboboxItem
+										className="gap-2 px-2 py-2.5"
+										key={facet.id}
+										value={facet.id}
+										showIndicator={false}
+									>
+										<Icon className="size-icon-sm text-content-secondary" />
+										<span className="text-content-primary">{facet.label}</span>
+									</ComboboxItem>
+								);
+							})}
+							{showSearchSection && (
+								<ComboboxGroup>
+									<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
+									{searchResultsLoading && searchResults.length === 0 ? (
+										<div className="flex items-center justify-center px-2 py-2.5">
+											<Spinner loading size="sm" />
+										</div>
+									) : (
+										searchResults.map((result) => (
+											<ComboboxItem
+												className="gap-2 px-2 py-2.5"
+												key={result.id}
+												value={searchResultToken(result.id)}
+												showIndicator={false}
+											>
+												{result.startIcon ??
+													(result.imageUrl !== undefined ? (
+														<Avatar
+															src={result.imageUrl}
+															fallback={result.label}
+															size="md"
+														/>
+													) : null)}
+												<span className="flex min-w-0 flex-col">
+													<span className="truncate text-content-primary">
+														{result.label}
+													</span>
+													{result.subtitle && (
+														<span className="truncate text-xs text-content-secondary">
+															{result.subtitle}
+														</span>
+													)}
+												</span>
+											</ComboboxItem>
+										))
+									)}
+								</ComboboxGroup>
+							)}
+						</ComboboxList>
+					</>
 				) : activeOptions === undefined ? (
 					<div className="px-3 py-6 text-center text-sm text-content-secondary">
 						Loading…
@@ -181,7 +265,7 @@ export function FilterCombobox<Id extends string = string>({
 								const option = optionByToken.get(item);
 								return (
 									<ComboboxItem
-										className="px-2 py-2.5"
+										className="gap-2 px-2 py-2.5"
 										key={item}
 										value={item}
 										showIndicator={false}
