@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
+	"unicode"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -343,6 +346,267 @@ func Test_readBodyAsError(t *testing.T) {
 			c.assert(t, err)
 		})
 	}
+}
+
+func Test_ReadBodyAsJSON(t *testing.T) {
+	t.Parallel()
+
+	type apiResponse struct {
+		Name string `json:"name"`
+	}
+
+	const htmlBody = `<!DOCTYPE html><html><head><title>Sign in</title></head><body>Sign in to continue</body></html>`
+
+	// assertInvalidBody asserts the fields shared by every error that
+	// ReadBodyAsJSON returns for a response with an unusable body.
+	assertInvalidBody := func(t *testing.T, err error, contentType string) *Error {
+		t.Helper()
+		sdkErr := assertSDKError(t, err)
+		assert.Equal(t, http.StatusOK, sdkErr.StatusCode())
+		assert.Equal(t, http.MethodGet, sdkErr.Method())
+		assert.NotEmpty(t, sdkErr.URL())
+		assert.Equal(t, contentType, sdkErr.ContentType())
+		assert.NotContains(t, err.Error(), "unexpected status code")
+		assert.ErrorContains(t, err, "invalid API response (status code 200)")
+		return sdkErr
+	}
+
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		assert  func(t *testing.T, v apiResponse, err error)
+	}{
+		{
+			name: "ValidJSON",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+				_, _ = io.WriteString(w, `{"name":"hello"}`)
+			},
+			assert: func(t *testing.T, v apiResponse, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "hello", v.Name)
+			},
+		},
+		{
+			name: "ValidJSONWithoutContentType",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				// Intermediaries may strip or omit the Content-Type
+				// header even when the body is untouched JSON.
+				w.Header()["Content-Type"] = nil
+				_, _ = io.WriteString(w, `{"name":"hello"}`)
+			},
+			assert: func(t *testing.T, v apiResponse, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "hello", v.Name)
+			},
+		},
+		{
+			name: "ValidJSONWithWrongContentType",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				_, _ = io.WriteString(w, `{"name":"hello"}`)
+			},
+			assert: func(t *testing.T, v apiResponse, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "hello", v.Name)
+			},
+		},
+		{
+			name: "ValidJSONLargerThanSniffWindow",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+				_, _ = io.WriteString(w, `{"name":"`+strings.Repeat("a", 4*jsonBodyExcerptLen)+`"}`)
+			},
+			assert: func(t *testing.T, v apiResponse, err error) {
+				require.NoError(t, err)
+				assert.Len(t, v.Name, 4*jsonBodyExcerptLen)
+			},
+		},
+		{
+			name: "HTMLContentType",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				_, _ = io.WriteString(w, htmlBody)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "text/html; charset=utf-8")
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+				assert.Contains(t, sdkErr.Helper, "/api/v2")
+				assert.Contains(t, sdkErr.Detail, "<!DOCTYPE html>")
+			},
+		},
+		{
+			name: "HTMLMislabeledAsJSON",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+				_, _ = io.WriteString(w, "\n\t "+htmlBody)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, jsonCT)
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+				assert.Contains(t, sdkErr.Helper, "/api/v2")
+			},
+		},
+		{
+			name: "ValidJSONMislabeledAsHTML",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				// An HTML content type is authoritative: Coder API
+				// endpoints never serve HTML, so the body is not
+				// decoded even when it happens to be valid JSON.
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				_, _ = io.WriteString(w, `{"name":"hello"}`)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "text/html; charset=utf-8")
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+			},
+		},
+		{
+			name: "XMLBody",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				// Markup bodies such as XML error pages from load
+				// balancers are reported the same way as HTML.
+				w.Header().Set("Content-Type", "application/xml")
+				_, _ = io.WriteString(w, `<?xml version="1.0"?><error>denied</error>`)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "application/xml")
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+				assert.Contains(t, sdkErr.Detail, "<?xml")
+			},
+		},
+		{
+			name: "HTMLWithByteOrderMark",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+				_, _ = io.WriteString(w, "\xef\xbb\xbf"+htmlBody)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, jsonCT)
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+			},
+		},
+		{
+			name: "MalformedJSON",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+				_, _ = io.WriteString(w, `{"name": "hello"`)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, jsonCT)
+				assert.Contains(t, sdkErr.Message, "invalid JSON response")
+				assert.Contains(t, sdkErr.Detail, `{"name": "hello"`)
+				// The decode cause is preserved on the error chain.
+				assert.Error(t, errors.Unwrap(sdkErr))
+			},
+		},
+		{
+			name: "PlainTextBody",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				_, _ = io.WriteString(w, "upstream connect error")
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "text/plain; charset=utf-8")
+				assert.Contains(t, sdkErr.Message, "invalid JSON response")
+				assert.Contains(t, sdkErr.Detail, "upstream connect error")
+			},
+		},
+		{
+			name: "EmptyBody",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", jsonCT)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, jsonCT)
+				assert.Contains(t, sdkErr.Message, "empty response")
+			},
+		},
+		{
+			name: "ExcerptBoundedAndSanitized",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/html")
+				// A large body with control characters and invalid
+				// UTF-8 must produce a small, printable excerpt.
+				_, _ = io.WriteString(w, "<html>\x00\x07evil\r\n\tbody\xff "+strings.Repeat("a", 1024*1024))
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "text/html")
+				assert.LessOrEqual(t, len(sdkErr.Detail), jsonBodyExcerptLen+256)
+				assert.Contains(t, sdkErr.Detail, "<html> evil body")
+				for _, r := range sdkErr.Detail {
+					assert.True(t, unicode.IsGraphic(r), "detail contains non-graphic character %q", r)
+				}
+			},
+		},
+		{
+			name: "RedirectToHTML",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/login" {
+					http.Redirect(w, r, "/login", http.StatusFound)
+					return
+				}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				_, _ = io.WriteString(w, htmlBody)
+			},
+			assert: func(t *testing.T, _ apiResponse, err error) {
+				sdkErr := assertInvalidBody(t, err, "text/html; charset=utf-8")
+				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+				// The error reports the final URL after redirects and
+				// mentions the originally requested URL.
+				assert.Contains(t, sdkErr.URL(), "/login")
+				assert.Contains(t, sdkErr.Detail, "after following redirects from")
+				assert.Contains(t, sdkErr.Detail, "/api/v2/users/me")
+			},
+		},
+	}
+
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(c.handler)
+			defer srv.Close()
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/v2/users/me", nil)
+			require.NoError(t, err)
+			res, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			var v apiResponse
+			decodeErr := ReadBodyAsJSON(res, &v)
+			c.assert(t, v, decodeErr)
+		})
+	}
+
+	t.Run("NilResponse", func(t *testing.T) {
+		t.Parallel()
+
+		var v apiResponse
+		require.Error(t, ReadBodyAsJSON(nil, &v))
+	})
+
+	//nolint:bodyclose // The response is constructed, not from a client.
+	t.Run("BodyReadError", func(t *testing.T) {
+		t.Parallel()
+
+		// A transport failure while streaming the body past the sniff
+		// window must surface as a read error, not as an invalid API
+		// response.
+		errTransport := xerrors.New("connection reset by peer")
+		body := io.MultiReader(
+			strings.NewReader(`{"name":"`+strings.Repeat("a", 2*jsonBodyExcerptLen)),
+			iotest.ErrReader(errTransport),
+		)
+		res := newResponse(http.StatusOK, jsonCT, body)
+
+		var v apiResponse
+		err := ReadBodyAsJSON(res, &v)
+		require.ErrorIs(t, err, errTransport)
+		require.ErrorContains(t, err, "read response body")
+		require.NotContains(t, err.Error(), "invalid API response")
+	})
 }
 
 func assertSDKError(t *testing.T, err error) *Error {
