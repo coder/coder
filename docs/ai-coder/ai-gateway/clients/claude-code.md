@@ -62,12 +62,9 @@ module "claude-code" {
 }
 ```
 
-> [!NOTE]
-> Version 5 of the Claude Code module dropped support for Coder Tasks and
-> Boundary. If you depend on those features, continue using `4.x.x` until they
-> are reintroduced. See the
-> [Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code)
-> for the full list of inputs and outputs.
+See the
+[Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code)
+for the full list of inputs and outputs.
 
 ## VS Code Extension
 
