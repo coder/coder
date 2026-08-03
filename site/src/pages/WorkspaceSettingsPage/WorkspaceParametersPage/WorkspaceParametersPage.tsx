@@ -11,10 +11,15 @@ import type {
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -263,13 +268,12 @@ const WorkspaceParametersPage: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md">
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
-			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2 justify-between w-full">
-					<span className="flex flex-row items-center gap-2">
-						<h1 className="text-3xl m-0">Workspace parameters</h1>
+			<SettingsHeader>
+				<SettingsHeaderTitle
+					tooltip={
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -290,9 +294,14 @@ const WorkspaceParametersPage: FC = () => {
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-					</span>
-				</span>
-			</header>
+					}
+				>
+					Parameters
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the build parameters for this workspace.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 

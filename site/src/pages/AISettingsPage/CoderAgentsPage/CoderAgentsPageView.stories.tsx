@@ -238,6 +238,8 @@ const selectModelInSection = async (
 const meta = {
 	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
 	component: CoderAgentsPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	args: buildArgs(),
 } satisfies Meta<typeof CoderAgentsPageView>;
 

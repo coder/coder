@@ -35,6 +35,8 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        updated_chats.summary,
+        updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
         updated_chats.history_version,
         updated_chats.queue_version,
@@ -103,6 +105,8 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        updated_chats.summary,
+        updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
         updated_chats.history_version,
         updated_chats.queue_version,
@@ -382,6 +386,9 @@ WHERE
     AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
+-- Ordered by id to match the @after_id cursor. created_at is the transaction
+-- start time, so it can disagree with append order when a transaction takes the
+-- chat row lock later than one that started after it.
 SELECT
     *
 FROM
@@ -392,9 +399,10 @@ WHERE
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
-    created_at ASC;
+    id ASC;
 
 -- name: GetChatMessagesByRevisionForStream :many
+-- Stream deltas and reset snapshots must use the same message order.
 SELECT
     *
 FROM
@@ -404,7 +412,7 @@ WHERE
     AND revision > @after_revision::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
-    created_at ASC, id ASC;
+    id ASC;
 
 -- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
@@ -476,6 +484,8 @@ LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
 -- name: GetChatMessagesForPromptByChatID :many
+-- The compaction boundary and final ordering must use the same key so tool
+-- results remain after their assistant calls.
 WITH latest_compressed_summary AS (
     SELECT
         id
@@ -487,7 +497,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -530,7 +539,6 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC;
 
 -- name: GetChats :many
@@ -770,6 +778,7 @@ ORDER BY
 -- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -787,6 +796,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -836,6 +846,8 @@ chats_expanded AS (
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
+        inserted_chat.summary,
+        inserted_chat.summary_generated_at,
         inserted_chat.snapshot_version,
         inserted_chat.history_version,
         inserted_chat.queue_version,
@@ -862,6 +874,9 @@ SELECT *
 FROM chats_expanded;
 
 -- name: InsertChatMessages :many
+-- Returns the inserted rows in input array order. Ids are allocated before the
+-- insert and the k-th smallest is assigned to input index k, so callers may
+-- index the result positionally.
 WITH batch AS (
     SELECT
         (
@@ -894,48 +909,67 @@ updated_chat AS (
             chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
             OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
+),
+allocated AS MATERIALIZED (
+    -- Numbering the ids by value, rather than by the order nextval produced
+    -- them, is what makes ordinal k always the k-th smallest id. MATERIALIZED
+    -- is redundant while nextval is volatile, and pins that if it changes.
+    SELECT
+        id,
+        (ROW_NUMBER() OVER (ORDER BY id))::int AS ord
+    FROM (
+        SELECT nextval('chat_messages_id_seq') AS id
+        FROM generate_series(1, cardinality(@role::chat_message_role[]))
+    ) s
+),
+inserted AS (
+    INSERT INTO chat_messages (
+        id,
+        chat_id,
+        created_by,
+        model_config_id,
+        reasoning_effort,
+        role,
+        content,
+        content_version,
+        visibility,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reasoning_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        context_limit,
+        compressed,
+        total_cost_micros,
+        runtime_ms
+    )
+    SELECT
+        allocated.id,
+        @chat_id::uuid,
+        NULLIF((@created_by::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF((@model_config_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF((@reasoning_effort::text[])[allocated.ord], '')::chat_reasoning_effort,
+        (@role::chat_message_role[])[allocated.ord],
+        (@content::text[])[allocated.ord]::jsonb,
+        (@content_version::smallint[])[allocated.ord],
+        (@visibility::chat_message_visibility[])[allocated.ord],
+        NULLIF((@input_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@output_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@total_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@reasoning_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@cache_creation_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@context_limit::bigint[])[allocated.ord], 0),
+        (@compressed::boolean[])[allocated.ord],
+        NULLIF((@total_cost_micros::bigint[])[allocated.ord], 0),
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+    FROM allocated
+    RETURNING *
 )
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    model_config_id,
-    reasoning_effort,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms
-)
-SELECT
-    @chat_id::uuid,
-    NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST(@reasoning_effort::text[]), '')::chat_reasoning_effort,
-    UNNEST(@role::chat_message_role[]),
-    UNNEST(@content::text[])::jsonb,
-    UNNEST(@content_version::smallint[]),
-    UNNEST(@visibility::chat_message_visibility[]),
-    NULLIF(UNNEST(@input_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@output_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@total_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@reasoning_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@cache_creation_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@cache_read_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@context_limit::bigint[]), 0),
-    UNNEST(@compressed::boolean[]),
-    NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
-    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
-RETURNING
-    *;
+SELECT *
+FROM inserted
+ORDER BY id;
 
 -- name: UpdateChatByID :one
 WITH updated_chat AS (
@@ -978,6 +1012,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1046,6 +1082,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1112,6 +1150,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1178,6 +1218,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1244,6 +1286,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1330,6 +1374,8 @@ chats_expanded AS (
         result_chat.plan_mode,
         result_chat.client_type,
         result_chat.last_turn_summary,
+        result_chat.summary,
+        result_chat.summary_generated_at,
         result_chat.snapshot_version,
         result_chat.history_version,
         result_chat.queue_version,
@@ -1395,6 +1441,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1433,6 +1481,17 @@ SET
     last_turn_summary = NULLIF(REGEXP_REPLACE(
         sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
     ), '')
+WHERE
+    id = @id::uuid
+    AND history_version = @expected_history_version::bigint;
+
+-- name: UpdateChatSummary :execrows
+-- The history_version fence lets background summary writes ignore worker-only
+-- updates while losing to newer message history.
+UPDATE chats
+SET
+    summary = sqlc.narg('summary')::text,
+    summary_generated_at = NOW()
 WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
@@ -1478,6 +1537,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1686,6 +1747,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1913,6 +1976,8 @@ SET created_at = (
 WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
+-- The returned id becomes both an AfterID cursor and last_read_message_id, so
+-- "last" must use id order.
 SELECT
     *
 FROM
@@ -1922,7 +1987,7 @@ WHERE
     AND role = @role::chat_message_role
     AND deleted = false
 ORDER BY
-    created_at DESC, id DESC
+    id DESC
 LIMIT
     1;
 
@@ -1963,6 +2028,8 @@ chats_expanded AS (
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
+        locked_chat.summary,
+        locked_chat.summary_generated_at,
         locked_chat.snapshot_version,
         locked_chat.history_version,
         locked_chat.queue_version,
@@ -2025,6 +2092,8 @@ chats_expanded AS (
         shared_chat.plan_mode,
         shared_chat.client_type,
         shared_chat.last_turn_summary,
+        shared_chat.summary,
+        shared_chat.summary_generated_at,
         shared_chat.snapshot_version,
         shared_chat.history_version,
         shared_chat.queue_version,
@@ -2159,7 +2228,7 @@ SELECT
                 OR cm.cache_creation_tokens IS NOT NULL
                 OR cm.cache_read_tokens IS NOT NULL
             )
-    )::bigint AS unpriced_message_count,
+    )::bigint AS unpriced_messages_having_usage_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
@@ -2255,6 +2324,47 @@ SELECT
 FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
+
+-- name: GetChatModelUsageCostByChatID :one
+-- Assistant-message cost rolled up over the requested chat's subtree: the
+-- chat itself plus every descendant reachable through parent_chat_id. A
+-- root chat therefore reports its whole tree, while a subagent chat
+-- reports only its own spend plus any nested subagents it spawned.
+WITH RECURSIVE target AS (
+    SELECT @chat_id::uuid AS chat_id
+), subtree AS (
+    SELECT chat_id AS id FROM target
+    UNION ALL
+    SELECT c.id
+    FROM chats c
+    JOIN subtree s ON c.parent_chat_id = s.id
+), costs AS (
+    SELECT
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NOT NULL
+        )::bigint AS priced_message_count,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NULL
+                AND (
+                    cm.input_tokens IS NOT NULL
+                    OR cm.output_tokens IS NOT NULL
+                    OR cm.reasoning_tokens IS NOT NULL
+                    OR cm.cache_creation_tokens IS NOT NULL
+                    OR cm.cache_read_tokens IS NOT NULL
+                )
+        )::bigint AS unpriced_messages_having_usage_count
+    FROM chat_messages cm
+    JOIN subtree s ON s.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+)
+SELECT
+    t.chat_id,
+    costs.total_cost_micros,
+    costs.priced_message_count,
+    costs.unpriced_messages_having_usage_count
+FROM target t
+CROSS JOIN costs;
 
 -- name: GetChatCostPerUser :many
 -- Deployment-wide per-user cost rollup within a date range.
@@ -2372,6 +2482,15 @@ WHERE c.owner_id = @user_id::uuid
   AND cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
+
+-- name: GetTotalChatMessageRuntimeMsInRange :one
+-- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+-- soft-deleted messages and messages from all chats.
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.runtime_ms IS NOT NULL;
 
 -- name: CountEnabledModelsWithoutPricing :one
 -- Counts enabled, non-deleted model configs that lack both input and
@@ -2700,6 +2819,8 @@ chats_expanded AS (
         bumped_chat.plan_mode,
         bumped_chat.client_type,
         bumped_chat.last_turn_summary,
+        bumped_chat.summary,
+        bumped_chat.summary_generated_at,
         bumped_chat.snapshot_version,
         bumped_chat.history_version,
         bumped_chat.queue_version,
@@ -2775,6 +2896,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -2840,6 +2963,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,

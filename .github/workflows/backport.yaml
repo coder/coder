@@ -1,16 +1,24 @@
-# Automatically backport merged PRs to the last N release branches when the
-# "backport" label is applied. Works whether the label is added before or
-# after the PR is merged.
+# Automatically backport merged PRs to every actively supported release branch
+# when the "backport" label is applied. Works whether the label is added before
+# or after the PR is merged.
+#
+# Target branches are the union of:
+#   - the latest 3 release/2.X branches (mainline, stable, security), and
+#   - the active ESR / ESR-1 branches listed in
+#     scripts/release_channels/esr_versions.txt.
+# The set is de-duplicated, so a branch that is both stable and ESR is
+# backported once.
 #
 # Usage:
 #   1. Add the "backport" label to a PR targeting main.
 #   2. When the PR merges (or if already merged), the workflow detects the
-#      latest release/* branches and opens one cherry-pick PR per branch.
+#      target release/* branches and opens one cherry-pick PR per branch.
 #
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
 #   - Title:   <original PR title> (#<pr>)
 #   - Body:    links back to the original PR and merge commit
+#   - Label:   backport/v<version> to identify the target release
 
 name: Backport
 on:
@@ -46,19 +54,43 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Find latest release branches
+      - name: Find target release branches
         id: find
+        env:
+          ESR_VERSIONS_FILE: scripts/release_channels/esr_versions.txt
         run: |
-          # List remote release branches matching the exact release/2.X
-          # pattern (no suffixes like release/2.31_hotfix), sort by minor
-          # version descending, and take the top 3.
-          BRANCHES=$(
+          set -euo pipefail
+
+          # Mainline, stable, security: the latest 3 release/2.X branches
+          # (exact pattern, no suffixes like release/2.31_hotfix), sorted by
+          # minor version descending.
+          TOP3=$(
             git branch -r \
               | grep -E '^\s*origin/release/2\.[0-9]+$' \
               | sed 's|.*origin/||' \
               | sort -t. -k2 -n -r \
               | head -3
           )
+
+          # ESR and ESR-1: the active ESR versions from the shared source of
+          # truth. Each entry maps to the release/<version> branch. Skip
+          # entries whose branch does not exist.
+          ESR_BRANCHES=""
+          if [ -f "$ESR_VERSIONS_FILE" ]; then
+            while read -r RELEASE; do
+              BRANCH="release/${RELEASE}"
+              if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+                ESR_BRANCHES="${ESR_BRANCHES}${BRANCH}"$'\n'
+              else
+                echo "::warning::ESR branch ${BRANCH} not found, skipping."
+              fi
+            done < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE")
+          else
+            echo "::warning::${ESR_VERSIONS_FILE} not found, backporting to latest 3 only."
+          fi
+
+          # Union the two sets and de-duplicate.
+          BRANCHES=$(printf '%s\n%s\n' "$TOP3" "$ESR_BRANCHES" | sed '/^$/d' | sort -u)
 
           if [ -z "$BRANCHES" ]; then
             echo "No release branches found."
@@ -77,6 +109,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # Required to create the release-specific backport label if missing.
+      issues: write
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -112,37 +146,58 @@ jobs:
           VERSION="${RELEASE_VERSION#release/}"
           BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"
 
+          # Label applied to the backport PR so PRs for a specific release can
+          # be filtered easily (e.g. backport/v2.34).
+          BACKPORT_LABEL="backport/v${VERSION}"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Check if backport branch already exists (idempotency for re-runs).
-          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
-            echo "Backport branch ${BACKPORT_BRANCH} already exists, skipping."
+          # Idempotency: if a backport PR already exists for this branch
+          # (open, closed, or merged), there is nothing to do. This is the
+          # primary guard so a re-run that previously pushed a branch but
+          # failed before opening the PR still recovers below.
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_VERSION" --state all --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
             exit 0
           fi
 
-          # Create the backport branch from the target release branch.
-          git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_VERSION}"
-
-          # Cherry-pick the merge commit. Use -x to record provenance and
-          # -m1 to pick the first parent (the main branch side).
           CONFLICTS=false
-          if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
-            echo "::warning::Cherry-pick to ${RELEASE_VERSION} had conflicts."
-            CONFLICTS=true
+          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            # The branch exists from an earlier run that failed before opening
+            # the PR. Reuse it as-is and fall through to PR creation rather
+            # than starting over or bailing out.
+            echo "Backport branch ${BACKPORT_BRANCH} already exists; reusing it to open the PR."
+          else
+            # Create the backport branch from the target release branch.
+            git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_VERSION}"
 
-            # Abort the failed cherry-pick and create an empty commit
-            # explaining the situation.
-            git cherry-pick --abort
-            git commit --allow-empty -m "Cherry-pick of #${PR_NUMBER} requires manual resolution
+            # Cherry-pick the merge commit. Use -x to record provenance and
+            # -m1 to pick the first parent (the main branch side).
+            #
+            # Every target branch is validated to exist in the detect job, so a
+            # failure here is a genuine conflict, not a missing branch. Rather
+            # than abort the whole backport, leave a placeholder commit and open
+            # a PR with copy-paste resolution steps so it can be finished by
+            # hand (or closed) instead of recreated from scratch.
+            if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
+              echo "::warning::Cherry-pick to ${RELEASE_VERSION} had conflicts."
+              CONFLICTS=true
+
+              # Abort the failed cherry-pick and create an empty commit
+              # explaining the situation.
+              git cherry-pick --abort
+              git commit --allow-empty -m "Cherry-pick of #${PR_NUMBER} requires manual resolution
 
           The automatic cherry-pick of ${MERGE_SHA} to ${RELEASE_VERSION} had conflicts.
           Please cherry-pick manually:
 
               git cherry-pick -x -m1 ${MERGE_SHA}"
-          fi
+            fi
 
-          git push origin "$BACKPORT_BRANCH"
+            git push origin "$BACKPORT_BRANCH"
+          fi
 
           TITLE="${PR_TITLE} (#${PR_NUMBER})"
           BODY=$(cat <<EOF
@@ -171,18 +226,35 @@ jobs:
           > \`\`\`"
           fi
 
-          # Check if a PR already exists for this branch (idempotency
-          # for re-runs).
-          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_VERSION" --state all --json number --jq '.[0].number // empty')
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
-            exit 0
-          fi
+          # Ensure the release-specific label exists. Best-effort: label
+          # problems must never prevent the PR from being opened.
+          gh label create "$BACKPORT_LABEL" \
+            --description "Backport PR targeting ${RELEASE_VERSION}" \
+            --color "D93F0B" \
+            --force || echo "::warning::Could not create label ${BACKPORT_LABEL}."
 
-          gh pr create \
-            --base "$RELEASE_VERSION" \
-            --head "$BACKPORT_BRANCH" \
-            --title "$TITLE" \
-            --body "$BODY" \
-            --assignee "$SENDER" \
-            --reviewer "$SENDER"
+          # Create the PR first, then attach label/assignee/reviewer
+          # separately. Requesting a review from (or assigning) the PR author
+          # is rejected by GitHub, and doing it inline with `gh pr create`
+          # under `set -e` would abort the job and leave no PR. Attaching them
+          # afterwards as best-effort guarantees the PR always gets created.
+          NEW_PR_URL=$(
+            gh pr create \
+              --base "$RELEASE_VERSION" \
+              --head "$BACKPORT_BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY"
+          )
+
+          gh pr edit "$NEW_PR_URL" --add-label "$BACKPORT_LABEL" || echo "::warning::Could not add label ${BACKPORT_LABEL} to ${NEW_PR_URL}."
+          gh pr edit "$NEW_PR_URL" --add-assignee "$SENDER" || echo "::warning::Could not assign @${SENDER} to ${NEW_PR_URL}."
+          gh pr edit "$NEW_PR_URL" --add-reviewer "$SENDER" || echo "::warning::Could not request review from @${SENDER} on ${NEW_PR_URL}."
+
+          # Notify the requester on the original PR which backport was opened,
+          # flagging conflicts that still need manual resolution. Best-effort:
+          # don't fail the job if the original PR is locked.
+          COMMENT="Backport to \`${RELEASE_VERSION}\` created: ${NEW_PR_URL}"
+          if [ "$CONFLICTS" = true ]; then
+            COMMENT="${COMMENT} (:warning: conflicts need manual resolution)"
+          fi
+          gh pr comment "$PR_NUMBER" --body "$COMMENT" || echo "::warning::Failed to comment on #${PR_NUMBER} (PR may be locked)."

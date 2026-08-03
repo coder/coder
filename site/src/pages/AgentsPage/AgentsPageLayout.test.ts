@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { shouldInvalidateFilteredChatList } from "./AgentsPageLayout";
+import {
+	chatCostIdToInvalidate,
+	shouldInvalidateFilteredChatList,
+} from "./AgentsPageLayout";
 import {
 	emptyInputStorageKey,
 	useEmptyStateDraft,
@@ -927,5 +930,127 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
 			expected,
 		);
+	});
+});
+
+describe(chatCostIdToInvalidate.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: string | undefined;
+	}>([
+		{
+			name: "invalidates when a status change ends active generation",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "status_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates the root's tree cost when a subagent finishes",
+			updatedChat: chatForFilterInvalidation({
+				id: "child-1",
+				parent_chat_id: "root-1",
+				root_chat_id: "root-1",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: "root-1",
+		},
+		{
+			name: "invalidates the root's tree cost when a nested subagent finishes",
+			updatedChat: chatForFilterInvalidation({
+				id: "grandchild-1",
+				parent_chat_id: "child-1",
+				root_chat_id: "root-1",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: "root-1",
+		},
+		{
+			// Deleting a root nulls root_chat_id on descendants, leaving only
+			// parent_chat_id, so cost is keyed on the parent.
+			name: "falls back to the parent when the root chat is gone",
+			updatedChat: chatForFilterInvalidation({
+				id: "grandchild-1",
+				parent_chat_id: "child-1",
+				root_chat_id: undefined,
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: "child-1",
+		},
+		{
+			name: "waits while the chat is still active",
+			updatedChat: chatForFilterInvalidation({ status: "running" }),
+			eventKind: "status_change",
+			expected: undefined,
+		},
+		{
+			name: "waits while a subagent is still active",
+			updatedChat: chatForFilterInvalidation({
+				id: "child-1",
+				parent_chat_id: "root-1",
+				root_chat_id: "root-1",
+				status: "running",
+			}),
+			eventKind: "status_change",
+			expected: undefined,
+		},
+		{
+			name: "waits while the chat is interrupting",
+			updatedChat: chatForFilterInvalidation({ status: "interrupting" }),
+			eventKind: "status_change",
+			expected: undefined,
+		},
+		{
+			name: "ignores events that bill no gateway request",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "diff_status_change",
+			expected: undefined,
+		},
+		{
+			name: "invalidates when a generated title lands on an idle chat",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "title_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates the root's tree cost for a subagent title change",
+			updatedChat: chatForFilterInvalidation({
+				id: "child-1",
+				parent_chat_id: "root-1",
+				root_chat_id: "root-1",
+				status: "running",
+			}),
+			eventKind: "title_change",
+			expected: "root-1",
+		},
+		{
+			name: "invalidates when a generated turn status label lands",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "summary_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates when a generated whole-chat summary lands",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "chat_summary_change",
+			expected: "chat-1",
+		},
+		{
+			name: "invalidates the root's tree cost for a subagent summary change",
+			updatedChat: chatForFilterInvalidation({
+				id: "child-1",
+				parent_chat_id: "root-1",
+				root_chat_id: "root-1",
+				status: "running",
+			}),
+			eventKind: "chat_summary_change",
+			expected: "root-1",
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(chatCostIdToInvalidate(updatedChat, eventKind)).toBe(expected);
 	});
 });

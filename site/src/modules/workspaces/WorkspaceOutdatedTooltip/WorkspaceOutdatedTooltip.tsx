@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
@@ -17,6 +15,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
@@ -80,7 +79,6 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	isOpen,
 }) => {
 	const getLink = useLinks();
-	const theme = useTheme();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: isOpen,
@@ -120,7 +118,10 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 								<Link
 									href={`${versionLink}/versions/${activeVersion.name}`}
 									target="_blank"
-									css={{ color: theme.palette.primary.light }}
+									rel="noreferrer"
+									size="sm"
+									className="p-0"
+									showExternalIcon={false}
 								>
 									{activeVersion.name}
 								</Link>
@@ -151,7 +152,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</HelpPopoverAction>
 				</HelpPopoverLinksGroup>
 			</HelpPopoverContent>
-			<WorkspaceUpdateDialogs {...updateWorkspace.dialogs} />
+			<WorkspaceUpdateDialogs {...updateWorkspace.dialogProps} />
 		</>
 	);
 };

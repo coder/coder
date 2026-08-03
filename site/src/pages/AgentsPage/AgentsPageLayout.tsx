@@ -20,6 +20,7 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
+	chatCostKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -47,8 +48,8 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
@@ -58,6 +59,8 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
+import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
 	isSettingsView,
@@ -123,6 +126,27 @@ export const shouldInvalidateFilteredChatList = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
+// Summary and title generation can bill after the turn reports a non-active
+// status, so invalidate the root-keyed cost query when those events arrive.
+const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"summary_change",
+	"title_change",
+]);
+
+export const chatCostIdToInvalidate = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): string | undefined => {
+	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
+		return getChatCostTreeID(chat);
+	}
+	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
+		return undefined;
+	}
+	return getChatCostTreeID(chat);
+};
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
@@ -652,6 +676,16 @@ const AgentsPageLayout: FC = () => {
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
+						}
+						const costChatId = chatCostIdToInvalidate(
+							updatedChat,
+							chatEvent.kind,
+						);
+						if (costChatId) {
+							void queryClient.invalidateQueries({
+								queryKey: chatCostKey(costChatId),
+								exact: true,
+							});
 						}
 						if (chatEvent.kind === "context_dirty") {
 							// The watch payload carries only the lightweight

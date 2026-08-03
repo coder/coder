@@ -1855,6 +1855,7 @@ const (
 	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeTunnel          ConnectionType = "tunnel"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1899,7 +1900,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeJetbrains,
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding:
+		ConnectionTypePortForwarding,
+		ConnectionTypeTunnel:
 		return true
 	}
 	return false
@@ -1913,6 +1915,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
+		ConnectionTypeTunnel,
 	}
 }
 
@@ -3528,6 +3531,7 @@ const (
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3601,7 +3605,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroupAIBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
-		ResourceTypeUserAIBudgetOverride:
+		ResourceTypeUserAIBudgetOverride,
+		ResourceTypeOauth2ProviderSettings:
 		return true
 	}
 	return false
@@ -3644,6 +3649,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
+		ResourceTypeOauth2ProviderSettings,
 	}
 }
 
@@ -4970,6 +4976,8 @@ type Chat struct {
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString          `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
 	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
 	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
@@ -5209,7 +5217,9 @@ type ChatTable struct {
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
-	CompactionRequestedAt sql.NullTime `db:"compaction_requested_at" json:"compaction_requested_at"`
+	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
+	Summary               sql.NullString `db:"summary" json:"summary"`
+	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -6132,7 +6142,8 @@ type UsageEvent struct {
 	EventType string `db:"event_type" json:"event_type"`
 	// Event payload. Determined by the matching usage struct for this event type.
 	EventData json.RawMessage `db:"event_data" json:"event_data"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
 	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
 	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
@@ -6240,6 +6251,7 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 type UserSkill struct {

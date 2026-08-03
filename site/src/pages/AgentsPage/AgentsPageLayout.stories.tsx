@@ -16,7 +16,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockNoPermissions,
@@ -70,7 +70,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 1_500_000,
 	priced_message_count: 12,
-	unpriced_message_count: 1,
+	unpriced_messages_having_usage_count: 1,
 	total_input_tokens: 123_456,
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
@@ -707,6 +707,8 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-wide-sidebar" },
@@ -858,6 +860,8 @@ export const SidebarCollapsed: Story = {
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -896,6 +900,8 @@ export const EmptyStateZoom200Desktop: Story = {
 export const CollapsedSidebarZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -923,6 +929,8 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-1" },

@@ -18,7 +18,7 @@ import {
 	canViewOrganization,
 	type OrganizationPermissions,
 } from "#/modules/permissions/organizations";
-import NotFoundPage from "#/pages/404Page/404Page";
+import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -122,6 +122,7 @@ const OrganizationSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<div className="h-px border-none bg-border" />
+
 				<Suspense fallback={<Loader />}>
 					<Outlet />
 				</Suspense>

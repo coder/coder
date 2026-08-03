@@ -1,9 +1,11 @@
 import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
+import { Link } from "#/components/Link/Link";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -22,6 +24,7 @@ import {
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
+import { docs } from "#/utils/docs";
 import {
 	DefaultLimitController,
 	type DefaultLimitFormValues,
@@ -232,6 +235,24 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 				>
 					{(userCtrl) => (
 						<div className="flex max-w-[1100px] flex-col gap-8">
+							<Alert severity="warning" prominent>
+								<AlertDescription>
+									As of v2.36, AI Governance Cost Control replaces Coder Agents
+									Cost Control. The limits on this page are no longer enforced
+									and do not carry over. Recreate each limit as an AI Governance
+									budget to restore enforcement.{" "}
+									<Link
+										href={docs(
+											"/ai-coder/ai-gateway/cost-controls#migrate-from-coder-agents-cost-control",
+										)}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Read more here
+									</Link>
+								</AlertDescription>
+							</Alert>
+
 							<SettingsHeader>
 								<SettingsHeaderTitle>
 									Spend limits and usage

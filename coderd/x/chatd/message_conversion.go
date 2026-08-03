@@ -28,12 +28,13 @@ import (
 const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
 
 type buildCommitStepMessagesInput struct {
-	modelConfigID      uuid.UUID
-	modelCallConfig    codersdk.ChatModelCallConfig
-	step               stepData
-	toolNameToConfigID map[string]uuid.UUID
-	logger             slog.Logger
-	contentVersion     int16
+	modelConfigID          uuid.UUID
+	modelCallConfig        codersdk.ChatModelCallConfig
+	step                   stepData
+	toolNameToConfigID     map[string]uuid.UUID
+	logger                 slog.Logger
+	contentVersion         int16
+	hookRewrittenToolCalls map[string]json.RawMessage
 }
 
 type stepMessagesForCommit struct {
@@ -51,7 +52,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
-	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID)
+	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -112,6 +113,7 @@ func buildAssistantParts(
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
 	toolNameToConfigID map[string]uuid.UUID,
+	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	reasoningIdx := 0
@@ -124,6 +126,11 @@ func buildAssistantParts(
 				if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
 					part.CreatedAt = &ts
 				}
+			}
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
+				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
 			if part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
@@ -336,19 +343,28 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
-func currentTurnStepCount(messages []database.ChatMessage) int {
-	latestUser := -1
+// Hook model-context messages use the user role but must not reset
+// per-turn guards.
+func lastUserPromptIndex(messages []database.ChatMessage) int {
+	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
-			latestUser = i
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+			index = i
 		}
 	}
+	return index
+}
+
+func currentTurnStartIndex(messages []database.ChatMessage) int {
+	return lastUserPromptIndex(messages) + 1
+}
+
+func currentTurnStepCount(messages []database.ChatMessage) int {
 	count := 0
-	for i := latestUser + 1; i < len(messages); i++ {
-		msg := messages[i]
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
@@ -477,16 +493,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 	if len(stopAfterTools) == 0 {
 		return false, nil
 	}
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
-	for _, msg := range messages[start:] {
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}

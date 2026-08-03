@@ -6,10 +6,10 @@ import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -20,13 +20,20 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
-import { pickReasoningEffort } from "../utils/reasoningEffort";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import {
 	formatUsageLimitMessage,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
+import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
@@ -240,13 +247,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
 	const effectiveReasoningEffort = selectedModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort,
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
 				selectedModelOption.reasoningEfforts ?? [],
 				selectedModelOption.reasoningEffortDefault,
 			)
@@ -349,6 +372,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
+	};
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
 	};
 
 	const isForbidden = !canCreateChat;
@@ -499,6 +530,30 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									{formatUsageLimitMessage(createError.response.data)}
 								</AlertDescription>
 							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 502 &&
+							isChatHookDispatchFailedResponse(createError.response.data) ? (
+							<Alert severity="error">
+								<AlertTitle>
+									{getErrorTitle("hook_dispatch_failed", "error")}
+								</AlertTitle>
+								<AlertDescription>
+									<span>{createError.response.data.message}</span>
+									{createError.response.data.detail && (
+										<span className="mt-1 block text-content-secondary">
+											{createError.response.data.detail}
+										</span>
+									)}
+								</AlertDescription>
+							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 403 &&
+							isChatHookDeniedResponse(createError.response.data) ? (
+							<Alert severity="info">
+								<AlertDescription>
+									{createError.response.data.message}
+								</AlertDescription>
+							</Alert>
 						) : (
 							<ErrorAlert error={createError} />
 						)
@@ -544,7 +599,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
-						onReasoningEffortChange={setSelectedReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
