@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
@@ -15,6 +14,7 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { FormField } from "#/components/FormField/FormField";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -273,25 +273,27 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
 					</p>
-					<TextField
+					<FormField
+						label="Confirm your password"
+						field={{
+							id: "confirm-password",
+							name: "confirm-password",
+							value: password,
+							onChange: (event) => setPassword(event.target.value),
+							onBlur: () => {},
+							error: Boolean(error),
+							helperText: error
+								? getErrorMessage(error, "Your password is incorrect")
+								: undefined,
+						}}
+						id="confirm-password"
+						type="password"
 						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
 							}
 						}}
-						error={Boolean(error)}
-						helperText={
-							error
-								? getErrorMessage(error, "Your password is incorrect")
-								: undefined
-						}
-						name="confirm-password"
-						id="confirm-password"
-						value={password}
-						onChange={(e) => setPassword(e.currentTarget.value)}
-						label="Confirm your password"
-						type="password"
 					/>
 				</div>
 			}

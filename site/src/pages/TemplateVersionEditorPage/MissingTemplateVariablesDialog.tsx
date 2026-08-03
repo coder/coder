@@ -47,7 +47,10 @@ export const MissingTemplateVariablesDialog: FC<
 				}
 			}}
 		>
-			<DialogContent className="max-w-md" data-testid="dialog">
+			<DialogContent
+				className="max-w-md max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]"
+				data-testid="dialog"
+			>
 				<DialogHeader>
 					<DialogTitle>Template variables</DialogTitle>
 					<DialogDescription>
@@ -56,34 +59,36 @@ export const MissingTemplateVariablesDialog: FC<
 					</DialogDescription>
 				</DialogHeader>
 
-				<VerticalForm
-					id="updateVariables"
-					onSubmit={(e) => {
-						e.preventDefault();
-						onSubmit(variableValues);
-					}}
-				>
-					{missingVariables ? (
-						<FormFields>
-							{missingVariables.map((variable, index) => {
-								return (
-									<VariableInput
-										defaultValue={variable.value}
-										variable={variable}
-										key={variable.name}
-										onChange={async (value) => {
-											setVariableValues((prev) =>
-												prev.with(index, { name: variable.name, value }),
-											);
-										}}
-									/>
-								);
-							})}
-						</FormFields>
-					) : (
-						<Loader />
-					)}
-				</VerticalForm>
+				<div className="min-h-0 overflow-y-auto">
+					<VerticalForm
+						id="updateVariables"
+						onSubmit={(e) => {
+							e.preventDefault();
+							onSubmit(variableValues);
+						}}
+					>
+						{missingVariables ? (
+							<FormFields>
+								{missingVariables.map((variable, index) => {
+									return (
+										<VariableInput
+											defaultValue={variable.value}
+											variable={variable}
+											key={variable.name}
+											onChange={async (value) => {
+												setVariableValues((prev) =>
+													prev.with(index, { name: variable.name, value }),
+												);
+											}}
+										/>
+									);
+								})}
+							</FormFields>
+						) : (
+							<Loader />
+						)}
+					</VerticalForm>
+				</div>
 
 				<DialogFooter>
 					<Button variant="outline" type="button" onClick={onClose}>
