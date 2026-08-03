@@ -278,7 +278,6 @@ const ScheduleSettingsLink: React.FC<LinkProps> = ({
 }) => {
 	return (
 		<Link
-			href="settings/schedule"
 			className={cn(
 				"[&::first-letter]:uppercase p-0 hover:no-underline text-content-link text-xs",
 				className,
