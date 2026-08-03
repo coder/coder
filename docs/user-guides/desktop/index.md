@@ -174,7 +174,8 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 If the menu bar or tray shows **Coder Connect** as enabled but workspaces are
 unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot
 list the workspace directory), the embedded tunnel may be in a stale state.
-Restarting the helper components in place usually clears it without a reboot.
+Restart the helper components first.
+If that doesn't resolve the issue, reboot your computer.
 
 <div class="tabs">
 
