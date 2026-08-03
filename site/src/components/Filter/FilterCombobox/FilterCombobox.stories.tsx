@@ -103,6 +103,10 @@ const FilterComboboxHarness = ({
 	);
 };
 
+/** Combobox popup is portaled to document.body, outside the Storybook canvas. */
+const bodyOf = (canvasElement: HTMLElement) =>
+	within(canvasElement.ownerDocument.body);
+
 export const Default: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
@@ -121,17 +125,19 @@ export const OpenFilterMenu: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		await expect(canvas.getByRole("option", { name: /Status/i })).toBeVisible();
-		await expect(
-			canvas.getByRole("option", { name: /Template/i }),
-		).toBeVisible();
-		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		// Popup is portaled and animates open; wait until options are visible.
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Status/i })).toBeVisible(),
+		);
+		await expect(body.getByRole("option", { name: /Template/i })).toBeVisible();
+		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
 		await expect(input).toHaveFocus();
 	},
 };
@@ -140,15 +146,16 @@ export const FocusShowsCategories: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
-		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
-		await expect(canvas.getByRole("option", { name: /Status/i })).toBeVisible();
-		await expect(
-			canvas.getByRole("option", { name: /Template/i }),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Owner/i })).toBeVisible(),
+		);
+		await expect(body.getByRole("option", { name: /Status/i })).toBeVisible();
+		await expect(body.getByRole("option", { name: /Template/i })).toBeVisible();
 	},
 };
 
@@ -156,14 +163,15 @@ export const TypeFacetPrefix: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
 		await expect(canvas.getByText("status:")).toBeVisible();
-		await waitFor(() => expect(canvas.getByText("Running")).toBeVisible());
-		await expect(canvas.getByRole("status")).toHaveTextContent(
+		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+		await expect(body.getByRole("status")).toHaveTextContent(
 			"Filtering by Status",
 		);
 	},
@@ -173,18 +181,19 @@ export const TypeaheadMatchingCategories: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "ow");
-		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
 		await expect(
-			canvas.queryByRole("option", { name: /Status/i }),
+			body.queryByRole("option", { name: /Status/i }),
 		).not.toBeInTheDocument();
 		await userEvent.keyboard("{Enter}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
-		await waitFor(() => expect(canvas.getByText("alice")).toBeVisible());
+		await waitFor(() => expect(body.getByText("alice")).toBeVisible());
 	},
 };
 
@@ -192,15 +201,16 @@ export const TabCompletesTopCategory: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "ow");
-		await expect(canvas.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
 		await userEvent.keyboard("{Tab}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
-		await waitFor(() => expect(canvas.getByText("alice")).toBeVisible());
+		await waitFor(() => expect(body.getByText("alice")).toBeVisible());
 	},
 };
 
@@ -229,16 +239,17 @@ export const LiveResourcePreviews: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "dev");
 		await waitFor(() =>
-			expect(canvas.getByRole("option", { name: /devbox/i })).toBeVisible(),
+			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
 		);
-		await expect(canvas.getByText("Workspaces")).toBeVisible();
-		await expect(canvas.getByText("alice · docker")).toBeVisible();
+		await expect(body.getByText("Workspaces")).toBeVisible();
+		await expect(body.getByText("alice · docker")).toBeVisible();
 	},
 };
 
@@ -272,19 +283,20 @@ export const CrossCategoryValueSuggestions: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "test");
-		await waitFor(() => expect(canvas.getByText("Owner")).toBeVisible());
+		await waitFor(() => expect(body.getByText("Owner")).toBeVisible());
 		await expect(
-			canvas.getByRole("option", { name: /testuser01/i }),
+			body.getByRole("option", { name: /testuser01/i }),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("option", { name: /^Owner$/i }),
+			body.queryByRole("option", { name: /^Owner$/i }),
 		).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("option", { name: /testuser01/i }));
+		await userEvent.click(body.getByRole("option", { name: /testuser01/i }));
 		await expect(canvas.getByText("owner:testuser01")).toBeVisible();
 	},
 };
