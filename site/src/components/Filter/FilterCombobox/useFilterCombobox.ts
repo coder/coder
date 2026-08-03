@@ -106,7 +106,8 @@ export const useFilterCombobox = ({
 		}
 		lastEmittedRef.current = value;
 		const freeText = extractFreeText(value);
-		setCommittedNameSearch(freeText);
+		committedFreeTextRef.current = freeText;
+		setCommittedFreeText(freeText);
 		if (!facetModeRef.current) {
 			setInputValue(freeText);
 		}

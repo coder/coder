@@ -10,8 +10,8 @@ import { useNavigate } from "react-router";
 import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
-	FilterCombobox,
 	type FilterCategory,
+	FilterCombobox,
 	type SearchResult,
 } from "#/components/Filter/FilterCombobox";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
