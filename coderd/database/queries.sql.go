@@ -1156,6 +1156,59 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 	return total_deleted, err
 }
 
+const getAIBridgeChatCost = `-- name: GetAIBridgeChatCost :one
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
+			c.root_chat_id = $1::uuid
+			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
+		)
+		-- Restrict to aibridge.ClientCoderAgents so another client's session
+		-- reference cannot match a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request
+`
+
+type GetAIBridgeChatCostRow struct {
+	TotalCostMicros      int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	RequestCount         int64 `db:"request_count" json:"request_count"`
+	UnpricedRequestCount int64 `db:"unpriced_request_count" json:"unpriced_request_count"`
+}
+
+// AI Gateway cost for one chat tree: the root chat plus every subagent
+// beneath it. The spawning chat's ID is recorded as the interception session
+// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+// to its parent rather than the root, and only whole trees can be summed. The
+// owner check guards against session-id collisions. Usage without an
+// effective group never reaches ai_user_daily_spend.
+func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (GetAIBridgeChatCostRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeChatCost, rootChatID)
+	var i GetAIBridgeChatCostRow
+	err := row.Scan(&i.TotalCostMicros, &i.RequestCount, &i.UnpricedRequestCount)
+	return i, err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
@@ -1259,6 +1312,101 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ErrorType,
 			&i.ErrorMessage,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeSessionTopDomains = `-- name: GetAIBridgeSessionTopDomains :many
+WITH session_boundary_logs AS (
+	SELECT bl.detail
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND bl.sequence_number < w.next_seq
+	WHERE afi.session_id = $2::text
+		AND afi.ended_at IS NOT NULL
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+		AND bl.proto = 'http'
+),
+extracted AS (
+	-- Strip an optional scheme, then keep the host up to the first port, path,
+	-- query, or fragment delimiter. This assumes HTTP egress detail is a plain
+	-- scheme+host(+port) URL: it does not handle userinfo (user@host, which
+	-- would be captured into the host) or IPv6 literal hosts ([::1], where the
+	-- leading '[' is captured and the ':' terminates early). Boundary HTTP logs
+	-- do not currently emit those forms; revisit this extraction if they do.
+	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
+	FROM session_boundary_logs
+),
+domains AS (
+	SELECT domain, COUNT(*)::bigint AS count
+	FROM extracted
+	WHERE domain IS NOT NULL AND domain != ''
+	GROUP BY domain
+)
+SELECT
+	-- COALESCE keeps sqlc from typing the grouped column as nullable; the
+	-- domains CTE already filters out NULL/empty hosts.
+	COALESCE(domain, '')::text AS domain,
+	count,
+	COUNT(*) OVER ()::bigint AS total_domains
+FROM domains
+ORDER BY count DESC, domain ASC
+LIMIT COALESCE(NULLIF($1::integer, 0), 5)
+`
+
+type GetAIBridgeSessionTopDomainsParams struct {
+	Limit     int32  `db:"limit_" json:"limit_"`
+	SessionID string `db:"session_id" json:"session_id"`
+}
+
+type GetAIBridgeSessionTopDomainsRow struct {
+	Domain       string `db:"domain" json:"domain"`
+	Count        int64  `db:"count" json:"count"`
+	TotalDomains int64  `db:"total_domains" json:"total_domains"`
+}
+
+// Returns the most contacted destination hosts for an AI session, ordered by
+// call count descending and limited to the top @limit_ rows. total_domains is
+// the number of distinct domains across the whole session, used to render a
+// "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+// dns/git/fs boundary logs do not carry a domain in the same shape.
+//
+// Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+// each interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session, and falls back to the maximum
+// sequence_number for the last interception so the window stays an
+// index-satisfiable range.
+func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAIBridgeSessionTopDomainsParams) ([]GetAIBridgeSessionTopDomainsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeSessionTopDomains, arg.Limit, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIBridgeSessionTopDomainsRow
+	for rows.Next() {
+		var i GetAIBridgeSessionTopDomainsRow
+		if err := rows.Scan(&i.Domain, &i.Count, &i.TotalDomains); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1876,6 +2024,85 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 	return items, nil
 }
 
+const listAIBridgeSessionNetworkCalls = `-- name: ListAIBridgeSessionNetworkCalls :many
+SELECT bl.id, bl.session_id, bl.sequence_number, bl.captured_at, bl.created_at, bl.proto, bl.method, bl.detail, bl.matched_rule, bl.owner_id
+FROM aibridge_interceptions afi
+LEFT JOIN LATERAL (
+	SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+	FROM aibridge_interceptions nxt
+	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+) w ON true
+JOIN boundary_logs bl
+	ON bl.session_id = afi.agent_firewall_session_id
+	AND bl.sequence_number > afi.agent_firewall_sequence_number
+	AND bl.sequence_number < w.next_seq
+WHERE afi.session_id = $1::text
+	AND afi.ended_at IS NOT NULL
+	AND afi.agent_firewall_session_id IS NOT NULL
+	AND afi.agent_firewall_sequence_number IS NOT NULL
+ORDER BY bl.created_at ASC, bl.sequence_number ASC, bl.id ASC
+LIMIT COALESCE(NULLIF($2::integer, 0), 1000)
+`
+
+type ListAIBridgeSessionNetworkCallsParams struct {
+	SessionID string `db:"session_id" json:"session_id"`
+	Limit     int32  `db:"limit_" json:"limit_"`
+}
+
+// Returns the individual Agent Firewall network calls made during an AI
+// session, ordered chronologically. All protocols are included, unlike
+// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+// covers the same events the network_calls summary in ListAIBridgeSessions
+// counts. The list is capped at @limit_ rows, so its length equals the summary
+// total only for sessions at or below the cap. The summary stays authoritative
+// for whole-session totals.
+//
+// Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+// interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session, and falls back to the maximum
+// sequence_number for the last interception so the window stays an
+// index-satisfiable range.
+// created_at leads because a session can span several firewall sessions, whose
+// sequence numbers are independent streams. id breaks remaining ties so the row
+// that lands on the limit boundary is stable across identical requests.
+func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionNetworkCalls, arg.SessionID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH paginated_threads AS (
 	SELECT
@@ -2164,12 +2391,13 @@ LEFT JOIN LATERAL (
 	-- (logged at exactly its sequence number), leaving the agent's other
 	-- egress. next_seq considers all interceptions in the firewall session so
 	-- windows never bleed across AI sessions that share one firewall session.
+	--
 	SELECT
 		COUNT(*)::bigint AS total,
 		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
 	FROM aibridge_interceptions afi
 	LEFT JOIN LATERAL (
-		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
 		FROM aibridge_interceptions nxt
 		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
 			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
@@ -2177,7 +2405,7 @@ LEFT JOIN LATERAL (
 	JOIN boundary_logs bl
 		ON bl.session_id = afi.agent_firewall_session_id
 		AND bl.sequence_number > afi.agent_firewall_sequence_number
-		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+		AND bl.sequence_number < w.next_seq
 	WHERE afi.id = ANY(sr.interception_ids)
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
@@ -2232,6 +2460,12 @@ type ListAIBridgeSessionsRow struct {
 // Pagination-first strategy: identify the page of sessions cheaply via a
 // single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 // first-interception metadata) only for the ~page-size result set.
+// The last interception in a session has no next row, so next_seq uses
+// the largest sequence_number instead of NULL. The lookup stays a plain
+// range, so the (session_id, sequence_number) index answers it alone.
+// With NULL and an OR check, the index cannot bound the range: each
+// interception reads every log to the end of the session and throws
+// most of them away.
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
@@ -2525,6 +2759,108 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 	return i, err
 }
 
+const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
+	ai.model AS model,
+	ai.provider AS provider,
+	ai.provider_name AS provider_name,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	organizations.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+`
+
+type ExportOrganizationAISpendParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type ExportOrganizationAISpendRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
+	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
+	GroupName        string        `db:"group_name" json:"group_name"`
+	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OrganizationName string        `db:"organization_name" json:"organization_name"`
+	Model            string        `db:"model" json:"model"`
+	Provider         string        `db:"provider" json:"provider"`
+	ProviderName     string        `db:"provider_name" json:"provider_name"`
+	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+}
+
+// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+// @organization_id over the [period_start, period_end) window. Spend is
+// attributed through the token usage's effective group, and rows are bucketed
+// by the token usage created_at, matching how ai_user_daily_spend is derived.
+func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportOrganizationAISpendRow
+	for rows.Next() {
+		var i ExportOrganizationAISpendRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.GroupID,
+			&i.GroupName,
+			&i.OrganizationID,
+			&i.OrganizationName,
+			&i.Model,
+			&i.Provider,
+			&i.ProviderName,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
@@ -2758,41 +3094,119 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 }
 
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
+WITH queried_groups AS (
+	-- The requested groups that belong to the queried organization.
+	SELECT groups.id, groups.organization_id
+	FROM groups
+	WHERE groups.organization_id = $1
+		AND groups.id = ANY($2::uuid[])
+),
+candidate_users AS (
+	-- Members of the queried groups. Uses group_members_expanded so the implicit
+	-- Everyone group counts.
+	SELECT DISTINCT member.user_id
+	FROM group_members_expanded member
+	WHERE member.group_id IN (SELECT id FROM queried_groups)
+),
+user_highest_group AS (
+	-- Per user, the highest-limit group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM candidate_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- Effective budget group per user: an override wins over the highest-limit
+	-- group they belong to. Users with neither are left out, since the group they
+	-- fall back to has no budget and reports null.
+	SELECT
+		candidate_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		override.spend_limit_micros AS override_limit_micros
+	FROM candidate_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = candidate_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = candidate_users.user_id
+),
+group_limits AS (
+	-- Per attributed group, how many members take the group's own limit and the
+	-- combined limit of those carrying an override.
+	SELECT
+		effective.effective_group_id AS group_id,
+		count(*) FILTER (WHERE effective.override_limit_micros IS NULL) AS plain_member_count,
+		COALESCE(SUM(effective.override_limit_micros), 0)::BIGINT AS override_limit_sum
+	FROM effective
+	WHERE effective.effective_group_id IS NOT NULL
+	GROUP BY effective.effective_group_id
+),
+group_totals AS (
+	-- Combined limit per budgeted group, counting members with no override at the
+	-- group's own limit and adding the overrides on top. Unbudgeted groups are
+	-- absent here, so the join below leaves their total null.
+	SELECT
+		queried_groups.id AS group_id,
+		(budget.spend_limit_micros * COALESCE(group_limits.plain_member_count, 0)
+			+ COALESCE(group_limits.override_limit_sum, 0))::BIGINT AS total_spend_limit_micros
+	FROM queried_groups
+	JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+	LEFT JOIN group_limits ON group_limits.group_id = queried_groups.id
+),
+group_spend AS (
+	-- Spend per queried group over the period.
+	SELECT
+		spend.effective_group_id AS group_id,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM ai_user_daily_spend spend
+	WHERE spend.effective_group_id IN (SELECT id FROM queried_groups)
+		AND spend.day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.effective_group_id
+)
 SELECT
-	groups.id AS group_id,
-	groups.organization_id AS organization_id,
+	queried_groups.id AS group_id,
+	queried_groups.organization_id AS organization_id,
 	budget.spend_limit_micros AS spend_limit_micros,
-	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
-FROM groups
-LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
-LEFT JOIN ai_user_daily_spend spend
-	ON spend.effective_group_id = groups.id
-	AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
-WHERE groups.organization_id = $2
-	AND groups.id = ANY($3::uuid[])
-GROUP BY groups.id, budget.spend_limit_micros
-ORDER BY groups.id
+	group_totals.total_spend_limit_micros AS total_spend_limit_micros,
+	COALESCE(group_spend.current_spend_micros, 0)::BIGINT AS current_spend_micros
+FROM queried_groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+LEFT JOIN group_totals ON group_totals.group_id = queried_groups.id
+LEFT JOIN group_spend ON group_spend.group_id = queried_groups.id
+ORDER BY queried_groups.id
 `
 
 type GetOrganizationGroupsAISpendParams struct {
-	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
 }
 
 type GetOrganizationGroupsAISpendRow struct {
-	GroupID            uuid.UUID     `db:"group_id" json:"group_id"`
-	OrganizationID     uuid.UUID     `db:"organization_id" json:"organization_id"`
-	SpendLimitMicros   sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
-	CurrentSpendMicros int64         `db:"current_spend_micros" json:"current_spend_micros"`
+	GroupID               uuid.UUID     `db:"group_id" json:"group_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	SpendLimitMicros      sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+	TotalSpendLimitMicros sql.NullInt64 `db:"total_spend_limit_micros" json:"total_spend_limit_micros"`
+	CurrentSpendMicros    int64         `db:"current_spend_micros" json:"current_spend_micros"`
 }
 
 // Returns AI spend limits and aggregate spend for groups in @group_ids that
-// belong to @organization_id, on or after period_start until NOW. The spend
-// limit is null when the group has no configured budget.
+// belong to @organization_id, on or after period_start until NOW.
+// spend_limit_micros is the per-member limit, null when the group has no budget.
+// total_spend_limit_micros is the combined budget of the members attributed to
+// the group, with each member's override replacing their share. It is null when
+// the group has no budget.
 // The period_start parameter is normalized to its UTC calendar day.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.PeriodStart, arg.OrganizationID, pq.Array(arg.GroupIds))
+	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.OrganizationID, pq.Array(arg.GroupIds), arg.PeriodStart)
 	if err != nil {
 		return nil, err
 	}
@@ -2804,8 +3218,100 @@ func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOr
 			&i.GroupID,
 			&i.OrganizationID,
 			&i.SpendLimitMicros,
+			&i.TotalSpendLimitMicros,
 			&i.CurrentSpendMicros,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOverBudgetUsersPerGroup = `-- name: GetOverBudgetUsersPerGroup :many
+WITH budgeted_users AS (
+	-- Users with an override or membership in a budgeted group.
+	SELECT user_id FROM user_ai_budget_overrides
+	UNION
+	SELECT DISTINCT member.user_id
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+),
+user_highest_group AS (
+	-- Per user, their highest-limit group ("highest" budget policy).
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM budgeted_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- An override wins over the highest-limit group, and users with neither drop.
+	SELECT
+		budgeted_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros
+	FROM budgeted_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = budgeted_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = budgeted_users.user_id
+	WHERE COALESCE(override.group_id, user_highest_group.group_id) IS NOT NULL
+),
+user_spend AS (
+	-- Each user's spend against their effective group since period_start.
+	SELECT
+		effective.user_id,
+		effective.effective_group_id,
+		effective.spend_limit_micros,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM effective
+	LEFT JOIN ai_user_daily_spend spend
+		ON spend.user_id = effective.user_id
+		AND spend.effective_group_id = effective.effective_group_id
+		AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY effective.user_id, effective.effective_group_id, effective.spend_limit_micros
+)
+SELECT
+	effective_group_id AS group_id,
+	COUNT(*)::BIGINT AS over_budget_users
+FROM user_spend
+WHERE current_spend_micros >= spend_limit_micros
+GROUP BY effective_group_id
+ORDER BY effective_group_id
+`
+
+type GetOverBudgetUsersPerGroupRow struct {
+	GroupID         uuid.UUID `db:"group_id" json:"group_id"`
+	OverBudgetUsers int64     `db:"over_budget_users" json:"over_budget_users"`
+}
+
+// Returns, per effective group, the number of users at or over their spend
+// limit since period_start. Only users with an enforceable limit (override or
+// budgeted group) count, and the unlimited Everyone fallback does not.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
+func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOverBudgetUsersPerGroup, periodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOverBudgetUsersPerGroupRow
+	for rows.Next() {
+		var i GetOverBudgetUsersPerGroupRow
+		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -7933,7 +8439,7 @@ WHERE
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
-    created_at ASC
+    id ASC
 `
 
 type GetChatMessagesByChatIDParams struct {
@@ -7941,6 +8447,9 @@ type GetChatMessagesByChatIDParams struct {
 	AfterID int64     `db:"after_id" json:"after_id"`
 }
 
+// Ordered by id to match the @after_id cursor. created_at is the transaction
+// start time, so it can disagree with append order when a transaction takes the
+// chat row lock later than one that started after it.
 func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, arg.ChatID, arg.AfterID)
 	if err != nil {
@@ -8152,7 +8661,7 @@ WHERE
     AND revision > $2::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
-    created_at ASC, id ASC
+    id ASC
 `
 
 type GetChatMessagesByRevisionForStreamParams struct {
@@ -8160,6 +8669,7 @@ type GetChatMessagesByRevisionForStreamParams struct {
 	AfterRevision int64     `db:"after_revision" json:"after_revision"`
 }
 
+// Stream deltas and reset snapshots must use the same message order.
 func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesByRevisionForStream, arg.ChatID, arg.AfterRevision)
 	if err != nil {
@@ -8220,7 +8730,6 @@ WITH latest_compressed_summary AS (
         AND deleted = false
         AND visibility = 'model'
     ORDER BY
-        created_at DESC,
         id DESC
     LIMIT
         1
@@ -8263,10 +8772,11 @@ WHERE
         )
     )
 ORDER BY
-    created_at ASC,
     id ASC
 `
 
+// The compaction boundary and final ordering must use the same key so tool
+// results remain after their assistant calls.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {
@@ -9674,7 +10184,7 @@ WHERE
     AND role = $2::chat_message_role
     AND deleted = false
 ORDER BY
-    created_at DESC, id DESC
+    id DESC
 LIMIT
     1
 `
@@ -9684,6 +10194,8 @@ type GetLastChatMessageByRoleParams struct {
 	Role   ChatMessageRole `db:"role" json:"role"`
 }
 
+// The returned id becomes both an AfterID cursor and last_read_message_id, so
+// "last" must use id order.
 func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, getLastChatMessageByRole, arg.ChatID, arg.Role)
 	var i ChatMessage
@@ -9810,6 +10322,28 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTotalChatMessageRuntimeMsInRange = `-- name: GetTotalChatMessageRuntimeMsInRange :one
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.runtime_ms IS NOT NULL
+`
+
+type GetTotalChatMessageRuntimeMsInRangeParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+// soft-deleted messages and messages from all chats.
+func (q *sqlQuerier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalChatMessageRuntimeMsInRange, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
 }
 
 const getUserChatSpendInPeriod = `-- name: GetUserChatSpendInPeriod :one
@@ -9992,6 +10526,7 @@ func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, ar
 const insertChat = `-- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -10009,7 +10544,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
-    $1::uuid,
+    COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::uuid,
@@ -10017,14 +10552,15 @@ INSERT INTO chats (
     $6::uuid,
     $7::uuid,
     $8::uuid,
-    $9::text,
-    $10::chat_mode,
-    $11::chat_plan_mode,
-    $12::chat_status,
-    COALESCE($13::uuid[], '{}'::uuid[]),
-    COALESCE($14::jsonb, '{}'::jsonb),
-    $15::jsonb,
-    $16::chat_client_type
+    $9::uuid,
+    $10::text,
+    $11::chat_mode,
+    $12::chat_plan_mode,
+    $13::chat_status,
+    COALESCE($14::uuid[], '{}'::uuid[]),
+    COALESCE($15::jsonb, '{}'::jsonb),
+    $16::jsonb,
+    $17::chat_client_type
 )
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
@@ -10087,6 +10623,7 @@ FROM chats_expanded
 `
 
 type InsertChatParams struct {
+	ID                uuid.NullUUID         `db:"id" json:"id"`
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
@@ -10107,6 +10644,7 @@ type InsertChatParams struct {
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.WorkspaceID,
@@ -10182,7 +10720,7 @@ WITH batch AS (
     SELECT
         (
             SELECT val
-            FROM UNNEST($3::uuid[])
+            FROM UNNEST($1::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -10190,7 +10728,7 @@ WITH batch AS (
         ) AS last_model_config_id,
         (
             SELECT NULLIF(val, '')::chat_reasoning_effort
-            FROM UNNEST($4::text[])
+            FROM UNNEST($2::text[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != ''
             ORDER BY ord DESC
@@ -10205,61 +10743,80 @@ updated_chat AS (
         last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
     FROM batch
     WHERE
-        chats.id = $1::uuid
+        chats.id = $3::uuid
         AND (
             chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
             OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
+),
+allocated AS MATERIALIZED (
+    -- Numbering the ids by value, rather than by the order nextval produced
+    -- them, is what makes ordinal k always the k-th smallest id. MATERIALIZED
+    -- is redundant while nextval is volatile, and pins that if it changes.
+    SELECT
+        id,
+        (ROW_NUMBER() OVER (ORDER BY id))::int AS ord
+    FROM (
+        SELECT nextval('chat_messages_id_seq') AS id
+        FROM generate_series(1, cardinality($4::chat_message_role[]))
+    ) s
+),
+inserted AS (
+    INSERT INTO chat_messages (
+        id,
+        chat_id,
+        created_by,
+        model_config_id,
+        reasoning_effort,
+        role,
+        content,
+        content_version,
+        visibility,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reasoning_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        context_limit,
+        compressed,
+        total_cost_micros,
+        runtime_ms
+    )
+    SELECT
+        allocated.id,
+        $3::uuid,
+        NULLIF(($5::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($1::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($2::text[])[allocated.ord], '')::chat_reasoning_effort,
+        ($4::chat_message_role[])[allocated.ord],
+        ($6::text[])[allocated.ord]::jsonb,
+        ($7::smallint[])[allocated.ord],
+        ($8::chat_message_visibility[])[allocated.ord],
+        NULLIF(($9::bigint[])[allocated.ord], 0),
+        NULLIF(($10::bigint[])[allocated.ord], 0),
+        NULLIF(($11::bigint[])[allocated.ord], 0),
+        NULLIF(($12::bigint[])[allocated.ord], 0),
+        NULLIF(($13::bigint[])[allocated.ord], 0),
+        NULLIF(($14::bigint[])[allocated.ord], 0),
+        NULLIF(($15::bigint[])[allocated.ord], 0),
+        ($16::boolean[])[allocated.ord],
+        NULLIF(($17::bigint[])[allocated.ord], 0),
+        NULLIF(($18::bigint[])[allocated.ord], 0)
+    FROM allocated
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
 )
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    model_config_id,
-    reasoning_effort,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms
-)
-SELECT
-    $1::uuid,
-    NULLIF(UNNEST($2::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST($3::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST($4::text[]), '')::chat_reasoning_effort,
-    UNNEST($5::chat_message_role[]),
-    UNNEST($6::text[])::jsonb,
-    UNNEST($7::smallint[]),
-    UNNEST($8::chat_message_visibility[]),
-    NULLIF(UNNEST($9::bigint[]), 0),
-    NULLIF(UNNEST($10::bigint[]), 0),
-    NULLIF(UNNEST($11::bigint[]), 0),
-    NULLIF(UNNEST($12::bigint[]), 0),
-    NULLIF(UNNEST($13::bigint[]), 0),
-    NULLIF(UNNEST($14::bigint[]), 0),
-    NULLIF(UNNEST($15::bigint[]), 0),
-    UNNEST($16::boolean[]),
-    NULLIF(UNNEST($17::bigint[]), 0),
-    NULLIF(UNNEST($18::bigint[]), 0)
-RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+FROM inserted
+ORDER BY id
 `
 
 type InsertChatMessagesParams struct {
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	ModelConfigID       []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort     []string                `db:"reasoning_effort" json:"reasoning_effort"`
+	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
 	Role                []ChatMessageRole       `db:"role" json:"role"`
+	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	Content             []string                `db:"content" json:"content"`
 	ContentVersion      []int16                 `db:"content_version" json:"content_version"`
 	Visibility          []ChatMessageVisibility `db:"visibility" json:"visibility"`
@@ -10275,13 +10832,43 @@ type InsertChatMessagesParams struct {
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
 }
 
-func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
+type InsertChatMessagesRow struct {
+	ID                  int64                   `db:"id" json:"id"`
+	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole         `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
+	Compressed          bool                    `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
+	ContentVersion      int16                   `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                    `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
+	Revision            int64                   `db:"revision" json:"revision"`
+	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv           interface{}             `db:"search_tsv" json:"search_tsv"`
+}
+
+// Returns the inserted rows in input array order. Ids are allocated before the
+// insert and the k-th smallest is assigned to input index k, so callers may
+// index the result positionally.
+func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]InsertChatMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, insertChatMessages,
-		arg.ChatID,
-		pq.Array(arg.CreatedBy),
 		pq.Array(arg.ModelConfigID),
 		pq.Array(arg.ReasoningEffort),
+		arg.ChatID,
 		pq.Array(arg.Role),
+		pq.Array(arg.CreatedBy),
 		pq.Array(arg.Content),
 		pq.Array(arg.ContentVersion),
 		pq.Array(arg.Visibility),
@@ -10300,9 +10887,9 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatMessage
+	var items []InsertChatMessagesRow
 	for rows.Next() {
-		var i ChatMessage
+		var i InsertChatMessagesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ChatID,
@@ -13549,8 +14136,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN $13 :: text != '' THEN
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude web events, since we don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding')
+				-- Exclude point-in-time events reported by coderd, since we
+				-- don't know their close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13743,8 +14331,9 @@ WHERE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			-- Exclude point-in-time events reported by coderd, since we
+			-- don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -14843,11 +15432,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			user_email ILIKE concat('%', $3, '%')
 			OR user_username ILIKE concat('%', $3, '%')
+			OR user_name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -20242,11 +20832,12 @@ WHERE
 			organization_id = $2
 		ELSE true
 	END
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $3 :: text != '' THEN (
 			users.email ILIKE concat('%', $3, '%')
 			OR users.username ILIKE concat('%', $3, '%')
+			OR users.name ILIKE concat('%', $3, '%')
 		)
 		ELSE true
 	END
@@ -24017,7 +24608,7 @@ WHERE
 	(
 		(
 			$2 :: bool = true AND
-			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]%)*'
 		) OR
 		(
 			$3 :: bool = true AND
@@ -25227,6 +25818,20 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 	return notifications_settings, err
 }
 
+const getOAuth2DCREnabled = `-- name: GetOAuth2DCREnabled :one
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool
+`
+
+func (q *sqlQuerier) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2DCREnabled)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOAuth2GithubDefaultEligible = `-- name: GetOAuth2GithubDefaultEligible :one
 SELECT
 	CASE
@@ -25617,6 +26222,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notificatio
 
 func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
+	return err
+}
+
+const upsertOAuth2DCREnabled = `-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled'
+`
+
+func (q *sqlQuerier) UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuth2DCREnabled, enabled)
 	return err
 }
 
@@ -28717,6 +29344,42 @@ func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventP
 	return err
 }
 
+const listUsageEventCreatedAtsByTypeSince = `-- name: ListUsageEventCreatedAtsByTypeSince :many
+SELECT created_at
+FROM usage_events
+WHERE event_type = $1
+  AND created_at >= $2::timestamptz
+`
+
+type ListUsageEventCreatedAtsByTypeSinceParams struct {
+	EventType string    `db:"event_type" json:"event_type"`
+	Since     time.Time `db:"since" json:"since"`
+}
+
+// Used by the usage generator to find missing heartbeat buckets.
+func (q *sqlQuerier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
+	rows, err := q.db.QueryContext(ctx, listUsageEventCreatedAtsByTypeSince, arg.EventType, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var created_at time.Time
+		if err := rows.Scan(&created_at); err != nil {
+			return nil, err
+		}
+		items = append(items, created_at)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectUsageEventsForPublishing = `-- name: SelectUsageEventsForPublishing :many
 WITH usage_events AS (
     UPDATE
@@ -29561,7 +30224,8 @@ INSERT INTO user_secrets (
     value,
     value_key_id,
     env_name,
-    file_path
+    file_path,
+    enabled
 ) VALUES (
     $1,
     $2,
@@ -29570,8 +30234,9 @@ INSERT INTO user_secrets (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+    $8,
+    $9
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type CreateUserSecretParams struct {
@@ -29583,6 +30248,7 @@ type CreateUserSecretParams struct {
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	EnvName     string         `db:"env_name" json:"env_name"`
 	FilePath    string         `db:"file_path" json:"file_path"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
@@ -29595,6 +30261,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		arg.ValueKeyID,
 		arg.EnvName,
 		arg.FilePath,
+		arg.Enabled,
 	)
 	var i UserSecret
 	err := row.Scan(
@@ -29608,6 +30275,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -29615,7 +30283,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type DeleteUserSecretByUserIDAndNameParams struct {
@@ -29637,12 +30305,13 @@ func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg De
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByID = `-- name: GetUserSecretByID :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE id = $1
 `
@@ -29661,12 +30330,13 @@ func (q *sqlQuerier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserS
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
@@ -29690,6 +30360,7 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -29790,7 +30461,7 @@ func (q *sqlQuerier) GetUserSecretsTelemetrySummary(ctx context.Context) (GetUse
 const listUserSecrets = `-- name: ListUserSecrets :many
 SELECT
     id, user_id, name, description,
-    env_name, file_path,
+    env_name, file_path, enabled,
     created_at, updated_at
 FROM user_secrets
 WHERE user_id = $1
@@ -29804,6 +30475,7 @@ type ListUserSecretsRow struct {
 	Description string    `db:"description" json:"description"`
 	EnvName     string    `db:"env_name" json:"env_name"`
 	FilePath    string    `db:"file_path" json:"file_path"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -29826,6 +30498,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 			&i.Description,
 			&i.EnvName,
 			&i.FilePath,
+			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29843,7 +30516,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]L
 }
 
 const listUserSecretsWithValues = `-- name: ListUserSecretsWithValues :many
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 FROM user_secrets
 WHERE user_id = $1
 ORDER BY name ASC
@@ -29872,6 +30545,7 @@ func (q *sqlQuerier) ListUserSecretsWithValues(ctx context.Context, userID uuid.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ValueKeyID,
+			&i.Enabled,
 		); err != nil {
 			return nil, err
 		}
@@ -29894,9 +30568,10 @@ SET
     description = CASE WHEN $4::bool THEN $5 ELSE description END,
     env_name    = CASE WHEN $6::bool THEN $7 ELSE env_name END,
     file_path   = CASE WHEN $8::bool THEN $9 ELSE file_path END,
+    enabled     = CASE WHEN $10::bool THEN $11 ELSE enabled END,
     updated_at  = CURRENT_TIMESTAMP
-WHERE user_id = $10 AND name = $11
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+WHERE user_id = $12 AND name = $13
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
 `
 
 type UpdateUserSecretByUserIDAndNameParams struct {
@@ -29909,6 +30584,8 @@ type UpdateUserSecretByUserIDAndNameParams struct {
 	EnvName           string         `db:"env_name" json:"env_name"`
 	UpdateFilePath    bool           `db:"update_file_path" json:"update_file_path"`
 	FilePath          string         `db:"file_path" json:"file_path"`
+	UpdateEnabled     bool           `db:"update_enabled" json:"update_enabled"`
+	Enabled           bool           `db:"enabled" json:"enabled"`
 	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
 	Name              string         `db:"name" json:"name"`
 }
@@ -29924,6 +30601,8 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		arg.EnvName,
 		arg.UpdateFilePath,
 		arg.FilePath,
+		arg.UpdateEnabled,
+		arg.Enabled,
 		arg.UserID,
 		arg.Name,
 	)
@@ -29939,6 +30618,7 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -30175,6 +30855,97 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 	return count, err
 }
 
+const getActiveUsersAuthorizationRoles = `-- name: GetActiveUsersAuthorizationRoles :many
+WITH org_roles AS (
+	SELECT
+		organization_members.user_id,
+		-- The roles are returned as a flat array, org scoped and site side.
+		-- Concatenating the organization id scopes the organization roles.
+		array_agg(org_role || ':' || organization_members.organization_id::text) AS roles
+	FROM
+		organization_members
+		JOIN organizations ON organizations.id = organization_members.organization_id,
+		-- All org members get an implied organization-member role for
+		-- their orgs. Memberships of service accounts are aggregated here
+		-- too, but their rows never survive the join against the outer
+		-- WHERE, so the organization-service-account case does not apply.
+		--
+		-- organizations.default_org_member_roles applies to every member
+		-- but is not materialized on membership rows, so it is unioned in
+		-- here.
+		unnest(
+			array_cat(
+				array_append(organization_members.roles, 'organization-member'),
+				organizations.default_org_member_roles
+			)
+		) AS org_role
+	GROUP BY
+		organization_members.user_id
+),
+user_groups AS (
+	SELECT
+		group_members.user_id,
+		array_agg(group_members.group_id :: text) AS groups
+	FROM
+		group_members
+	GROUP BY
+		group_members.user_id
+)
+SELECT
+	users.id,
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		-- Users with no org memberships have no org_roles row.
+		coalesce(org_roles.roles, ARRAY[]::text[])
+	) :: text[] AS roles,
+	coalesce(user_groups.groups, ARRAY[]::text[]) :: text[] AS groups
+FROM
+	users
+	LEFT JOIN org_roles ON org_roles.user_id = users.id
+	LEFT JOIN user_groups ON user_groups.user_id = users.id
+WHERE
+	users.status = 'active'::user_status
+	AND users.deleted = false
+	AND users.is_system = false
+	AND users.is_service_account = false
+`
+
+type GetActiveUsersAuthorizationRolesRow struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	Roles  []string  `db:"roles" json:"roles"`
+	Groups []string  `db:"groups" json:"groups"`
+}
+
+// Returns the authorization roles (site and org-scoped, including implied
+// member roles and organization default roles) and the group memberships
+// for every active, non-deleted user who is neither a system user nor a
+// service account, matching the GetActiveUserCount population.
+// Must stay semantically in sync with GetAuthorizationUserRoles;
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
+func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveUsersAuthorizationRoles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveUsersAuthorizationRolesRow
+	for rows.Next() {
+		var i GetActiveUsersAuthorizationRolesRow
+		if err := rows.Scan(&i.ID, pq.Array(&i.Roles), pq.Array(&i.Groups)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username and email are returned just to help for logging purposes
@@ -30247,6 +31018,9 @@ type GetAuthorizationUserRolesRow struct {
 
 // This function returns roles for authorization purposes. Implied member roles
 // are included.
+// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+// (implied member roles, org default roles, groups);
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
 func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
 	var i GetAuthorizationUserRolesRow
@@ -30618,11 +31392,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
 			OR username ILIKE concat('%', $2, '%')
+			OR name ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END

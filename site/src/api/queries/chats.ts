@@ -23,6 +23,9 @@ export const chatMessagesKey = (chatId: string) =>
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
 
+const chatQueueConvergenceKey = (chatId: string) =>
+	["chats", chatId, "queue-convergence"] as const;
+
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
@@ -748,6 +751,15 @@ export const chatACL = (chatId: string) => ({
 
 const MESSAGES_PAGE_SIZE = 50;
 
+// The queued messages ride on the uncursored page of the messages endpoint,
+// so settling the queue after a promote needs its own request. Refetching
+// chatMessagesForInfiniteScroll would reload every page already scrolled.
+export const chatQueueConvergence = (chatId: string) => ({
+	queryKey: chatQueueConvergenceKey(chatId),
+	queryFn: () => API.experimental.getChatMessages(chatId),
+	gcTime: 0,
+});
+
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
@@ -1427,7 +1439,8 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessages: response.messages ?? [response.message],
+				deletedMessageIds: response.deleted_message_ids,
 			}),
 		);
 	},
@@ -1953,17 +1966,15 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostKey = (chatId: string) =>
-	[...chatsKey, chatId, "cost"] as const;
+export const chatCostKey = (rootChatId: string) =>
+	[...chatsKey, rootChatId, "cost"] as const;
 
-// Chat cost changes only when a new assistant message is priced, so a short
-// stale window refreshes the sidebar without refetching on every render.
-const ASSISTANT_MESSAGE_PRICING_STALE_MS = 30_000;
+const GATEWAY_REQUEST_STALE_MS = 30_000;
 
-export const chatCost = (chatId: string) => ({
-	queryKey: chatCostKey(chatId),
-	queryFn: () => API.experimental.getChatCost(chatId),
-	staleTime: ASSISTANT_MESSAGE_PRICING_STALE_MS,
+export const chatCost = (rootChatId: string) => ({
+	queryKey: chatCostKey(rootChatId),
+	queryFn: () => API.experimental.getChatCost(rootChatId),
+	staleTime: GATEWAY_REQUEST_STALE_MS,
 });
 
 interface PaginatedChatCostUsersPayload {

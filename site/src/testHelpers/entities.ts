@@ -578,6 +578,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used by example templates.",
 		env_name: "EXAMPLE_TOKEN",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-04-28T16:30:00Z",
 		updated_at: "2026-04-30T16:30:00Z",
 	},
@@ -587,6 +588,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Mounted as a workspace file.",
 		env_name: "",
 		file_path: "~/.config/example/config.json",
+		enabled: true,
 		created_at: "2026-04-29T16:30:00Z",
 		updated_at: "2026-05-01T16:30:00Z",
 	},
@@ -596,15 +598,20 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Available as an environment variable and file.",
 		env_name: "SERVICE_API_KEY",
 		file_path: "/var/run/secrets/service-api-key",
+		enabled: true,
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 	},
 	{
+		// Mirrors a pre-migration secret that had both env_name and
+		// file_path empty. The migration flips such rows to
+		// enabled: false, so this is the shape they have after upgrade.
 		id: "secret-not-injected",
 		name: "SERVICE_PASSWORD",
 		description: "",
 		env_name: "",
 		file_path: "",
+		enabled: false,
 		created_at: "2026-05-01T16:30:00Z",
 		updated_at: "2026-05-03T16:30:00Z",
 	},
@@ -614,8 +621,30 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used to exercise duplicate validation.",
 		env_name: "DUPLICATE_API_KEY",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
+	},
+];
+
+export const MockImportedUserSecret: TypesGen.UserSecret = {
+	id: "imported-database-url",
+	name: "DATABASE_URL",
+	description: "",
+	env_name: "DATABASE_URL",
+	file_path: "",
+	enabled: true,
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+};
+
+export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	MockImportedUserSecret,
+	{
+		...MockImportedUserSecret,
+		id: "imported-api-token",
+		name: "API_TOKEN",
+		env_name: "API_TOKEN",
 	},
 ];
 
@@ -1830,12 +1859,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 			},
 		],
 	},
-};
-
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
 };
 
 // just over one page of workspaces
@@ -3297,6 +3320,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 export const MockPermissions: Permissions = {
 	createTemplates: true,
 	createUser: true,
+	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
 	viewAllUsers: true,
@@ -3333,6 +3357,7 @@ export const MockPermissions: Permissions = {
 export const MockNoPermissions: Permissions = {
 	createTemplates: false,
 	createUser: false,
+	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
 	viewAllUsers: false,
@@ -4831,13 +4856,13 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
-		callback_url: "http://localhost:3001",
+		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		endpoints: {
-			authorization: "http://localhost:3001/oauth2/authorize",
-			token: "http://localhost:3001/oauth2/token",
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
 			device_authorization: "",
-			token_revoke: "http://localhost:3001/oauth2/revoke",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
 		},
 	},
 ];
@@ -4850,9 +4875,9 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 			last_used_at: null,
 		},
 		{
-			id: "1",
+			id: "2",
 			last_used_at: "2022-12-16T20:10:45.637452Z",
-			client_secret_truncated: "foo",
+			client_secret_truncated: "bar",
 		},
 	];
 

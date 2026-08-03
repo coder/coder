@@ -1,8 +1,17 @@
 export const createWorkspaceChecks = (
 	organizationId: string,
+	userId: string,
 	templateId?: string,
 ) =>
 	({
+		createWorkspaceForUserID: {
+			object: {
+				resource_type: "workspace" as const,
+				organization_id: organizationId,
+				owner_id: userId,
+			},
+			action: "create" as const,
+		},
 		createWorkspaceForAny: {
 			object: {
 				resource_type: "workspace" as const,

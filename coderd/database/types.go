@@ -44,6 +44,11 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+type OAuth2ProviderSettings struct {
+	ID                               uuid.UUID `db:"id" json:"id"`
+	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

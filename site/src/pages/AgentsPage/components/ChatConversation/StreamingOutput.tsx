@@ -23,7 +23,7 @@ const LiveActivitySlot: FC = () => (
 		data-testid="live-activity-slot"
 		className="flex h-6 items-center gap-2 text-content-secondary"
 	>
-		<ToolIcon name="thinking" isError={false} />
+		<ToolIcon name="thinking" />
 		<Shimmer as="span" className="text-[13px] leading-6">
 			Thinking
 		</Shimmer>

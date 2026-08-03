@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import isEqual from "lodash/isEqual";
 import {
 	createElement,
@@ -21,7 +20,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import colors from "#/theme/tailwindColors";
 import { cn } from "#/utils/cn";
 
 interface MarkdownProps {
@@ -43,15 +41,19 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 
 	return (
 		<ReactMarkdown
-			css={markdownStyles}
-			className={className}
+			className={cn(markdownClassName, className)}
 			remarkPlugins={[gfm]}
 			components={{
 				a: ({ href, children }) => {
 					const isExternal = href?.startsWith("http");
 
 					return (
-						<Link href={href} target={isExternal ? "_blank" : undefined}>
+						<Link
+							href={href}
+							target={isExternal ? "_blank" : undefined}
+							showExternalIcon={isExternal}
+							className="text-[length:inherit] p-0"
+						>
 							{children}
 						</Link>
 					);
@@ -328,60 +330,18 @@ const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
 	);
 };
 
-const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
-	fontSize: 16,
-	lineHeight: "24px",
-
-	"& h1, & h2, & h3, & h4, & h5, & h6": {
-		marginTop: 32,
-		marginBottom: 16,
-		lineHeight: "1.25",
-	},
-
-	"& p": {
-		marginTop: 0,
-		marginBottom: 16,
-	},
-
-	"& p:only-child": {
-		marginTop: 0,
-		marginBottom: 0,
-	},
-
-	"& ul, & ol": {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-		marginBottom: 16,
-	},
-
-	"& li > ul, & li > ol": {
-		marginTop: 16,
-	},
-
-	"& li > p": {
-		marginBottom: 0,
-	},
-
-	"& .prismjs": {
-		background:
-			theme.palette.mode === "dark"
-				? colors.zinc[950]
-				: theme.palette.background.paper,
-		borderRadius: 8,
-		padding: "16px 24px",
-		overflowX: "auto",
-
-		"& code": {
-			color: theme.palette.text.secondary,
-		},
-
-		"& .key, & .property, & .inserted, .keyword": {
-			color: colors.teal[300],
-		},
-
-		"& .deleted": {
-			color: theme.palette.error.light,
-		},
-	},
-});
+const markdownClassName = cn(
+	"text-base",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:mt-8",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:mb-4",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:leading-tight",
+	"[&_p]:mt-0 [&_p]:mb-4 [&_p:only-child]:my-0",
+	"[&_ul]:mb-4 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-2",
+	"[&_ol]:mb-4 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-2",
+	"[&_li>ul]:mt-4 [&_li>ol]:mt-4 [&_li>p]:mb-0",
+	"[&_.prismjs]:overflow-x-auto [&_.prismjs]:rounded-lg [&_.prismjs]:bg-surface-secondary [&_.prismjs]:px-6 [&_.prismjs]:py-4",
+	"[&_.prismjs_code]:text-content-secondary",
+	"[&_.prismjs_.key]:text-syntax-key [&_.prismjs_.property]:text-syntax-key",
+	"[&_.prismjs_.inserted]:text-syntax-key [&_.prismjs_.keyword]:text-syntax-key",
+	"[&_.prismjs_.deleted]:text-content-destructive",
+);
