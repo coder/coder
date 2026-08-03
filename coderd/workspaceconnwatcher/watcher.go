@@ -32,6 +32,14 @@ type Watcher struct {
 	mu     sync.Mutex
 	wg     sync.WaitGroup
 	closed bool
+
+	connCtx     context.Context
+	conn        *websocket.Conn
+	enc         *wsjson.Encoder[workspacesdk.ConnectionWatchEvent]
+	workspaceID uuid.UUID
+	events      chan event
+	agentName   string
+	lastBuild   database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
 }
 
 type event struct {
@@ -68,15 +76,15 @@ func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.
 	workspace := httpmw.WorkspaceParam(r)
 	agentName := r.URL.Query().Get("agent_name")
 
-	filteredEvents := make(chan event, 1)
-	filteredEvents <- event{sync: true} // init sync
+	w.events = make(chan event, 1)
+	w.events <- event{sync: true} // init sync
 	cancelWorkspaceSubscribe, err := w.sub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 		wspubsub.HandleWorkspaceEvent(
 			func(ctx context.Context, payload wspubsub.WorkspaceEvent, err error) {
 				if err != nil {
 					// subscription error, resync
 					select {
-					case filteredEvents <- event{sync: true}:
+					case w.events <- event{sync: true}:
 					case <-ctx.Done():
 					}
 					return
@@ -85,7 +93,7 @@ func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.
 					return
 				}
 				select {
-				case filteredEvents <- event{wsEvent: &payload}:
+				case w.events <- event{wsEvent: &payload}:
 				case <-ctx.Done():
 				}
 			}))
@@ -116,7 +124,7 @@ func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.
 	}
 	defer w.wg.Done()
 
-	conn, err := websocket.Accept(rw, r, nil)
+	w.conn, err = websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept WebSocket.",
@@ -127,22 +135,15 @@ func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.
 
 	// CloseRead starts a goroutine to read and discard messages from the client,
 	// including Pong messages sent in response to our Ping heartbeats.
-	_ = conn.CloseRead(ctx)
+	_ = w.conn.CloseRead(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, w.logger, cancel, conn)
+	var cancel context.CancelFunc
+	w.connCtx, cancel = context.WithCancel(ctx)
+	go httpapi.HeartbeatClose(ctx, w.logger, cancel, w.conn)
 	defer cancel()
-
-	u := &updater{
-		db:          w.db,
-		watcherCtx:  w.ctx,
-		connCtx:     ctx,
-		conn:        conn,
-		workspaceID: workspace.ID,
-		events:      filteredEvents,
-		agentName:   agentName,
-	}
-	u.run()
+	w.workspaceID = workspace.ID
+	w.agentName = agentName
+	w.run()
 }
 
 func (w *Watcher) Close() {
@@ -154,53 +155,40 @@ func (w *Watcher) Close() {
 	w.wg.Wait()
 }
 
-type updater struct {
-	db          database.Store
-	watcherCtx  context.Context
-	connCtx     context.Context
-	conn        *websocket.Conn
-	enc         *wsjson.Encoder[workspacesdk.ConnectionWatchEvent]
-	workspaceID uuid.UUID
-	events      <-chan event
-	agentName   string
-
-	lastBuild database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
-}
-
-func (u *updater) run() {
-	u.enc = wsjson.NewEncoder[workspacesdk.ConnectionWatchEvent](u.conn, websocket.MessageText)
+func (w *Watcher) run() {
+	w.enc = wsjson.NewEncoder[workspacesdk.ConnectionWatchEvent](w.conn, websocket.MessageText)
 	defer func() {
 		// this is a no-op if we have already closed for some other reason.
-		_ = u.enc.Close(websocket.StatusNormalClosure)
+		_ = w.enc.Close(websocket.StatusNormalClosure)
 	}()
 
 	for {
 		select {
-		case <-u.watcherCtx.Done():
-			u.errorThenClose(workspacesdk.WatchError{
+		case <-w.ctx.Done():
+			w.errorThenClose(workspacesdk.WatchError{
 				Code:      workspacesdk.WatchErrorServerShutdown,
 				Retryable: true,
 				Message:   "server is shutting down",
 			})
 			return
-		case <-u.connCtx.Done():
+		case <-w.connCtx.Done():
 			return
-		case e := <-u.events:
+		case e := <-w.events:
 			if e.sync {
 				// zero this out so we'll send a full update
-				u.lastBuild = database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow{}
-				if !u.buildUpdate() {
+				w.lastBuild = database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow{}
+				if !w.buildUpdate() {
 					return
 				}
 			}
 			if e.wsEvent != nil {
 				switch e.wsEvent.Kind {
 				case wspubsub.WorkspaceEventKindStateChange:
-					if !u.buildUpdate() {
+					if !w.buildUpdate() {
 						return
 					}
 				case wspubsub.WorkspaceEventKindAgentLifecycleUpdate:
-					if !u.maybeSendAgentUpdate() {
+					if !w.maybeSendAgentUpdate() {
 						return
 					}
 				}
@@ -209,8 +197,8 @@ func (u *updater) run() {
 	}
 }
 
-func (u *updater) buildUpdate() bool {
-	build, err := u.db.GetLatestWorkspaceBuildWithStatusByWorkspaceID(u.connCtx, u.workspaceID)
+func (w *Watcher) buildUpdate() bool {
+	build, err := w.db.GetLatestWorkspaceBuildWithStatusByWorkspaceID(w.connCtx, w.workspaceID)
 	if err != nil {
 		retryable := true
 		details := err.Error()
@@ -222,7 +210,7 @@ func (u *updater) buildUpdate() bool {
 			retryable = false
 			details = "unauthorized" // security: don't leak internal authz details
 		}
-		u.errorThenClose(workspacesdk.WatchError{
+		w.errorThenClose(workspacesdk.WatchError{
 			Code:      workspacesdk.WatchErrorDatabase,
 			Retryable: retryable,
 			Message:   "failed to fetch latest workspace build",
@@ -231,36 +219,36 @@ func (u *updater) buildUpdate() bool {
 		return false
 	}
 
-	if build.BuildNumber != u.lastBuild.BuildNumber ||
-		build.JobStatus != u.lastBuild.JobStatus ||
-		build.Transition != u.lastBuild.Transition {
-		u.lastBuild = build
-		err = u.enc.Encode(workspacesdk.ConnectionWatchEvent{BuildUpdate: &workspacesdk.BuildUpdate{
+	if build.BuildNumber != w.lastBuild.BuildNumber ||
+		build.JobStatus != w.lastBuild.JobStatus ||
+		build.Transition != w.lastBuild.Transition {
+		w.lastBuild = build
+		err = w.enc.Encode(workspacesdk.ConnectionWatchEvent{BuildUpdate: &workspacesdk.BuildUpdate{
 			Transition: codersdk.WorkspaceTransition(build.Transition),
 			JobStatus:  codersdk.ProvisionerJobStatus(build.JobStatus),
 		}})
 		if err != nil {
 			// probably this is just that the connection is closed, but in case there is some actual JSON serialization
 			// error, send a close frame.
-			_ = u.conn.Close(websocket.StatusInternalError, "failed to encode build update")
+			_ = w.conn.Close(websocket.StatusInternalError, "failed to encode build update")
 			return false
 		}
-		return u.maybeSendAgentUpdate()
+		return w.maybeSendAgentUpdate()
 	}
 	return true
 }
 
-func (u *updater) maybeSendAgentUpdate() (ok bool) {
-	if u.lastBuild.Transition != database.WorkspaceTransitionStart ||
-		u.lastBuild.JobStatus != database.ProvisionerJobStatusSucceeded {
+func (w *Watcher) maybeSendAgentUpdate() (ok bool) {
+	if w.lastBuild.Transition != database.WorkspaceTransitionStart ||
+		w.lastBuild.JobStatus != database.ProvisionerJobStatusSucceeded {
 		// only send agent updates for successfully started workspaces
 		return true
 	}
 
-	agents, err := u.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(u.connCtx,
+	agents, err := w.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(w.connCtx,
 		database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
-			WorkspaceID: u.workspaceID,
-			BuildNumber: u.lastBuild.BuildNumber,
+			WorkspaceID: w.workspaceID,
+			BuildNumber: w.lastBuild.BuildNumber,
 		})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		details := err.Error()
@@ -269,7 +257,7 @@ func (u *updater) maybeSendAgentUpdate() (ok bool) {
 			retryable = false
 			details = "unauthorized"
 		}
-		u.errorThenClose(workspacesdk.WatchError{
+		w.errorThenClose(workspacesdk.WatchError{
 			Code:      workspacesdk.WatchErrorDatabase,
 			Retryable: retryable,
 			Message:   "failed to fetch workspace agents",
@@ -278,15 +266,15 @@ func (u *updater) maybeSendAgentUpdate() (ok bool) {
 		return false
 	}
 	if len(agents) == 0 {
-		u.errorThenClose(workspacesdk.WatchError{
+		w.errorThenClose(workspacesdk.WatchError{
 			Code:      workspacesdk.WatchErrorNoAgents,
 			Retryable: false,
 			Message:   "no agents found for workspace",
 		})
 		return false
 	}
-	if len(agents) > 1 && u.agentName == "" {
-		u.errorThenClose(workspacesdk.WatchError{
+	if len(agents) > 1 && w.agentName == "" {
+		w.errorThenClose(workspacesdk.WatchError{
 			Code:      workspacesdk.WatchErrorTooManyAgents,
 			Retryable: false,
 			Message:   "more than one agent on workspace and target not specified",
@@ -294,17 +282,17 @@ func (u *updater) maybeSendAgentUpdate() (ok bool) {
 		return false
 	}
 	var agent database.WorkspaceAgent
-	if u.agentName == "" {
+	if w.agentName == "" {
 		agent = agents[0]
 	} else {
 		for _, a := range agents {
-			if a.Name == u.agentName {
+			if a.Name == w.agentName {
 				agent = a
 				break
 			}
 		}
 		if agent.ID == uuid.Nil {
-			u.errorThenClose(workspacesdk.WatchError{
+			w.errorThenClose(workspacesdk.WatchError{
 				Code:      workspacesdk.WatchErrorNameNotFound,
 				Retryable: false,
 				Message:   "target agent not found by name",
@@ -313,21 +301,21 @@ func (u *updater) maybeSendAgentUpdate() (ok bool) {
 		}
 	}
 
-	err = u.enc.Encode(workspacesdk.ConnectionWatchEvent{AgentUpdate: &workspacesdk.AgentUpdate{
+	err = w.enc.Encode(workspacesdk.ConnectionWatchEvent{AgentUpdate: &workspacesdk.AgentUpdate{
 		Lifecycle: codersdk.WorkspaceAgentLifecycle(agent.LifecycleState),
 		ID:        agent.ID,
 	}})
 	if err != nil {
 		// probably this is just that the connection is closed, but in case there is some actual JSON serialization
 		// error, send a close frame.
-		_ = u.conn.Close(websocket.StatusInternalError, "failed to encode agent update")
+		_ = w.conn.Close(websocket.StatusInternalError, "failed to encode agent update")
 		return false
 	}
 	return true
 }
 
-func (u *updater) errorThenClose(err workspacesdk.WatchError) {
-	_ = u.enc.Encode(workspacesdk.ConnectionWatchEvent{Error: &err})
+func (w *Watcher) errorThenClose(err workspacesdk.WatchError) {
+	_ = w.enc.Encode(workspacesdk.ConnectionWatchEvent{Error: &err})
 	// ignore encoding errors above because in any case, we are going to close the connection.
-	_ = u.conn.Close(websocket.StatusNormalClosure, "error")
+	_ = w.conn.Close(websocket.StatusNormalClosure, "error")
 }
