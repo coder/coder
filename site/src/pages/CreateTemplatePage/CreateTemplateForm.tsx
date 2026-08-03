@@ -24,10 +24,10 @@ import type {
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
@@ -271,7 +271,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit} className="pb-12">
+		<Form onSubmit={form.handleSubmit} className="pb-12">
 			{/* General info */}
 			<FormSection
 				title="General"
@@ -446,7 +446,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					</button>
 				)}
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };
 

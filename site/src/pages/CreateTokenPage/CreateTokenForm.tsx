@@ -8,10 +8,10 @@ import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
@@ -64,7 +64,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit}>
+		<Form onSubmit={form.handleSubmit}>
 			<FormSection
 				title="Name"
 				description="What is this token for?"
@@ -165,7 +165,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					{creationFailed ? "Retry" : "Create token"}
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };
 

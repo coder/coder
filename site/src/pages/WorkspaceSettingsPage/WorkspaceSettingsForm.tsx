@@ -9,10 +9,10 @@ import {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
@@ -75,7 +75,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 	const automaticUpdatesHelperId = `${automaticUpdatesField.id}-helper`;
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
+		<Form onSubmit={form.handleSubmit} data-testid="form">
 			<FormSection
 				title="Workspace Name"
 				description="Update the name of your workspace."
@@ -171,6 +171,6 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 					</Button>
 				</FormFooter>
 			)}
-		</HorizontalForm>
+		</Form>
 	);
 };

@@ -12,7 +12,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { FormFields, VerticalForm } from "#/components/Form/Form";
+import { Form, FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
 
@@ -56,7 +56,7 @@ export const MissingTemplateVariablesDialog: FC<
 					</DialogDescription>
 				</DialogHeader>
 
-				<VerticalForm
+				<Form
 					id="updateVariables"
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -83,7 +83,7 @@ export const MissingTemplateVariablesDialog: FC<
 					) : (
 						<Loader />
 					)}
-				</VerticalForm>
+				</Form>
 
 				<DialogFooter>
 					<Button variant="outline" type="button" onClick={onClose}>

@@ -18,7 +18,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FormFields, FormFooter, VerticalForm } from "#/components/Form/Form";
+import { Form, FormFields, FormFooter } from "#/components/Form/Form";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -108,7 +108,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 				</div>
 			</div>
 
-			<VerticalForm onSubmit={form.handleSubmit}>
+			<Form onSubmit={form.handleSubmit}>
 				<FormFields>
 					{Boolean(error) && !isApiValidationError(error) && (
 						<ErrorAlert error={error} />
@@ -147,7 +147,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						{role ? "Save role" : "Create Role"}
 					</Button>
 				</FormFooter>
-			</VerticalForm>
+			</Form>
 		</>
 	);
 };

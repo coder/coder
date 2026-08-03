@@ -9,10 +9,10 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
@@ -67,10 +67,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 	);
 
 	return (
-		<HorizontalForm
-			onSubmit={form.handleSubmit}
-			aria-label="Template variables"
-		>
+		<Form onSubmit={form.handleSubmit} aria-label="Template variables">
 			{templateVariables.map((templateVariable, index) => {
 				let fieldHelpers: FormHelpers;
 				if (templateVariable.sensitive) {
@@ -118,7 +115,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };
 

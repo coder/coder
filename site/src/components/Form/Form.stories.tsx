@@ -43,14 +43,4 @@ const meta: Meta<typeof ExampleForm> = {
 export default meta;
 type Story = StoryObj<typeof ExampleForm>;
 
-export const Vertical: Story = {
-	args: {
-		direction: "vertical",
-	},
-};
-
-export const Horizontal: Story = {
-	args: {
-		direction: "horizontal",
-	},
-};
+export const Default: Story = {};

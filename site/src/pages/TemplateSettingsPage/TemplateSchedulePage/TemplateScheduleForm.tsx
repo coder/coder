@@ -7,10 +7,10 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DurationField } from "#/components/DurationField/DurationField";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -288,10 +288,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 	};
 
 	return (
-		<HorizontalForm
-			onSubmit={form.handleSubmit}
-			aria-label="Template settings form"
-		>
+		<Form onSubmit={form.handleSubmit} aria-label="Template settings form">
 			<FormSection
 				title="Autostop"
 				description="Define when workspaces created from this template are stopped."
@@ -648,6 +645,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					Save
 				</Button>
 			</FormFooter>
-		</HorizontalForm>
+		</Form>
 	);
 };

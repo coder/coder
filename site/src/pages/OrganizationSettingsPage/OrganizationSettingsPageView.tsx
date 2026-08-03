@@ -14,10 +14,10 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -98,7 +98,7 @@ export const OrganizationSettingsPageView: FC<
 				</div>
 			)}
 
-			<HorizontalForm
+			<Form
 				onSubmit={form.handleSubmit}
 				aria-label="Organization settings form"
 			>
@@ -146,10 +146,10 @@ export const OrganizationSettingsPageView: FC<
 						Save
 					</Button>
 				</FormFooter>
-			</HorizontalForm>
+			</Form>
 
 			{onChangeShareableOwners && (
-				<HorizontalForm className="mt-12">
+				<Form className="mt-12">
 					<FormSection
 						title="Workspace Sharing"
 						description="Control whether workspace owners can share their workspaces."
@@ -255,11 +255,11 @@ export const OrganizationSettingsPageView: FC<
 							</div>
 						</div>
 					</FormSection>
-				</HorizontalForm>
+				</Form>
 			)}
 
 			{!organization.is_default && (
-				<HorizontalForm className="mt-12">
+				<Form className="mt-12">
 					<FormSection
 						title="Delete Organization"
 						description="Delete your organization permanently."
@@ -277,7 +277,7 @@ export const OrganizationSettingsPageView: FC<
 							</div>
 						</div>
 					</FormSection>
-				</HorizontalForm>
+				</Form>
 			)}
 
 			<DeleteDialog

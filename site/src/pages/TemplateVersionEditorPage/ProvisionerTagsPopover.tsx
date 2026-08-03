@@ -3,7 +3,7 @@ import useTheme from "@mui/system/useTheme";
 import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { FormSection, VerticalForm } from "#/components/Form/Form";
+import { Form, FormSection } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
@@ -43,13 +43,11 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 						borderBottom: `1px solid ${theme.palette.divider}`,
 					}}
 				>
-					<VerticalForm>
+					<Form>
 						<FormSection
 							classes={{
-								// Override lg:gap-6 from FormSection defaults. The
-								// lg:flex-col counters the default FormContext
-								// direction ("horizontal") which adds lg:flex-row.
-								root: "flex-col lg:flex-col gap-4 lg:gap-4",
+								// Tighter gap than FormSection's default lg:gap-6.
+								root: "gap-4 lg:gap-4",
 							}}
 							title="Provisioner Tags"
 							description={
@@ -68,7 +66,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 						>
 							<ProvisionerTagsField value={tags} onChange={onTagsChange} />
 						</FormSection>
-					</VerticalForm>
+					</Form>
 				</div>
 			</PopoverContent>
 		</Popover>
