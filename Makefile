@@ -73,6 +73,7 @@ endif
 	docs/manifest.json \
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
+	docs/admin/setup/configuration-reference.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -152,6 +153,12 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | 
 _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
+
+# configdocgen reflects over codersdk.DeploymentValues to produce the
+# configuration reference page.
+_gen/bin/configdocgen: $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/configdocgen
 
 _gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
 	@mkdir -p _gen/bin
@@ -1002,6 +1009,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/install/releases/feature-stages.md \
+	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -1100,6 +1108,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/install/releases/feature-stages.md \
+		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1342,6 +1351,13 @@ docs/install/releases/feature-stages.md: \
 	docs/manifest.json | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/configdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
