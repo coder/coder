@@ -251,7 +251,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
 
 2. Flush DNS caches:
 
-    ```powershell
+    ```ps1
     ipconfig /flushdns
     Clear-DnsClientCache
     ```
