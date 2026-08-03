@@ -8937,10 +8937,10 @@ func (mr *MockStoreMockRecorder) ListAIBridgeModels(ctx, arg any) *gomock.Call {
 }
 
 // ListAIBridgeSessionNetworkCalls mocks base method.
-func (m *MockStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.ListAIBridgeSessionNetworkCallsRow, error) {
+func (m *MockStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAIBridgeSessionNetworkCalls", ctx, arg)
-	ret0, _ := ret[0].([]database.ListAIBridgeSessionNetworkCallsRow)
+	ret0, _ := ret[0].([]database.BoundaryLog)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

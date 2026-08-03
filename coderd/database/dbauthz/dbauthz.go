@@ -6836,7 +6836,7 @@ func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBri
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
-func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.ListAIBridgeSessionNetworkCallsRow, error) {
+func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
 	}

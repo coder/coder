@@ -1142,10 +1142,6 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	return session
 }
 
-// AIBridgeSessionThreads converts session metadata and thread interceptions
-// into the threads response. It groups interceptions into threads, builds
-// agentic actions from tool usages and model thoughts, and aggregates
-// token usage with metadata.
 // AIBridgeSessionThreadsParams groups the session row and its subresources for
 // AIBridgeSessionThreads. Named fields avoid transposing the several adjacent
 // slice arguments (notably TopDomains and NetworkCalls) at the call site.
@@ -1157,9 +1153,13 @@ type AIBridgeSessionThreadsParams struct {
 	UserPrompts   []database.AIBridgeUserPrompt
 	ModelThoughts []database.AIBridgeModelThought
 	TopDomains    []database.GetAIBridgeSessionTopDomainsRow
-	NetworkCalls  []database.ListAIBridgeSessionNetworkCallsRow
+	NetworkCalls  []database.BoundaryLog
 }
 
+// AIBridgeSessionThreads converts session metadata and thread interceptions
+// into the threads response. It groups interceptions into threads, builds
+// agentic actions from tool usages and model thoughts, and aggregates
+// token usage with metadata.
 func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSessionThreadsResponse {
 	session := p.Session
 	interceptions := p.Interceptions
@@ -1277,24 +1277,32 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 		// from the last row processed.
 		resp.NetworkDomainCount = d.TotalDomains
 	}
-	for _, nc := range networkCalls {
-		call := codersdk.AIBridgeSessionNetworkCall{
-			ID:             nc.ID,
-			SequenceNumber: nc.SequenceNumber,
-			Proto:          nc.Proto,
-			Method:         nc.Method,
-			Detail:         nc.Detail,
-			// A matched allow-list rule means the call was permitted.
-			Allowed:   nc.MatchedRule.Valid,
-			CreatedAt: nc.CreatedAt,
-		}
-		if nc.MatchedRule.Valid {
-			rule := nc.MatchedRule.String
-			call.MatchedRule = &rule
-		}
-		resp.NetworkCallLogs = append(resp.NetworkCallLogs, call)
-	}
+	resp.NetworkCallLogs = AgentFirewallLogs(networkCalls)
 	return resp
+}
+
+// AgentFirewallLogs converts boundary logs to their SDK representation.
+// Allowed is derived from MatchedRule being non-NULL.
+func AgentFirewallLogs(logs []database.BoundaryLog) []codersdk.AgentFirewallLog {
+	results := make([]codersdk.AgentFirewallLog, 0, len(logs))
+	for _, l := range logs {
+		bl := codersdk.AgentFirewallLog{
+			ID:             l.ID,
+			SessionID:      l.SessionID,
+			SequenceNumber: l.SequenceNumber,
+			Allowed:        l.MatchedRule.Valid,
+			CreatedAt:      l.CreatedAt,
+			Proto:          l.Proto,
+			Method:         l.Method,
+			Detail:         l.Detail,
+			CapturedAt:     &l.CapturedAt,
+		}
+		if l.MatchedRule.Valid {
+			bl.MatchedRule = &l.MatchedRule.String
+		}
+		results = append(results, bl)
+	}
+	return results
 }
 
 func buildAIBridgeThread(

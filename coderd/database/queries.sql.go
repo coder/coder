@@ -2025,14 +2025,7 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 }
 
 const listAIBridgeSessionNetworkCalls = `-- name: ListAIBridgeSessionNetworkCalls :many
-SELECT
-	bl.id,
-	bl.sequence_number,
-	bl.proto,
-	bl.method,
-	bl.detail,
-	bl.matched_rule,
-	bl.created_at
+SELECT bl.id, bl.session_id, bl.sequence_number, bl.captured_at, bl.created_at, bl.proto, bl.method, bl.detail, bl.matched_rule, bl.owner_id
 FROM aibridge_interceptions afi
 LEFT JOIN LATERAL (
 	SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
@@ -2048,8 +2041,8 @@ WHERE afi.session_id = $1::text
 	AND afi.ended_at IS NOT NULL
 	AND afi.agent_firewall_session_id IS NOT NULL
 	AND afi.agent_firewall_sequence_number IS NOT NULL
-ORDER BY bl.created_at ASC, bl.sequence_number ASC
-LIMIT COALESCE(NULLIF($2::integer, 0), 100)
+ORDER BY bl.created_at ASC, bl.sequence_number ASC, bl.id ASC
+LIMIT COALESCE(NULLIF($2::integer, 0), 1000)
 `
 
 type ListAIBridgeSessionNetworkCallsParams struct {
@@ -2057,19 +2050,13 @@ type ListAIBridgeSessionNetworkCallsParams struct {
 	Limit     int32  `db:"limit_" json:"limit_"`
 }
 
-type ListAIBridgeSessionNetworkCallsRow struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
-	Proto          string         `db:"proto" json:"proto"`
-	Method         string         `db:"method" json:"method"`
-	Detail         string         `db:"detail" json:"detail"`
-	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-}
-
 // Returns the individual Agent Firewall network calls made during an AI
-// session, ordered chronologically. All protocols are included so the row
-// count matches the network_calls summary in ListAIBridgeSessions.
+// session, ordered chronologically. All protocols are included, unlike
+// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+// covers the same events the network_calls summary in ListAIBridgeSessions
+// counts. The list is capped at @limit_ rows, so its length equals the summary
+// total only for sessions at or below the cap. The summary stays authoritative
+// for whole-session totals.
 //
 // Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
 // interception's boundary logs fall in the open interval (this seq, next
@@ -2079,23 +2066,29 @@ type ListAIBridgeSessionNetworkCallsRow struct {
 // sessions that share one firewall session, and falls back to the maximum
 // sequence_number for the last interception so the window stays an
 // index-satisfiable range.
-func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]ListAIBridgeSessionNetworkCallsRow, error) {
+// created_at leads because a session can span several firewall sessions, whose
+// sequence numbers are independent streams. id breaks remaining ties so the row
+// that lands on the limit boundary is stable across identical requests.
+func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionNetworkCalls, arg.SessionID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIBridgeSessionNetworkCallsRow
+	var items []BoundaryLog
 	for rows.Next() {
-		var i ListAIBridgeSessionNetworkCallsRow
+		var i BoundaryLog
 		if err := rows.Scan(
 			&i.ID,
+			&i.SessionID,
 			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
 			&i.Proto,
 			&i.Method,
 			&i.Detail,
 			&i.MatchedRule,
-			&i.CreatedAt,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}

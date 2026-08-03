@@ -172,24 +172,6 @@ type AIBridgeSessionNetworkDomain struct {
 	Count  int64  `json:"count"`
 }
 
-// AIBridgeSessionNetworkCall is a single Agent Firewall network call made
-// during a session. Allowed reports whether the firewall allow-list matched;
-// when false the call was blocked.
-type AIBridgeSessionNetworkCall struct {
-	ID             uuid.UUID `json:"id" format:"uuid"`
-	SequenceNumber int32     `json:"sequence_number"`
-	Proto          string    `json:"proto"`
-	Method         string    `json:"method"`
-	// Detail is protocol-specific: the full URL for http, the hostname for dns,
-	// the path for fs.
-	Detail  string `json:"detail"`
-	Allowed bool   `json:"allowed"`
-	// MatchedRule is the allow-list rule that permitted the call. Nil when the
-	// call was blocked.
-	MatchedRule *string   `json:"matched_rule,omitempty"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-}
-
 type AIBridgeListSessionsResponse struct {
 	Count    int64             `json:"count"`
 	Sessions []AIBridgeSession `json:"sessions"`
@@ -221,10 +203,12 @@ type AIBridgeSessionThreadsResponse struct {
 	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
 	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
 	// NetworkCallLogs is the chronological list of individual network calls made
-	// during the session, capped server-side. Empty when the session did not
-	// pass through Agent Firewall.
-	NetworkCallLogs []AIBridgeSessionNetworkCall `json:"network_call_logs,omitempty"`
-	Threads         []AIBridgeThread             `json:"threads"`
+	// during the session, holding the earliest calls up to a server-side cap.
+	// NetworkCalls remains authoritative for whole-session totals, so a shorter
+	// list than NetworkCalls.Total means the list was truncated. Empty when the
+	// session did not pass through Agent Firewall.
+	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
+	Threads         []AIBridgeThread   `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage

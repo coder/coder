@@ -1930,9 +1930,9 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("NetworkCallsTruncated", func(t *testing.T) {
 		t.Parallel()
-		// The per-call list is capped server-side (currently 100 rows) while the
-		// summary total reflects the whole session. When a session exceeds the
-		// cap the list is truncated but the summary total stays authoritative.
+		// The per-call list is capped server-side while the summary total
+		// reflects the whole session. When a session exceeds the cap the list is
+		// truncated but the summary total stays authoritative.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
 		opts.Options.Database = db
@@ -1954,9 +1954,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 0, Valid: true},
 		}, &endedAt)
 
-		// 105 allowed HTTP calls at seqs 1..105, all in the interception's
-		// window (0, +inf).
-		const total = 105
+		// Allowed HTTP calls at seqs 1..total, all in the interception's
+		// window (0, +inf), seeded past the server-side cap.
+		const listCap = 1000
+		const total = listCap + 5
 		seeds := make([]boundaryLogSeed, 0, total)
 		for seq := int32(1); seq <= total; seq++ {
 			seeds = append(seeds, boundaryLogSeed{seq, "http", "https://api.github.com/x", true})
@@ -1966,13 +1967,13 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		res, err := client.AIBridgeGetSessionThreads(ctx, "trunc-net", uuid.Nil, uuid.Nil, 0)
 		require.NoError(t, err)
 
-		// The summary reflects all 105 calls; the list is capped at 100.
+		// The summary reflects every call; the list stops at the cap.
 		require.NotNil(t, res.NetworkCalls)
 		require.EqualValues(t, total, res.NetworkCalls.Total)
-		require.Len(t, res.NetworkCallLogs, 100)
+		require.Len(t, res.NetworkCallLogs, listCap)
 		// The cap keeps the earliest calls in chronological order.
 		require.EqualValues(t, 1, res.NetworkCallLogs[0].SequenceNumber)
-		require.EqualValues(t, 100, res.NetworkCallLogs[99].SequenceNumber)
+		require.EqualValues(t, listCap, res.NetworkCallLogs[listCap-1].SequenceNumber)
 	})
 
 	t.Run("NetworkSummaryDisabled", func(t *testing.T) {

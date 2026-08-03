@@ -6976,9 +6976,9 @@ func (s *MethodTestSuite) TestAIBridge() {
 	}))
 
 	s.Run("ListAIBridgeSessionNetworkCalls", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		params := database.ListAIBridgeSessionNetworkCallsParams{SessionID: "sess", Limit: 100}
-		db.EXPECT().ListAIBridgeSessionNetworkCalls(gomock.Any(), params).Return([]database.ListAIBridgeSessionNetworkCallsRow{}, nil).AnyTimes()
-		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.ListAIBridgeSessionNetworkCallsRow{})
+		params := database.ListAIBridgeSessionNetworkCallsParams{SessionID: "sess", Limit: 1000}
+		db.EXPECT().ListAIBridgeSessionNetworkCalls(gomock.Any(), params).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.BoundaryLog{})
 	}))
 
 	s.Run("ListAIBridgeTokenUsagesByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

@@ -50,7 +50,8 @@ const (
 	// aiBridgeSessionNetworkCallsLimit caps the per-session network call list
 	// returned with session threads. The header count still reflects the full
 	// summary total, so the UI surfaces truncation when a session exceeds this.
-	aiBridgeSessionNetworkCallsLimit = 100
+	// Sessions past the cap need pagination to see the remainder.
+	aiBridgeSessionNetworkCallsLimit = 1000
 )
 
 // errInvalidCursor is returned when a pagination cursor does not
@@ -374,7 +375,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		userPrompts   []database.AIBridgeUserPrompt
 		modelThoughts []database.AIBridgeModelThought
 		topDomains    []database.GetAIBridgeSessionTopDomainsRow
-		networkCalls  []database.ListAIBridgeSessionNetworkCallsRow
+		networkCalls  []database.BoundaryLog
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		// Validate cursor IDs before querying threads. The SQL
