@@ -234,10 +234,10 @@ export const LiveResourcePreviews: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "dev");
-		await expect(canvas.getByText("Workspaces")).toBeVisible();
 		await waitFor(() =>
 			expect(canvas.getByRole("option", { name: /devbox/i })).toBeVisible(),
 		);
+		await expect(canvas.getByText("Workspaces")).toBeVisible();
 		await expect(canvas.getByText("alice · docker")).toBeVisible();
 	},
 };

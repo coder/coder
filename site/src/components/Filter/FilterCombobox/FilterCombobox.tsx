@@ -81,15 +81,15 @@ export function FilterCombobox({
 
 	const showTypeahead =
 		activeCategoryKey === null && browseMode === "typeahead";
-	const showValueSuggestions =
-		showTypeahead &&
-		inputValue.trim().length > 0 &&
-		(valueSuggestionsLoading || valueSuggestions.length > 0);
-	const showSearchSection =
-		showTypeahead &&
-		inputValue.trim().length > 0 &&
-		Boolean(getSearchResults) &&
-		(searchResultsLoading || searchResults.length > 0);
+	const hasTypeaheadQuery = showTypeahead && inputValue.trim().length > 0;
+	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
+	const showSearchSection = hasTypeaheadQuery && searchResults.length > 0;
+	const typeaheadLoading =
+		hasTypeaheadQuery &&
+		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
+			(Boolean(getSearchResults) &&
+				searchResultsLoading &&
+				searchResults.length === 0));
 
 	const valueSuggestionsByCategory = new Map<string, typeof valueSuggestions>();
 	for (const suggestion of valueSuggestions) {
@@ -106,13 +106,7 @@ export function FilterCombobox({
 			}
 			return `Filtering by ${activeCategory.label}`;
 		}
-		if (!showTypeahead) {
-			return "";
-		}
-		if (
-			(valueSuggestionsLoading && valueSuggestions.length === 0) ||
-			(searchResultsLoading && searchResults.length === 0)
-		) {
+		if (typeaheadLoading) {
 			return "Loading suggestions";
 		}
 		return "";
@@ -209,8 +203,7 @@ export function FilterCombobox({
 						{listedCategories.length === 0 &&
 							!showValueSuggestions &&
 							!showSearchSection &&
-							!valueSuggestionsLoading &&
-							!searchResultsLoading && (
+							!typeaheadLoading && (
 								<ComboboxEmpty>No filters found.</ComboboxEmpty>
 							)}
 						<ComboboxList className="p-3 data-[empty]:p-3">
@@ -232,84 +225,71 @@ export function FilterCombobox({
 									<span className="text-content-primary">{category.label}</span>
 								</ComboboxItem>
 							))}
-							{showValueSuggestions &&
-								(valueSuggestionsLoading && valueSuggestions.length === 0 ? (
-									<div
-										className="flex items-center justify-center px-2 py-2.5"
-										aria-hidden
-									>
-										<Spinner loading size="sm" />
-									</div>
-								) : (
-									[...valueSuggestionsByCategory.entries()].map(
-										([categoryLabel, suggestions]) => (
-											<ComboboxGroup key={categoryLabel}>
-												<ComboboxLabel>{categoryLabel}</ComboboxLabel>
-												{suggestions.map((suggestion) => (
-													<ComboboxItem
-														className="gap-2 px-2 py-2.5"
-														key={suggestion.token}
-														value={suggestion.token}
-														showIndicator={false}
-													>
-														{suggestion.option.startIcon ? (
-															<span aria-hidden>
-																{suggestion.option.startIcon}
-															</span>
-														) : null}
-														<span className="text-content-primary">
-															{suggestion.option.label}
-														</span>
-													</ComboboxItem>
-												))}
-											</ComboboxGroup>
-										),
-									)
-								))}
+							{[...valueSuggestionsByCategory.entries()].map(
+								([categoryLabel, suggestions]) => (
+									<ComboboxGroup key={categoryLabel}>
+										<ComboboxLabel>{categoryLabel}</ComboboxLabel>
+										{suggestions.map((suggestion) => (
+											<ComboboxItem
+												className="gap-2 px-2 py-2.5"
+												key={suggestion.token}
+												value={suggestion.token}
+												showIndicator={false}
+											>
+												{suggestion.option.startIcon ? (
+													<span aria-hidden>{suggestion.option.startIcon}</span>
+												) : null}
+												<span className="text-content-primary">
+													{suggestion.option.label}
+												</span>
+											</ComboboxItem>
+										))}
+									</ComboboxGroup>
+								),
+							)}
 							{showSearchSection && (
 								<ComboboxGroup>
 									<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
-									{searchResultsLoading && searchResults.length === 0 ? (
-										<div
-											className="flex items-center justify-center px-2 py-2.5"
-											aria-hidden
+									{searchResults.map((result) => (
+										<ComboboxItem
+											className="gap-2 px-2 py-2.5"
+											key={result.value}
+											value={searchResultToken(result.value)}
+											showIndicator={false}
 										>
-											<Spinner loading size="sm" />
-										</div>
-									) : (
-										searchResults.map((result) => (
-											<ComboboxItem
-												className="gap-2 px-2 py-2.5"
-												key={result.value}
-												value={searchResultToken(result.value)}
-												showIndicator={false}
-											>
-												{(result.startIcon ?? result.imageUrl !== undefined) ? (
-													<span aria-hidden>
-														{result.startIcon ??
-															(result.imageUrl !== undefined ? (
-																<Avatar
-																	src={result.imageUrl}
-																	fallback={result.label}
-																	size="md"
-																/>
-															) : null)}
-													</span>
-												) : null}
-												<span className="flex min-w-0 flex-col">
-													<span className="truncate text-content-primary">
-														{result.label}
-													</span>
-													{result.subtitle && (
-														<span className="truncate text-xs text-content-secondary">
-															{result.subtitle}
-														</span>
-													)}
+											{(result.startIcon ?? result.imageUrl !== undefined) ? (
+												<span aria-hidden>
+													{result.startIcon ??
+														(result.imageUrl !== undefined ? (
+															<Avatar
+																src={result.imageUrl}
+																fallback={result.label}
+																size="md"
+															/>
+														) : null)}
 												</span>
-											</ComboboxItem>
-										))
-									)}
+											) : null}
+											<span className="flex min-w-0 flex-col">
+												<span className="truncate text-content-primary">
+													{result.label}
+												</span>
+												{result.subtitle && (
+													<span className="truncate text-xs text-content-secondary">
+														{result.subtitle}
+													</span>
+												)}
+											</span>
+										</ComboboxItem>
+									))}
 								</ComboboxGroup>
+							)}
+							{typeaheadLoading && (
+								<div
+									className="flex items-center justify-center px-2 py-2.5"
+									aria-hidden
+								>
+									<Spinner loading size="sm" />
+								</div>
 							)}
 						</ComboboxList>
 					</>
