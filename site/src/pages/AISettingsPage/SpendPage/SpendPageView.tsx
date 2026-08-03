@@ -235,11 +235,16 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 				>
 					{(userCtrl) => (
 						<div className="flex max-w-[1100px] flex-col gap-8">
-							<Alert severity="info">
+							<Alert severity="warning" prominent>
 								<AlertDescription>
-									Cost controls features will move to AI Governance in v2.36.{" "}
+									As of v2.36, AI Governance Cost Control replaces Coder Agents
+									Cost Control. The limits on this page are no longer enforced
+									and do not carry over. Recreate each limit as an AI Governance
+									budget to restore enforcement.{" "}
 									<Link
-										href={docs("/ai-coder/ai-gateway/cost-controls")}
+										href={docs(
+											"/ai-coder/ai-gateway/cost-controls#migrate-from-coder-agents-cost-control",
+										)}
 										target="_blank"
 										rel="noreferrer"
 									>

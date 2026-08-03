@@ -32,7 +32,7 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
-const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
