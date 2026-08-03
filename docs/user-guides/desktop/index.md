@@ -306,7 +306,7 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
     `com.coder.Coder-Desktop`. Adjust `--last` (e.g. `30m`, `2h`, `1d`) to
     cover the time the issue occurred.
 
-    To watch the logs live while reproducing an issue:
+    You can stream the logs live while reproducing an issue:
 
     ```shell
     log stream --predicate 'subsystem BEGINSWITH "com.coder.Coder-Desktop"' --info --debug
