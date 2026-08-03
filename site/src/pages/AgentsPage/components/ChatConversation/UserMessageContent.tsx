@@ -85,7 +85,7 @@ export const UserMessageContent: FC<{
 					fadeFromBottom ? { maxHeight: "var(--clip-h, none)" } : undefined
 				}
 			>
-				<div className="flex flex-col gap-1.5">
+				<div className="flex flex-col gap-1.5" data-turn-prompt-body>
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (

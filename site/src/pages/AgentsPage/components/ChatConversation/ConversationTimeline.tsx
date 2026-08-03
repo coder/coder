@@ -820,6 +820,25 @@ const ChatMessageItem = memo<{
 	},
 );
 
+const MIN_HEIGHT = 72;
+const STICKY_TOP = 8;
+const FADE_RANGE = 40;
+// The gap between a turn's last message and the next turn's sentinel, from the
+// timeline's `gap-2`. It sits between the pinned prompt's section edge and the
+// following section, so it belongs in the slack that keeps native push-out on
+// the same scroll offset as the visible bubble reaching the boundary.
+const TURN_GAP = 8;
+
+/**
+ * A turn's prompt. The section around it is the sticky containing block, so the
+ * browser owns pinning and push-out; the only thing measured here is how much
+ * of the bubble is still visible.
+ *
+ * The sticky box is deliberately only as tall as the visible bubble plus its
+ * action row, because native push-out is driven by that height. The clipped
+ * remainder is reproduced by a spacer outside the sticky box, which keeps the
+ * section, and therefore the scroll geometry, at its full height.
+ */
 const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
@@ -834,7 +853,6 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
-	getSentinel?: (messageId: number) => HTMLDivElement | null;
 	urlTransform?: UrlTransform;
 }>(
 	({
@@ -847,12 +865,8 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
-		getSentinel,
 		urlTransform,
 	}) => {
-		const [isStuck, setIsStuck] = useState(false);
-		const [isReady, setIsReady] = useState(false);
-		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const messageId = message.id;
 		const setSentinelRef = (el: HTMLDivElement | null) => {
@@ -860,182 +874,138 @@ const StickyUserMessage = memo<{
 			registerSentinel?.(messageId, el);
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
-		const updateFnRef = useRef<(() => void) | null>(null);
+		const spacerRef = useRef<HTMLDivElement>(null);
 
-		// The scroll handler below is installed once, so it resolves the
-		// neighbouring prompt's sentinel through a ref instead of the props it
-		// closed over at mount. Declared before that effect so the resolver is
-		// current whenever the handler runs.
-		const nextSentinelRef = useRef<() => HTMLDivElement | null>(() => null);
-		useLayoutEffect(() => {
-			nextSentinelRef.current = () =>
-				nextUserMessageId === undefined
-					? null
-					: (getSentinel?.(nextUserMessageId) ?? null);
-		}, [nextUserMessageId, getSentinel]);
-
-		// useLayoutEffect so isStuck and --clip-h are both resolved
-		// before the browser paints, avoiding a flash on load.
-		useLayoutEffect(() => {
-			const sentinel = sentinelRef.current;
-			if (!sentinel) return;
-			// Immediate check so the first paint is correct when the
-			// sentinel is already scrolled out of view.
-			const scroller = sentinel.closest(".overflow-y-auto");
-			if (scroller) {
-				const stuck =
-					sentinel.getBoundingClientRect().top <
-					scroller.getBoundingClientRect().top;
-				if (stuck) {
-					setIsStuck(true);
-				}
-			}
-			setIsReady(true);
-			const observer = new IntersectionObserver(
-				([entry]) => setIsStuck(!entry.isIntersecting),
-				{ threshold: 0 },
-			);
-			observer.observe(sentinel);
-			return () => observer.disconnect();
-		}, []);
-
-		// Sets a single CSS custom property (--clip-h) on the sticky
-		// container. All visual behaviour (max-height, mask fade) is
-		// driven by CSS using this variable.
+		// A layout effect, never a passive one: `ResizeObserver` delivers its
+		// first callback after layout and before the first paint, so the clip is
+		// correct on the frame the prompt first appears. Observing from a passive
+		// effect paints one frame with an unclipped prompt.
 		useLayoutEffect(() => {
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
-			if (!sentinel || !container) return;
-			const scroller = sentinel.closest(
-				".overflow-y-auto",
-			) as HTMLElement | null;
+			const spacer = spacerRef.current;
+			if (!sentinel || !container || !spacer) return;
+			const scroller = sentinel.closest<HTMLElement>(".overflow-y-auto");
 			if (!scroller) return;
+			// The bubble carries `max-height`, so its own height reports the
+			// clipped size. Its inner body is never clipped, which is the only
+			// reliable source for the uncompressed height.
+			const body = container.querySelector<HTMLElement>(
+				"[data-turn-prompt-body]",
+			);
+			const bubble = body?.parentElement;
+			if (!body || !bubble) return;
 
-			const MIN_HEIGHT = 72;
-			const STICKY_TOP = 8;
+			// The clip shrinks only the bubble's content box. The bubble's own
+			// padding and border, and the action row below it, keep their height,
+			// so both are measured on resize rather than per frame.
+			let bubbleChrome = 0;
+			let rowHeight = 0;
+			let bodyHeight = 0;
+			let scrollerHeight = 0;
+			const measure = () => {
+				const bubbleStyle = getComputedStyle(bubble);
+				bubbleChrome =
+					Number.parseFloat(bubbleStyle.paddingTop) +
+					Number.parseFloat(bubbleStyle.paddingBottom) +
+					Number.parseFloat(bubbleStyle.borderTopWidth) +
+					Number.parseFloat(bubbleStyle.borderBottomWidth);
+				rowHeight = Math.max(
+					container.getBoundingClientRect().height -
+						bubble.getBoundingClientRect().height,
+					0,
+				);
+				bodyHeight = body.getBoundingClientRect().height;
+				scrollerHeight = scroller.clientHeight;
+			};
 
 			const update = () => {
-				// Read the scroller geometry on each tick. Caching it goes
-				// stale when the scroller moves or resizes without a window
-				// resize (for example the composer growing), which skews the
-				// clip height and push-up math.
 				const scrollerTop = scroller.getBoundingClientRect().top;
-				const scrollerHeight = scroller.clientHeight;
-				const fullHeight = container.offsetHeight;
+				const sentinelTop = sentinel.getBoundingClientRect().top;
+				const fullHeight = bodyHeight + bubbleChrome + rowHeight;
+				// Compression is measured from the pin line, the same edge the
+				// browser pins against, so compression starts exactly when
+				// pinning does.
+				const scrolledPast = Math.max(
+					scrollerTop + STICKY_TOP - sentinelTop,
+					0,
+				);
 
-				// Skip sticky behavior for messages that take up
-				// most of the visible area — accounting for the
-				// chat input and some breathing room.
+				// Prompts taller than most of the scrollport are not worth
+				// pinning: they would cover the reply they belong to.
 				const tooTall = fullHeight > scrollerHeight * 0.75;
-				setIsTooTall(tooTall);
+				container.style.position = tooTall ? "relative" : "";
 				if (tooTall) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = `${STICKY_TOP}px`;
-
+					container.style.setProperty("--pin-slack", "0px");
+					spacer.style.height = "0px";
 					return;
 				}
-				const sentinelTop = sentinel.getBoundingClientRect().top;
-				const scrolledPast = scrollerTop - sentinelTop;
 
-				if (scrolledPast <= 0) {
-					// Always set a valid value so the overlay has the
-					// correct height immediately when isStuck flips.
-					container.style.setProperty("--clip-h", `${fullHeight}px`);
-					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = `${STICKY_TOP}px`;
-
-					return;
-				}
-				const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
-				container.style.setProperty("--clip-h", `${visible}px`);
-				// Only show the blur and gradient once the message
-				// is near its minimum compressed height. Ramp over
-				// the last 40px before MIN_HEIGHT so it doesn't pop.
-				const FADE_RANGE = 40;
-				const fade = Math.max(
-					0,
-					Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
+				// How much of the prompt is still shown. Never more than its own
+				// height, so a prompt shorter than the floor is left alone.
+				const visible = Math.min(
+					fullHeight,
+					Math.max(fullHeight - scrolledPast, MIN_HEIGHT),
 				);
-				container.style.setProperty("--fade-opacity", String(fade));
-				// Push-up effect: when the next user message's sentinel
-				// approaches the bottom of this sticky container, shift
-				// this container upward so it slides out of view — the
-				// same visual as the old section-boundary behavior.
-				const nextSentinel = nextSentinelRef.current();
-				if (nextSentinel) {
-					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
-					container.style.top = `${Math.min(STICKY_TOP, nextY - visible + STICKY_TOP)}px`;
-				} else {
-					container.style.top = `${STICKY_TOP}px`;
-				}
+				container.style.setProperty("--clip-h", `${visible}px`);
+				container.style.setProperty(
+					"--fade-opacity",
+					scrolledPast <= 0
+						? "0"
+						: String(
+								Math.max(
+									0,
+									Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
+								),
+							),
+				);
+				// `max-height` only shrinks the bubble, so the pinned box is the
+				// clipped bubble plus the action row, and the browser pushes it out
+				// when that box plus the gaps either side of the turn boundary
+				// reach the boundary. Push-out should instead start when the
+				// visible height reaches it, so the difference is given back as a
+				// negative bottom margin and re-added by the spacer, leaving the
+				// turn's total height untouched.
+				const pinnedHeight =
+					Math.min(bodyHeight + bubbleChrome, visible) + rowHeight;
+				container.style.setProperty(
+					"--pin-slack",
+					`${pinnedHeight + 2 * TURN_GAP - visible}px`,
+				);
+				spacer.style.height = `${fullHeight - visible + 2 * TURN_GAP}px`;
 			};
-			updateFnRef.current = update;
 
-			// Throttle to one update per animation frame so we don't
-			// do redundant work on high-refresh-rate displays.
+			// In `flex-col-reverse` the scroller stays at `scrollTop` 0 while
+			// pinned to the bottom, so a growing transcript fires no scroll
+			// event. The scroller and the prompt body are observed instead.
 			let rafId: number | null = null;
-			const onScroll = () => {
+			const schedule = () => {
 				if (rafId !== null) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = null;
 					update();
 				});
 			};
-
-			// Re-run the visual update when the transcript height changes,
-			// for example a streaming response or several messages arriving
-			// at once. In flex-col-reverse the scrollTop stays at 0 while
-			// pinned to the bottom, so no scroll event fires; observing the
-			// content wrapper catches that growth instead.
-			//
-			// The scroller's firstElementChild is the flex spacer that pins
-			// content to the bottom. It collapses to 0px once the transcript
-			// overflows and then stops emitting resize callbacks, which is
-			// exactly when truncation is active, so observe the real content
-			// node (an ancestor of the sentinel) and fall back to the spacer
-			// only when the marker is absent.
-			const contentEl =
-				sentinel.closest<HTMLElement>("[data-chat-scroll-content]") ??
-				(scroller.firstElementChild as HTMLElement | null);
-			let contentRafId: number | null = null;
-			const contentObserver = contentEl
-				? new ResizeObserver(() => {
-						if (contentRafId !== null) return;
-						contentRafId = requestAnimationFrame(() => {
-							contentRafId = null;
-							update();
-						});
-					})
-				: null;
-			contentObserver?.observe(contentEl!);
-
-			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", update);
+			const remeasure = () => {
+				measure();
+				schedule();
+			};
+			const observer = new ResizeObserver(remeasure);
+			observer.observe(scroller);
+			observer.observe(body);
+			scroller.addEventListener("scroll", schedule, { passive: true });
+			window.addEventListener("resize", remeasure);
+			measure();
 			update();
-			// Set immediately — both --clip-h and --overlay-ready are
-			// applied before the browser paints since we're in a
-			// useLayoutEffect.
-			container.style.setProperty("--overlay-ready", "1");
 			return () => {
-				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", update);
-				contentObserver?.disconnect();
-				container.style.removeProperty("--overlay-ready");
+				scroller.removeEventListener("scroll", schedule);
+				window.removeEventListener("resize", remeasure);
+				observer.disconnect();
 				if (rafId !== null) cancelAnimationFrame(rafId);
-				if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 			};
 		}, []);
-
-		// Re-run the height calculation synchronously whenever
-		// isStuck changes so --clip-h is correct on the same frame
-		// the overlay appears. Without this, the async
-		// IntersectionObserver + RAF-throttled scroll handler can
-		// leave a stale --clip-h for one paint.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: isStuck is an intentional trigger
-		useLayoutEffect(() => {
-			updateFnRef.current?.();
-		}, [isStuck]);
 
 		const handleEditUserMessage = onEditUserMessage
 			? (
@@ -1067,93 +1037,42 @@ const StickyUserMessage = memo<{
 				/>
 				<div
 					ref={containerRef}
-					className={cn(
-						"relative px-3 -mx-3 -mt-2",
-						!isTooTall && "sticky z-10",
-						!isReady && "invisible",
-						isStuck && !isTooTall && "pointer-events-none",
-					)}
+					className="sticky top-2 z-10 px-3 -mx-3 -mt-2"
+					style={{ marginBottom: "calc(-1 * var(--pin-slack, 0px))" }}
+					data-turn-prompt
 				>
-					{/* Flow element: always in the DOM to preserve
-				    scroll layout. Hidden when stuck so the
-				    clipped overlay takes over visually. */}
+					{/* Frosted band below the clipped bubble. It reaches past the
+					    sticky box on purpose, so the fade covers the transcript
+					    scrolling underneath. */}
 					<div
-						className={
-							isStuck && !isTooTall ? undefined : "pointer-events-auto"
-						}
-						style={
-							isStuck && !isTooTall
-								? { opacity: "calc(1 - var(--overlay-ready, 0))" }
-								: undefined
-						}
-						// While the overlay copy is shown, drop the flow copy
-						// from the accessibility tree so the message and its
-						// hook notices aren't exposed twice.
-						aria-hidden={isStuck && !isTooTall ? true : undefined}
-						inert={isStuck && !isTooTall ? true : undefined}
-					>
-						<ChatMessageItem
-							message={message}
-							parsed={parsed}
-							onEditUserMessage={handleEditUserMessage}
-							editingMessageId={editingMessageId}
-							isAfterEditingMessage={isAfterEditingMessage}
-							prevUserMessageId={prevUserMessageId}
-							nextUserMessageId={nextUserMessageId}
-							onJumpToUserMessage={onJumpToUserMessage}
-							urlTransform={urlTransform}
-						/>
-					</div>
-
-					{/* Overlay: absolutely positioned, matching the
-				    sticky container. max-height + mask are driven
-				    entirely by the --clip-h CSS variable which the
-				    scroll handler sets on the container. */}
-					{isStuck && !isTooTall && (
-						<div
-							className="absolute inset-0"
-							style={{
-								opacity: "var(--overlay-ready, 0)",
-								contain: "layout style",
-							}}
-						>
-							{/* Blur layer: extends 48px beyond the
-						    clipped content so the frosted effect
-						    is visible around the bubble. Promoted
-						    to its own GPU layer via will-change. */}
-							<div
-								className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
-								style={{
-									opacity: "var(--fade-opacity, 0)",
-									maxHeight: "calc(var(--clip-h, 100%) + 48px)",
-									willChange: "max-height, mask-image",
-									maskImage:
-										"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
-									WebkitMaskImage:
-										"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
-								}}
-							/>
-							{/* Content layer: px-3 matches the sticky
-							    container's padding so the overlay aligns
-							    with the flow element. will-change promotes
-							    to GPU layer. */}
-							<div className="relative px-3 pointer-events-auto will-change-[max-height]">
-								<ChatMessageItem
-									message={message}
-									parsed={parsed}
-									onEditUserMessage={handleEditUserMessage}
-									editingMessageId={editingMessageId}
-									isAfterEditingMessage={isAfterEditingMessage}
-									prevUserMessageId={prevUserMessageId}
-									nextUserMessageId={nextUserMessageId}
-									onJumpToUserMessage={onJumpToUserMessage}
-									urlTransform={urlTransform}
-									fadeFromBottom
-								/>
-							</div>
-						</div>
-					)}
+						aria-hidden
+						className="pointer-events-none absolute inset-x-0 top-0 backdrop-blur-[1px] bg-surface-primary/15"
+						style={{
+							opacity: "var(--fade-opacity, 0)",
+							height: "calc(var(--clip-h, 0px) + 48px)",
+							maskImage:
+								"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+							WebkitMaskImage:
+								"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+						}}
+					/>
+					<ChatMessageItem
+						message={message}
+						parsed={parsed}
+						onEditUserMessage={handleEditUserMessage}
+						editingMessageId={editingMessageId}
+						isAfterEditingMessage={isAfterEditingMessage}
+						prevUserMessageId={prevUserMessageId}
+						nextUserMessageId={nextUserMessageId}
+						onJumpToUserMessage={onJumpToUserMessage}
+						urlTransform={urlTransform}
+						fadeFromBottom
+					/>
 				</div>
+				{/* Replaces the height the clip removes from the sticky box, so
+				    the turn keeps its full height and the transcript below it
+				    does not move while the prompt compresses. */}
+				<div ref={spacerRef} aria-hidden className="-mt-2" />
 			</>
 		);
 	},
@@ -1282,8 +1201,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				block: "start",
 			});
 		};
-		const getSentinel = (messageId: number) =>
-			sentinelsRef.current.get(messageId) ?? null;
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
@@ -1373,11 +1290,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					className="flex flex-col gap-2"
 				>
 					{turns.map((turn) => (
-						// `display: contents` keeps the turn wrapper out of layout, so
-						// grouping leaves both the spacing between messages and the
-						// containing block that `position: sticky` resolves against
-						// unchanged.
-						<section key={turn.key} className="contents" data-chat-turn>
+						// The section is the sticky containing block for its prompt, so
+						// the browser pins the prompt and pushes it out at the turn
+						// boundary without any scroll-driven position writes.
+						<section
+							key={turn.key}
+							className="flex flex-col gap-2"
+							data-chat-turn
+						>
 							{turn.prompt && (
 								<StickyUserMessage
 									message={turn.prompt.entry.message}
@@ -1395,7 +1315,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
-									getSentinel={getSentinel}
 									urlTransform={urlTransform}
 								/>
 							)}
