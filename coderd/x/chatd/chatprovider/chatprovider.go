@@ -1124,8 +1124,6 @@ func ProviderOptionsForCall(
 	return applyReasoningEffort(model, options, effort)
 }
 
-// providerOptionsFromChatModelConfig converts chat model provider options to
-// fantasy provider options used for inference calls.
 func providerOptionsFromChatModelConfig(
 	model Model,
 	options *codersdk.ChatModelProviderOptions,
