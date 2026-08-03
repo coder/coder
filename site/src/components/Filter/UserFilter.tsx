@@ -25,7 +25,7 @@ export const useUserFilterMenu = ({
 				label: me.username,
 				value: me.username,
 				startIcon: (
-					<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+					<Avatar fallback={me.username} src={me.avatar_url} size="md" />
 				),
 			},
 			...filtered,
@@ -43,7 +43,7 @@ export const useUserFilterMenu = ({
 					label: me.username,
 					value: me.username,
 					startIcon: (
-						<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+						<Avatar fallback={me.username} src={me.avatar_url} size="md" />
 					),
 				};
 			}
@@ -58,7 +58,7 @@ export const useUserFilterMenu = ({
 						<Avatar
 							fallback={firstUser.username}
 							src={firstUser.avatar_url}
-							size="sm"
+							size="md"
 						/>
 					),
 				};
@@ -71,7 +71,7 @@ export const useUserFilterMenu = ({
 				label: user.username,
 				value: user.username,
 				startIcon: (
-					<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
+					<Avatar fallback={user.username} src={user.avatar_url} size="md" />
 				),
 			}));
 			options = addMeAsFirstOption(options);

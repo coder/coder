@@ -1,79 +1,28 @@
-import type { FC } from "react";
 import {
-	Filter,
-	MenuSkeleton,
-	type UseFilterResult,
-} from "#/components/Filter/Filter";
+	Building2Icon,
+	CircleDotIcon,
+	LayoutGridIcon,
+	UserIcon,
+} from "lucide-react";
+import { type FC, useMemo } from "react";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "#/components/Filter/UserFilter";
+	FilterCombobox,
+	type FilterFacet,
+} from "#/components/Filter/FilterCombobox";
+import type { UserFilterMenu } from "#/components/Filter/UserFilter";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "#/modules/tableFiltering/options";
-import { docs } from "#/utils/docs";
-import {
-	type StatusFilterMenu,
-	StatusMenu,
-	type TemplateFilterMenu,
-	TemplateMenu,
-} from "./menus";
+import type { OrganizationsFilterMenu } from "#/modules/tableFiltering/options";
+import type { StatusFilterMenu, TemplateFilterMenu } from "./menus";
 
-const workspaceFilterQuery = {
-	me: "owner:me",
-	all: "",
-	running: "status:running",
-	failed: "status:failed",
-	dormant: "dormant:true",
-	outdated: "outdated:true",
-	shared: "shared:true",
-};
+type FilterFacetId = "status" | "template" | "organization" | "owner";
 
-type FilterPreset = {
-	query: string;
-	name: string;
-};
-
-// Can't use as const declarations to make arrays deep readonly because that
-// interferes with the type contracts for Filter
-const PRESET_FILTERS: FilterPreset[] = [
-	{
-		query: workspaceFilterQuery.me,
-		name: "My workspaces",
-	},
-	{
-		query: workspaceFilterQuery.all,
-		name: "All workspaces",
-	},
-	{
-		query: workspaceFilterQuery.running,
-		name: "Running workspaces",
-	},
-	{
-		query: workspaceFilterQuery.failed,
-		name: "Failed workspaces",
-	},
-	{
-		query: workspaceFilterQuery.outdated,
-		name: "Outdated workspaces",
-	},
-	{
-		query: workspaceFilterQuery.shared,
-		name: "Shared workspaces",
-	},
-];
-
-// Defined outside component so that the array doesn't get reconstructed each render
-const PRESETS_WITH_DORMANT: FilterPreset[] = [
-	...PRESET_FILTERS,
-	{
-		query: workspaceFilterQuery.dormant,
-		name: "Dormant workspaces",
-	},
-];
+const WORKSPACE_CHIP_KEYS = [
+	"owner",
+	"status",
+	"template",
+	"organization",
+] as const satisfies readonly FilterFacetId[];
 
 export type WorkspaceFilterState = {
 	filter: UseFilterResult;
@@ -91,54 +40,66 @@ type WorkspaceFilterProps = Readonly<{
 	error: unknown;
 	templateMenu: TemplateFilterMenu;
 	statusMenu: StatusFilterMenu;
-
 	userMenu?: UserFilterMenu;
 	organizationsMenu?: OrganizationsFilterMenu;
 }>;
 
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
-	error,
+	error: _error,
 	templateMenu,
 	statusMenu,
 	userMenu,
 	organizationsMenu,
 }) => {
-	const { entitlements, showOrganizations } = useDashboard();
-	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
-	const presets = entitlements.features.advanced_template_scheduling.enabled
-		? PRESETS_WITH_DORMANT
-		: PRESET_FILTERS;
-	const organizationsActive =
-		showOrganizations && organizationsMenu !== undefined;
+	const { showOrganizations } = useDashboard();
+
+	const facets = useMemo(() => {
+		const next: FilterFacet<FilterFacetId>[] = [
+			{ id: "status", label: "Status", icon: CircleDotIcon, menu: statusMenu },
+			{
+				id: "template",
+				label: "Template",
+				icon: LayoutGridIcon,
+				menu: templateMenu,
+			},
+		];
+
+		if (showOrganizations && organizationsMenu) {
+			next.push({
+				id: "organization",
+				label: "Organization",
+				icon: Building2Icon,
+				menu: organizationsMenu,
+			});
+		}
+
+		if (userMenu) {
+			next.push({
+				id: "owner",
+				label: "Owner",
+				aliases: ["user"],
+				icon: UserIcon,
+				menu: userMenu,
+			});
+		}
+
+		return next;
+	}, [
+		organizationsMenu,
+		showOrganizations,
+		statusMenu,
+		templateMenu,
+		userMenu,
+	]);
 
 	return (
-		<Filter
-			presets={presets}
-			isLoading={statusMenu.isInitializing}
+		<FilterCombobox
 			filter={filter}
-			error={error}
-			learnMoreLink={docs(
-				"/user-guides/workspace-management#workspace-filtering",
-			)}
-			options={
-				<>
-					{userMenu && <UserMenu width={width} menu={userMenu} />}
-					<TemplateMenu width={width} menu={templateMenu} />
-					<StatusMenu width={width} menu={statusMenu} />
-					{organizationsActive && (
-						<OrganizationsMenu width={width} menu={organizationsMenu} />
-					)}
-				</>
-			}
-			optionsSkeleton={
-				<>
-					{userMenu && <MenuSkeleton />}
-					<MenuSkeleton />
-					<MenuSkeleton />
-					{organizationsActive && <MenuSkeleton />}
-				</>
-			}
+			facets={facets}
+			chipKeys={WORKSPACE_CHIP_KEYS}
+			placeholder="Search and filter workspaces…"
+			className="max-w-lg"
 		/>
 	);
 };

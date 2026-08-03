@@ -58,7 +58,7 @@ export const useTemplateFilterMenu = ({
 const TemplateAvatar: FC<{ template: Template }> = ({ template }) => {
 	return (
 		<Avatar
-			size="sm"
+			size="md"
 			variant="icon"
 			src={template.icon}
 			fallback={template.display_name || template.name}

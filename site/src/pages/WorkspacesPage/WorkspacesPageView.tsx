@@ -123,84 +123,73 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				/>
 			</div>
 
-			<TableToolbar>
-				{checkedWorkspaces.length > 0 ? (
-					<>
-						<div>
-							Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
-							<strong>{workspaces?.length}</strong>{" "}
-							{workspaces?.length === 1 ? "workspace" : "workspaces"}
-						</div>
+			{checkedWorkspaces.length > 0 && (
+				<TableToolbar>
+					<div>
+						Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
+						<strong>{workspaces?.length}</strong>{" "}
+						{workspaces?.length === 1 ? "workspace" : "workspaces"}
+					</div>
 
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									disabled={isRunningBatchAction}
-									variant="outline"
-									size="sm"
-									className="ml-auto"
-								>
-									Bulk actions
-									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon />
-									</Spinner>
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									disabled={
-										!checkedWorkspaces?.some(
-											(w) =>
-												w.latest_build.status === "stopped" &&
-												!mustUpdateWorkspace(w, canChangeVersions),
-										)
-									}
-									onClick={onBatchStartTransition}
-								>
-									<PlayIcon /> Start
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									disabled={
-										!checkedWorkspaces?.some(
-											(w) => w.latest_build.status === "running",
-										)
-									}
-									onClick={onBatchStopTransition}
-								>
-									<SquareIcon /> Stop
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={onBatchUpdateTransition}>
-									<CloudIcon
-										className="size-icon-sm"
-										data-testid="bulk-action-update"
-									/>{" "}
-									Update&hellip;
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onClick={onBatchDeleteTransition}
-								>
-									<TrashIcon /> Delete&hellip;
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</>
-				) : (
-					!pageNumberIsInvalid && (
-						<PaginationAmount
-							paginationUnitLabel="workspaces"
-							limit={limit}
-							totalRecords={count}
-							currentOffsetStart={(page - 1) * limit + 1}
-						/>
-					)
-				)}
-			</TableToolbar>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								disabled={isRunningBatchAction}
+								variant="outline"
+								size="sm"
+								className="ml-auto"
+							>
+								Bulk actions
+								<Spinner loading={isRunningBatchAction}>
+									<ChevronDownIcon />
+								</Spinner>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								disabled={
+									!checkedWorkspaces?.some(
+										(w) =>
+											w.latest_build.status === "stopped" &&
+											!mustUpdateWorkspace(w, canChangeVersions),
+									)
+								}
+								onClick={onBatchStartTransition}
+							>
+								<PlayIcon /> Start
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={
+									!checkedWorkspaces?.some(
+										(w) => w.latest_build.status === "running",
+									)
+								}
+								onClick={onBatchStopTransition}
+							>
+								<SquareIcon /> Stop
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={onBatchUpdateTransition}>
+								<CloudIcon
+									className="size-icon-sm"
+									data-testid="bulk-action-update"
+								/>{" "}
+								Update&hellip;
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={onBatchDeleteTransition}
+							>
+								<TrashIcon /> Delete&hellip;
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</TableToolbar>
+			)}
 
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					className="border border-solid border-border rounded-lg"
+					className="mt-4 border border-solid border-border rounded-lg"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={
@@ -214,31 +203,40 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					}
 				/>
 			) : (
-				<WorkspacesTable
-					canCreateTemplate={canCreateTemplate}
-					canCreateWorkspace={canCreateWorkspace}
-					workspaces={workspaces}
-					isUsingFilter={filterState.filter.used}
-					checkedWorkspaces={checkedWorkspaces}
-					onCheckChange={onCheckChange}
-					templates={templates}
-					onActionSuccess={onActionSuccess}
-					onActionError={onActionError}
-					chatsByWorkspace={chatsByWorkspace}
-				/>
+				<div className={checkedWorkspaces.length > 0 ? undefined : "mt-4"}>
+					<WorkspacesTable
+						canCreateTemplate={canCreateTemplate}
+						canCreateWorkspace={canCreateWorkspace}
+						workspaces={workspaces}
+						isUsingFilter={filterState.filter.used}
+						checkedWorkspaces={checkedWorkspaces}
+						onCheckChange={onCheckChange}
+						templates={templates}
+						onActionSuccess={onActionSuccess}
+						onActionError={onActionError}
+						chatsByWorkspace={chatsByWorkspace}
+					/>
+				</div>
 			)}
 
-			{count !== undefined && (
-				// Temporary styling stopgap before component is migrated to using
-				// PaginationContainer (which renders PaginationWidgetBase using CSS
-				// flexbox gaps)
-				<div className="pt-4">
-					<PaginationWidgetBase
-						totalRecords={count}
-						pageSize={limit}
-						onPageChange={onPageChange}
-						currentPage={page}
-					/>
+			{!pageNumberIsInvalid && (
+				<div className="flex flex-col gap-4 pt-4">
+					{checkedWorkspaces.length === 0 && (
+						<PaginationAmount
+							paginationUnitLabel="workspaces"
+							limit={limit}
+							totalRecords={count}
+							currentOffsetStart={(page - 1) * limit + 1}
+						/>
+					)}
+					{count !== undefined && (
+						<PaginationWidgetBase
+							totalRecords={count}
+							pageSize={limit}
+							onPageChange={onPageChange}
+							currentPage={page}
+						/>
+					)}
 				</div>
 			)}
 		</Margins>
