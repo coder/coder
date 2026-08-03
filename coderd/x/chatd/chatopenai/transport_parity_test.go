@@ -12,11 +12,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// openAIOptionTransportSupport records, per config field, which OpenAI wire
-// formats honor it. It mirrors the table in ARCHITECTURE.md under "OpenAI
-// transport selection". TestProviderOptionsTransportParity fails when a field
-// is honored on one transport and silently ignored on the other without being
-// recorded here, and when a new field is added without a row.
+// Keep this map in sync with the OpenAI transport selection table in
+// ARCHITECTURE.md so intentional transport asymmetries remain explicit.
 var openAIOptionTransportSupport = map[string]struct {
 	responses       bool
 	chatCompletions bool
@@ -47,10 +44,8 @@ var openAIOptionTransportSupport = map[string]struct {
 	"allowed_domains":     {},
 }
 
-// Each field carries a valid non-zero value that changes the converted output
-// on every transport that honors the field. service_tier uses a tier fantasy
-// declares no constant for, so the conversion cannot pass by matching
-// constants only.
+// service_tier uses "default" to cover a codersdk tier without a named fantasy
+// constant.
 var sampledOpenAIOptions = codersdk.ChatModelOpenAIProviderOptions{
 	Include:             []string{string(fantasyopenai.IncludeFileSearchCallResults)},
 	Instructions:        ptr("instructions"),
@@ -103,8 +98,6 @@ func TestProviderOptionsTransportParity(t *testing.T) {
 	}
 }
 
-// optionChangesConvertedOutput reports whether converting options produces a
-// different result than converting an empty config on the same transport.
 func optionChangesConvertedOutput(
 	t *testing.T,
 	responsesOverride *bool,

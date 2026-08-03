@@ -122,12 +122,9 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// AcceptsFilePartMediaType reports whether provider accepts mediaType
-// as a file content part rather than silently dropping it. modelID and
-// openAIResponsesOverride together distinguish API paths within a
-// provider (e.g. OpenAI Responses vs Chat Completions). Unknown
-// providers return false so callers convert text-family content to text
-// and guarantee the model still sees it.
+// AcceptsFilePartMediaType reports whether a provider transport accepts
+// mediaType as a native file part. Unknown providers return false so callers
+// can avoid silently dropping unsupported text-family content.
 func AcceptsFilePartMediaType(provider, modelID, mediaType string, openAIResponsesOverride *bool) bool {
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {

@@ -160,10 +160,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
 }
 
-// A computer-use turn swaps in a specialized model whose client is built
-// without the chat config's openai_config, so provider options and file-part
-// classification must follow the SDK's transport choice for that model, not
-// the inherited override.
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
 	t.Parallel()
 

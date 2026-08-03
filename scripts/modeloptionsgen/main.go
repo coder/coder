@@ -138,11 +138,8 @@ func validateFieldReferences(group string, fg FieldGroup) error {
 	return nil
 }
 
-// extractFields walks the struct fields of t and returns a FieldGroup.
-// prefix is used to build dot-separated json_name values for nested
-// structs. skip lists Go field names to exclude from output. providers
-// carries the enclosing field's provider scope down to nested leaves,
-// so tagging a sub-struct scopes everything inside it.
+// Nested fields inherit an enclosing provider scope unless they declare their
+// own.
 func extractFields(t reflect.Type, prefix string, skip map[string]bool, providers []string) FieldGroup {
 	var fields []SchemaField
 
