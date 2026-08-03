@@ -4922,8 +4922,17 @@ func TestWorkspaceDormant(t *testing.T) {
 
 		// Should be able to stop a workspace while it is dormant.
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		// Drain both audit entries emitted so far (the dormancy update and
+		// the stop build) before resetting the auditor. Audit logs are
+		// exported asynchronously relative to the API responses, so an entry
+		// landing after ResetLogs would break the exact count assertion
+		// below.
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			return auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.ID,
+				ResourceType: database.ResourceTypeWorkspace,
+				Action:       database.AuditActionWrite,
+			}) && auditor.Contains(t, database.AuditLog{
 				ResourceID:   workspace.LatestBuild.ID,
 				ResourceType: database.ResourceTypeWorkspaceBuild,
 				Action:       database.AuditActionStop,
