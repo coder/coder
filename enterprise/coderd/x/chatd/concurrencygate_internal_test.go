@@ -93,12 +93,12 @@ func TestGateCapAcrossInstances(t *testing.T) {
 	chat2 := f.chat(t)
 	chat3 := f.chat(t)
 
-	require.NoError(t, gate1.Acquire(ctx, chat1.ID))
-	require.NoError(t, gate2.Acquire(ctx, chat2.ID))
+	require.NoError(t, gate1.Acquire(ctx, chat1.ID, uuid.Nil))
+	require.NoError(t, gate2.Acquire(ctx, chat2.ID, uuid.Nil))
 
 	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 	defer cancel()
-	err := gate2.Acquire(blockedCtx, chat3.ID)
+	err := gate2.Acquire(blockedCtx, chat3.ID, uuid.Nil)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	state := concurrencyStateOf(ctx, t, f.db, chat3.ID)
@@ -132,7 +132,7 @@ func TestGateParallelClaimsNeverOverAdmit(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := g.Acquire(claimCtx, chats[i].ID); err == nil {
+			if err := g.Acquire(claimCtx, chats[i].ID, uuid.Nil); err == nil {
 				admitted.Add(1)
 			}
 		}()
@@ -161,11 +161,11 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 
 	active := f.chat(t)
 	queued := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, active.ID))
+	require.NoError(t, g.Acquire(ctx, active.ID, uuid.Nil))
 
 	admitted := make(chan error, 1)
 	go func() {
-		admitted <- g.Acquire(ctx, queued.ID)
+		admitted <- g.Acquire(ctx, queued.ID, uuid.Nil)
 	}()
 
 	require.Eventually(t, func() bool {
@@ -216,11 +216,11 @@ func TestGateFallbackPollAdmits(t *testing.T) {
 
 	active := f.chat(t)
 	queued := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, active.ID))
+	require.NoError(t, g.Acquire(ctx, active.ID, uuid.Nil))
 
 	admitted := make(chan error, 1)
 	go func() {
-		admitted <- g.Acquire(ctx, queued.ID)
+		admitted <- g.Acquire(ctx, queued.ID, uuid.Nil)
 	}()
 
 	require.Eventually(t, func() bool {
@@ -249,11 +249,11 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 	active := f.chat(t)
 	older := f.chat(t)
 	newer := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, active.ID))
+	require.NoError(t, g.Acquire(ctx, active.ID, uuid.Nil))
 
 	olderAdmitted := make(chan error, 1)
 	go func() {
-		olderAdmitted <- g.Acquire(ctx, older.ID)
+		olderAdmitted <- g.Acquire(ctx, older.ID, uuid.Nil)
 	}()
 	require.Eventually(t, func() bool {
 		state := concurrencyStateOf(ctx, t, f.db, older.ID)
@@ -262,7 +262,7 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 
 	newerAdmitted := make(chan error, 1)
 	go func() {
-		newerAdmitted <- g.Acquire(ctx, newer.ID)
+		newerAdmitted <- g.Acquire(ctx, newer.ID, uuid.Nil)
 	}()
 	require.Eventually(t, func() bool {
 		state := concurrencyStateOf(ctx, t, f.db, newer.ID)
@@ -299,7 +299,7 @@ func TestGateEntitledBypass(t *testing.T) {
 
 	for range 3 {
 		chat := f.chat(t)
-		require.NoError(t, g.Acquire(ctx, chat.ID))
+		require.NoError(t, g.Acquire(ctx, chat.ID, uuid.Nil))
 		state := concurrencyStateOf(ctx, t, f.db, chat.ID)
 		require.False(t, state.Valid)
 	}
@@ -334,7 +334,7 @@ func TestGateEntitledBypassClearsStaleMarker(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, g.Acquire(ctx, stale.ID))
+	require.NoError(t, g.Acquire(ctx, stale.ID, uuid.Nil))
 	state := concurrencyStateOf(ctx, t, f.db, stale.ID)
 	require.False(t, state.Valid)
 	admitted := testutil.RequireReceive(ctx, t, admittedChats)
@@ -342,7 +342,7 @@ func TestGateEntitledBypassClearsStaleMarker(t *testing.T) {
 
 	// Unmarked chats admit without publishing.
 	clean := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, clean.ID))
+	require.NoError(t, g.Acquire(ctx, clean.ID, uuid.Nil))
 	require.Len(t, admittedChats, 0)
 }
 
@@ -355,11 +355,11 @@ func TestGateLicensedWithoutHoursIsCapped(t *testing.T) {
 
 	first := f.chat(t)
 	second := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, first.ID))
+	require.NoError(t, g.Acquire(ctx, first.ID, uuid.Nil))
 
 	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 	defer cancel()
-	require.ErrorIs(t, g.Acquire(blockedCtx, second.ID), context.DeadlineExceeded)
+	require.ErrorIs(t, g.Acquire(blockedCtx, second.ID, uuid.Nil), context.DeadlineExceeded)
 }
 
 func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
@@ -379,11 +379,11 @@ func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
 
 	active := f.chat(t)
 	queued := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, active.ID))
+	require.NoError(t, g.Acquire(ctx, active.ID, uuid.Nil))
 
 	admitted := make(chan error, 1)
 	go func() {
-		admitted <- g.Acquire(ctx, queued.ID)
+		admitted <- g.Acquire(ctx, queued.ID, uuid.Nil)
 	}()
 	require.Eventually(t, func() bool {
 		state := concurrencyStateOf(ctx, t, f.db, queued.ID)
@@ -411,23 +411,23 @@ func TestGateYieldFreesCapacity(t *testing.T) {
 
 	parent := f.chat(t)
 	child := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, parent.ID))
+	require.NoError(t, g.Acquire(ctx, parent.ID, uuid.Nil))
 
 	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
-	err := g.Acquire(blockedCtx, child.ID)
+	err := g.Acquire(blockedCtx, child.ID, uuid.Nil)
 	cancel()
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	// Yield publishes a nudge so the child can claim the freed slot.
-	require.NoError(t, g.Yield(ctx, parent.ID))
+	require.NoError(t, g.Yield(ctx, parent.ID, uuid.Nil))
 	state := concurrencyStateOf(ctx, t, f.db, parent.ID)
 	require.True(t, state.Valid)
 	require.Equal(t, database.ChatConcurrencyStateYielded, state.ChatConcurrencyState)
-	require.NoError(t, g.Acquire(ctx, child.ID))
+	require.NoError(t, g.Acquire(ctx, child.ID, uuid.Nil))
 
 	resumed := make(chan error, 1)
 	go func() {
-		resumed <- g.Acquire(ctx, parent.ID)
+		resumed <- g.Acquire(ctx, parent.ID, uuid.Nil)
 	}()
 	require.Eventually(t, func() bool {
 		state := concurrencyStateOf(ctx, t, f.db, parent.ID)
@@ -440,6 +440,88 @@ func TestGateYieldFreesCapacity(t *testing.T) {
 		return err
 	}))
 	require.NoError(t, testutil.RequireReceive(ctx, t, resumed))
+}
+
+func TestGateWritesFencedToRunner(t *testing.T) {
+	t.Parallel()
+	f := newGateFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	g := newGate(gateOptions{Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
+
+	owner := uuid.New()
+	stale := uuid.New()
+	chat := f.chat(t)
+	_, err := f.db.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		ID:       chat.ID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RunnerID: uuid.NullUUID{UUID: owner, Valid: true},
+	})
+	require.NoError(t, err)
+	require.NoError(t, g.Acquire(ctx, chat.ID, owner))
+
+	// A stale runner surviving heartbeat recovery must not overwrite the
+	// owner's active claim with yielded.
+	require.NoError(t, g.Yield(ctx, chat.ID, stale))
+	state := concurrencyStateOf(ctx, t, f.db, chat.ID)
+	require.True(t, state.Valid)
+	require.Equal(t, database.ChatConcurrencyStateActive, state.ChatConcurrencyState)
+
+	// A stale acquire admits without writing markers.
+	require.NoError(t, g.Acquire(ctx, chat.ID, stale))
+	state = concurrencyStateOf(ctx, t, f.db, chat.ID)
+	require.Equal(t, database.ChatConcurrencyStateActive, state.ChatConcurrencyState)
+
+	// The owning runner's yield still works.
+	require.NoError(t, g.Yield(ctx, chat.ID, owner))
+	state = concurrencyStateOf(ctx, t, f.db, chat.ID)
+	require.True(t, state.Valid)
+	require.Equal(t, database.ChatConcurrencyStateYielded, state.ChatConcurrencyState)
+}
+
+func TestAutoArchiveClearsCapacityMarkers(t *testing.T) {
+	t.Parallel()
+	f := newGateFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	root := f.chat(t)
+	_, err := f.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     root.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	child := dbgen.Chat(t, f.db, database.Chat{
+		OwnerID:           f.owner.ID,
+		OrganizationID:    f.org.ID,
+		LastModelConfigID: f.modelConfig.ID,
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	_, err = f.db.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
+		ID: child.ID,
+		ConcurrencyState: database.NullChatConcurrencyState{
+			ChatConcurrencyState: database.ChatConcurrencyStateActive,
+			Valid:                true,
+		},
+	})
+	require.NoError(t, err)
+
+	// A future cutoff makes the just-created inactive root eligible; the
+	// archive cascades to the running child.
+	rows, err := f.db.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
+		ArchiveCutoff: time.Now().Add(time.Hour),
+		LimitCount:    10,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	archived, err := f.db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.True(t, archived.Archived)
+	require.False(t, archived.ConcurrencyState.Valid)
+	require.False(t, archived.ConcurrencyQueuedAt.Valid)
 }
 
 func TestGateQueuedAtSurvivesInterrupt(t *testing.T) {
@@ -507,11 +589,11 @@ func TestGateQueueCallbacks(t *testing.T) {
 
 	active := f.chat(t)
 	queued := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, active.ID))
+	require.NoError(t, g.Acquire(ctx, active.ID, uuid.Nil))
 
 	admitted := make(chan error, 1)
 	go func() {
-		admitted <- g.Acquire(ctx, queued.ID)
+		admitted <- g.Acquire(ctx, queued.ID, uuid.Nil)
 	}()
 
 	// OnQueued observes the committed queued marker.
@@ -540,8 +622,8 @@ func TestGateIdempotentAcquire(t *testing.T) {
 	g := newGate(gateOptions{Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
 
 	chat := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, chat.ID))
-	require.NoError(t, g.Acquire(ctx, chat.ID))
+	require.NoError(t, g.Acquire(ctx, chat.ID, uuid.Nil))
+	require.NoError(t, g.Acquire(ctx, chat.ID, uuid.Nil))
 
 	count, err := f.db.CountActiveConcurrencyChats(ctx)
 	require.NoError(t, err)

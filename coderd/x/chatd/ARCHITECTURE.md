@@ -948,11 +948,11 @@ Capacity accounting uses two nullable columns on `chats`:
 - `concurrency_state`: `active` holds a slot, `queued` waits, and `yielded` gives up a parent slot while `wait_agent` blocks. Only queued chats expose `Chat.QueuedForCapacityAt`; queue entry and admission publish `capacity_change` watch events. `NULL` excludes the chat from accounting.
 - `concurrency_queued_at` is set on first queue entry using the database clock, so ordering and wait metrics are consistent across replicas. It is preserved across running and interrupting status changes and orders queued claims.
 
-Capacity queries ignore archived chats. Status transitions clear markers when chats leave `running` or `interrupting`, and stale-heartbeat recovery makes a replacement runner check the gate again.
+Capacity queries ignore archived chats. Status transitions and archival, including the auto-archive cascade, clear markers when chats leave `running` or `interrupting`, and stale-heartbeat recovery makes a replacement runner check the gate again.
 
 ### Claim algorithm
 
-Claims serialize on `LockIDChatConcurrency` before counting and writing, so replicas cannot over-admit. Existing active claims are idempotent. Queued chats receive free slots oldest first, before new claimants.
+Claims serialize on `LockIDChatConcurrency` before counting and writing, so replicas cannot over-admit. Existing active claims are idempotent. Queued chats receive free slots oldest first, before new claimants. Marker writes are fenced to the chat's current `runner_id`, so a stale runner surviving heartbeat recovery cannot alter the replacement runner's claim.
 
 Waiters subscribe before re-checking and retry after a capacity nudge or a jittered 15-second poll. `ChatMachine.Update` and `Yield` publish release nudges. Polling covers missed delivery, entitlement changes, and release paths without a publisher.
 

@@ -58,7 +58,7 @@ func (f *fakeAgentGate) admit(chatID uuid.UUID) {
 	close(c.admitCh)
 }
 
-func (f *fakeAgentGate) Acquire(ctx context.Context, chatID uuid.UUID) error {
+func (f *fakeAgentGate) Acquire(ctx context.Context, chatID uuid.UUID, _ uuid.UUID) error {
 	c := f.chat(chatID)
 	c.record("acquire")
 	select {
@@ -69,7 +69,7 @@ func (f *fakeAgentGate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 	}
 }
 
-func (f *fakeAgentGate) Yield(_ context.Context, chatID uuid.UUID) error {
+func (f *fakeAgentGate) Yield(_ context.Context, chatID uuid.UUID, _ uuid.UUID) error {
 	f.chat(chatID).record("yield")
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -205,7 +205,7 @@ func TestAgentSlotLease_PauseYieldFailure(t *testing.T) {
 	gate := newFakeAgentGate()
 	chatID := uuid.New()
 	gate.admit(chatID)
-	lease := newAgentSlotLease(gate, chatID)
+	lease := newAgentSlotLease(gate, chatID, uuid.Nil)
 	require.NoError(t, lease.EnsureHeld(ctx))
 
 	gate.mu.Lock()
@@ -242,7 +242,7 @@ func TestAgentSlotLease_PauseRefCounting(t *testing.T) {
 	gate := newFakeAgentGate()
 	chatID := uuid.New()
 	gate.admit(chatID)
-	lease := newAgentSlotLease(gate, chatID)
+	lease := newAgentSlotLease(gate, chatID, uuid.Nil)
 
 	require.NoError(t, lease.Pause(ctx))
 	require.NoError(t, lease.Pause(ctx))

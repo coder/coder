@@ -72,7 +72,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
-		lease:        newAgentSlotLease(opts.AgentGate, rec.key.ChatID),
+		lease:        newAgentSlotLease(opts.AgentGate, rec.key.ChatID, rec.key.RunnerID),
 	}
 }
 

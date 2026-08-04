@@ -149,14 +149,14 @@ func (g *gate) entitled() bool {
 	return g.entitlements.Enabled(codersdk.FeatureAgentRuntimeHours)
 }
 
-func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
+func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
 	if g.entitled() {
-		g.releaseQueuedMarker(ctx, chatID)
+		g.releaseQueuedMarker(ctx, chatID, runnerID)
 		return nil
 	}
-	if admitted := g.claimOnce(ctx, chatID); admitted {
+	if admitted := g.claimOnce(ctx, chatID, runnerID); admitted {
 		return nil
 	}
 
@@ -178,10 +178,10 @@ func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 
 	for {
 		if g.entitled() {
-			g.releaseQueuedMarker(ctx, chatID)
+			g.releaseQueuedMarker(ctx, chatID, runnerID)
 			return nil
 		}
-		if admitted := g.claimOnce(ctx, chatID); admitted {
+		if admitted := g.claimOnce(ctx, chatID, runnerID); admitted {
 			return nil
 		}
 
@@ -198,8 +198,8 @@ func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 }
 
 // Claim failures are logged so Acquire can retry.
-func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID) bool {
-	res, err := g.tryClaim(ctx, chatID)
+func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) bool {
+	res, err := g.tryClaim(ctx, chatID, runnerID)
 	if err != nil {
 		g.logger.Warn(ctx, "chat concurrency claim failed; retrying", slog.F("chat_id", chatID), slog.Error(err))
 		return false
@@ -218,7 +218,7 @@ func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID) bool {
 }
 
 // Yield releases the slot while wait_agent blocks so subagent chats can run.
-func (g *gate) Yield(ctx context.Context, chatID uuid.UUID) error {
+func (g *gate) Yield(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
 	if g.entitled() {
@@ -230,10 +230,11 @@ func (g *gate) Yield(ctx context.Context, chatID uuid.UUID) error {
 			ChatConcurrencyState: database.ChatConcurrencyStateYielded,
 			Valid:                true,
 		},
+		RunnerID: runnerFence(runnerID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// The chat is no longer eligible for a capacity marker, so there is
-		// nothing to free.
+		// The chat is no longer eligible, or this runner no longer owns
+		// it; either way there is nothing to free.
 		return nil
 	}
 	if err != nil {
@@ -256,7 +257,7 @@ type claimResult struct {
 
 // tryClaim serializes count and write with the advisory lock so replicas
 // cannot over-admit.
-func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, error) {
+func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) (claimResult, error) {
 	var res claimResult
 	err := g.store.InTx(func(tx database.Store) error {
 		res = claimResult{}
@@ -275,6 +276,12 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 		if chat.Archived || (chat.Status != database.ChatStatusRunning && chat.Status != database.ChatStatusInterrupting) {
 			// The chat is no longer eligible for a capacity marker, so admit
 			// without a claim.
+			res.admitted = true
+			return nil
+		}
+		if runnerID != uuid.Nil && (!chat.RunnerID.Valid || chat.RunnerID.UUID != runnerID) {
+			// A replacement runner owns the chat. Admit this stale caller
+			// without touching the owner's marker; other fences will stop it.
 			res.admitted = true
 			return nil
 		}
@@ -307,6 +314,7 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 						ChatConcurrencyState: database.ChatConcurrencyStateActive,
 						Valid:                true,
 					},
+					RunnerID: runnerFence(runnerID),
 				})
 				if errors.Is(err, sql.ErrNoRows) {
 					// The chat is no longer eligible for a capacity marker, so
@@ -329,6 +337,7 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 					ChatConcurrencyState: database.ChatConcurrencyStateQueued,
 					Valid:                true,
 				},
+				RunnerID: runnerFence(runnerID),
 			})
 			if errors.Is(err, sql.ErrNoRows) {
 				res = claimResult{admitted: true}
@@ -365,7 +374,7 @@ func (g *gate) finishAdmission(res claimResult) {
 // Entitlement-bypass cleanup is best effort and does not block admission.
 // The read keeps entitled claims cheap: unmarked chats skip the write and
 // publish nothing.
-func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID) {
+func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) {
 	chat, err := g.store.GetChatByID(ctx, chatID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -377,7 +386,8 @@ func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID) {
 		return
 	}
 	updated, err := g.store.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
-		ID: chatID,
+		ID:       chatID,
+		RunnerID: runnerFence(runnerID),
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -419,4 +429,10 @@ func (g *gate) refreshGauges(ctx context.Context) {
 // jitter spreads poll wakeups across waiters to reduce lock contention.
 func jitter(d time.Duration) time.Duration {
 	return d + time.Duration(rand.Int64N(int64(d/5))) //nolint:gosec // Non-cryptographic wakeup spread.
+}
+
+// runnerFence maps uuid.Nil to NULL, which skips the runner ownership
+// guard in SetChatConcurrencyState.
+func runnerFence(runnerID uuid.UUID) uuid.NullUUID {
+	return uuid.NullUUID{UUID: runnerID, Valid: runnerID != uuid.Nil}
 }

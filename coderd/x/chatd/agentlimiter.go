@@ -16,12 +16,14 @@ import (
 )
 
 // AgentConcurrencyGate controls deployment-wide capacity for chat generation.
+// runnerID fences marker writes to the chat's current runner; uuid.Nil skips
+// the fence.
 type AgentConcurrencyGate interface {
 	// Acquire blocks until the chat holds a slot or ctx is canceled. Calls are
 	// idempotent; leaving a counted status releases the claim.
-	Acquire(ctx context.Context, chatID uuid.UUID) error
+	Acquire(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error
 	// Yield releases the slot while wait_agent blocks. Resume by calling Acquire.
-	Yield(ctx context.Context, chatID uuid.UUID) error
+	Yield(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error
 }
 
 // AgentConcurrencyGateOptions configures an AgentConcurrencyGateFactory.
@@ -44,16 +46,17 @@ type AgentConcurrencyGateFactory func(AgentConcurrencyGateOptions) AgentConcurre
 
 // agentSlotLease shares one gate claim across concurrent wait_agent pauses.
 type agentSlotLease struct {
-	gate   AgentConcurrencyGate
-	chatID uuid.UUID
+	gate     AgentConcurrencyGate
+	chatID   uuid.UUID
+	runnerID uuid.UUID
 
 	// mu protects pauseRefs and serializes Yield with re-acquisition.
 	mu        sync.Mutex
 	pauseRefs int
 }
 
-func newAgentSlotLease(gate AgentConcurrencyGate, chatID uuid.UUID) *agentSlotLease {
-	return &agentSlotLease{gate: gate, chatID: chatID}
+func newAgentSlotLease(gate AgentConcurrencyGate, chatID uuid.UUID, runnerID uuid.UUID) *agentSlotLease {
+	return &agentSlotLease{gate: gate, chatID: chatID, runnerID: runnerID}
 }
 
 // EnsureHeld acquires the slot or waits until ctx is canceled. Calls are
@@ -64,7 +67,7 @@ func (l *agentSlotLease) EnsureHeld(ctx context.Context) error {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.gate.Acquire(ctx, l.chatID)
+	return l.gate.Acquire(ctx, l.chatID, l.runnerID)
 }
 
 // Pause yields on the first concurrent wait_agent pause. A failed yield
@@ -80,7 +83,7 @@ func (l *agentSlotLease) Pause(ctx context.Context) error {
 	if l.pauseRefs != 1 {
 		return nil
 	}
-	if err := l.gate.Yield(ctx, l.chatID); err != nil {
+	if err := l.gate.Yield(ctx, l.chatID, l.runnerID); err != nil {
 		l.pauseRefs--
 		return xerrors.Errorf("yield agent capacity slot: %w", err)
 	}
@@ -101,7 +104,7 @@ func (l *agentSlotLease) Resume(ctx context.Context) error {
 	if l.pauseRefs != 0 {
 		return nil
 	}
-	return l.gate.Acquire(ctx, l.chatID)
+	return l.gate.Acquire(ctx, l.chatID, l.runnerID)
 }
 
 // AttachToContext makes the lease available to wait_agent. It leaves ctx

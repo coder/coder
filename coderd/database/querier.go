@@ -1341,7 +1341,9 @@ type sqlcQuerier interface {
 	// Queue admission is internal bookkeeping, so this does not update
 	// updated_at. The guard returns no row when a marker would be stale.
 	// Queue entry is timestamped with the database clock so ordering and
-	// wait metrics are consistent across replicas.
+	// wait metrics are consistent across replicas. A non-null runner_id
+	// fences the write to the chat's current runner so a stale runner
+	// surviving heartbeat recovery cannot alter the new runner's claim.
 	SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error)
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the

@@ -2827,7 +2827,12 @@ WITH to_archive AS (
 ),
 archived AS (
     UPDATE chats c
-    SET archived = true, pin_order = 0, updated_at = NOW()
+    SET archived = true, pin_order = 0,
+        -- The cascade can archive a running child; clear its capacity
+        -- markers so unarchiving cannot resurrect an unadmitted claim.
+        concurrency_state = NULL,
+        concurrency_queued_at = NULL,
+        updated_at = NOW()
     FROM to_archive t
     WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
       AND c.archived = false
@@ -2876,7 +2881,9 @@ LIMIT @limit_count::bigint;
 -- Queue admission is internal bookkeeping, so this does not update
 -- updated_at. The guard returns no row when a marker would be stale.
 -- Queue entry is timestamped with the database clock so ordering and
--- wait metrics are consistent across replicas.
+-- wait metrics are consistent across replicas. A non-null runner_id
+-- fences the write to the chat's current runner so a stale runner
+-- surviving heartbeat recovery cannot alter the new runner's claim.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2889,6 +2896,7 @@ WITH updated_chat AS (
     WHERE id = @id::uuid
       AND NOT archived
       AND status IN ('running', 'interrupting')
+      AND (sqlc.narg('runner_id')::uuid IS NULL OR runner_id = sqlc.narg('runner_id')::uuid)
     RETURNING *
 ),
 chats_expanded AS (
