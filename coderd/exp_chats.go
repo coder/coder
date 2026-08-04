@@ -4458,14 +4458,24 @@ func (api *API) chatCreateWorkspace(
 	return workspace, nil
 }
 
+// resolveChatStartVersion pins a start request to the template's
+// active version and reports whether that differs from the version of
+// the workspace's latest build. The caller is responsible for checking
+// the template's RequireActiveVersion setting first.
+func resolveChatStartVersion(
+	req codersdk.CreateWorkspaceBuildRequest,
+	latestBuildVersionID, activeVersionID uuid.UUID,
+) (codersdk.CreateWorkspaceBuildRequest, bool) {
+	if req.Transition != codersdk.WorkspaceTransitionStart {
+		return req, false
+	}
+	req.TemplateVersionID = activeVersionID
+	return req, latestBuildVersionID != activeVersionID
+}
+
 // chatStartWorkspace starts a stopped workspace by creating a new
 // build with the "start" transition. It mirrors chatCreateWorkspace
 // but for the start path.
-//
-// Aliased as ChatStartWorkspace in coderd/export_test.go so external
-// tests in the coderd_test package can drive the auto-update path
-// end-to-end. The proper fix is to extract the request building into
-// a pure function; tracked in CODAGT-292.
 func (api *API) chatStartWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -4497,8 +4507,8 @@ func (api *API) chatStartWorkspace(
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
 			}
 
-			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
-			req.TemplateVersionID = template.ActiveVersionID
+			req, updatedToActiveVersion = resolveChatStartVersion(
+				req, latestBuild.TemplateVersionID, template.ActiveVersionID)
 		}
 	}
 

@@ -4739,6 +4739,118 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
 }
 
+func TestStartWorkspaceTool_RequireActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	var acs dbauthz.AccessControlStore = requireActiveVersionStore{}
+	api.AccessControlStore.Store(&acs)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Given: a workspace stopped on v1.
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	workspace = coderdtest.MustTransitionWorkspace(
+		t, client, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop,
+	)
+
+	// Given: a new active version v2 is published.
+	version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+	}, template.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+	coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, version2.ID)
+	require.NotEqual(t, version.ID, version2.ID)
+
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Require active version test")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Workspace started and ready.")...,
+		)
+	})
+
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+
+	// When: the chat starts the workspace via the start_workspace tool.
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Start the workspace.",
+			},
+		},
+		WorkspaceID: &workspace.ID,
+	})
+	require.NoError(t, err)
+
+	var chatResult codersdk.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+	if chatResult.Status == codersdk.ChatStatusError {
+		lastError := ""
+		if chatResult.LastError != nil {
+			lastError = chatResult.LastError.Message
+		}
+		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
+	}
+
+	// Then: the build was auto-updated to the active version with no
+	// preset applied.
+	updatedWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
+	require.Equal(t, version2.ID, updatedWorkspace.LatestBuild.TemplateVersionID,
+		"build must be on the active version")
+	require.Nil(t, updatedWorkspace.LatestBuild.TemplateVersionPresetID,
+		"no preset must be applied")
+}
+
+// requireActiveVersionStore always returns RequireActiveVersion: true
+// so tests can exercise relevant code paths without an enterprise
+// license.
+type requireActiveVersionStore struct{}
+
+func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{RequireActiveVersion: true}
+}
+
+func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
+	return nil
+}
+
 func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T) {
 	t.Parallel()
 
