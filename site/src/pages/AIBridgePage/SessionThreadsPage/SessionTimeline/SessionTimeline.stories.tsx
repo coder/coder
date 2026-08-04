@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockAIBridgeSessionNetworkCalls,
+	MockSession,
+} from "#/testHelpers/entities";
 import { SessionTimeline } from "./SessionTimeline";
 
 // A thread with one thinking block and one tool call.
@@ -124,6 +128,7 @@ const meta: Meta<typeof SessionTimeline> = {
 	args: {
 		initiator: MockSession.initiator,
 		threads: [mockThread],
+		networkCalls: [],
 		hasNextPage: false,
 		isFetchingNextPage: false,
 		onFetchNextPage: noop,
@@ -134,6 +139,22 @@ export default meta;
 type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
+
+// A summary is present only for sessions that passed through Agent Firewall.
+// The panel sits above the threads because its counts are session-scoped
+// rather than tied to any one thread.
+export const WithNetworkCalls: Story = {
+	args: {
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Network calls (4)")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("https://api.github.com/repos/coder/coder"),
+		).toBeInTheDocument();
+	},
+};
 
 export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },

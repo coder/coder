@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -70,7 +71,7 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 		},
 	}
 
-	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 3)
@@ -119,7 +120,7 @@ func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *test
 		},
 	}
 
-	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 1)
@@ -148,7 +149,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 
 	// Mistral accepts images but not PDFs, so the PDF part must become a
 	// placeholder while the prompt stays otherwise intact.
-	compactionModel := &chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}, nil)
 	sharedProviderID := uuid.New()
 	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
@@ -188,7 +189,7 @@ func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *test
 		},
 	}
 
-	compactionModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sharedProviderID := uuid.New()
 	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 

@@ -36,6 +36,11 @@ Roles determine which actions users can take within the platform.
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
 
+Whether organization members can create and use workspaces is controlled per
+organization through its default member roles. See
+[Default member roles](./organizations.md#default-member-roles) for how to
+remove workspace operations from the default member set.
+
 ## Custom Roles
 
 > [!NOTE]
