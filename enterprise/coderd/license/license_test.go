@@ -1783,9 +1783,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A zero allocation disables the feature. Actual is still
-			// reported, but the allocation threshold never warns.
-			Name: "AgentRuntimeHours/ZeroAllocationDisabled",
+			// A zero allocation carries no hour budget (C1 gives this mode
+			// a concurrency limit instead), so Enabled reports false and
+			// the hour thresholds never warn, but Actual is still reported.
+			Name: "AgentRuntimeHours/ZeroAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
 				agentRuntimeHoursLicense(0, 0),
 			},

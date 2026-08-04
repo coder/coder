@@ -776,9 +776,10 @@ func LicensesEntitlements(
 	// period of the license that won FeatureAgentRuntimeHours above. The
 	// feature is absent unless a license carries the allocation claim, so
 	// unlicensed and non-runtime-hour deployments never reach this block.
-	// Usage is measured and published even when a zero allocation disables
-	// the feature, matching FeatureManagedAgentLimit: an operator holding a
-	// disabled feature can still see the usage they would be licensing.
+	// Usage is measured and published even for a zero allocation, which
+	// carries no hour budget (it forces the concurrency-limited mode that
+	// C1 will implement): operators can still see the runtime they are
+	// consuming, matching FeatureManagedAgentLimit.
 	//
 	// The reported usage can be lower than real usage and does not always
 	// catch up: the in-progress hour has not been emitted as an event yet,
@@ -960,7 +961,7 @@ func LicensesEntitlements(
 // Agent runtime hours feature: reaching the allocation supersedes the
 // advisory soft limit, so the banner never stacks both messages. The soft
 // limit is optional; a license may carry an allocation alone. A zero
-// allocation disables the feature and never warns.
+// allocation carries no hour budget to warn against, so it never warns.
 func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
 	if allocation <= 0 {
 		return warnings
@@ -1125,8 +1126,9 @@ func (f Features) validateAgentRuntimeHours() error {
 	if allocation < 0 {
 		return ErrInvalidAgentRuntimeHoursAllocation
 	}
-	// A zero allocation disables the feature.
-	// A zero hard limit is not permitted.
+	// A zero allocation carries no hour budget (the feature is still
+	// granted; C1 gives this mode a concurrency limit instead), so the
+	// hour threshold claims make no sense alongside it.
 	if allocation == 0 && (hasSoft || hasHard) {
 		return ErrAgentRuntimeHoursLimitsWithZeroAllocation
 	}
