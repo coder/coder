@@ -46,7 +46,7 @@ This template provisions:
 - **Docker container** (ephemeral) running Ubuntu with the Coder agent
 - **Docker volume** (persistent) mounted at `/home/coder`
 
-Files in your home directory persist across workspace restarts. Selected languages are installed on first start and cached for subsequent starts.
+Files in your home directory (`/home/coder`) persist across workspace restarts. The selected languages are reinstalled on every start by a script that blocks login until it finishes: most language tools install into the workspace container rather than your home directory, so they do not persist and are fetched from the network each time the workspace starts.
 
 ## Presets
 
