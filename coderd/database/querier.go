@@ -38,6 +38,36 @@ type sqlcQuerier interface {
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error)
+	// AcquireWorkspaceAgentSubagentExecution hands a parent agent the credentials it
+	// needs to launch one declared subagent execution, and fences every previous
+	// launcher of the same declaration in the same statement.
+	//
+	// The caller supplies the execution tuple it believes it owns. The query only
+	// proceeds when all of the following hold:
+	//
+	//   - the exact (workspace_build_id, declaration_id, parent_agent_id) tuple
+	//     exists, so a parent cannot acquire another parent's declaration;
+	//   - the parent is live, top-level, and part of the requested build;
+	//   - the child is exactly the persisted child_agent_id, live, a direct child of
+	//     the exact parent, on the parent's resource, and execution isolated;
+	//   - the workspace's actual latest build, resolved here instead of trusted from
+	//     the caller or a cached middleware build, is the requested build and has
+	//     transition 'start', so a stale generation cannot launch;
+	//   - a status row exists and is not 'stopping', so a shutting-down execution is
+	//     never restarted.
+	//
+	// The status row is locked FOR UPDATE before it is mutated, so concurrent
+	// acquisitions serialize and each receives a distinct, monotonically increasing
+	// acquisition_version. restart_count is incremented only when the declaration
+	// has already been acquired at least once (acquisition_version > 0), so the
+	// first launch is not counted as a restart. status_changed_at only moves when
+	// the status actually changes, keeping "how long has it been starting" honest
+	// across repeated acquisitions.
+	//
+	// Only the child identity, the child auth token, and the new acquisition version
+	// are returned. The parent token and the declaration's configuration fields are
+	// deliberately excluded.
+	AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg AcquireWorkspaceAgentSubagentExecutionParams) (AcquireWorkspaceAgentSubagentExecutionRow, error)
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if

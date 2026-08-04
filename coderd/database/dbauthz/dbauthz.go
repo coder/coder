@@ -1770,6 +1770,13 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int
 	return q.db.AcquireStaleChatDiffStatuses(ctx, limitVal)
 }
 
+func (q *querier) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
+		return database.AcquireWorkspaceAgentSubagentExecutionRow{}, err
+	}
+	return q.db.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
+}
+
 func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	fetch := func(ctx context.Context, arg database.ActivityBumpWorkspaceParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)

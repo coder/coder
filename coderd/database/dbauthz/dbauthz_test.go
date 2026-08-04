@@ -5341,6 +5341,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().InsertWorkspaceAgentSubagentExecution(gomock.Any(), arg).Return(execution, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(execution)
 	}))
+	s.Run("AcquireWorkspaceAgentSubagentExecution", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := testutil.Fake(s.T(), faker, database.AcquireWorkspaceAgentSubagentExecutionParams{ParentAgentID: uuid.New()})
+		acquired := testutil.Fake(s.T(), faker, database.AcquireWorkspaceAgentSubagentExecutionRow{})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), arg.ParentAgentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().AcquireWorkspaceAgentSubagentExecution(gomock.Any(), arg).Return(acquired, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(acquired)
+	}))
 	s.Run("InsertWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
@@ -7735,6 +7743,17 @@ func TestExactParentWorkspaceAuthorizationIgnoresCachedWorkspace(t *testing.T) {
 			name: "ExecutionDeclarationList",
 			call: func(ctx context.Context, db database.Store) error {
 				_, err := db.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentID)
+				return err
+			},
+		},
+		{
+			name: "ExecutionAcquire",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.AcquireWorkspaceAgentSubagentExecution(ctx, database.AcquireWorkspaceAgentSubagentExecutionParams{
+					WorkspaceBuildID: uuid.New(),
+					DeclarationID:    uuid.New(),
+					ParentAgentID:    parentID,
+				})
 				return err
 			},
 		},

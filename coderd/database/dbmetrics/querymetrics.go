@@ -137,6 +137,14 @@ func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, lim
 	return r0, r1
 }
 
+func (m queryMetricsStore) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireWorkspaceAgentSubagentExecution").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireWorkspaceAgentSubagentExecution").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	start := time.Now()
 	r0 := m.s.ActivityBumpWorkspace(ctx, arg)

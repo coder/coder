@@ -8187,6 +8187,64 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Zero(t, statusCount)
 	}
 
+	acquirableDeclaration := func(t *testing.T) (fixture, executionBuild, database.InsertWorkspaceAgentSubagentExecutionParams) {
+		t.Helper()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+		return fixture, build, params
+	}
+	acquireParams := func(params database.InsertWorkspaceAgentSubagentExecutionParams, now time.Time) database.AcquireWorkspaceAgentSubagentExecutionParams {
+		return database.AcquireWorkspaceAgentSubagentExecutionParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+			Now:              now,
+		}
+	}
+	statusOf := func(t *testing.T, fixture fixture, params database.InsertWorkspaceAgentSubagentExecutionParams) database.WorkspaceAgentSubagentExecutionStatus {
+		t.Helper()
+
+		status, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+		return status
+	}
+	setStatusColumn := func(t *testing.T, fixture fixture, params database.InsertWorkspaceAgentSubagentExecutionParams, column string, value any) {
+		t.Helper()
+
+		_, err := fixture.sqlDB.ExecContext(fixture.ctx, fmt.Sprintf(`
+			UPDATE workspace_agent_subagent_execution_statuses
+			SET %s = $3
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, column), params.WorkspaceBuildID, params.DeclarationID, value)
+		require.NoError(t, err)
+	}
+	setBuildTransition := func(t *testing.T, fixture fixture, buildID uuid.UUID, transition database.WorkspaceTransition) {
+		t.Helper()
+
+		_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+			UPDATE workspace_builds
+			SET transition = $2::text::workspace_transition
+			WHERE id = $1
+		`, buildID, string(transition))
+		require.NoError(t, err)
+	}
+	requireAcquireRejected := func(t *testing.T, fixture fixture, params database.InsertWorkspaceAgentSubagentExecutionParams, arg database.AcquireWorkspaceAgentSubagentExecutionParams) {
+		t.Helper()
+
+		before := statusOf(t, fixture, params)
+		_, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, arg)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.Equal(t, before, statusOf(t, fixture, params))
+	}
+
 	requireQueryBlocked := func(t *testing.T, fixture fixture, queryFragment string) {
 		t.Helper()
 
@@ -9518,6 +9576,304 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsDriverProtocolCheck))
 		})
 	}
+
+	t.Run("AcquireFirstAcquisition", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, build, params := acquirableDeclaration(t)
+		before := statusOf(t, fixture, params)
+		now := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+
+		acquired, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, now))
+		require.NoError(t, err)
+		require.Equal(t, build.child.ID, acquired.ChildAgentID)
+		require.Equal(t, build.child.AuthToken, acquired.AuthToken)
+		require.EqualValues(t, 1, acquired.AcquisitionVersion)
+
+		status := statusOf(t, fixture, params)
+		require.Equal(t, "starting", status.Status)
+		require.EqualValues(t, 1, status.AcquisitionVersion)
+		require.Equal(t, before.CreatedAt, status.CreatedAt)
+		require.True(t, status.UpdatedAt.Equal(now))
+		require.True(t, status.StatusChangedAt.Equal(now))
+		require.True(t, status.LastAcquiredAt.Valid)
+		require.True(t, status.LastAcquiredAt.Time.Equal(now))
+		require.False(t, status.LastReportedAt.Valid)
+		// The first launch is not a restart.
+		require.Zero(t, status.RestartCount)
+		require.Empty(t, status.LastError)
+	})
+
+	t.Run("AcquireReturnsOnlyChildCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, build, params := acquirableDeclaration(t)
+		acquired, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, dbtime.Now()))
+		require.NoError(t, err)
+		require.Equal(t, build.child.ID, acquired.ChildAgentID)
+		require.Equal(t, build.child.AuthToken, acquired.AuthToken)
+		require.NotEqual(t, build.parent.ID, acquired.ChildAgentID)
+		require.NotEqual(t, build.parent.AuthToken, acquired.AuthToken)
+
+		// The acquire path may only hand back the child identity, the child
+		// token, and the fencing version. Any additional field would risk
+		// leaking the parent token or letting a launcher mutate configuration.
+		rowType := reflect.TypeOf(database.AcquireWorkspaceAgentSubagentExecutionRow{})
+		fields := make([]string, 0, rowType.NumField())
+		for i := 0; i < rowType.NumField(); i++ {
+			fields = append(fields, rowType.Field(i).Name)
+		}
+		require.Equal(t, []string{"ChildAgentID", "AuthToken", "AcquisitionVersion"}, fields)
+	})
+
+	t.Run("AcquireRepeatIncrementsVersionAndRestartCount", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params := acquirableDeclaration(t)
+		first := dbtime.Now().Truncate(time.Microsecond)
+		second := first.Add(time.Minute)
+
+		_, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, first))
+		require.NoError(t, err)
+
+		// A failed launcher leaves an error behind and moves the status away
+		// from 'starting', so the next acquisition must both clear the error and
+		// stamp a new status change.
+		setStatusColumn(t, fixture, params, "status", "failed")
+		setStatusColumn(t, fixture, params, "last_error", "driver exited")
+
+		acquired, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, second))
+		require.NoError(t, err)
+		require.EqualValues(t, 2, acquired.AcquisitionVersion)
+
+		status := statusOf(t, fixture, params)
+		require.Equal(t, "starting", status.Status)
+		require.EqualValues(t, 2, status.AcquisitionVersion)
+		require.EqualValues(t, 1, status.RestartCount)
+		require.Empty(t, status.LastError)
+		require.True(t, status.UpdatedAt.Equal(second))
+		require.True(t, status.StatusChangedAt.Equal(second))
+		require.True(t, status.LastAcquiredAt.Time.Equal(second))
+	})
+
+	t.Run("AcquireFromStartingPreservesStatusChangedAt", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params := acquirableDeclaration(t)
+		first := dbtime.Now().Truncate(time.Microsecond)
+		second := first.Add(time.Minute)
+
+		_, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, first))
+		require.NoError(t, err)
+		_, err = fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, second))
+		require.NoError(t, err)
+
+		status := statusOf(t, fixture, params)
+		require.Equal(t, "starting", status.Status)
+		require.EqualValues(t, 2, status.AcquisitionVersion)
+		require.EqualValues(t, 1, status.RestartCount)
+		// The status did not change, so the transition timestamp must not move.
+		require.True(t, status.StatusChangedAt.Equal(first))
+		require.True(t, status.UpdatedAt.Equal(second))
+		require.True(t, status.LastAcquiredAt.Time.Equal(second))
+	})
+
+	for _, tt := range []struct {
+		name string
+		// invalidate corrupts fixture state, adjusts the acquire arguments, or
+		// both, so the acquisition must be refused without mutating any state.
+		invalidate func(t *testing.T, fixture fixture, build executionBuild, arg *database.AcquireWorkspaceAgentSubagentExecutionParams)
+	}{
+		{
+			name: "UnknownBuild",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				arg.WorkspaceBuildID = uuid.New()
+			},
+		},
+		{
+			name: "UnknownDeclaration",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				arg.DeclarationID = uuid.New()
+			},
+		},
+		{
+			name: "UnknownParent",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				arg.ParentAgentID = uuid.New()
+			},
+		},
+		{
+			name: "OtherParentInSameBuild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, arg *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				arg.ParentAgentID = otherParent.ID
+			},
+		},
+		{
+			name: "StaleGeneration",
+			invalidate: func(t *testing.T, fixture fixture, _ executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				fixture.newBuild(t, 2)
+			},
+		},
+		{
+			name: "NewerStopBuild",
+			invalidate: func(t *testing.T, fixture fixture, _ executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				newer := fixture.newBuild(t, 2)
+				setBuildTransition(t, fixture, newer.build.ID, database.WorkspaceTransitionStop)
+			},
+		},
+		{
+			name: "LatestBuildStopped",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				setBuildTransition(t, fixture, build.build.ID, database.WorkspaceTransitionStop)
+			},
+		},
+		{
+			name: "NonTopLevelParent",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				grandparent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET parent_id = $1
+					WHERE id = $2
+				`, grandparent.ID, build.parent.ID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "DeletedParent",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				markWorkspaceAgentDeleted(fixture.ctx, t, fixture.sqlDB, build.parent.ID)
+			},
+		},
+		{
+			name: "DeletedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				require.NoError(t, fixture.db.DeleteWorkspaceSubAgentByID(fixture.ctx, build.child.ID))
+			},
+		},
+		{
+			name: "NonIsolatedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET execution_isolation = FALSE
+					WHERE id = $1
+				`, build.child.ID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ReparentedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.AcquireWorkspaceAgentSubagentExecutionParams) {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET parent_id = $1
+					WHERE id = $2
+				`, otherParent.ID, build.child.ID)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run("AcquireRefuses"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture, build, params := acquirableDeclaration(t)
+			arg := acquireParams(params, dbtime.Now())
+			tt.invalidate(t, fixture, build, &arg)
+			requireAcquireRejected(t, fixture, params, arg)
+		})
+	}
+
+	t.Run("AcquireRefusesStoppingStatus", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params := acquirableDeclaration(t)
+		setStatusColumn(t, fixture, params, "status", "stopping")
+		requireAcquireRejected(t, fixture, params, acquireParams(params, dbtime.Now()))
+	})
+
+	t.Run("AcquireSerializesConcurrentLaunchers", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, build, params := acquirableDeclaration(t)
+		firstNow := dbtime.Now().Truncate(time.Microsecond)
+		secondNow := firstNow.Add(time.Minute)
+
+		firstAcquired := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseFirst:
+			default:
+				close(releaseFirst)
+			}
+		}
+		t.Cleanup(release)
+
+		type acquireResult struct {
+			row database.AcquireWorkspaceAgentSubagentExecutionRow
+			err error
+		}
+		firstDone := make(chan acquireResult, 1)
+		go func() {
+			var row database.AcquireWorkspaceAgentSubagentExecutionRow
+			err := fixture.db.InTx(func(tx database.Store) error {
+				var err error
+				row, err = tx.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, firstNow))
+				if err != nil {
+					return err
+				}
+				close(firstAcquired)
+				select {
+				case <-releaseFirst:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+			firstDone <- acquireResult{row: row, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, firstAcquired)
+
+		secondStarted := make(chan struct{})
+		secondDone := make(chan acquireResult, 1)
+		go func() {
+			close(secondStarted)
+			row, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, secondNow))
+			secondDone <- acquireResult{row: row, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, secondStarted)
+		// The second acquisition must wait on the first transaction's row lock
+		// instead of computing a duplicate acquisition version.
+		requireQueryBlocked(t, fixture, "AcquireWorkspaceAgentSubagentExecution")
+
+		release()
+		first := testutil.TryReceive(fixture.ctx, t, firstDone)
+		require.NoError(t, first.err)
+		second := testutil.TryReceive(fixture.ctx, t, secondDone)
+		require.NoError(t, second.err)
+
+		require.Equal(t, build.child.ID, first.row.ChildAgentID)
+		require.Equal(t, build.child.ID, second.row.ChildAgentID)
+		require.EqualValues(t, 1, first.row.AcquisitionVersion)
+		require.EqualValues(t, 2, second.row.AcquisitionVersion)
+
+		status := statusOf(t, fixture, params)
+		require.Equal(t, "starting", status.Status)
+		require.EqualValues(t, 2, status.AcquisitionVersion)
+		require.EqualValues(t, 1, status.RestartCount)
+		require.True(t, status.StatusChangedAt.Equal(firstNow))
+		require.True(t, status.UpdatedAt.Equal(secondNow))
+		require.True(t, status.LastAcquiredAt.Time.Equal(secondNow))
+	})
 
 	for _, timeout := range []int32{0, -1} {
 		t.Run(fmt.Sprintf("InvalidStartupTimeout/%d", timeout), func(t *testing.T) {

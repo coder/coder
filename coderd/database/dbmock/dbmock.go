@@ -104,6 +104,21 @@ func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, limitVal any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, limitVal)
 }
 
+// AcquireWorkspaceAgentSubagentExecution mocks base method.
+func (m *MockStore) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireWorkspaceAgentSubagentExecution", ctx, arg)
+	ret0, _ := ret[0].(database.AcquireWorkspaceAgentSubagentExecutionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireWorkspaceAgentSubagentExecution indicates an expected call of AcquireWorkspaceAgentSubagentExecution.
+func (mr *MockStoreMockRecorder) AcquireWorkspaceAgentSubagentExecution(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireWorkspaceAgentSubagentExecution", reflect.TypeOf((*MockStore)(nil).AcquireWorkspaceAgentSubagentExecution), ctx, arg)
+}
+
 // ActivityBumpWorkspace mocks base method.
 func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
