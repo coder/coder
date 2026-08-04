@@ -5260,6 +5260,23 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(child, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdateAgent).Returns(child)
 	}))
+	s.Run("UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		parentID := uuid.MustParse("10000000-0000-0000-0000-000000000004")
+		child := database.WorkspaceAgent{
+			ID:       uuid.MustParse("10000000-0000-0000-0000-000000000005"),
+			ParentID: uuid.NullUUID{UUID: parentID, Valid: true},
+		}
+		ws := database.Workspace{ID: uuid.MustParse("10000000-0000-0000-0000-000000000006")}
+		arg := database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:          child.ID,
+			ParentID:    parentID,
+			DisplayApps: []database.DisplayApp{database.DisplayAppVscode},
+			Directory:   "/workspaces/project",
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(child, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdateAgent).Returns(child)
+	}))
 	s.Run("DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		parentID := uuid.New()
@@ -7664,6 +7681,16 @@ func TestExactParentWorkspaceAuthorizationIgnoresCachedWorkspace(t *testing.T) {
 			name: "Get",
 			call: func(ctx context.Context, db database.Store) error {
 				_, err := db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+					ID:       uuid.New(),
+					ParentID: parentID,
+				})
+				return err
+			},
+		},
+		{
+			name: "Update",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
 					ID:       uuid.New(),
 					ParentID: parentID,
 				})

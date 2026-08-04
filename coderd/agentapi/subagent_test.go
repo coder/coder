@@ -1026,6 +1026,49 @@ func TestSubAgentAPI(t *testing.T) {
 			require.True(t, liveChild.ExecutionIsolation)
 		})
 
+		t.Run("AlreadyDeletedUnavailable", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			user, parent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, parent)
+			child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+				Name:        "already-deleted-child",
+				Directory:   "/workspaces/original",
+				DisplayApps: []database.DisplayApp{database.DisplayAppVscode},
+			})
+			require.NoError(t, db.DeleteWorkspaceSubAgentByID(ctx, child.ID))
+
+			var before []byte
+			var beforeDeleted bool
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT to_jsonb(workspace_agents), deleted
+				FROM workspace_agents
+				WHERE id = $1
+			`, child.ID).Scan(&before, &beforeDeleted)
+			require.NoError(t, err)
+			require.True(t, beforeDeleted)
+
+			resp, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{Id: child.ID[:]})
+			require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+			require.Nil(t, resp)
+
+			var after []byte
+			var afterDeleted bool
+			err = sqlDB.QueryRowContext(ctx, `
+				SELECT to_jsonb(workspace_agents), deleted
+				FROM workspace_agents
+				WHERE id = $1
+			`, child.ID).Scan(&after, &afterDeleted)
+			require.NoError(t, err)
+			require.True(t, afterDeleted)
+			require.JSONEq(t, string(before), string(after))
+		})
+
 		missingID := uuid.New()
 		for _, tc := range []struct {
 			name string
@@ -1279,6 +1322,49 @@ func TestSubAgentAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateSubAgentValidatesDisplayAppsBeforeParentLookup", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			agentFn func(context.Context) (database.WorkspaceAgent, error)
+		}{
+			{
+				name: "AgentLookupFailure",
+				agentFn: func(context.Context) (database.WorkspaceAgent, error) {
+					return database.WorkspaceAgent{}, sql.ErrConnDone
+				},
+			},
+			{
+				name: "NestedChild",
+				agentFn: func(context.Context) (database.WorkspaceAgent, error) {
+					return database.WorkspaceAgent{ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}, nil
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				api := &agentapi.SubAgentAPI{
+					AgentFn: tc.agentFn,
+					Clock:   quartz.NewMock(t),
+				}
+				resp, err := api.CreateSubAgent(context.Background(), &proto.CreateSubAgentRequest{
+					DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+						proto.CreateSubAgentRequest_DisplayApp(999),
+					},
+				})
+				require.Nil(t, resp)
+				var validationErr codersdk.ValidationError
+				require.ErrorAs(t, err, &validationErr)
+				require.Equal(t, "display_apps[0]", validationErr.Field)
+				require.Contains(t, validationErr.Detail, "is not a valid display app")
+			})
+		}
+	})
+
 	t.Run("CreateSubAgentWithDisplayAppsAndApps", func(t *testing.T) {
 		t.Parallel()
 
@@ -1388,6 +1474,8 @@ func TestSubAgentAPI(t *testing.T) {
 					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
 					require.Equal(t, updatedAgent.AuthToken[:], resp.Agent.AuthToken)
+					require.Equal(t, baseChildAgent.Directory, updatedAgent.Directory)
+					require.EqualValues(t, 1, updatedAgent.SubagentStateVersion)
 					require.Len(t, updatedAgent.DisplayApps, 2)
 					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppWebTerminal)
 					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppSSHHelper)

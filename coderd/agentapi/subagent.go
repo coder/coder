@@ -55,11 +55,6 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	parentAgent, err := a.authenticatedParentAgent(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	createdAt := a.Clock.Now()
 
 	displayApps := make([]database.DisplayApp, 0, len(req.DisplayApps))
@@ -87,6 +82,11 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		displayApps = append(displayApps, app)
 	}
 
+	parentAgent, err := a.authenticatedParentAgent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// An ID is only given in the request when it is a terraform-defined devcontainer
 	// that has attached resources. These subagents are pre-provisioned by terraform
 	// (the agent record already exists), so we update configurable fields like
@@ -97,33 +97,19 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			return nil, errSubAgentUnavailable
 		}
 
-		subAgent, err := a.Database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
-			ID:       id,
-			ParentID: parentAgent.ID,
+		subAgent, err := a.Database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			CreatedAt:   createdAt,
+			DisplayApps: displayApps,
+			Directory:   req.Directory,
+			UpdatedAt:   createdAt,
+			ID:          id,
+			ParentID:    parentAgent.ID,
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, errSubAgentUnavailable
 			}
-			return nil, xerrors.Errorf("get workspace agent child: %w", err)
-		}
-
-		if err := a.Database.UpdateWorkspaceAgentDisplayAppsByID(ctx, database.UpdateWorkspaceAgentDisplayAppsByIDParams{
-			ID:          id,
-			DisplayApps: displayApps,
-			UpdatedAt:   createdAt,
-		}); err != nil {
-			return nil, xerrors.Errorf("update workspace agent display apps: %w", err)
-		}
-
-		if req.Directory != "" {
-			if err := a.Database.UpdateWorkspaceAgentDirectoryByID(ctx, database.UpdateWorkspaceAgentDirectoryByIDParams{
-				ID:        id,
-				Directory: req.Directory,
-				UpdatedAt: createdAt,
-			}); err != nil {
-				return nil, xerrors.Errorf("update workspace agent directory: %w", err)
-			}
+			return nil, xerrors.Errorf("update workspace agent child: %w", err)
 		}
 
 		return &agentproto.CreateSubAgentResponse{

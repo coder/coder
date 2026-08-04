@@ -35523,6 +35523,90 @@ func (q *sqlQuerier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context,
 	return err
 }
 
+const updateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+UPDATE workspace_agents
+SET
+	created_at = $1,
+	display_apps = $2,
+	directory = CASE
+		WHEN $3::text = '' THEN workspace_agents.directory
+		ELSE $3::text
+	END,
+	updated_at = $4,
+	subagent_state_version = workspace_agents.subagent_state_version + 1
+WHERE workspace_agents.id = $5
+	AND workspace_agents.parent_id = $6::uuid
+	AND workspace_agents.deleted = FALSE
+	AND NOT EXISTS (
+		SELECT 1
+		FROM workspace_agent_subagent_executions
+		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+	)
+RETURNING workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.execution_isolation, workspace_agents.subagent_state_version
+`
+
+type UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
+	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
+	DisplayApps []DisplayApp `db:"display_apps" json:"display_apps"`
+	Directory   string       `db:"directory" json:"directory"`
+	UpdatedAt   time.Time    `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID    `db:"id" json:"id"`
+	ParentID    uuid.UUID    `db:"parent_id" json:"parent_id"`
+}
+
+// Updates one exact live child while participating in the optimistic
+// serialization protocol used by declaration creation and legacy deletion.
+func (q *sqlQuerier) UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned,
+		arg.CreatedAt,
+		pq.Array(arg.DisplayApps),
+		arg.Directory,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ParentID,
+	)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.Architecture,
+		&i.EnvironmentVariables,
+		&i.OperatingSystem,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+		&i.Directory,
+		&i.Version,
+		&i.LastConnectedReplicaID,
+		&i.ConnectionTimeoutSeconds,
+		&i.TroubleshootingURL,
+		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.ExpandedDirectory,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+		&i.StartedAt,
+		&i.ReadyAt,
+		pq.Array(&i.Subsystems),
+		pq.Array(&i.DisplayApps),
+		&i.APIVersion,
+		&i.DisplayOrder,
+		&i.ParentID,
+		&i.APIKeyScope,
+		&i.Deleted,
+		&i.ExecutionIsolation,
+		&i.SubagentStateVersion,
+	)
+	return i, err
+}
+
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
 	workspace_agents

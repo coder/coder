@@ -11464,6 +11464,21 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceACLByID(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceACLByID), ctx, arg)
 }
 
+// UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned indicates an expected call of UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned), ctx, arg)
+}
+
 // UpdateWorkspaceAgentConnectionByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	m.ctrl.T.Helper()

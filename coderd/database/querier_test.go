@@ -9405,6 +9405,182 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wrongParentTarget, wrongParentTargetAfter)
 
+	t.Run("GuardedUpdateWinsLegacyDeleteRace", func(t *testing.T) {
+		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+			Name:        "update-wins-delete-race",
+			Directory:   "/workspaces/original",
+			DisplayApps: []database.DisplayApp{database.DisplayAppVscode},
+		})
+		createdAt := dbtime.Now().Add(-time.Minute).Truncate(time.Microsecond)
+		updatedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		updateParams := database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			CreatedAt:   createdAt,
+			DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
+			Directory:   "/workspaces/updated",
+			UpdatedAt:   updatedAt,
+			ID:          child.ID,
+			ParentID:    parent.ID,
+		}
+
+		updated := make(chan struct{})
+		releaseUpdate := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseUpdate:
+			default:
+				close(releaseUpdate)
+			}
+		}
+		t.Cleanup(release)
+		type updateResult struct {
+			agent database.WorkspaceAgent
+			err   error
+		}
+		updateDone := make(chan updateResult, 1)
+		go func() {
+			var agent database.WorkspaceAgent
+			err := db.InTx(func(tx database.Store) error {
+				var err error
+				agent, err = tx.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, updateParams)
+				if err != nil {
+					return err
+				}
+				close(updated)
+				select {
+				case <-releaseUpdate:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}, nil)
+			updateDone <- updateResult{agent: agent, err: err}
+		}()
+		testutil.TryReceive(ctx, t, updated)
+
+		type deleteResult struct {
+			count int64
+			err   error
+		}
+		deleteStarted := make(chan struct{})
+		deleteDone := make(chan deleteResult, 1)
+		go func() {
+			close(deleteStarted)
+			count, err := db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+				ID:       child.ID,
+				ParentID: parent.ID,
+			})
+			deleteDone <- deleteResult{count: count, err: err}
+		}()
+		testutil.TryReceive(ctx, t, deleteStarted)
+		requireWorkspaceAgentQueryBlocked(t, ctx, sqlDB, "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
+
+		release()
+		updatedResult := testutil.TryReceive(ctx, t, updateDone)
+		require.NoError(t, updatedResult.err)
+		deleted := testutil.TryReceive(ctx, t, deleteDone)
+		require.NoError(t, deleted.err)
+		require.Zero(t, deleted.count)
+
+		after, err := db.GetWorkspaceAgentByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.Equal(t, updatedResult.agent, after)
+		require.False(t, after.Deleted)
+		require.Equal(t, child.Name, after.Name)
+		require.Equal(t, child.AuthToken, after.AuthToken)
+		require.True(t, after.CreatedAt.Equal(createdAt))
+		require.True(t, after.UpdatedAt.Equal(updatedAt))
+		require.Equal(t, "/workspaces/updated", after.Directory)
+		require.Equal(t, []database.DisplayApp{database.DisplayAppWebTerminal}, after.DisplayApps)
+		require.Equal(t, child.SubagentStateVersion+1, after.SubagentStateVersion)
+	})
+
+	t.Run("LegacyDeleteWinsGuardedUpdateRace", func(t *testing.T) {
+		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+			Name:        "delete-wins-update-race",
+			Directory:   "/workspaces/original",
+			DisplayApps: []database.DisplayApp{database.DisplayAppVscode},
+		})
+		var before []byte
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT to_jsonb(workspace_agents) - 'deleted'
+			FROM workspace_agents
+			WHERE id = $1
+		`, child.ID).Scan(&before)
+		require.NoError(t, err)
+
+		childDeleted := make(chan struct{})
+		releaseDelete := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseDelete:
+			default:
+				close(releaseDelete)
+			}
+		}
+		t.Cleanup(release)
+		type deleteResult struct {
+			count int64
+			err   error
+		}
+		deleteDone := make(chan deleteResult, 1)
+		go func() {
+			var count int64
+			err := db.InTx(func(tx database.Store) error {
+				var err error
+				count, err = tx.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+					ID:       child.ID,
+					ParentID: parent.ID,
+				})
+				if err != nil {
+					return err
+				}
+				close(childDeleted)
+				select {
+				case <-releaseDelete:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}, nil)
+			deleteDone <- deleteResult{count: count, err: err}
+		}()
+		testutil.TryReceive(ctx, t, childDeleted)
+
+		updateStarted := make(chan struct{})
+		updateDone := make(chan error, 1)
+		go func() {
+			close(updateStarted)
+			_, err := db.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+				CreatedAt:   dbtime.Now(),
+				DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
+				Directory:   "/workspaces/updated",
+				UpdatedAt:   dbtime.Now(),
+				ID:          child.ID,
+				ParentID:    parent.ID,
+			})
+			updateDone <- err
+		}()
+		testutil.TryReceive(ctx, t, updateStarted)
+		requireWorkspaceAgentQueryBlocked(t, ctx, sqlDB, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
+
+		release()
+		deleted := testutil.TryReceive(ctx, t, deleteDone)
+		require.NoError(t, deleted.err)
+		require.EqualValues(t, 1, deleted.count)
+		require.ErrorIs(t, testutil.TryReceive(ctx, t, updateDone), sql.ErrNoRows)
+
+		var after []byte
+		var deletedFlag bool
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT to_jsonb(workspace_agents) - 'deleted', deleted
+			FROM workspace_agents
+			WHERE id = $1
+		`, child.ID).Scan(&after, &deletedFlag)
+		require.NoError(t, err)
+		require.True(t, deletedFlag)
+		require.JSONEq(t, string(before), string(after))
+	})
+
 	var deletedIDs []uuid.UUID
 	rows, err := sqlDB.QueryContext(ctx, `SELECT id FROM workspace_agents WHERE deleted = TRUE AND id = ANY($1)`, pq.Array([]uuid.UUID{
 		dynamicChild.ID,
@@ -9421,6 +9597,25 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	}
 	require.NoError(t, rows.Err())
 	require.ElementsMatch(t, []uuid.UUID{dynamicChild.ID, devcontainerChild.ID}, deletedIDs)
+}
+
+func requireWorkspaceAgentQueryBlocked(t *testing.T, ctx context.Context, sqlDB *sql.DB, queryFragment string) {
+	t.Helper()
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var blocked bool
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_stat_activity
+				WHERE datname = current_database()
+					AND pid <> pg_backend_pid()
+					AND query LIKE '%' || $1 || '%'
+					AND CARDINALITY(pg_blocking_pids(pid)) > 0
+			)
+		`, queryFragment).Scan(&blocked)
+		return err == nil && blocked
+	}, testutil.IntervalFast, "database query containing %q did not block", queryFragment)
 }
 
 func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {

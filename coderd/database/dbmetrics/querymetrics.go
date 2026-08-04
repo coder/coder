@@ -6097,6 +6097,14 @@ func (m queryMetricsStore) UpdateWorkspaceACLByID(ctx context.Context, arg datab
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentConnectionByID(ctx, arg)
