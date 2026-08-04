@@ -1,5 +1,9 @@
+---
+title: secret enable
+description: Enable a secret so it is injected into workspaces
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret enable
 
 Enable a secret so it is injected into workspaces
 

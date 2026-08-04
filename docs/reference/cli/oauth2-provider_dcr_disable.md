@@ -1,5 +1,9 @@
+---
+title: oauth2-provider dcr disable
+description: Disable OAuth2 dynamic client registration
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# oauth2-provider dcr disable
 
 Disable OAuth2 dynamic client registration
 

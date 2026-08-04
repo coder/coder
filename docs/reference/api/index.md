@@ -1,6 +1,6 @@
 ---
 title: REST API
-description: Learn how to use Coderd API
+description: "Reference for the Coder REST API, including endpoints, authentication, and schemas."
 icon_path: "./images/icons/api.svg"
 ---
 

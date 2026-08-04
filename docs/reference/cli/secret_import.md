@@ -1,5 +1,9 @@
+---
+title: secret import
+description: Import secrets from a file
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret import
 
 Import secrets from a file
 
