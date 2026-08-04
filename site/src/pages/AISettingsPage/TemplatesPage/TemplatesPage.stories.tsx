@@ -8,6 +8,7 @@ import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withToaster,
 } from "#/testHelpers/storybook";
 import TemplatesPage from "./TemplatesPage";
 
@@ -30,7 +31,7 @@ let refetchedTemplates: Template[] = [];
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPage",
 	component: TemplatesPage,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -123,9 +124,16 @@ export const ConcurrentToggles: Story = {
 					throw new Error(`Unexpected mutation call ${mutationCall}.`);
 			}
 		});
-		spyOn(API, "getTemplates").mockImplementation(() =>
-			Promise.resolve(refetchedTemplates),
-		);
+		spyOn(API, "getTemplates").mockImplementation((options) => {
+			const query = options && "q" in options ? options.q : "";
+			return Promise.resolve(
+				query === "Second"
+					? refetchedTemplates.filter(
+							(template) => template.id === secondTemplate.id,
+						)
+					: refetchedTemplates,
+			);
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const deferreds = toggleDeferreds;
@@ -133,6 +141,7 @@ export const ConcurrentToggles: Story = {
 			throw new Error("Toggle deferreds were not initialized.");
 		}
 		const canvas = within(canvasElement);
+		const body = within(document.body);
 		const user = userEvent.setup();
 		const firstSwitch = await canvas.findByRole("switch", {
 			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
@@ -160,18 +169,37 @@ export const ConcurrentToggles: Story = {
 		deferreds.first.reject(new Error("Template access is locked."));
 		deferreds.second.resolve({ ...secondTemplate, agents_allowed: false });
 
-		const alert = await canvas.findByRole("alert");
-		expect(alert).toHaveTextContent(
+		const errorToast = await body.findByText(
 			"Test Template in My Organization: Template access is locked.",
 		);
+		await waitFor(() => expect(errorToast).toBeVisible());
 		await waitFor(() => expect(firstSwitch).toBeEnabled());
 		await waitFor(() => expect(secondSwitch).toBeEnabled());
 		expect(firstSwitch).toBeChecked();
 		expect(secondSwitch).not.toBeChecked();
 
-		await user.click(firstSwitch);
-		await waitFor(() => expect(firstSwitch).toBeDisabled());
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		const filter = canvas.getByRole("textbox", { name: "Filter" });
+		await user.type(filter, "Second");
+		await waitFor(() =>
+			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
+		);
+		expect(await canvas.findByText("Second Template")).toBeVisible();
+		expect(
+			canvas.queryByRole("switch", {
+				name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+			}),
+		).not.toBeInTheDocument();
+		const filteredErrorToast = await body.findByText(
+			"Test Template in My Organization: Template access is locked.",
+		);
+		await waitFor(() => expect(filteredErrorToast).toBeVisible());
+
+		await user.clear(filter);
+		const retrySwitch = await canvas.findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+		});
+		await user.click(retrySwitch);
+		await waitFor(() => expect(retrySwitch).toBeDisabled());
 		expect(API.updateTemplateMeta).toHaveBeenNthCalledWith(3, MockTemplate.id, {
 			agents_allowed: false,
 		});
@@ -181,8 +209,33 @@ export const ConcurrentToggles: Story = {
 			{ ...secondTemplate, agents_allowed: false },
 		];
 		deferreds.retry.resolve({ ...MockTemplate, agents_allowed: false });
-		await waitFor(() => expect(firstSwitch).toBeEnabled());
-		await waitFor(() => expect(firstSwitch).not.toBeChecked());
+		await waitFor(() => expect(retrySwitch).toBeEnabled());
+		await waitFor(() => expect(retrySwitch).not.toBeChecked());
+	},
+};
+
+export const DisplaysFallbackMutationError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateTemplateMeta").mockRejectedValue({});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const templateSwitch = await canvas.findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+		});
+
+		await userEvent.click(templateSwitch);
+
+		const errorToast = await body.findByText(
+			"Test Template in My Organization: Failed to update Coder Agents access.",
+		);
+		await waitFor(() => expect(errorToast).toBeVisible());
+		expect(API.updateTemplateMeta).toHaveBeenCalledWith(MockTemplate.id, {
+			agents_allowed: false,
+		});
+		await waitFor(() => expect(templateSwitch).toBeEnabled());
+		expect(templateSwitch).toBeChecked();
 	},
 };
 

@@ -54,6 +54,38 @@ export const templates = (
 	};
 };
 
+const isTemplateListQuery = (query: { queryKey: readonly unknown[] }) => {
+	const options = query.queryKey[1];
+	return (
+		query.queryKey.length === 2 &&
+		(options === undefined ||
+			(options !== null &&
+				typeof options === "object" &&
+				!Array.isArray(options)))
+	);
+};
+
+export const updateTemplateListQueries = async (
+	queryClient: QueryClient,
+	updatedTemplate: Template,
+) => {
+	queryClient.setQueriesData<Template[]>(
+		{ queryKey: templatesKey, predicate: isTemplateListQuery },
+		(current) => {
+			if (!current?.some((template) => template.id === updatedTemplate.id)) {
+				return current;
+			}
+			return current.map((template) =>
+				template.id === updatedTemplate.id ? updatedTemplate : template,
+			);
+		},
+	);
+	await queryClient.invalidateQueries({
+		queryKey: templatesKey,
+		predicate: isTemplateListQuery,
+	});
+};
+
 export const updateTemplateMeta = (
 	queryClient: QueryClient,
 ): MutationOptions<
@@ -64,9 +96,14 @@ export const updateTemplateMeta = (
 	return {
 		mutationFn: ({ template, data }) =>
 			API.updateTemplateMeta(template.id, data),
-		onSuccess: async (_result, { template }) => {
+		onSuccess: async (result, { template }) => {
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: templatesKey }),
+				result
+					? updateTemplateListQueries(queryClient, result)
+					: queryClient.invalidateQueries({
+							queryKey: templatesKey,
+							predicate: isTemplateListQuery,
+						}),
 				queryClient.invalidateQueries({
 					queryKey: templateKey(template.id),
 				}),

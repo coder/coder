@@ -2,7 +2,6 @@ import type { FC } from "react";
 import {
 	DetailedError,
 	getErrorDetail,
-	getErrorMessage,
 	hasError,
 	isApiValidationError,
 } from "#/api/errors";
@@ -34,17 +33,6 @@ import {
 import { createDayString } from "#/utils/createDayString";
 import { formatTemplateActiveDevelopersLabel } from "#/utils/templates";
 
-const getTemplateLabel = (template: TypesGen.Template) =>
-	template.display_name || template.name;
-
-const getTemplateOrganization = (template: TypesGen.Template) =>
-	template.organization_display_name || template.organization_name;
-
-export type TemplateUpdateError = {
-	template: TypesGen.Template;
-	error: unknown;
-};
-
 interface TemplatesPageViewProps {
 	filterState: TemplateFilterState;
 	templates: TypesGen.Template[] | undefined;
@@ -56,7 +44,6 @@ interface TemplatesPageViewProps {
 		agentsAllowed: boolean,
 	) => void;
 	pendingTemplateIDs: ReadonlySet<string>;
-	updateErrors: ReadonlyMap<string, TemplateUpdateError>;
 }
 
 interface TemplateRowProps {
@@ -73,8 +60,9 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	isPending,
 	onToggleAgentsAllowed,
 }) => {
-	const label = getTemplateLabel(template);
-	const organization = getTemplateOrganization(template);
+	const label = template.display_name || template.name;
+	const organization =
+		template.organization_display_name || template.organization_name;
 
 	return (
 		<TableRow>
@@ -124,7 +112,6 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	onRetry,
 	onToggleAgentsAllowed,
 	pendingTemplateIDs,
-	updateErrors,
 }) => {
 	const hasValidationError = hasError(error) && isApiValidationError(error);
 
@@ -202,18 +189,6 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 					</TableBody>
 				</Table>
 			)}
-			{Array.from(updateErrors.values()).map(({ template, error }) => (
-				<p
-					key={template.id}
-					role="alert"
-					className="m-0 pt-3 text-xs text-content-destructive"
-				>
-					{`${getTemplateLabel(template)} in ${getTemplateOrganization(template)}: ${getErrorMessage(
-						error,
-						"Failed to update Coder Agents access.",
-					)}`}
-				</p>
-			))}
 		</div>
 	);
 };
