@@ -33,6 +33,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
+import { ChatScrollElementsProvider } from "./components/ChatConversation/ChatScrollElementsContext";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
@@ -421,6 +422,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 	const internalScrollToBottomRef = useRef<(() => void) | null>(null);
+	// The scrollport and the transcript wrapper, which pinned prompts read and
+	// observe. Both are state, not refs, because a prompt's layout effect runs
+	// before either element's ref is attached.
+	const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+	const [scrollContentElement, setScrollContentElement] =
+		useState<HTMLDivElement | null>(null);
 	const effectiveScrollToBottomRef =
 		scrollToBottomRef ?? internalScrollToBottomRef;
 
@@ -905,32 +914,42 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							key={agentId}
 							scrollContainerRef={scrollContainerRef}
 							scrollToBottomRef={effectiveScrollToBottomRef}
+							onScrollContainerElement={setScrollerElement}
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
 							messageCount={messageCount}
 						>
-							<div className="px-4" data-chat-scroll-content>
-								<ChatPageTimeline
-									store={store}
-									persistedError={persistedError}
-									onEditUserMessage={
-										isOtherUserReadOnly
-											? undefined
-											: editing.handleEditUserMessage
-									}
-									editingMessageId={editing.editingMessageId}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										isOtherUserReadOnly ? undefined : onImplementPlan
-									}
-									onSendAskUserQuestionResponse={
-										isOtherUserReadOnly
-											? undefined
-											: canSendAskUserQuestionResponse
-									}
-								/>
+							<div
+								ref={setScrollContentElement}
+								className="px-4"
+								data-chat-scroll-content
+							>
+								<ChatScrollElementsProvider
+									scroller={scrollerElement}
+									content={scrollContentElement}
+								>
+									<ChatPageTimeline
+										store={store}
+										persistedError={persistedError}
+										onEditUserMessage={
+											isOtherUserReadOnly
+												? undefined
+												: editing.handleEditUserMessage
+										}
+										editingMessageId={editing.editingMessageId}
+										urlTransform={urlTransform}
+										mcpServers={mcpServers}
+										onImplementPlan={
+											isOtherUserReadOnly ? undefined : onImplementPlan
+										}
+										onSendAskUserQuestionResponse={
+											isOtherUserReadOnly
+												? undefined
+												: canSendAskUserQuestionResponse
+										}
+									/>
+								</ChatScrollElementsProvider>
 							</div>
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
