@@ -9,7 +9,7 @@ import {
 describe("handleAttachmentDownloadClick", () => {
 	const overriddenNavigatorKeys = new Set<string>();
 	const overrideNavigator = (key: string, value: unknown) => {
-		Object.defineProperty(window.navigator, key, {
+		Object.defineProperty(navigator, key, {
 			value,
 			configurable: true,
 		});
@@ -32,7 +32,7 @@ describe("handleAttachmentDownloadClick", () => {
 
 	afterEach(() => {
 		for (const key of overriddenNavigatorKeys) {
-			Reflect.deleteProperty(window.navigator, key);
+			Reflect.deleteProperty(navigator, key);
 		}
 		overriddenNavigatorKeys.clear();
 		vi.restoreAllMocks();

@@ -72,8 +72,7 @@ const isIOS = (): boolean =>
 const isStandaloneDisplayMode = (): boolean => {
 	const nav: IOSNavigator = navigator;
 	return (
-		window.matchMedia("(display-mode: standalone)").matches ||
-		nav.standalone === true
+		matchMedia("(display-mode: standalone)").matches || nav.standalone === true
 	);
 };
 
@@ -147,7 +146,7 @@ export const handleAttachmentDownloadClick = (
 	if (!canShareFiles([probe])) {
 		// Open synchronously; after an await the user activation that
 		// popup blockers require may already be consumed.
-		window.open(target.href, "_blank", "noopener");
+		open(target.href, "_blank", "noopener");
 		return undefined;
 	}
 	return shareAttachmentFile(target);

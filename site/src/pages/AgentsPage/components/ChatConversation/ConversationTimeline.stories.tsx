@@ -204,14 +204,14 @@ const overrideNavigatorForIOSStandalone = (
 		...extras,
 	};
 	for (const [key, value] of Object.entries(overrides)) {
-		Object.defineProperty(window.navigator, key, {
+		Object.defineProperty(navigator, key, {
 			value,
 			configurable: true,
 		});
 	}
 	return () => {
 		for (const key of Object.keys(overrides)) {
-			Reflect.deleteProperty(window.navigator, key);
+			Reflect.deleteProperty(navigator, key);
 		}
 	};
 };
@@ -1403,7 +1403,7 @@ export const DownloadOutsideIOSKeepsNativeAnchor: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const share = fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, "share", {
+		Object.defineProperty(navigator, "share", {
 			value: share,
 			configurable: true,
 		});
@@ -1424,7 +1424,7 @@ export const DownloadOutsideIOSKeepsNativeAnchor: Story = {
 			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(0);
 		} finally {
 			document.removeEventListener("click", blockDownload, { capture: true });
-			Reflect.deleteProperty(window.navigator, "share");
+			Reflect.deleteProperty(navigator, "share");
 		}
 	},
 };
