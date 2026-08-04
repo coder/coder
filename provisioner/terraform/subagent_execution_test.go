@@ -203,6 +203,62 @@ func TestConvertStateSubagentExecutionPlanChildren(t *testing.T) {
 	require.Equal(t, []string{"CHILD_ENV"}, []string{execution.Envs[0].Name})
 }
 
+func TestConvertStateSubagentExecutionPlanChildPrefersDirectAgent(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+		subagentTestAppResource("coder_app.direct", "direct", "", "direct-app"),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{
+			"coder_subagent_execution.child",
+			"coder_app.direct",
+			"local.unrelated_execution",
+		},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+		[2]string{"coder_app.direct", "coder_agent.parent"},
+		[2]string{"coder_app.direct", "local.unrelated_execution"},
+		[2]string{"local.unrelated_execution", "coder_subagent_execution.child"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.NoError(t, err)
+	agent := subagentTestFindAgent(t, state, "parent")
+	require.Equal(t, []string{"direct-app"}, []string{agent.Apps[0].Slug})
+	require.Empty(t, agent.SubagentExecutions[0].Apps)
+}
+
+func TestConvertStateSubagentExecutionPlanChildPrefersDirectDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestDevcontainerResource("coder_devcontainer.dev", "dev", "", ""),
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+		subagentTestAppResource("coder_app.direct", "direct", "", "direct-app"),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{
+			"coder_devcontainer.dev",
+			"coder_subagent_execution.child",
+			"coder_app.direct",
+			"local.unrelated_execution",
+		},
+		[2]string{"coder_devcontainer.dev", "coder_agent.parent"},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+		[2]string{"coder_app.direct", "coder_devcontainer.dev"},
+		[2]string{"coder_app.direct", "local.unrelated_execution"},
+		[2]string{"local.unrelated_execution", "coder_subagent_execution.child"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.NoError(t, err)
+	agent := subagentTestFindAgent(t, state, "parent")
+	require.Empty(t, agent.Apps)
+	require.Equal(t, []string{"direct-app"}, []string{agent.Devcontainers[0].Apps[0].Slug})
+	require.Empty(t, agent.SubagentExecutions[0].Apps)
+}
+
 func TestConvertStateSubagentExecutionAppliedChildrenUseAssociationID(t *testing.T) {
 	t.Parallel()
 
@@ -225,6 +281,60 @@ func TestConvertStateSubagentExecutionAppliedChildrenUseAssociationID(t *testing
 	require.Len(t, execution.Apps, 1)
 	require.Len(t, execution.Scripts, 1)
 	require.Len(t, execution.Envs, 1)
+}
+
+func TestConvertStateSubagentExecutionPlanAndAppliedAttachmentEquivalent(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name                string
+		parentAgentID       string
+		executionParentID   string
+		executionSubagentID string
+		appAgentID          string
+		edges               [][2]string
+	}{
+		{
+			name: "plan",
+			edges: [][2]string{
+				{"coder_subagent_execution.child", "coder_agent.parent"},
+				{"coder_app.child", "coder_subagent_execution.child"},
+			},
+		},
+		{
+			name:                "applied",
+			parentAgentID:       "parent-id",
+			executionParentID:   "parent-id",
+			executionSubagentID: "association-id",
+			appAgentID:          "association-id",
+			edges: [][2]string{
+				{"coder_app.child", "coder_agent.parent"},
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			module := subagentTestBaseModule(testCase.parentAgentID,
+				subagentTestExecutionResource(
+					"coder_subagent_execution.child",
+					"child",
+					testCase.executionParentID,
+					testCase.executionSubagentID,
+				),
+				subagentTestAppResource("coder_app.child", "child", testCase.appAgentID, "child-app"),
+			)
+			graph := subagentTestBaseGraph(
+				[]string{"coder_subagent_execution.child", "coder_app.child"},
+				testCase.edges...,
+			)
+
+			state, err := subagentTestConvert(t, module, graph)
+			require.NoError(t, err)
+			agent := subagentTestFindAgent(t, state, "parent")
+			require.Empty(t, agent.Apps)
+			require.Equal(t, []string{"child-app"}, []string{agent.SubagentExecutions[0].Apps[0].Slug})
+		})
+	}
 }
 
 func TestConvertStateSubagentExecutionsDoNotCrossAttach(t *testing.T) {
@@ -308,6 +418,46 @@ func TestConvertStateSubagentExecutionModuleLocalResources(t *testing.T) {
 	require.Len(t, execution.Envs, 1)
 }
 
+func TestConvertStateSubagentExecutionIndexedModule(t *testing.T) {
+	t.Parallel()
+
+	moduleAddress := `module.child["one"]`
+	rootModule := &tfjson.StateModule{ChildModules: []*tfjson.StateModule{{
+		Address: moduleAddress,
+		Resources: []*tfjson.StateResource{
+			subagentTestResource(moduleAddress+".null_resource.workspace", "null_resource", "workspace", map[string]any{}),
+			subagentTestAgentResource(moduleAddress+".coder_agent.parent", "parent", ""),
+			subagentTestExecutionResource(moduleAddress+".coder_subagent_execution.child", "child", "", ""),
+			subagentTestAppResource(moduleAddress+".coder_app.child", "child", "", "module-app"),
+			subagentTestScriptResource(moduleAddress+".coder_script.child", "module-script", ""),
+			subagentTestEnvResource(moduleAddress+".coder_env.child", "module-env", ""),
+		},
+	}}}
+	graph := subagentTestGraph(
+		[]string{
+			"module.child.null_resource.workspace",
+			"module.child.coder_agent.parent",
+			"module.child.coder_subagent_execution.child",
+			"module.child.coder_app.child",
+			"module.child.coder_script.child",
+			"module.child.coder_env.child",
+		},
+		[2]string{"module.child.null_resource.workspace", "module.child.coder_agent.parent"},
+		[2]string{"module.child.coder_subagent_execution.child", "module.child.coder_agent.parent"},
+		[2]string{"module.child.coder_app.child", "module.child.coder_subagent_execution.child"},
+		[2]string{"module.child.coder_script.child", "module.child.coder_subagent_execution.child"},
+		[2]string{"module.child.coder_env.child", "module.child.coder_subagent_execution.child"},
+	)
+
+	state, err := subagentTestConvert(t, rootModule, graph)
+	require.NoError(t, err)
+	agent := subagentTestFindAgent(t, state, "parent")
+	require.Len(t, agent.SubagentExecutions, 1)
+	require.Len(t, agent.SubagentExecutions[0].Apps, 1)
+	require.Len(t, agent.SubagentExecutions[0].Scripts, 1)
+	require.Len(t, agent.SubagentExecutions[0].Envs, 1)
+}
+
 func TestConvertStateSubagentExecutionCountedAndMappedChildren(t *testing.T) {
 	t.Parallel()
 
@@ -339,6 +489,72 @@ func TestConvertStateSubagentExecutionCountedAndMappedChildren(t *testing.T) {
 	require.Len(t, execution.Apps, 2)
 	require.Len(t, execution.Scripts, 2)
 	require.Len(t, execution.Envs, 2)
+}
+
+func TestConvertStateSubagentExecutionParentPrefersCloserAgent(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+		subagentTestExecutionResource("coder_subagent_execution.unrelated", "unrelated", "", ""),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{
+			"coder_subagent_execution.child",
+			"coder_subagent_execution.unrelated",
+			"local.unrelated_execution",
+		},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+		[2]string{"coder_subagent_execution.child", "local.unrelated_execution"},
+		[2]string{"local.unrelated_execution", "coder_subagent_execution.unrelated"},
+		[2]string{"coder_subagent_execution.unrelated", "coder_agent.parent"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.NoError(t, err)
+	require.Len(t, subagentTestFindAgent(t, state, "parent").SubagentExecutions, 2)
+}
+
+func TestConvertStateSubagentExecutionParentRejectsCrossKindAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+		subagentTestExecutionResource("coder_subagent_execution.unrelated", "unrelated", "", ""),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{"coder_subagent_execution.child", "coder_subagent_execution.unrelated"},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+		[2]string{"coder_subagent_execution.child", "coder_subagent_execution.unrelated"},
+		[2]string{"coder_subagent_execution.unrelated", "coder_agent.parent"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.Nil(t, state)
+	require.ErrorContains(t, err, "parent has multiple matches")
+	require.ErrorContains(t, err, `coder_agent "coder_agent.parent"`)
+	require.ErrorContains(t, err, `coder_subagent_execution "coder_subagent_execution.unrelated"`)
+}
+
+func TestConvertStateSubagentExecutionCrossKindAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+		subagentTestAppResource("coder_app.ambiguous", "ambiguous", "", "ambiguous-app"),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{"coder_subagent_execution.child", "coder_app.ambiguous"},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+		[2]string{"coder_app.ambiguous", "coder_agent.parent"},
+		[2]string{"coder_app.ambiguous", "coder_subagent_execution.child"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.Nil(t, state)
+	require.ErrorContains(t, err, "ambiguous Terraform association with multiple matches")
+	require.ErrorContains(t, err, `coder_agent "coder_agent.parent"`)
+	require.ErrorContains(t, err, `coder_subagent_execution "coder_subagent_execution.child"`)
 }
 
 func TestConvertStateSubagentExecutionAmbiguousInstances(t *testing.T) {
@@ -435,6 +651,41 @@ func TestConvertStateSubagentExecutionNameDuplicate(t *testing.T) {
 	state, err := subagentTestConvert(t, module, graph)
 	require.Nil(t, state)
 	require.ErrorContains(t, err, "duplicate agent name")
+}
+
+func TestConvertStateSubagentExecutionNameConflictsWithDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestDevcontainerResource("coder_devcontainer.child", "Child", "", ""),
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "", ""),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{"coder_devcontainer.child", "coder_subagent_execution.child"},
+		[2]string{"coder_devcontainer.child", "coder_agent.parent"},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.Nil(t, state)
+	require.ErrorContains(t, err, "duplicate agent name")
+}
+
+func TestConvertStateSubagentExecutionDuplicateDevcontainerNamesRemainAllowed(t *testing.T) {
+	t.Parallel()
+
+	module := subagentTestBaseModule("",
+		subagentTestDevcontainerResource("coder_devcontainer.dev[0]", "dev", "", ""),
+		subagentTestDevcontainerResource("coder_devcontainer.dev[1]", "dev", "", ""),
+	)
+	graph := subagentTestBaseGraph(
+		[]string{"coder_devcontainer.dev"},
+		[2]string{"coder_devcontainer.dev", "coder_agent.parent"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.NoError(t, err)
+	require.Len(t, subagentTestFindAgent(t, state, "parent").Devcontainers, 2)
 }
 
 func TestConvertStateSubagentExecutionAppSlugDuplicate(t *testing.T) {

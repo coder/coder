@@ -90,8 +90,9 @@ type terraformAgentResource struct {
 }
 
 type terraformDevcontainerResource struct {
-	resource   *tfjson.StateResource
-	subagentID string
+	resource      *tfjson.StateResource
+	subagentID    string
+	devcontainers []*proto.Devcontainer
 }
 
 type terraformSubagentExecutionResource struct {
@@ -110,10 +111,12 @@ const (
 )
 
 type terraformAssociationTarget struct {
-	kind      terraformAssociationTargetKind
-	resource  *tfjson.StateResource
-	agent     *proto.Agent
-	execution *proto.SubagentExecution
+	kind          terraformAssociationTargetKind
+	resource      *tfjson.StateResource
+	associationID string
+	agent         *proto.Agent
+	devcontainer  *proto.Devcontainer
+	execution     *proto.SubagentExecution
 }
 
 type terraformAssociationMatch struct {
@@ -450,7 +453,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		var agentNode *gographviz.Node
 		for _, node := range graph.Nodes.Lookup {
 			// The node attributes surround the label with quotes.
-			if strings.Trim(node.Attrs["label"], `"`) != agentLabel {
+			if normalizeTerraformGraphAddress(strings.Trim(node.Attrs["label"], `"`)) != agentLabel {
 				continue
 			}
 			agentNode = node
@@ -492,16 +495,19 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	// Associate Dev Containers with agents.
+	devcontainerNames := map[string]struct{}{}
 	for _, resource := range sortedResources["coder_devcontainer"] {
 		var attrs agentDevcontainerAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode devcontainer attributes: %w", err)
 		}
-		devcontainerResources = append(devcontainerResources, &terraformDevcontainerResource{
+		devcontainerNames[strings.ToLower(resource.Name)] = struct{}{}
+		devcontainerResource := &terraformDevcontainerResource{
 			resource:   resource,
 			subagentID: attrs.SubAgentID,
-		})
+		}
+		devcontainerResources = append(devcontainerResources, devcontainerResource)
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -509,13 +515,15 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 					continue
 				}
 
-				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+				devcontainer := &proto.Devcontainer{
 					Id:              attrs.ID,
 					Name:            resource.Name,
 					WorkspaceFolder: attrs.WorkspaceFolder,
 					ConfigPath:      attrs.ConfigPath,
 					SubagentId:      attrs.SubAgentID,
-				})
+				}
+				agent.Devcontainers = append(agent.Devcontainers, devcontainer)
+				devcontainerResource.devcontainers = append(devcontainerResource.devcontainers, devcontainer)
 			}
 		}
 	}
@@ -538,10 +546,14 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 			return nil, xerrors.Errorf("subagent execution name %q does not match regex %q", attrs.Name, provisioner.AgentNameRegex.String())
 		}
-		if _, ok := agentNames[strings.ToLower(attrs.Name)]; ok {
+		name := strings.ToLower(attrs.Name)
+		if _, ok := agentNames[name]; ok {
 			return nil, xerrors.Errorf("duplicate agent name: %s", attrs.Name)
 		}
-		agentNames[strings.ToLower(attrs.Name)] = struct{}{}
+		if _, ok := devcontainerNames[name]; ok {
+			return nil, xerrors.Errorf("duplicate agent name: %s", attrs.Name)
+		}
+		agentNames[name] = struct{}{}
 
 		execution := &proto.SubagentExecution{
 			Id:                    attrs.ID,
@@ -574,6 +586,37 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			return nil, resolveErr
 		}
 		parent.SubagentExecutions = append(parent.SubagentExecutions, executionResource.execution)
+	}
+
+	associationTargets := make([]terraformAssociationTarget, 0, len(agentResources)+len(devcontainerResources)+len(subagentExecutionResources))
+	for _, agentResource := range agentResources {
+		if !agentResource.topLevel {
+			continue
+		}
+		associationTargets = append(associationTargets, terraformAssociationTarget{
+			kind:          terraformAssociationTargetTopLevelAgent,
+			resource:      agentResource.resource,
+			associationID: agentResource.agent.Id,
+			agent:         agentResource.agent,
+		})
+	}
+	for _, devcontainerResource := range devcontainerResources {
+		for _, devcontainer := range devcontainerResource.devcontainers {
+			associationTargets = append(associationTargets, terraformAssociationTarget{
+				kind:          terraformAssociationTargetDevcontainer,
+				resource:      devcontainerResource.resource,
+				associationID: devcontainerResource.subagentID,
+				devcontainer:  devcontainer,
+			})
+		}
+	}
+	for _, executionResource := range subagentExecutionResources {
+		associationTargets = append(associationTargets, terraformAssociationTarget{
+			kind:          terraformAssociationTargetExecution,
+			resource:      executionResource.resource,
+			associationID: executionResource.execution.SubagentId,
+			execution:     executionResource.execution,
+		})
 	}
 
 	// Manually associate agents with instance IDs.
@@ -702,31 +745,20 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Tooltip:      attrs.Tooltip,
 		}
 
-		execution, associationErr := findSubagentExecutionForResource(graph, subagentExecutionResources, attrs.AgentID, resource)
+		target, associationErr := resolveTerraformAssociationTarget(graph, resource, attrs.AgentID, associationTargets)
 		if associationErr != nil {
 			return nil, associationErr
 		}
-		if execution != nil {
-			execution.Apps = append(execution.Apps, app)
+		if target == nil {
 			continue
 		}
-
-	appAgentLoop:
-		for _, agents := range resourceAgents {
-			for _, agent := range agents {
-				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-					agent.Apps = append(agent.Apps, app)
-					break appAgentLoop
-				}
-
-				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-						dc.Apps = append(dc.Apps, app)
-						break appAgentLoop
-					}
-				}
-			}
+		switch target.kind {
+		case terraformAssociationTargetTopLevelAgent:
+			target.agent.Apps = append(target.agent.Apps, app)
+		case terraformAssociationTargetDevcontainer:
+			target.devcontainer.Apps = append(target.devcontainer.Apps, app)
+		case terraformAssociationTargetExecution:
+			target.execution.Apps = append(target.execution.Apps, app)
 		}
 	}
 
@@ -748,31 +780,20 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			MergeStrategy: attrs.MergeStrategy,
 		}
 
-		execution, associationErr := findSubagentExecutionForResource(graph, subagentExecutionResources, attrs.AgentID, resource)
+		target, associationErr := resolveTerraformAssociationTarget(graph, resource, attrs.AgentID, associationTargets)
 		if associationErr != nil {
 			return nil, associationErr
 		}
-		if execution != nil {
-			execution.Envs = append(execution.Envs, env)
+		if target == nil {
 			continue
 		}
-
-	envAgentLoop:
-		for _, agents := range resourceAgents {
-			for _, agent := range agents {
-				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-					agent.ExtraEnvs = append(agent.ExtraEnvs, env)
-					break envAgentLoop
-				}
-
-				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-						dc.Envs = append(dc.Envs, env)
-						break envAgentLoop
-					}
-				}
-			}
+		switch target.kind {
+		case terraformAssociationTargetTopLevelAgent:
+			target.agent.ExtraEnvs = append(target.agent.ExtraEnvs, env)
+		case terraformAssociationTargetDevcontainer:
+			target.devcontainer.Envs = append(target.devcontainer.Envs, env)
+		case terraformAssociationTargetExecution:
+			target.execution.Envs = append(target.execution.Envs, env)
 		}
 	}
 
@@ -798,31 +819,20 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			TimeoutSeconds:   attrs.TimeoutSeconds,
 		}
 
-		execution, associationErr := findSubagentExecutionForResource(graph, subagentExecutionResources, attrs.AgentID, resource)
+		target, associationErr := resolveTerraformAssociationTarget(graph, resource, attrs.AgentID, associationTargets)
 		if associationErr != nil {
 			return nil, associationErr
 		}
-		if execution != nil {
-			execution.Scripts = append(execution.Scripts, script)
+		if target == nil {
 			continue
 		}
-
-	scriptAgentLoop:
-		for _, agents := range resourceAgents {
-			for _, agent := range agents {
-				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-					agent.Scripts = append(agent.Scripts, script)
-					break scriptAgentLoop
-				}
-
-				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-						dc.Scripts = append(dc.Scripts, script)
-						break scriptAgentLoop
-					}
-				}
-			}
+		switch target.kind {
+		case terraformAssociationTargetTopLevelAgent:
+			target.agent.Scripts = append(target.agent.Scripts, script)
+		case terraformAssociationTargetDevcontainer:
+			target.devcontainer.Scripts = append(target.devcontainer.Scripts, script)
+		case terraformAssociationTargetExecution:
+			target.execution.Scripts = append(target.execution.Scripts, script)
 		}
 	}
 	// Associate metadata blocks with resources.
@@ -843,7 +853,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		var attachedNode *gographviz.Node
 		for _, node := range graph.Nodes.Lookup {
 			// The node attributes surround the label with quotes.
-			if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
+			if normalizeTerraformGraphAddress(strings.Trim(node.Attrs["label"], `"`)) != resourceLabel {
 				continue
 			}
 			attachedNode = node
@@ -1298,12 +1308,12 @@ func managedNonCoderResources(byType map[string][]*tfjson.StateResource) []*tfjs
 	return result
 }
 
-// convertAddressToLabel returns the Terraform address without the count
-// specifier.
-// eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev.ec2_instance.dev"
+// convertAddressToLabel returns the Terraform address without module or
+// resource instance keys.
+// eg. "module.ec2_dev[0].ec2_instance.dev[0]" becomes
+// "module.ec2_dev.ec2_instance.dev".
 func convertAddressToLabel(address string) string {
-	cut, _, _ := strings.Cut(address, "[")
-	return cut
+	return normalizeTerraformGraphAddress(address)
 }
 
 // convertAddressToModulePath returns the module path from a Terraform address.
@@ -1408,6 +1418,34 @@ func closestTerraformAssociationTargets(graph *gographviz.Graph, source *tfjson.
 	return matches
 }
 
+func matchingTerraformAssociationTargets(
+	graph *gographviz.Graph,
+	source *tfjson.StateResource,
+	associationID string,
+	targets []terraformAssociationTarget,
+) []terraformAssociationMatch {
+	if associationID == "" {
+		return closestTerraformAssociationTargets(graph, source, targets)
+	}
+
+	matches := make([]terraformAssociationMatch, 0, 1)
+	for _, target := range targets {
+		if target.associationID == associationID {
+			matches = append(matches, terraformAssociationMatch{target: target})
+		}
+	}
+	return matches
+}
+
+func formatTerraformAssociationMatches(matches []terraformAssociationMatch) string {
+	descriptions := make([]string, 0, len(matches))
+	for _, match := range matches {
+		descriptions = append(descriptions, fmt.Sprintf("%s %q", match.target.kind, match.target.resource.Address))
+	}
+	slices.Sort(descriptions)
+	return strings.Join(descriptions, ", ")
+}
+
 func resolveSubagentExecutionParent(
 	graph *gographviz.Graph,
 	executionResource *terraformSubagentExecutionResource,
@@ -1415,77 +1453,53 @@ func resolveSubagentExecutionParent(
 	devcontainerResources []*terraformDevcontainerResource,
 	executionResources []*terraformSubagentExecutionResource,
 ) (*proto.Agent, error) {
-	var matches []terraformAssociationMatch
-	if executionResource.attributes.AgentID != "" {
-		for _, agentResource := range agentResources {
-			if agentResource.agent.Id != executionResource.attributes.AgentID {
-				continue
-			}
-			kind := terraformAssociationTargetNonTopLevelAgent
-			if agentResource.topLevel {
-				kind = terraformAssociationTargetTopLevelAgent
-			}
-			matches = append(matches, terraformAssociationMatch{target: terraformAssociationTarget{
-				kind:     kind,
-				resource: agentResource.resource,
-				agent:    agentResource.agent,
-			}})
+	targets := make([]terraformAssociationTarget, 0, len(agentResources)+len(devcontainerResources)+len(executionResources)-1)
+	for _, agentResource := range agentResources {
+		kind := terraformAssociationTargetNonTopLevelAgent
+		if agentResource.topLevel {
+			kind = terraformAssociationTargetTopLevelAgent
 		}
-		for _, devcontainerResource := range devcontainerResources {
-			if devcontainerResource.subagentID == executionResource.attributes.AgentID {
-				matches = append(matches, terraformAssociationMatch{target: terraformAssociationTarget{
-					kind:     terraformAssociationTargetDevcontainer,
-					resource: devcontainerResource.resource,
-				}})
-			}
+		targets = append(targets, terraformAssociationTarget{
+			kind:          kind,
+			resource:      agentResource.resource,
+			associationID: agentResource.agent.Id,
+			agent:         agentResource.agent,
+		})
+	}
+	for _, devcontainerResource := range devcontainerResources {
+		targets = append(targets, terraformAssociationTarget{
+			kind:          terraformAssociationTargetDevcontainer,
+			resource:      devcontainerResource.resource,
+			associationID: devcontainerResource.subagentID,
+		})
+	}
+	for _, otherExecution := range executionResources {
+		if otherExecution == executionResource {
+			continue
 		}
-		for _, otherExecution := range executionResources {
-			if otherExecution == executionResource || otherExecution.execution.SubagentId != executionResource.attributes.AgentID {
-				continue
-			}
-			matches = append(matches, terraformAssociationMatch{target: terraformAssociationTarget{
-				kind:      terraformAssociationTargetExecution,
-				resource:  otherExecution.resource,
-				execution: otherExecution.execution,
-			}})
-		}
-	} else {
-		targets := make([]terraformAssociationTarget, 0, len(agentResources)+len(devcontainerResources)+len(executionResources)-1)
-		for _, agentResource := range agentResources {
-			kind := terraformAssociationTargetNonTopLevelAgent
-			if agentResource.topLevel {
-				kind = terraformAssociationTargetTopLevelAgent
-			}
-			targets = append(targets, terraformAssociationTarget{
-				kind:     kind,
-				resource: agentResource.resource,
-				agent:    agentResource.agent,
-			})
-		}
-		for _, devcontainerResource := range devcontainerResources {
-			targets = append(targets, terraformAssociationTarget{
-				kind:     terraformAssociationTargetDevcontainer,
-				resource: devcontainerResource.resource,
-			})
-		}
-		for _, otherExecution := range executionResources {
-			if otherExecution == executionResource {
-				continue
-			}
-			targets = append(targets, terraformAssociationTarget{
-				kind:      terraformAssociationTargetExecution,
-				resource:  otherExecution.resource,
-				execution: otherExecution.execution,
-			})
-		}
-		matches = closestTerraformAssociationTargets(graph, executionResource.resource, targets)
+		targets = append(targets, terraformAssociationTarget{
+			kind:          terraformAssociationTargetExecution,
+			resource:      otherExecution.resource,
+			associationID: otherExecution.execution.SubagentId,
+			execution:     otherExecution.execution,
+		})
 	}
 
+	matches := matchingTerraformAssociationTargets(
+		graph,
+		executionResource.resource,
+		executionResource.attributes.AgentID,
+		targets,
+	)
 	if len(matches) == 0 {
 		return nil, xerrors.Errorf("coder_subagent_execution %q has an unresolved parent", executionResource.resource.Address)
 	}
 	if len(matches) > 1 {
-		return nil, xerrors.Errorf("coder_subagent_execution %q parent has multiple matches", executionResource.resource.Address)
+		return nil, xerrors.Errorf(
+			"coder_subagent_execution %q parent has multiple matches: %s",
+			executionResource.resource.Address,
+			formatTerraformAssociationMatches(matches),
+		)
 	}
 	if matches[0].target.kind != terraformAssociationTargetTopLevelAgent {
 		return nil, xerrors.Errorf("coder_subagent_execution %q parent %s is not a top-level coder_agent", executionResource.resource.Address, matches[0].target.kind)
@@ -1493,43 +1507,41 @@ func resolveSubagentExecutionParent(
 	return matches[0].target.agent, nil
 }
 
-func findSubagentExecutionForResource(
+func resolveTerraformAssociationTarget(
 	graph *gographviz.Graph,
-	executionResources []*terraformSubagentExecutionResource,
-	resourceAgentID string,
 	resource *tfjson.StateResource,
-) (*proto.SubagentExecution, error) {
-	var matches []terraformAssociationMatch
-	if resourceAgentID != "" {
-		for _, executionResource := range executionResources {
-			if executionResource.execution.SubagentId != resourceAgentID {
-				continue
-			}
-			matches = append(matches, terraformAssociationMatch{target: terraformAssociationTarget{
-				kind:      terraformAssociationTargetExecution,
-				resource:  executionResource.resource,
-				execution: executionResource.execution,
-			}})
-		}
-	} else {
-		targets := make([]terraformAssociationTarget, 0, len(executionResources))
-		for _, executionResource := range executionResources {
-			targets = append(targets, terraformAssociationTarget{
-				kind:      terraformAssociationTargetExecution,
-				resource:  executionResource.resource,
-				execution: executionResource.execution,
-			})
-		}
-		matches = closestTerraformAssociationTargets(graph, resource, targets)
-	}
-
+	resourceAgentID string,
+	targets []terraformAssociationTarget,
+) (*terraformAssociationTarget, error) {
+	matches := matchingTerraformAssociationTargets(graph, resource, resourceAgentID, targets)
 	if len(matches) == 0 {
-		return nil, nil //nolint:nilnil // No match allows the caller to try agent association.
+		return nil, nil //nolint:nilnil // Resources without an association are ignored.
 	}
 	if len(matches) > 1 {
-		return nil, xerrors.Errorf("%s %q has ambiguous coder_subagent_execution association with multiple matches", resource.Type, resource.Address)
+		allExecutions := true
+		for _, match := range matches {
+			if match.target.kind != terraformAssociationTargetExecution {
+				allExecutions = false
+				break
+			}
+		}
+		if allExecutions {
+			return nil, xerrors.Errorf(
+				"%s %q has ambiguous coder_subagent_execution association with multiple matches: %s",
+				resource.Type,
+				resource.Address,
+				formatTerraformAssociationMatches(matches),
+			)
+		}
+		return nil, xerrors.Errorf(
+			"%s %q has ambiguous Terraform association with multiple matches: %s",
+			resource.Type,
+			resource.Address,
+			formatTerraformAssociationMatches(matches),
+		)
 	}
-	return matches[0].target.execution, nil
+	target := matches[0].target
+	return &target, nil
 }
 
 func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID string, resource *tfjson.StateResource) bool {
@@ -1554,30 +1566,6 @@ func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID
 
 	// Provision: agent ID and child resource ID are present
 	return agent.Id == resourceAgentID
-}
-
-func dependsOnDevcontainer(graph *gographviz.Graph, dc *proto.Devcontainer, resourceAgentID string, resource *tfjson.StateResource) bool {
-	// Plan: we need to find if there is an edge between the resource and the devcontainer.
-	if dc.SubagentId == "" && resourceAgentID == "" {
-		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
-		agentNodeSuffix := fmt.Sprintf(`] coder_devcontainer.%s (expand)"`, dc.Name)
-
-		// Traverse the graph to check if the coder_<resource_type> depends on coder_devcontainer.
-		for _, dst := range graph.Edges.SrcToDsts {
-			for _, edges := range dst {
-				for _, edge := range edges {
-					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
-						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}
-
-	// Provision: subagent ID and child resource ID are present
-	return dc.SubagentId == resourceAgentID
 }
 
 type graphResource struct {
@@ -1670,7 +1658,7 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 		if !exists {
 			continue
 		}
-		destinationLabel = strings.Trim(destinationLabel, `"`)
+		destinationLabel = normalizeTerraformGraphAddress(strings.Trim(destinationLabel, `"`))
 		resources, exists := tfResourcesByLabel[destinationLabel]
 		if !exists {
 			continue
