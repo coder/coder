@@ -10156,6 +10156,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -11508,6 +11509,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -15203,6 +15205,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -15489,6 +15492,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "property1": "string",
     "property2": "string"
   },
+  "execution_isolation": true,
   "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
   "health": {
@@ -15570,6 +15574,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                              |
 | `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                              |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `execution_isolation`        | boolean                                                                                      | false    |              | Execution isolation indicates that the agent is marked for isolated execution.                                                                                               |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                      |
@@ -16449,6 +16454,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "property1": "string",
             "property2": "string"
           },
+          "execution_isolation": true,
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
@@ -16919,6 +16925,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property1": "string",
         "property2": "string"
       },
+      "execution_isolation": true,
       "expanded_directory": "string",
       "first_connected_at": "2019-08-24T14:15:22Z",
       "health": {
@@ -17270,6 +17277,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   "property1": "string",
                   "property2": "string"
                 },
+                "execution_isolation": true,
                 "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
                 "health": {

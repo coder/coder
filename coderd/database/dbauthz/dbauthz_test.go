@@ -5237,7 +5237,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
-		arg := database.InsertWorkspaceAgentParams{ID: uuid.New(), ResourceID: res.ID, Name: "dev", APIKeyScope: database.AgentKeyScopeEnumAll}
+		arg := database.InsertWorkspaceAgentParams{
+			ID:                 uuid.New(),
+			ResourceID:         res.ID,
+			Name:               "dev",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
+		}
 		dbm.EXPECT().GetWorkspaceByResourceID(gomock.Any(), res.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().InsertWorkspaceAgent(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID}), nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionCreateAgent)

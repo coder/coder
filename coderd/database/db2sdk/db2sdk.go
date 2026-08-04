@@ -572,6 +572,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
 		Subsystems:               subsystems,
 		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
+		ExecutionIsolation:       dbAgent.ExecutionIsolation,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {

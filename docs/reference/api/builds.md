@@ -139,6 +139,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "property1": "string",
             "property2": "string"
           },
+          "execution_isolation": true,
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
@@ -382,6 +383,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
             "property1": "string",
             "property2": "string"
           },
+          "execution_isolation": true,
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
@@ -743,6 +745,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
           "property1": "string",
           "property2": "string"
         },
+        "execution_isolation": true,
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "health": {
@@ -883,6 +886,7 @@ Status Code **200**
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» execution_isolation`        | boolean                                                                                                | false    |              | Execution isolation indicates that the agent is marked for isolated execution.                                                                                                                                                                 |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`         | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» health`                     | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
@@ -1097,6 +1101,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
             "property1": "string",
             "property2": "string"
           },
+          "execution_isolation": true,
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
@@ -1451,6 +1456,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -1654,6 +1660,7 @@ Status Code **200**
 | `»»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» execution_isolation`        | boolean                                                                                                | false    |              | Execution isolation indicates that the agent is marked for isolated execution.                                                                                                                                                                 |
 | `»»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» first_connected_at`         | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                     | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
@@ -1920,6 +1927,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "property1": "string",
             "property2": "string"
           },
+          "execution_isolation": true,
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {

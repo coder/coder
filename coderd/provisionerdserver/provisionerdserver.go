@@ -2961,8 +2961,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
-			DisplayOrder: int32(prAgent.Order),
-			APIKeyScope:  apiKeyScope,
+			DisplayOrder:       int32(prAgent.Order),
+			APIKeyScope:        apiKeyScope,
+			ExecutionIsolation: false,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -3481,6 +3482,7 @@ func insertDevcontainerSubagent(
 		DisplayApps:              []database.DisplayApp{},
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
+		ExecutionIsolation:       false,
 	})
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert subagent: %w", err)

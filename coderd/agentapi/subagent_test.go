@@ -169,6 +169,7 @@ func TestSubAgentAPI(t *testing.T) {
 					assert.Equal(t, tt.agentDir, agent.Directory)
 					assert.Equal(t, tt.agentArch, agent.Architecture)
 					assert.Equal(t, tt.agentOS, agent.OperatingSystem)
+					assert.False(t, agent.ExecutionIsolation)
 				}
 			})
 		}

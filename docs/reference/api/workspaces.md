@@ -196,6 +196,7 @@ of the template will be used.
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -563,6 +564,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -898,6 +900,7 @@ of the template will be used.
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -1193,6 +1196,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   "property1": "string",
                   "property2": "string"
                 },
+                "execution_isolation": true,
                 "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
                 "health": {
@@ -1503,6 +1507,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
@@ -2123,6 +2128,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               "property1": "string",
               "property2": "string"
             },
+            "execution_isolation": true,
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {

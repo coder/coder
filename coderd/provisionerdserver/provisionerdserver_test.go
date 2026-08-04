@@ -4285,6 +4285,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				expectSubAgentCount: 0,
 				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, _ []database.WorkspaceAgent, useProtoIDs bool) {
 					require.Equal(t, "dev", parentAgent.Name)
+					assert.False(t, parentAgent.ExecutionIsolation)
 
 					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
 					require.NoError(t, err)
@@ -4349,6 +4350,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					assert.Equal(t, parentAgent.ID, subAgent.ParentID.UUID)
 					assert.Equal(t, parentAgent.Architecture, subAgent.Architecture)
 					assert.Equal(t, parentAgent.OperatingSystem, subAgent.OperatingSystem)
+					assert.False(t, subAgent.ExecutionIsolation)
 
 					apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
 					require.NoError(t, err)

@@ -7623,15 +7623,16 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 
 		// When: Another agent is created for that workspace with the same name.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:              uuid.New(),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-			Name:            "duplicate-agent", // Same name as agent1
-			ResourceID:      resource.ID,
-			AuthToken:       uuid.New(),
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			APIKeyScope:     database.AgentKeyScopeEnumAll,
+			ID:                 uuid.New(),
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+			Name:               "duplicate-agent", // Same name as agent1
+			ResourceID:         resource.ID,
+			AuthToken:          uuid.New(),
+			Architecture:       "amd64",
+			OperatingSystem:    "linux",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
 		})
 
 		// Then: We expect it to fail.
@@ -7654,15 +7655,16 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 
 		// When: A child agent is created for that workspace with the same name.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:              uuid.New(),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-			Name:            agent.Name,
-			ResourceID:      resource.ID,
-			AuthToken:       uuid.New(),
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			APIKeyScope:     database.AgentKeyScopeEnumAll,
+			ID:                 uuid.New(),
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+			Name:               agent.Name,
+			ResourceID:         resource.ID,
+			AuthToken:          uuid.New(),
+			Architecture:       "amd64",
+			OperatingSystem:    "linux",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
 		})
 
 		// Then: We expect it to fail.
@@ -7698,16 +7700,17 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 
 		// When: A child agent is inserted for the other parent.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:              uuid.New(),
-			ParentID:        uuid.NullUUID{Valid: true, UUID: agent2.ID},
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-			Name:            agent1Child.Name,
-			ResourceID:      resource2.ID,
-			AuthToken:       uuid.New(),
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			APIKeyScope:     database.AgentKeyScopeEnumAll,
+			ID:                 uuid.New(),
+			ParentID:           uuid.NullUUID{Valid: true, UUID: agent2.ID},
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+			Name:               agent1Child.Name,
+			ResourceID:         resource2.ID,
+			AuthToken:          uuid.New(),
+			Architecture:       "amd64",
+			OperatingSystem:    "linux",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
 		})
 
 		// Then: We expect it to fail.
@@ -7757,15 +7760,16 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 
 		// And this resource has a workspace agent.
 		agent1, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:              uuid.New(),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-			Name:            "orphan-agent",
-			ResourceID:      orphanResource.ID,
-			AuthToken:       uuid.New(),
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			APIKeyScope:     database.AgentKeyScopeEnumAll,
+			ID:                 uuid.New(),
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+			Name:               "orphan-agent",
+			ResourceID:         orphanResource.ID,
+			AuthToken:          uuid.New(),
+			Architecture:       "amd64",
+			OperatingSystem:    "linux",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "orphan-agent", agent1.Name)
@@ -7781,15 +7785,16 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 
 		// Then: We expect to be able to create an agent in this new resource that has the same name.
 		agent2, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:              uuid.New(),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-			Name:            "orphan-agent", // Same name as agent1
-			ResourceID:      orphanResource2.ID,
-			AuthToken:       uuid.New(),
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			APIKeyScope:     database.AgentKeyScopeEnumAll,
+			ID:                 uuid.New(),
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+			Name:               "orphan-agent", // Same name as agent1
+			ResourceID:         orphanResource2.ID,
+			AuthToken:          uuid.New(),
+			Architecture:       "amd64",
+			OperatingSystem:    "linux",
+			APIKeyScope:        database.AgentKeyScopeEnumAll,
+			ExecutionIsolation: false,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "orphan-agent", agent2.Name)

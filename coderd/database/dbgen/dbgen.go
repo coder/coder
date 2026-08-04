@@ -657,6 +657,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
 		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
+		ExecutionIsolation:       orig.ExecutionIsolation,
 	})
 	require.NoError(t, err, "insert workspace agent")
 	if orig.FirstConnectedAt.Valid || orig.LastConnectedAt.Valid || orig.DisconnectedAt.Valid || orig.LastConnectedReplicaID.Valid {
@@ -707,6 +708,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			DisplayApps:              nil,
 			DisplayOrder:             agt.DisplayOrder,
 			APIKeyScope:              agt.APIKeyScope,
+			ExecutionIsolation:       false,
 		})
 		require.NoError(t, err, "insert workspace agent subagent antagonist")
 		err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)

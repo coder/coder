@@ -171,6 +171,9 @@ type WorkspaceAgent struct {
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
 
+	// ExecutionIsolation indicates that the agent is marked for isolated execution.
+	ExecutionIsolation bool `json:"execution_isolation"`
+
 	// StartupScriptBehavior is a legacy field that is deprecated in favor
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!

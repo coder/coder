@@ -27200,6 +27200,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "execution_isolation": {
+                    "description": "ExecutionIsolation indicates that the agent is marked for isolated execution.",
+                    "type": "boolean"
+                },
                 "expanded_directory": {
                     "type": "string"
                 },

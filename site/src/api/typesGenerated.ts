@@ -10901,6 +10901,10 @@ export interface WorkspaceAgent {
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
 	/**
+	 * ExecutionIsolation indicates that the agent is marked for isolated execution.
+	 */
+	readonly execution_isolation: boolean;
+	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.
 	 * @deprecated Remove in the future!
