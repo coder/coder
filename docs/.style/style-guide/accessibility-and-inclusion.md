@@ -166,7 +166,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Do**:
 
-> See the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
+> Refer to the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
 >
 > Add a `<small>` caption after the image.
 >
@@ -174,7 +174,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Don't**:
 
-> See the table below for the comma convention.
+> Refer to the table below for the comma convention.
 >
 > Add a `<small>` caption underneath the image.
 >
@@ -182,15 +182,15 @@ Refer to UI elements by their label, not by their position on the screen.
 
 Common replacements:
 
-| Avoid                        | Prefer                                                  |
-|------------------------------|---------------------------------------------------------|
-| see below                    | see the following section, see the `[Section](#anchor)` |
-| see above                    | see the previous section, see earlier                   |
-| top of the page              | beginning of the page                                   |
-| bottom of the page           | end of the page                                         |
-| the menu on the left         | the **Sidebar** menu                                    |
-| the right side of the screen | the **Details** panel                                   |
-| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end   |
+| Avoid                        | Prefer                                                            |
+|------------------------------|-------------------------------------------------------------------|
+| see below                    | refer to the following section, refer to the `[Section](#anchor)` |
+| see above                    | refer to the previous section, as described earlier               |
+| top of the page              | beginning of the page                                             |
+| bottom of the page           | end of the page                                                   |
+| the menu on the left         | the **Sidebar** menu                                              |
+| the right side of the screen | the **Details** panel                                             |
+| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end             |
 
 The rule covers prose.
 Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up", "back up", "log in", and "shut down" aren't directional and stay as-is.
