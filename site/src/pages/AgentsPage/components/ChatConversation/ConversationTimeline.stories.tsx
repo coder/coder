@@ -147,6 +147,10 @@ const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 		},
 	],
 	["storybook-text-error", { body: "Temporary failure", status: 503 }],
+	[
+		"storybook-ios-share-report",
+		{ status: 200, body: "pdf-bytes", contentType: "application/pdf" },
+	],
 ]);
 
 let attachmentFetchCounts = new Map<string, number>();
@@ -185,6 +189,31 @@ const mockAttachmentFetch = () => {
 
 		return originalFetch(input, init);
 	});
+};
+
+// Shadows the Navigator.prototype getters with own properties so the
+// download handler sees an iOS standalone PWA; the returned cleanup
+// restores the real values for subsequent stories.
+const overrideNavigatorForIOSStandalone = (
+	extras: Record<string, unknown> = {},
+): (() => void) => {
+	const overrides: Record<string, unknown> = {
+		userAgent:
+			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+		standalone: true,
+		...extras,
+	};
+	for (const [key, value] of Object.entries(overrides)) {
+		Object.defineProperty(window.navigator, key, {
+			value,
+			configurable: true,
+		});
+	}
+	return () => {
+		for (const key of Object.keys(overrides)) {
+			Reflect.deleteProperty(window.navigator, key);
+		}
+	};
 };
 
 const buildTextPart = (text: string): TypesGen.ChatTextPart => ({
@@ -1291,6 +1320,112 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+const iosDownloadStoryArgs: Story["args"] = {
+	...defaultArgs,
+	parsedMessages: parseMessagesWithMergedTools([
+		{
+			...baseMessage,
+			id: 1,
+			role: "user",
+			content: [
+				{ type: "text", text: "I attached the deployment report." },
+				{
+					type: "file",
+					media_type: "application/pdf",
+					file_id: "storybook-ios-share-report",
+					name: "deployment-report.pdf",
+				},
+			],
+		},
+	]),
+};
+
+/** In an iOS standalone PWA the download click hands the file to the share sheet. */
+export const DownloadInIOSStandaloneSharesFile: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			const shared: { files: File[] } = share.mock.calls[0][0];
+			expect(shared.files).toHaveLength(1);
+			expect(shared.files[0].name).toBe("deployment-report.pdf");
+			expect(shared.files[0].type).toBe("application/pdf");
+			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+/** Without file sharing, an iOS standalone PWA gets a dismissible tab instead of QuickLook. */
+export const DownloadInIOSStandaloneWithoutShareOpensTab: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share: undefined,
+			canShare: undefined,
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			expect(open).toHaveBeenCalledWith(
+				getChatFileURL("storybook-ios-share-report"),
+				"_blank",
+				"noopener",
+			);
+			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(0);
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+/** Outside iOS standalone the anchor keeps its native download behavior. */
+export const DownloadOutsideIOSKeepsNativeAnchor: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, "share", {
+			value: share,
+			configurable: true,
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		// Block the real download navigation the test browser would start;
+		// capture phase runs before the component's handler and does not
+		// affect whether that handler intercepts the click.
+		const blockDownload = (event: Event) => event.preventDefault();
+		document.addEventListener("click", blockDownload, { capture: true });
+		try {
+			const downloadLink = canvas.getByRole("link", {
+				name: "Download deployment-report.pdf",
+			});
+			expect(downloadLink).toHaveAttribute("download", "deployment-report.pdf");
+			await userEvent.click(downloadLink);
+			expect(share).not.toHaveBeenCalled();
+			expect(open).not.toHaveBeenCalled();
+			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(0);
+		} finally {
+			document.removeEventListener("click", blockDownload, { capture: true });
+			Reflect.deleteProperty(window.navigator, "share");
+		}
 	},
 };
 
