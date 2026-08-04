@@ -478,24 +478,18 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 			"MY_SESSION_MANIFEST": "false",
 		},
 	}
-	banner := codersdk.ServiceBannerConfig{}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, opts *agent.Options) {
-		c.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
-			return []codersdk.BannerConfig{banner}, nil
-		})
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
-	// Share one SSH client across subtests, but run each variable in a
-	// fresh session so a single closed channel cannot fail the others.
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sshClient.Close() })
 
-	for k, want := range map[string]string{
+	for envName, want := range map[string]string{
 		"CODER":               "true",  // From the agent.
 		"MY_MANIFEST":         "true",  // From the manifest.
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
@@ -503,41 +497,18 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_SESSION":          "true",  // From the session.
 		"PATH":                scriptBinDir + string(filepath.ListSeparator),
 	} {
-		t.Run(k, func(t *testing.T) {
+		t.Run(envName, func(t *testing.T) {
 			t.Parallel()
 
-			// Give each subtest its own deadline so a hung session
-			// cannot ride the package timeout.
-			subCtx := testutil.Context(t, testutil.WaitLong)
-
-			session, err := sshClient.NewSession()
-			require.NoError(t, err)
-			defer session.Close()
-			go func() {
-				<-subCtx.Done()
-				_ = session.Close()
-			}()
-
-			// The agent re-applies manifest, agent, predefined, and PATH
-			// environment variables on every exec, so only session-scoped
-			// variables need per-session Setenv. The manifest sets
-			// MY_SESSION_MANIFEST="false" and takes precedence over the
-			// session value set here.
-			err = session.Setenv("MY_SESSION", "true")
-			require.NoError(t, err)
-			err = session.Setenv("MY_SESSION_MANIFEST", "true")
-			require.NoError(t, err)
-
-			stderr := &bytes.Buffer{}
-			session.Stderr = stderr
-
-			command := "sh -c 'echo $" + k + "'"
-			if runtime.GOOS == "windows" {
-				command = `cmd.exe /c echo %` + k + `%`
+			got := sessionEnvValue(t, sshClient, envName, map[string]string{
+				"MY_SESSION":          "true",
+				"MY_SESSION_MANIFEST": "true",
+			})
+			if envName == "PATH" {
+				require.True(t, strings.HasPrefix(got, want), "PATH %q does not start with %q", got, want)
+				return
 			}
-			out, err := session.Output(command)
-			require.NoError(t, err, "output: %q, stderr: %q", out, stderr.String())
-			require.Contains(t, strings.TrimSpace(string(out)), want, "stderr: %q", stderr.String())
+			require.Equal(t, want, got)
 		})
 	}
 }
@@ -570,45 +541,50 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "both-value", string(content))
 
-	// Verify env var injection via SSH. Share one SSH client across
-	// subtests, but run each variable in a fresh session so a single
-	// closed channel cannot fail the others.
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sshClient.Close() })
 
-	for k, want := range map[string]string{
+	for envName, want := range map[string]string{
 		"MY_SECRET_ENV":        "env-secret-value",
 		"BOTH_ENV":             "both-value",
 		"SHOULD_BE_OVERRIDDEN": "secret-wins",
 	} {
-		t.Run(k, func(t *testing.T) {
+		t.Run(envName, func(t *testing.T) {
 			t.Parallel()
-
-			// Give each subtest its own deadline so a hung session
-			// cannot ride the package timeout.
-			subCtx := testutil.Context(t, testutil.WaitLong)
-
-			session, err := sshClient.NewSession()
-			require.NoError(t, err)
-			defer session.Close()
-			go func() {
-				<-subCtx.Done()
-				_ = session.Close()
-			}()
-
-			stderr := &bytes.Buffer{}
-			session.Stderr = stderr
-
-			command := "sh -c 'echo $" + k + "'"
-			if runtime.GOOS == "windows" {
-				command = `cmd.exe /c echo %` + k + `%`
-			}
-			out, err := session.Output(command)
-			require.NoError(t, err, "output: %q, stderr: %q", out, stderr.String())
-			require.Contains(t, strings.TrimSpace(string(out)), want, "stderr: %q", stderr.String())
+			require.Equal(t, want, sessionEnvValue(t, sshClient, envName, nil))
 		})
 	}
+}
+
+func sessionEnvValue(t *testing.T, sshClient *ssh.Client, envName string, sessionEnv map[string]string) string {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
+
+	for name, value := range sessionEnv {
+		require.NoError(t, session.Setenv(name, value))
+	}
+
+	stderr := &bytes.Buffer{}
+	session.Stderr = stderr
+	command := "sh -c 'echo $" + envName + "'"
+	if runtime.GOOS == "windows" {
+		command = `cmd.exe /c echo %` + envName + `%`
+	}
+	out, err := session.Output(command)
+	if err != nil && ctx.Err() != nil {
+		t.Fatalf("SSH session deadline expired: %v; output: %q, stderr: %q", ctx.Err(), out, stderr.String())
+	}
+	require.NoError(t, err, "output: %q, stderr: %q", out, stderr.String())
+	return strings.TrimSpace(string(out))
 }
 
 func TestAgent_StartupScript_SecretInjection(t *testing.T) {
