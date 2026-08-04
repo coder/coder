@@ -986,7 +986,12 @@ const StickyUserMessage = memo<{
 
 			// In `flex-col-reverse` the scroller stays at `scrollTop` 0 while
 			// pinned to the bottom, so a growing transcript fires no scroll
-			// event. The scroller and the prompt body are observed instead.
+			// event, and the growth changes neither the scroller's own box nor
+			// the prompt body. The content wrapper is observed as well, so the
+			// clip keeps up with a streaming reply.
+			const content = sentinel.closest<HTMLElement>(
+				"[data-chat-scroll-content]",
+			);
 			let rafId: number | null = null;
 			const schedule = () => {
 				if (rafId !== null) return;
@@ -1002,6 +1007,7 @@ const StickyUserMessage = memo<{
 			const observer = new ResizeObserver(remeasure);
 			observer.observe(scroller);
 			observer.observe(body);
+			if (content) observer.observe(content);
 			scroller.addEventListener("scroll", schedule, { passive: true });
 			window.addEventListener("resize", remeasure);
 			measure();
