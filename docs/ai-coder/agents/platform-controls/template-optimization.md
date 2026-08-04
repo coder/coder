@@ -4,36 +4,30 @@ Not every chat with Coder Agents requires a workspace. A workspace is only provi
 agent decides it needs compute — to read files, write code, run commands, or
 execute builds.
 
-When a workspace is needed, the agent reads the available templates, selects
-the appropriate one based on its name and description, and provisions a
-workspace automatically. Administrators can
-[restrict which templates the agent can see](#restrict-available-templates).
+When a workspace is needed, the agent reads the available templates, selects the appropriate one based on its name and description, and provisions a workspace automatically.
+Administrators can [restrict which templates the agent can see](#restrict-available-templates).
 
 This guide covers best practices for creating templates that are discoverable
 and useful to Coder Agents.
 
 ## Restrict available templates
 
-By default, every template allows Coder Agents. Administrators can block
-individual templates from the **New workspaces** column or from each template's
-settings page.
+By default, every template allows Coder Agents.
+Administrators can block individual templates from the template list or from each template's settings page.
 
 To change which templates agents can use:
 
 1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
 2. Toggle the switch for each template.
 
-The same control is available on each template's settings page as
-**Allow Coder Agents to create workspaces with this template**.
+The same control is available on each template's settings page as **Allow Coder Agents to create workspaces with this template**.
 
-When a template does not allow agents, the agent's `list_templates`,
-`read_template`, and `create_workspace` tools exclude it. The agent cannot
-see or provision workspaces from that template.
+When a template does not allow agents, the agent's `list_templates`, `read_template`, and `create_workspace` tools exclude it.
+The agent cannot see or provision workspaces from that template.
 
-The setting only affects agent-created workspaces. Developers can still
-manually create workspaces from any template they have access to. This lets
-platform teams apply stricter policies to agent workloads without affecting
-the manual workspace experience.
+The setting only affects agent-created workspaces.
+Developers can still manually create workspaces from any template they have access to.
+This lets platform teams apply stricter policies to agent workloads without affecting the manual workspace experience.
 
 ## Write discoverable template descriptions
 
