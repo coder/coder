@@ -60,6 +60,12 @@ export const WithAIAddonColumn: Story = {
 	},
 };
 
+export const Loading: Story = {
+	args: {
+		members: undefined,
+	},
+};
+
 export const NoMembers: Story = {
 	args: {
 		members: [],

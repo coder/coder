@@ -23,6 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
@@ -112,6 +113,10 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 }) => {
 	if (!members) {
 		return <TableLoader />;
+	}
+
+	if (!members.length) {
+		return <TableEmpty message="No members in this organization" />;
 	}
 
 	return (
