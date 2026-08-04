@@ -126,10 +126,15 @@ type Options struct {
 	// installed at statsReporter creation.
 	StatsReportInterval time.Duration
 	// SubagentExecDriver launches the nested executions the manifest
-	// declares. Only tests set this. Nil installs a driver that fails
-	// every launch; an agent whose manifest declares no executions never
-	// invokes it.
+	// declares. Only tests set this. Nil falls back to the driver
+	// SubagentExecDriverConfig describes; an agent whose manifest declares
+	// no executions never invokes either.
 	SubagentExecDriver subagentexec.Driver
+	// SubagentExecDriverConfig configures the default driver, used when
+	// SubagentExecDriver is nil. An empty StateRoot leaves the agent
+	// without a driver, which is how a deployment that declares no
+	// executions behaves.
+	SubagentExecDriverConfig subagentexec.ScriptDriverConfig
 }
 
 type Client interface {
@@ -277,6 +282,7 @@ func New(options Options) Agent {
 		contextConfig:                   options.ContextConfig,
 		derpTLSConfig:                   options.DERPTLSConfig,
 		subagentExecDriver:              options.SubagentExecDriver,
+		subagentExecDriverConfig:        options.SubagentExecDriverConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -387,8 +393,9 @@ type agent struct {
 	// subagentExecManager owns the nested executions the manifest
 	// declares. It is constructed once and outlives every DRPC
 	// connection: reconnecting only replaces its controller.
-	subagentExecManager *subagentexec.Manager
-	subagentExecDriver  subagentexec.Driver
+	subagentExecManager      *subagentexec.Manager
+	subagentExecDriver       subagentexec.Driver
+	subagentExecDriverConfig subagentexec.ScriptDriverConfig
 
 	derpTLSConfig *tls.Config
 }
@@ -566,7 +573,7 @@ func (a *agent) init() {
 	// a fresh controller through handleManifest.
 	a.subagentExecManager = subagentexec.New(subagentexec.Options{
 		Logger: a.logger.Named("subagentexec"),
-		Driver: a.subagentExecDriver,
+		Driver: a.subagentExecutionDriver(),
 	})
 
 	a.initSocketServer()
@@ -583,6 +590,30 @@ func (a *agent) init() {
 	}()
 
 	go a.runLoop()
+}
+
+// subagentExecutionDriver resolves the driver the subagent execution
+// manager launches declarations with. Tests inject their own; otherwise the
+// concrete driver is built from the agent's configuration. A deployment
+// without that configuration, or a platform the driver does not support,
+// gets no driver at all: nothing changes for an agent that declares no
+// executions, and a declaration fails visibly with
+// subagentexec.ErrDriverNotConfigured.
+func (a *agent) subagentExecutionDriver() subagentexec.Driver {
+	if a.subagentExecDriver != nil {
+		return a.subagentExecDriver
+	}
+	if a.subagentExecDriverConfig.StateRoot == "" {
+		return nil
+	}
+	cfg := a.subagentExecDriverConfig
+	cfg.Logger = a.logger.Named("subagentexec.driver")
+	driver, err := subagentexec.NewScriptDriver(cfg)
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "subagent execution driver is unavailable", slog.Error(err))
+		return nil
+	}
+	return driver
 }
 
 // initSocketServer initializes server that allows direct communication with a workspace agent using IPC.

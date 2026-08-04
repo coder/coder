@@ -91,6 +91,11 @@ OPTIONS:
           Specify the max timeout for a SSH connection, it is advisable to set
           it to a minimum of 60s, but no more than 72h.
 
+      --subagent-exec-state-dir string, $CODER_AGENT_SUBAGENT_EXEC_STATE_DIR
+          Specify the location for private subagent execution state, including
+          child agent token files. Defaults to a directory under the script data
+          directory.
+
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
 

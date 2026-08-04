@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
+	"github.com/coder/coder/v2/agent/subagentexec"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
@@ -64,6 +65,7 @@ func workspaceAgent() *serpent.Command {
 		socketServerEnabled             bool
 		socketPath                      string
 		agentFirewallLogProxySocketPath string
+		subagentExecStateDir            string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -227,6 +229,17 @@ func workspaceAgent() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("getting os executable: %w", err)
 			}
+
+			// Private state for declared subagent executions, including
+			// child agent token files, lives outside any shared project
+			// directory and defaults under the script data directory.
+			if subagentExecStateDir == "" {
+				subagentExecStateDir = filepath.Join(scriptDataDir, "subagent-exec")
+			}
+			subagentExecStateDir, err = filepath.Abs(subagentExecStateDir)
+			if err != nil {
+				return xerrors.Errorf("resolve subagent execution state dir: %w", err)
+			}
 			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 			if err != nil {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
@@ -341,6 +354,11 @@ func workspaceAgent() *serpent.Command {
 					SocketServerEnabled:             socketServerEnabled,
 					AgentFirewallLogProxySocketPath: agentFirewallLogProxySocketPath,
 					ContextConfig:                   contextConfig,
+					SubagentExecDriverConfig: subagentexec.ScriptDriverConfig{
+						StateRoot:       subagentExecStateDir,
+						CoderURL:        agentAuth.agentURL.String(),
+						CoderBinaryPath: executablePath,
+					},
 				})
 
 				if debugAddress != "" {
@@ -416,6 +434,12 @@ func workspaceAgent() *serpent.Command {
 			Description: "Specify the location for storing script data.",
 			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
 			Value:       serpent.StringOf(&scriptDataDir),
+		},
+		{
+			Flag:        "subagent-exec-state-dir",
+			Description: "Specify the location for private subagent execution state, including child agent token files. Defaults to a directory under the script data directory.",
+			Env:         "CODER_AGENT_SUBAGENT_EXEC_STATE_DIR",
+			Value:       serpent.StringOf(&subagentExecStateDir),
 		},
 		{
 			Flag:        "pprof-address",

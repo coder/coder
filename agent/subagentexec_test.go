@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +20,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -88,7 +96,7 @@ func testSubagentExecution() agentsdk.SubagentExecution {
 // startExecAgent brings up an agent against the fake agent API with the
 // given manifest, without the full tailnet fixture: manifest handling and
 // the subagent execution manager do not need a reachable network.
-func startExecAgent(t *testing.T, manifest agentsdk.Manifest, driver subagentexec.Driver, wrap func(agent.Client) agent.Client) (*agenttest.Client, agent.Agent) {
+func startExecAgent(t *testing.T, manifest agentsdk.Manifest, driver subagentexec.Driver, wrap func(agent.Client) agent.Client, mutate ...func(*agent.Options)) (*agenttest.Client, agent.Agent) {
 	t.Helper()
 
 	logger := testutil.Logger(t)
@@ -115,11 +123,15 @@ func startExecAgent(t *testing.T, manifest agentsdk.Manifest, driver subagentexe
 	if wrap != nil {
 		agentClient = wrap(agentClient)
 	}
-	agnt := agent.New(agent.Options{
+	options := agent.Options{
 		Client:             agentClient,
 		Logger:             logger.Named("agent"),
 		SubagentExecDriver: driver,
-	})
+	}
+	for _, mutate := range mutate {
+		mutate(&options)
+	}
+	agnt := agent.New(options)
 	t.Cleanup(func() { _ = agnt.Close() })
 	return client, agnt
 }
@@ -201,6 +213,121 @@ func TestAgent_SubagentExecution_NoDeclarationsIsUnchanged(t *testing.T) {
 	require.Empty(t, client.SubagentExecutionAcquisitions())
 	require.Zero(t, driver.startCount())
 	require.NoError(t, agnt.Close())
+}
+
+// TestAgent_SubagentExecution_DefaultDriverLaunches covers the wiring an
+// ordinary deployment uses: no injected driver, only the agent's driver
+// configuration, so the concrete driver launches the declaration.
+func TestAgent_SubagentExecution_DefaultDriverLaunches(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("the concrete subagent execution driver targets unix platforms")
+	}
+
+	stateRoot := filepath.Join(t.TempDir(), "subagent-exec")
+	markerDir := t.TempDir()
+	const childToken = "child-auth-token"
+
+	decl := testSubagentExecution()
+	decl.Driver = fmt.Sprintf(`#!/bin/sh
+if [ "$1" = cleanup ]; then exit 0; fi
+cp "$2" %[1]q/input.json
+touch %[1]q/ready
+while true; do sleep 0.05; done
+`, markerDir)
+
+	client, agnt := startExecAgent(t, agentsdk.Manifest{
+		SubagentExecutions: []agentsdk.SubagentExecution{decl},
+	}, nil, nil, func(options *agent.Options) {
+		options.SubagentExecDriverConfig = subagentexec.ScriptDriverConfig{
+			StateRoot:       stateRoot,
+			CoderURL:        "https://coder.example.com",
+			CoderBinaryPath: "/opt/coder/bin/coder",
+		}
+	})
+	childAgentID := uuid.New()
+	client.SetAcquireSubagentExecutionFunc(func(_ context.Context, _ *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
+		return &agentproto.AcquireSubagentExecutionResponse{
+			ChildAgentId:       childAgentID[:],
+			AuthToken:          childToken,
+			AcquisitionVersion: 4,
+		}, nil
+	})
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(markerDir, "ready"))
+		return err == nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		reports := client.SubagentExecutionReports()
+		return len(reports) == 1 &&
+			reports[0].GetStatus() == agentproto.ReportSubagentExecutionStatusRequest_RUNNING
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// The private state uses UUID paths and holds the token in a 0600 file
+	// that the protocol document only points at.
+	executionDir := filepath.Join(stateRoot, "agent", decl.ExecutionID.String())
+	tokenPath := filepath.Join(executionDir, "token")
+	tokenContent, err := os.ReadFile(tokenPath)
+	require.NoError(t, err)
+	require.Equal(t, childToken, string(tokenContent))
+	info, err := os.Stat(tokenPath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	document, err := os.ReadFile(filepath.Join(markerDir, "input.json"))
+	require.NoError(t, err)
+	require.NotContains(t, string(document), childToken)
+	var input subagentexec.DriverInput
+	require.NoError(t, json.Unmarshal(document, &input))
+	require.Equal(t, subagentexec.OperationRun, input.Operation)
+	require.Equal(t, decl.ExecutionID, input.ExecutionID)
+	require.Equal(t, childAgentID, input.ChildAgentID)
+	require.Equal(t, tokenPath, input.TokenFilePath)
+
+	// Closing the agent stops the driver and reclaims the token file.
+	require.NoError(t, agnt.Close())
+	require.NoFileExists(t, tokenPath)
+	require.NoDirExists(t, executionDir)
+
+	reports := client.SubagentExecutionReports()
+	require.Equal(t, agentproto.ReportSubagentExecutionStatusRequest_STOPPED, reports[len(reports)-1].GetStatus())
+	for _, report := range reports {
+		require.NotContains(t, report.GetError(), childToken)
+	}
+}
+
+// TestAgent_SubagentExecution_UnconfiguredDriverFails pins the behavior of a
+// deployment that declares an execution without configuring a driver: the
+// declaration fails visibly rather than silently doing nothing.
+func TestAgent_SubagentExecution_UnconfiguredDriverFails(t *testing.T) {
+	t.Parallel()
+
+	client, _ := startExecAgent(t, agentsdk.Manifest{
+		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution()},
+	}, nil, nil, func(options *agent.Options) {
+		// A launch that cannot proceed is logged as an error by design.
+		options.Logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+			Leveled(slog.LevelDebug).Named("agent")
+	})
+	childAgentID := uuid.New()
+	client.SetAcquireSubagentExecutionFunc(func(_ context.Context, _ *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
+		return &agentproto.AcquireSubagentExecutionResponse{
+			ChildAgentId:       childAgentID[:],
+			AuthToken:          "child-auth-token",
+			AcquisitionVersion: 2,
+		}, nil
+	})
+
+	// A declaration that cannot launch is retried on every manifest
+	// refresh, so the assertion is on the reported failure, not a count.
+	require.Eventually(t, func() bool {
+		return slices.ContainsFunc(client.SubagentExecutionReports(), func(report *agentproto.ReportSubagentExecutionStatusRequest) bool {
+			return report.GetStatus() == agentproto.ReportSubagentExecutionStatusRequest_FAILED &&
+				strings.Contains(report.GetError(), "driver is not configured")
+		})
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 // versionCountingClient answers ConnectRPC211WithRole with a fixed error
