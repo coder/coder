@@ -488,6 +488,13 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		req.UserLoginType = codersdk.LoginTypePassword
 	}
 
+	if !req.ServiceAccount && req.UserLoginType == codersdk.LoginTypeNone {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Login type 'none' requires a service account.",
+		})
+		return
+	}
+
 	if req.UserLoginType != codersdk.LoginTypePassword && req.Password != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Password cannot be set for non-password (%q) authentication.", req.UserLoginType),
@@ -1713,7 +1720,9 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		err = tx.DeleteAPIKeysByUserID(ctx, user.ID)
+		//nolint:gocritic // Password resets must revoke all keys owned by the
+		// target user, not just keys addressable by the caller's actor.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
 		if err != nil {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}

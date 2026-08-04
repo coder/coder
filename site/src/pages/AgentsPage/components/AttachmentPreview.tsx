@@ -199,7 +199,7 @@ export const AttachmentPreview: FC<{
 								uploadState?.status === "processing" ||
 								uploadState?.status === "uploading") && (
 								<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-									<Spinner className="h-5 w-5 text-white" loading />
+									<Spinner className="size-5 text-white" loading />
 								</div>
 							)}
 							{uploadState?.status === "error" && (

@@ -430,8 +430,9 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		//nolint:gocritic // Password resets must revoke all keys owned by the
+		// target user, not just keys addressable by the caller's actor.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)
@@ -1139,7 +1140,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	if api.GithubOAuth2Config.DeviceFlowEnabled {
 		// In the device flow, the redirect is handled client-side.
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2DeviceFlowCallbackResponse{
@@ -1573,7 +1574,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	redirect := state.Redirect
 	// Strip the host if it exists on the URL to prevent
 	// any nefarious redirects.
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 

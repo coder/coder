@@ -16,7 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -27,17 +27,20 @@ import (
 const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
 
 type buildCommitStepMessagesInput struct {
-	modelConfigID      uuid.UUID
-	modelCallConfig    codersdk.ChatModelCallConfig
-	step               stepData
-	toolNameToConfigID map[string]uuid.UUID
-	logger             slog.Logger
-	contentVersion     int16
+	modelConfigID          uuid.UUID
+	step                   stepData
+	toolNameToConfigID     map[string]uuid.UUID
+	logger                 slog.Logger
+	contentVersion         int16
+	hookRewrittenToolCalls map[string]json.RawMessage
 }
 
 type stepMessagesForCommit struct {
 	Messages       []chatstate.Message
 	VisibleIndexes []int
+	// ConsumeCompactionRequest clears the manual compaction marker
+	// atomically with the commit. Set on compaction commits.
+	ConsumeCompactionRequest bool
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {
@@ -47,7 +50,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
-	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID)
+	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -55,7 +58,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal assistant content: %w", err)
 		}
-		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step, input.modelCallConfig))
+		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
 	for _, toolResult := range toolResults {
@@ -108,6 +111,7 @@ func buildAssistantParts(
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
 	toolNameToConfigID map[string]uuid.UUID,
+	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	reasoningIdx := 0
@@ -120,6 +124,11 @@ func buildAssistantParts(
 				if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
 					part.CreatedAt = &ts
 				}
+			}
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
+				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
 			if part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
@@ -175,7 +184,6 @@ func assistantMessage(
 	contentVersion int16,
 	content pqtype.NullRawMessage,
 	step stepData,
-	modelCallConfig codersdk.ChatModelCallConfig,
 ) chatstate.Message {
 	msg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, modelConfigID, contentVersion, content)
 	if step.Usage != (fantasy.Usage{}) {
@@ -185,16 +193,6 @@ func assistantMessage(
 		msg.ReasoningTokens = nullInt64IfNonZero(step.Usage.ReasoningTokens)
 		msg.CacheCreationTokens = nullInt64IfNonZero(step.Usage.CacheCreationTokens)
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
-		usage := codersdk.ChatMessageUsage{
-			InputTokens:         int64PtrIfNonZero(step.Usage.InputTokens),
-			OutputTokens:        int64PtrIfNonZero(step.Usage.OutputTokens),
-			ReasoningTokens:     int64PtrIfNonZero(step.Usage.ReasoningTokens),
-			CacheCreationTokens: int64PtrIfNonZero(step.Usage.CacheCreationTokens),
-			CacheReadTokens:     int64PtrIfNonZero(step.Usage.CacheReadTokens),
-		}
-		if totalCost := chatcost.CalculateTotalCostMicros(usage, modelCallConfig.Cost); totalCost != nil {
-			msg.TotalCostMicros = sql.NullInt64{Int64: *totalCost, Valid: true}
-		}
 	}
 	msg.ContextLimit = step.ContextLimit
 	if step.Runtime > 0 {
@@ -226,13 +224,6 @@ func nullInt64IfNonZero(value int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: value, Valid: true}
 }
 
-func int64PtrIfNonZero(value int64) *int64 {
-	if value == 0 {
-		return nil
-	}
-	return &value
-}
-
 func visibleMessageIndexes(messages []chatstate.Message) []int {
 	indexes := make([]int, 0, len(messages))
 	for i, msg := range messages {
@@ -255,7 +246,6 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 
 type buildCompactionMessagesInput struct {
 	modelConfigID  uuid.UUID
-	activeAPIKeyID string
 	toolCallID     string
 	toolName       string
 	compaction     compactionOutcome
@@ -281,8 +271,12 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction system summary: %w", err)
 	}
+	source := input.compaction.Source
+	if source == "" {
+		source = chatloop.CompactionSourceAutomatic
+	}
 	args, err := json.Marshal(map[string]any{
-		"source":            "automatic",
+		"source":            source,
 		"threshold_percent": input.compaction.ThresholdPercent,
 	})
 	if err != nil {
@@ -296,7 +290,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              input.compaction.SummaryReport,
-		"source":               "automatic",
+		"source":               source,
 		"threshold_percent":    input.compaction.ThresholdPercent,
 		"usage_percent":        input.compaction.UsagePercent,
 		"context_tokens":       input.compaction.ContextTokens,
@@ -319,7 +313,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			Visibility:     database.ChatMessageVisibilityModel,
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
-			APIKeyID:       sql.NullString{String: input.activeAPIKeyID, Valid: input.activeAPIKeyID != ""},
 		},
 		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
@@ -330,19 +323,28 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
-func currentTurnStepCount(messages []database.ChatMessage) int {
-	latestUser := -1
+// Hook model-context messages use the user role but must not reset
+// per-turn guards.
+func lastUserPromptIndex(messages []database.ChatMessage) int {
+	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
-			latestUser = i
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+			index = i
 		}
 	}
+	return index
+}
+
+func currentTurnStartIndex(messages []database.ChatMessage) int {
+	return lastUserPromptIndex(messages) + 1
+}
+
+func currentTurnStepCount(messages []database.ChatMessage) int {
 	count := 0
-	for i := latestUser + 1; i < len(messages); i++ {
-		msg := messages[i]
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
@@ -471,16 +473,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 	if len(stopAfterTools) == 0 {
 		return false, nil
 	}
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
-	for _, msg := range messages[start:] {
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}

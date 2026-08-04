@@ -36,7 +36,7 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            fantasy.LanguageModel
+		model            chatprovider.Model
 		modelConfig      database.ChatModelConfig
 		modelRoute       aiGatewayModelRoute
 		modelOpts        modelBuildOptions
@@ -80,10 +80,12 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 
-	modelOpts = modelBuildOptionsFromMessages(promptRows)
-	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
+	}
+	modelOpts = modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	var err error
 	model, modelConfig, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
@@ -97,6 +99,41 @@ func (server *Server) prepareGeneration(
 	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
 		callConfig.MaxOutputTokens = &maxOutputTokens
+	}
+
+	// Computer-use turns swap in a specialized model, so the substitution
+	// must happen before anything model-sensitive runs: file-part
+	// classification, history sanitization, and provider option preparation
+	// must all agree with the client actually used for the turn.
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
+	var computerUseProvider codersdk.ChatComputerUseProvider
+	if isComputerUse {
+		var cuModelProvider, cuModelName string
+		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
+		if err != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
+		}
+		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
+		if keyErr != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
+		}
+		modelRoute = computerUseRoute
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
+			ctx,
+			chat,
+			computerUseRoute,
+			computerUseProvider,
+			cuModelProvider,
+			cuModelName,
+			modelOpts,
+		)
+		if cuErr != nil {
+			return generationPrepared{}, cuErr
+		}
+		model = cuModel
+		debugEnabled = cuDebugEnabled
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
 	}
 
 	currentPlanMode := chat.PlanMode
@@ -256,9 +293,7 @@ func (server *Server) prepareGeneration(
 		// aibridge routing rewrites the provider (e.g. Bedrock to the
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
-		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
-		}
+		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
@@ -325,7 +360,7 @@ func (server *Server) prepareGeneration(
 		logger,
 		"persisted_history_replay",
 		model.Provider(),
-		model.Model(),
+		model.ModelID(),
 		sanitizeStats,
 	)
 
@@ -478,36 +513,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	if isComputerUse {
-		computerUseProvider, computerUseModelProvider, computerUseModelName, err := server.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
-		if keyErr != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			computerUseModelProvider,
-			computerUseModelName,
-			modelOpts,
-		)
-		if cuErr != nil {
-			cleanup()
-			return generationPrepared{}, cuErr
-		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -532,7 +538,11 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
+	var requestedEffort *string
+	if chat.LastReasoningEffort.Valid {
+		requestedEffort = new(string(chat.LastReasoningEffort.ChatReasoningEffort))
+	}
+	providerOptions := chatprovider.ProviderOptionsForCall(model, callConfig, requestedEffort)
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
@@ -571,20 +581,41 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
+	// The compaction trigger uses the stricter of the chat and override
+	// models' context limits: the history must also fit the summarizer's
+	// window.
+	compactionContextLimit := modelConfig.ContextLimit
+	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if compactionOverride != nil {
+		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
+			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
+			compactionContextLimit = overrideLimit
+		}
+	}
+	compactionStepUsage := latestPromptUsage(promptRows)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	// The options carry the chat model; generateCompaction swaps in the
+	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                model,
+		Model:                model.LanguageModel(),
 		Messages:             prompt,
 		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         modelConfig.ContextLimit,
-		ContextLimitFallback: modelConfig.ContextLimit,
+		ContextLimit:         compactionContextLimit,
+		ContextLimitFallback: compactionContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
 		ChatID:               chat.ID,
 		HistoryTipMessageID:  historyTipMessageID,
+		ResolvedProvider:     resolvedProvider,
+		ResolvedModel:        debugModel,
+		ModelConfigID:        modelConfig.ID,
+		StepUsage:            compactionStepUsage,
 	}
-	compactionOptions.StepUsage = latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionOptions.StepUsage, modelConfig.ContextLimit, effectiveThreshold)
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
 	// AgentID/BuildID binding from the getWorkspaceAgent call above.
@@ -617,8 +648,10 @@ func (server *Server) prepareGeneration(
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
 		Compaction: &generationCompaction{
-			Required: compactionNeeded,
-			Options:  compactionOptions,
+			Override:        compactionOverride,
+			ChatModelConfig: modelConfig,
+			Required:        compactionNeeded,
+			Options:         compactionOptions,
 		},
 		Cleanup: cleanup,
 		Debug:   debug,
@@ -675,8 +708,8 @@ func (server *Server) afterInterruptionOutcome(
 	chat := outcome.Chat
 	logger := server.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
-	if outcome.Kind == runnerActionKindFinishInterruption {
-		server.maybeClearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
+	if outcome.Kind == runnerActionKindFinishInterruption && !chat.ParentChatID.Valid {
+		server.clearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
 	}
 	return nil
 }
@@ -728,9 +761,13 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	// resolvedProvider/resolvedModel describe the model the fallback handle was
 	// built from; they only feed the status-label fallback candidate's labels.
-	modelOpts := modelBuildOptionsFromMessages(promptRows)
-	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
-	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
+		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
+	}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
 		// generic label when StatusLabelModel is nil.
@@ -749,6 +786,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		FallbackRoute:       modelRoute,
 		FallbackModel:       resolvedModel,
 		ModelBuildOptions:   modelOpts,
+		StatusLabelOptions:  dbConfig.Options,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

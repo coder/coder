@@ -1,14 +1,20 @@
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import { anthropicKnownModels } from "./anthropic";
-import { openAIKnownModels } from "./openai";
-import type { KnownModel, KnownModelSourceMetadata } from "./types";
+import knownModelsGenerated from "./knownModelsGenerated.json";
+import type { KnownModel } from "./types";
 
-export type { KnownModel, KnownModelSourceMetadata };
+export type { KnownModel };
 
-const knownModelsByProvider = {
-	anthropic: anthropicKnownModels,
-	openai: openAIKnownModels,
-} as const satisfies Record<string, readonly KnownModel[]>;
+// knownModelsGenerated.json is produced by `make gen/aibridge-prices` from
+// models.dev joined with the editorial curation in
+// scripts/aibridgepricesgen/curation.json. Do not edit it manually. JSON
+// imports widen literal types (e.g. reasoningEffort becomes string), so this
+// cast is the single typed boundary; knownModelsGenerated.test.ts validates
+// shape and enum values for every entry. The keyof cast preserves the
+// literal provider-key union so isKnownProvider narrows usefully.
+const knownModelsByProvider = knownModelsGenerated as Record<
+	keyof typeof knownModelsGenerated,
+	readonly KnownModel[]
+>;
 
 type KnownProvider = keyof typeof knownModelsByProvider;
 

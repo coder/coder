@@ -72,7 +72,7 @@ resource "coder_ai_task" "task" {
 Below is a minimal illustrative example of a Coder Tasks template pre-2.28.0.
 **Note that this is NOT a full template.**
 
-```hcl
+```tf
 terraform {
   required_providers {
     coder = {
@@ -128,7 +128,7 @@ In v2.28 and above, the following changes were made:
 
 Example (**not** a full template):
 
-```hcl
+```tf
 terraform {
   required_providers {
     coder = {

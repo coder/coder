@@ -34,11 +34,8 @@ func terminalMessage(classified ClassifiedError) string {
 		))
 
 	case codersdk.ChatErrorKindUsageLimit:
-		return stringutil.Capitalize(fmt.Sprintf(
-			"The usage quota for %s has been exceeded."+
-				" Check the billing and quota settings for the provider account.",
-			subject,
-		))
+		return "The AI usage limit has been exceeded." +
+			" Contact an administrator or check the applicable budget and quota settings."
 
 	case codersdk.ChatErrorKindAuth:
 		return fmt.Sprintf(
@@ -64,6 +61,8 @@ func terminalMessage(classified ClassifiedError) string {
 				" Contact your Coder administrator.",
 			displayName,
 		)
+	case codersdk.ChatErrorKindContentFilter:
+		return ContentFilterMessage(classified.Provider, "")
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
@@ -114,6 +113,20 @@ func retryMessage(classified ClassifiedError) string {
 			"%s returned an unexpected error.", subject,
 		))
 	}
+}
+
+// ContentFilterMessage is the user-facing message for a response blocked by
+// the provider's content filter.
+func ContentFilterMessage(provider, category string) string {
+	subject := providerSubject(provider)
+	if category = strings.TrimSpace(category); category != "" {
+		return stringutil.Capitalize(fmt.Sprintf(
+			"%s blocked this response under its content policy (%s).", subject, category,
+		))
+	}
+	return stringutil.Capitalize(fmt.Sprintf(
+		"%s blocked this response under its content policy.", subject,
+	))
 }
 
 func providerSubject(provider string) string {

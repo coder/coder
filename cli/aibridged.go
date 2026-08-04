@@ -36,15 +36,16 @@ import (
 //
 // SubscribeProviderReload performs a best-effort initial reload synchronously,
 // so the pool is populated before this returns whenever the fetch succeeds.
-// That reload blocks on srv.Client(), but the embedded daemon's connection is
-// an in-memory pipe that comes up immediately, and the env seed (which holds
-// the seed lock) has already completed earlier in startup, so the wait is
-// negligible.
+// That reload blocks while acquiring a client, and it passes a background
+// context, so only the daemon lifecycle bounds the wait. That is acceptable
+// here: the embedded daemon's connection is an in-memory pipe that comes up
+// immediately, and the env seed (which holds the seed lock) has already
+// completed earlier in startup, so the wait is negligible.
 func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
-	logger := coderAPI.Logger.Named("aibridged")
+	logger := coderAPI.Logger.Named("ai-gateway")
 
 	providerMetrics := aibridged.NewMetrics(reg)
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
@@ -61,7 +62,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 	// Create daemon. Construct it before subscribing so the reloader can use
-	// srv.Client() to fetch providers over the in-memory RPC.
+	// srv.Client to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
 	}, logger, tracer)
@@ -90,8 +91,8 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 // and the standalone gateway (WebSocket RPC, retried at startup) so the fetch,
 // build, replace, and reload-metric accounting live in one place.
 type poolRPCReloader struct {
-	pool            *aibridged.CachedBridgePool
-	client          func() (aibridged.DRPCClient, error)
+	pool            aibridged.Pooler
+	client          aibridged.ClientFunc
 	cfg             codersdk.AIBridgeConfig
 	logger          slog.Logger
 	aibridgeMetrics *aibridge.Metrics
@@ -100,10 +101,12 @@ type poolRPCReloader struct {
 
 // NewPoolRPCReloader builds an [aibridged.ProviderReloader] that fetches the
 // provider set over the DRPC client returned by client and replaces pool's
-// providers, recording reload metrics against providerMetrics.
+// providers, recording reload metrics against providerMetrics. client receives
+// Reload's context, so a blocking acquisition unblocks when that context is
+// canceled.
 func NewPoolRPCReloader(
-	pool *aibridged.CachedBridgePool,
-	client func() (aibridged.DRPCClient, error),
+	pool aibridged.Pooler,
+	client aibridged.ClientFunc,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,
 	aibridgeMetrics *aibridge.Metrics,
@@ -121,8 +124,8 @@ func NewPoolRPCReloader(
 
 func (r *poolRPCReloader) Reload(ctx context.Context) error {
 	r.providerMetrics.RecordReloadAttempt()
-	// r.client() blocks until the daemon is connected to coderd.
-	client, err := r.client()
+	// r.client blocks until the daemon connects to coderd or ctx is canceled.
+	client, err := r.client(ctx)
 	if err != nil {
 		return xerrors.Errorf("get ai-gateway client: %w", err)
 	}
@@ -212,6 +215,7 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		)
 		bedrock.RoleARN = b.GetRoleArn()
 		bedrock.ExternalID = b.GetExternalId()
+		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
 		spec.Bedrock = ptr.Ref(bedrock)
 	}
 	return spec
@@ -354,6 +358,7 @@ func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 		SmallFastModel:  bedrockSettings.SmallFastModel,
 		RoleARN:         bedrockSettings.RoleARN,
 		ExternalID:      bedrockSettings.ExternalID,
+		Protocol:        config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
 	}
 }
 

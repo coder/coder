@@ -1367,6 +1367,9 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+
+	api.logTunnelConnection(ctx, r, waws)
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
@@ -1383,6 +1386,96 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+// logTunnelConnection records a connection log entry attributing a
+// tunnel to the authenticated user who opened it. Agent-reported rows
+// cannot identify the user (see coderd/agentapi/connectionlog.go), and
+// workspace-proxy-authenticated requests carry no API key and are
+// skipped.
+func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
+	apiKey, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		return
+	}
+	// Bounded so log backpressure cannot stall tunnel establishment.
+	writeCtx, writeCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer writeCancel()
+	userAgent := r.UserAgent()
+	now := dbtime.Now()
+
+	// Clients re-dial automatically, so dedupe reconnects through the
+	// same audit session mechanism as workspace apps, keyed on
+	// (agent, user, IP, user agent). Status 101 and the empty slug
+	// keep tunnel sessions from ever colliding with app or
+	// port-forwarding sessions.
+	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
+	if staleInterval == 0 {
+		staleInterval = time.Hour
+	}
+	// nolint:gocritic // System context is needed to write audit sessions.
+	newSession, err := api.Database.UpsertWorkspaceAppAuditSession(dbauthz.AsSystemRestricted(writeCtx), database.UpsertWorkspaceAppAuditSessionParams{
+		// Config.
+		StaleIntervalMS: staleInterval.Milliseconds(),
+
+		// Data.
+		ID:         uuid.New(),
+		AgentID:    waws.WorkspaceAgent.ID,
+		AppID:      uuid.Nil, // Tunnels are not associated with an app.
+		UserID:     apiKey.UserID,
+		Ip:         r.RemoteAddr,
+		UserAgent:  userAgent,
+		SlugOrPort: "",
+		StatusCode: http.StatusSwitchingProtocols,
+		StartedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		// Skip logging rather than risk spamming the connection log.
+		api.Logger.Error(ctx, "upsert tunnel audit session",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
+		return
+	}
+	if !newSession {
+		// Reconnection of an already-logged session.
+		return
+	}
+
+	connLogger := *api.ConnectionLogger.Load()
+	err = connLogger.Upsert(writeCtx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now,
+		OrganizationID:   waws.WorkspaceTable.OrganizationID,
+		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+		WorkspaceID:      waws.WorkspaceTable.ID,
+		WorkspaceName:    waws.WorkspaceTable.Name,
+		AgentName:        waws.WorkspaceAgent.Name,
+		Type:             database.ConnectionTypeTunnel,
+		IP:               database.ParseIP(r.RemoteAddr),
+		Code: sql.NullInt32{
+			Int32: http.StatusSwitchingProtocols,
+			Valid: true,
+		},
+		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
+		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
+		// Left unset so each session gets its own row; reusing peerID
+		// would make resume_token reconnects upsert into a stale row.
+		ConnectionID:     uuid.NullUUID{},
+		ConnectionStatus: database.ConnectionStatusConnected,
+		// N/A
+		SlugOrPort:       sql.NullString{},
+		DisconnectReason: sql.NullString{},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel connection log",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
 	}
 }
 
@@ -2135,7 +2228,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra)
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra, refreshedLink.OAuthExpiry)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
@@ -2208,7 +2301,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		if !valid {
 			continue
 		}
-		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra, externalAuthLink.OAuthExpiry)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create external auth response.",
@@ -2375,7 +2468,7 @@ func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConn
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage, expiry time.Time) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
@@ -2398,6 +2491,10 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 	}
 	resp.AccessToken = token
 	resp.Type = typ
+	// Normalize to UTC so JSON encoding always uses the "Z" suffix and
+	// preserves the full timestamp without losing sub-minute precision from
+	// historical timezone offsets (e.g. LMT).
+	resp.ExpiresAt = expiry.UTC()
 
 	var err error
 	if extra.Valid {

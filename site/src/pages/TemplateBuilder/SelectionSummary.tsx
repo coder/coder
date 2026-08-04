@@ -1,7 +1,6 @@
 import { cva } from "class-variance-authority";
-import { XIcon } from "lucide-react";
 import { createContext, type PropsWithChildren, useContext } from "react";
-import { Button } from "#/components/Button/Button";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { cn } from "#/utils/cn";
 
 type Variant = "complete" | "current" | "upcoming" | null | undefined;
@@ -23,14 +22,12 @@ type SelectionSummaryProps = {
 	currentStep: number;
 	selectedTemplate?: SelectedTemplate;
 	selectedModules?: SelectedModule[];
-	onDeselectModule: (moduleId: string) => void;
 };
 
 export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	currentStep,
 	selectedTemplate,
 	selectedModules,
-	onDeselectModule,
 }) => {
 	const variant = (step: number) => {
 		if (currentStep === step) return "current";
@@ -52,10 +49,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 				<VariantContext.Provider value={variant(2)}>
 					<StepIndicator step={2}>Modules</StepIndicator>
 					{selectedModules ? (
-						<ModuleSelection
-							modules={selectedModules}
-							onDeselectModule={onDeselectModule}
-						/>
+						<ModuleSelection modules={selectedModules} />
 					) : (
 						<StepDivider />
 					)}
@@ -148,12 +142,10 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 }) => {
 	return (
 		<StepDivider>
-			<div className="flex items-center p-1">
-				<img
-					src={template.iconUrl}
-					alt={`${template.name} icon`}
-					className="w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
-				/>
+			<div className="flex items-start p-1">
+				<div className="h-[1lh] content-center">
+					<Avatar src={template.iconUrl} size="sm" variant="icon" />
+				</div>
 				<span className="ml-2 text-content-secondary">{template.name}</span>
 			</div>
 		</StepDivider>
@@ -162,41 +154,22 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 
 type ModuleSelectionProps = {
 	modules: SelectedModule[];
-	onDeselectModule: (moduleId: string) => void;
 };
 
-const ModuleSelection: React.FC<ModuleSelectionProps> = ({
-	modules,
-	onDeselectModule,
-}) => {
+const ModuleSelection: React.FC<ModuleSelectionProps> = ({ modules }) => {
 	return (
 		<StepDivider className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (
 				<div
 					key={module.id}
-					className="group flex items-start justify-between p-1 mb-1 rounded-sm hover:bg-surface-secondary"
+					className="group flex items-start justify-between p-1 mb-1 rounded-sm"
 				>
 					<div className="h-[1lh] content-center">
-						<img
-							src={module.iconUrl}
-							alt={`${module.name} icon`}
-							className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
-						/>
+						<Avatar src={module.iconUrl} size="sm" variant="icon" />
 					</div>
 					<span className="flex-1 ml-2 text-content-secondary">
 						{module.name}
 					</span>
-					<div className="h-[1lh] content-center">
-						<Button
-							size="xs"
-							variant="subtle"
-							className="flex opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-							onClick={() => onDeselectModule(module.id)}
-							aria-label="Deselect module"
-						>
-							<XIcon className="w-4 h-4" />
-						</Button>
-					</div>
 				</div>
 			))}
 		</StepDivider>

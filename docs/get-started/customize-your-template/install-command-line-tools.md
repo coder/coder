@@ -132,7 +132,7 @@ coder ssh <your-workspace>
 
 When you reconnect, your shell prints an error before you run anything:
 
-```text
+```txt
 bash: /home/linuxbrew/.linuxbrew/bin/brew: No such file or directory
 ```
 
@@ -146,7 +146,7 @@ Check each tool to see what survived.
 bat --version
 ```
 
-```text
+```txt
 bat 0.26.1
 ```
 
@@ -156,7 +156,7 @@ bat 0.26.1
 rg --version
 ```
 
-```text
+```txt
 bash: rg: command not found
 ```
 
@@ -166,7 +166,7 @@ So is `brew` itself:
 brew --version
 ```
 
-```text
+```txt
 bash: brew: command not found
 ```
 

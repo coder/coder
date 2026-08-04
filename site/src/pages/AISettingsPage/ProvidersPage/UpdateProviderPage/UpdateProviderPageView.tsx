@@ -14,7 +14,7 @@ import {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
@@ -146,7 +146,9 @@ const UpdateProviderPageView: React.FC = () => {
 					<Avatar
 						variant="icon"
 						size="lg"
-						src={getProviderIcon(getProviderDisplayType(provider))}
+						src={
+							provider.icon || getProviderIcon(getProviderDisplayType(provider))
+						}
 					/>
 					<SettingsHeaderTitle>
 						<span className="block min-w-0 truncate">

@@ -27,7 +27,7 @@ are added to this organization by default.
 To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
-<Image height="255px" src="../../images/admin/users/organizations/admin-settings-orgs.png" alt="Organizations Menu" align="center" />
+<img height="255px" src="../../images/admin/users/organizations/admin-settings-orgs.png" alt="Organizations Menu" align="center" />
 
 From there, you can manage the name, icon, description, users, and groups:
 
@@ -59,11 +59,11 @@ To create a new organization:
 
 1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
 
-   <Image height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
+   <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
 
 1. Enter the details and select **Save** to continue:
 
-   <Image height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
+   <img height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
 
 In this example, we'll create the `data-platform` org.
 
@@ -79,7 +79,7 @@ provisioner as the built-in provisioners are scoped to the default organization.
 1. Using Coder CLI, run the following command to create a key that will be used
    to authenticate the provisioner:
 
-   ```shell
+   ```sh
    coder provisioner keys create data-cluster-key --org data-platform
    Successfully created provisioner key data-cluster! Save this authentication token, it will not be shown again.
 
@@ -111,7 +111,7 @@ From **Admin settings**, select **Organizations**, then **Members** to add membe
 your organization. Once added, members will be able to see the
 organization-specific templates.
 
-<Image height="365px" src="../../images/admin/users/organizations/organization-members.png" alt="Add members" align="center" />
+<img height="365px" src="../../images/admin/users/organizations/organization-members.png" alt="Add members" align="center" />
 
 ### 5. Create a workspace
 
@@ -119,6 +119,38 @@ Now, users in the data platform organization will see the templates related to
 their organization. Users can be in multiple organizations.
 
 ![Workspace List](../../images/admin/users/organizations/workspace-list.png)
+
+## Default member roles
+
+> [!NOTE]
+> Editing default member roles requires a Premium license.
+> ([learn more](https://coder.com/pricing#compare-plans)).
+
+Each organization carries a `default_org_member_roles` list of built-in role
+names. Coder unions this list into every member's effective roles at request
+time, so changes propagate to all current and future members on their next
+request without re-issuing tokens or editing per-user role assignments.
+
+The default value is `["organization-workspace-access"]`. With that default,
+every organization member can read, build, ssh into, and execute commands in
+workspaces they own. Removing `organization-workspace-access` from the list
+creates organization members that cannot create or use workspaces unless the
+role is assigned to them directly, which is useful for restricted accounts
+that should only hold the minimal member permissions.
+
+To edit the default roles in the dashboard, go to
+**Admin settings** > **Organizations** > **Roles** > **Default Roles**, or
+set `default_org_member_roles` via
+`PATCH /organizations/{organization}`.
+
+### Limitations
+
+- `default_org_member_roles` accepts built-in role names only. Custom
+  organization roles are rejected; assign them directly to members instead.
+- Removing a role from the list removes it from every member that does not
+  hold the role through a direct assignment, including existing members.
+  Review the per-organization [audit log](../security/audit-logs.md) if you
+  need to trace who changed the defaults.
 
 ## Next steps
 

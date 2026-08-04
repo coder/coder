@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -366,6 +368,16 @@ func buildAuthHeaders(
 		if !ok {
 			logger.Warn(ctx,
 				"no oauth2 token found for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		if tok.OauthRefreshFailureReason != "" {
+			// The grant is permanently unusable (e.g. revoked
+			// upstream) and the user must reconnect. Do not attach
+			// any leftover token material.
+			logger.Warn(ctx,
+				"oauth2 token for MCP server requires reconnect, skipping auth header",
 				slog.F("server_slug", cfg.Slug),
 			)
 			break
@@ -858,6 +870,43 @@ type RefreshResult struct {
 	Refreshed bool
 }
 
+// refreshFailureReasonLimit caps the error text persisted to
+// mcp_server_user_tokens.oauth_refresh_failure_reason, matching the
+// external auth failure reason limit.
+const refreshFailureReasonLimit = 400
+
+// IsPermanentRefreshError reports whether an OAuth2 token refresh
+// error means the user's grant is permanently unusable (for example
+// the upstream grant was revoked) rather than a transient provider
+// failure. Only error codes tied to the grant itself count: client
+// or config problems (invalid_client, unauthorized_client, ...)
+// affect every user of the server and cannot be fixed by the user
+// reconnecting, so they are treated as transient here. See RFC 6749
+// section 5.2.
+func IsPermanentRefreshError(err error) bool {
+	var oauthErr *oauth2.RetrieveError
+	if !xerrors.As(err, &oauthErr) {
+		return false
+	}
+	switch oauthErr.ErrorCode {
+	case "invalid_grant", // RFC 6749: grant invalid, expired, or revoked
+		"bad_refresh_token": // GitHub's equivalent, returned with HTTP 200
+		return true
+	}
+	return false
+}
+
+// RefreshFailureReason converts a refresh error into a bounded string
+// safe to persist as oauth_refresh_failure_reason. It is stored for
+// operator debugging only and is never returned through the API.
+func RefreshFailureReason(err error) string {
+	reason := err.Error()
+	if len(reason) > refreshFailureReasonLimit {
+		reason = reason[:refreshFailureReasonLimit]
+	}
+	return reason
+}
+
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
 // the OAuth2 credentials from the server config. If the token is
@@ -914,4 +963,212 @@ func RefreshOAuth2Token(
 		Expiry:       newToken.Expiry,
 		Refreshed:    refreshed,
 	}, nil
+}
+
+// RevokeOAuth2Token revokes the user's token at the provider's RFC 7009
+// endpoint. It prefers the refresh token, retrying with the access token
+// only on unsupported_token_type; other failures do not fall back, since
+// an access-token success would hide a possibly live refresh token.
+// Returns false without error when there is no revocation endpoint or no
+// stored token. Errors carry only the HTTP status because provider
+// bodies may echo secrets.
+func RevokeOAuth2Token(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (bool, error) {
+	if cfg.OAuth2RevocationURL == "" {
+		return false, nil
+	}
+	if tok.RefreshToken == "" && tok.AccessToken == "" {
+		return false, nil
+	}
+	if err := ValidateRevocationEndpoint(cfg.OAuth2RevocationURL); err != nil {
+		return false, err
+	}
+
+	if httpClient == nil {
+		httpClient = mcpHTTPClient()
+	}
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	// Copy so CheckRedirect does not leak into the shared client.
+	redirectSafe := *httpClient
+	redirectSafe.CheckRedirect = checkRevocationRedirect
+	httpClient = &redirectSafe
+
+	token, hint := tok.AccessToken, "access_token"
+	if tok.RefreshToken != "" {
+		token, hint = tok.RefreshToken, "refresh_token"
+	}
+	status, errorCode, err := postTokenRevocation(ctx, httpClient, cfg, token, hint)
+	if err != nil {
+		return false, err
+	}
+	if isRevocationSuccessStatus(status) {
+		return true, nil
+	}
+
+	if hint == "refresh_token" && tok.AccessToken != "" && errorCode == "unsupported_token_type" {
+		fbStatus, _, fbErr := postTokenRevocation(ctx, httpClient, cfg, tok.AccessToken, "access_token")
+		if fbErr != nil {
+			return false, fbErr
+		}
+		if isRevocationSuccessStatus(fbStatus) {
+			return true, nil
+		}
+		return false, xerrors.Errorf(
+			"revocation endpoint returned HTTP %d for the refresh token and HTTP %d for the access token",
+			status, fbStatus,
+		)
+	}
+	return false, xerrors.Errorf(
+		"revocation endpoint returned HTTP %d", status,
+	)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// ValidateRevocationEndpoint enforces the RFC 7009 HTTPS requirement;
+// the request carries token material and the client secret. Plain HTTP
+// is allowed only for loopback hosts.
+func ValidateRevocationEndpoint(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return xerrors.Errorf("parse revocation URL: %w", err)
+	}
+	// url.Parse accepts hostless forms like "https:/revoke" that can
+	// never be POSTed to.
+	if parsed.Hostname() == "" {
+		return xerrors.Errorf(
+			"revocation endpoint %q has no host", parsed.Redacted(),
+		)
+	}
+	if !isAllowedRevocationScheme(parsed) {
+		return xerrors.Errorf(
+			"revocation endpoint %q must use https", parsed.Redacted(),
+		)
+	}
+	return nil
+}
+
+func isAllowedRevocationScheme(u *url.URL) bool {
+	if u.Scheme == "https" {
+		return true
+	}
+	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
+}
+
+// checkRevocationRedirect stops the revocation POST, which carries
+// token material and client credentials, from following redirects off
+// the provider's origin. Loopback to loopback is exempt.
+func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return xerrors.New("stopped after 10 redirects")
+	}
+	// net/http follows 301/302/303 with a bodyless GET; the token never
+	// reaches the endpoint and a trailing 200 would be a false success.
+	if req.Method != http.MethodPost {
+		return xerrors.New(
+			"revocation redirect dropped the POST body",
+		)
+	}
+	if !isAllowedRevocationScheme(req.URL) {
+		return xerrors.New("revocation redirect target must use https")
+	}
+	origin := via[0].URL
+	if isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname()) {
+		return nil
+	}
+	if req.URL.Scheme != origin.Scheme ||
+		!strings.EqualFold(req.URL.Hostname(), origin.Hostname()) ||
+		normalizedPort(req.URL) != normalizedPort(origin) {
+		return xerrors.Errorf(
+			"revocation redirect must stay on origin %q",
+			origin.Scheme+"://"+origin.Host,
+		)
+	}
+	return nil
+}
+
+func normalizedPort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	switch u.Scheme {
+	case "https":
+		return "443"
+	case "http":
+		return "80"
+	default:
+		return ""
+	}
+}
+
+func isRevocationSuccessStatus(status int) bool {
+	return status == http.StatusOK || status == http.StatusNoContent
+}
+
+// postTokenRevocation returns the HTTP status and the RFC 6749 error
+// code from the body; the raw body never propagates.
+func postTokenRevocation(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	token, tokenTypeHint string,
+) (int, string, error) {
+	form := url.Values{}
+	form.Set("token", token)
+	form.Set("token_type_hint", tokenTypeHint)
+	// Only public clients send client_id in the body; mixing it with
+	// Basic auth is malformed per RFC 6749 section 2.3.1.
+	if cfg.OAuth2ClientSecret == "" {
+		form.Set("client_id", cfg.OAuth2ClientID)
+	}
+
+	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		revokeCtx, http.MethodPost,
+		cfg.OAuth2RevocationURL, strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return 0, "", xerrors.Errorf("create revocation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Credentials are form-encoded per RFC 6749 section 2.3.1
+	// (mirrors x/oauth2).
+	if cfg.OAuth2ClientSecret != "" {
+		req.SetBasicAuth(url.QueryEscape(cfg.OAuth2ClientID), url.QueryEscape(cfg.OAuth2ClientSecret))
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
+		return 0, "", xerrors.Errorf("revoke oauth2 token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if isRevocationSuccessStatus(resp.StatusCode) {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode, "", nil
+	}
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&errBody)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, errBody.Error, nil
 }

@@ -8,9 +8,6 @@ import {
 	MockPreviewParameter2,
 	MockPreviewParameter4,
 	MockPreviewParameter7,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter4,
-	MockTemplateVersionParameter7,
 	MockWorkspace,
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter4,
@@ -50,11 +47,6 @@ describe("WorkspaceParametersPage", () => {
 		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
 			MockWorkspace,
 		);
-		vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-			MockTemplateVersionParameter1, // a mutable string
-			MockTemplateVersionParameter4, // an immutable string
-			MockTemplateVersionParameter7, // optional string
-		]);
 		vi.spyOn(API, "postWorkspaceBuild").mockRejectedValueOnce(
 			new Error("not implemented"),
 		);
@@ -328,6 +320,12 @@ describe("WorkspaceParametersPage", () => {
 			MockPreviewParameter4,
 			MockPreviewParameter7,
 		);
+
+		// Make the debounce fire after each macrotask, to avoid the waitFor() calls
+		// timing out.  As the edits come in and are (sometimes slowly) processed on
+		// top of the 500ms debounce, this can trip waitFor()'s 1000ms timeout.
+		vi.useFakeTimers();
+		vi.setTimerTickMode("nextTimerAsync");
 
 		// Blank out one field and fill out another.
 		const editedParameters = [

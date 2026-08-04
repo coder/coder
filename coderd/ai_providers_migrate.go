@@ -151,6 +151,7 @@ func SeedAIProvidersFromEnv(
 				Type:          dp.Type,
 				Name:          dp.Name,
 				DisplayName:   sql.NullString{String: dp.Name, Valid: true},
+				Icon:          "",
 				Enabled:       true,
 				BaseUrl:       dp.BaseURL,
 				Settings:      settings,

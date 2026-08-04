@@ -10,7 +10,7 @@ The accessibility-driven rules live on that page so heading structure, language,
 ## One sentence per line
 
 Write each sentence on its own Markdown source line.
-Do not split a sentence across multiple lines, and do not wrap to a fixed column width.
+Don't split a sentence across multiple lines, and don't wrap to a fixed column width.
 
 The payoff is cleaner diffs and easier authoring.
 A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved.
@@ -21,23 +21,34 @@ What counts as a single line:
 - One declarative, interrogative, or imperative sentence ending in a period, question mark, or exclamation point.
 - The full text of a single bullet item, numbered list entry, or blockquote line.
 
-What does not get its own line:
+What doesn't get its own line:
 
 - Mid-sentence clauses or phrases.
 - Source inside fenced code blocks, where the language's own conventions apply.
 - Table rows, which are governed by `markdown-table-formatter`.
 
+The examples show Markdown source, not rendered output, because the convention governs how the source lines are laid out.
+
 **Do**:
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (mid-sentence clause breaks):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace,
+opens a Tailscale tunnel,
+and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (fixed column wrap):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale
+tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
 Both **Don't** versions add noise to the source and produce diff churn on small edits.
 
@@ -111,14 +122,14 @@ Use backticks (inline code font) for the following:
 > Run `coder login --token <token>` to authenticate.
 > Set `CODER_URL` in your environment first.
 >
-> The server returns `404 Not Found` when the workspace does not exist.
+> The server returns `404 Not Found` when the workspace doesn't exist.
 
 **Don't**:
 
 > Run "coder login --token \<token\>" to authenticate.
 > Set CODER_URL in your environment first.
 >
-> The server returns 404 when the workspace does not exist.
+> The server returns 404 when the workspace doesn't exist.
 
 *Documentation-only.
 No Vale rule.*
@@ -133,22 +144,37 @@ Every fenced code block declares a language.
 Use the most specific language tag available:
 
 - `sh` for a shell command or a shell script.
-  Use `sh` when the block is input the reader types or a script they save, and the block does not also show output.
+  Use `sh` when the block is input the reader types or a script they save, and the block doesn't also show output.
 - `console` for an interactive session that shows the typed command and its output together.
   Prefix each typed line with `$`.
-- `powershell` for Windows command-line blocks.
+- `ps1` for Windows command-line blocks.
   PowerShell is the default Windows shell in the Coder docs.
+  `pwsh` and `powershell` are not the canonical tag; use `ps1`.
+  `ps1` is Shiki's PowerShell alias, and it's also GitHub's `.ps1` file extension, which its markdown renderer falls back to when a fence label isn't a recognized language name; `ps` isn't registered either way and won't highlight on GitHub today.
 - `tf` for Terraform and HCL.
+  `terraform` and `hcl` are not the canonical tag; use `tf`.
+  Shiki ships `terraform` and `hcl` as two distinct grammars; `tf` is an alias of the more specific `terraform` grammar (not `hcl`), and matches what nearly every Coder docs code block actually is.
 - `yaml` for YAML.
+  `yml` is not the canonical tag; use `yaml`.
 - `go` for Go.
 - `json` for JSON.
-- `text` for command output shown on its own, and for any block with no syntax to highlight.
+  `jsonc` is a distinct Shiki grammar for JSON that permits comments; use it only for blocks that actually contain comments, otherwise use `json`.
+- `dotenv` for `.env`-style `KEY=VALUE` blocks.
+- `txt` for command output shown on its own, and for any block with no syntax to highlight.
+  `text`, `output`, `none`, and `url` are not the canonical tag; use `txt`.
+- `dockerfile` for Dockerfiles, lowercase.
+  `Dockerfile` (capitalized) is not a valid tag.
+- `md` for Markdown, including Markdown shown as a fenced example inside another Markdown file.
+  `markdown` is not the canonical tag; use `md`.
+- `tsx` for TypeScript, including plain (non-JSX) TypeScript.
+  `ts` and `typescript` are not the canonical tag; use `tsx`.
+  `tsx` mis-tokenizes the legacy angle-bracket type-assertion syntax (`<Type>value`), which is invalid in real `.tsx` files anyway; write casts as `value as Type` instead, which is unambiguous under both grammars and is already the idiomatic style.
 
 `bash` and `shell` are aliases of `sh`.
 Use `sh` so the corpus stays consistent.
 
 A command with no output shown is `sh`, not `console`.
-To show a command together with its output, either use one `console` block with `$` before the typed line, or split the command into an `sh` block and the output into a `text` block.
+To show a command together with its output, either use one `console` block with `$` before the typed line, or split the command into an `sh` block and the output into a `txt` block.
 
 The auto-generated Coder CLI reference under `docs/reference/cli/` labels its command-usage blocks `console`.
 That output is generated.
@@ -156,7 +182,9 @@ Do not copy the pattern into hand-written pages.
 
 The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core), which detects the language from the code content, not from the fence label.
 The fence label still drives highlighting on GitHub and in most editors, and `markdownlint` rule `MD040` requires one, so always declare the most specific language.
-For content with no sensible language tag, fall back to `text`.
+A future docs renderer may adopt [Shiki](https://shiki.style), which fails the build on a fence label it doesn't recognize as a language or alias, so use only tags Shiki supports.
+For content with no sensible language tag, fall back to `txt`.
+A fence label needing a grammar Shiki doesn't bundle (for example `promql` or `caddyfile`) stays as-is; register it as a custom grammar when the site adopts Shiki, rather than degrading it to `txt`.
 
 **Do**:
 
@@ -195,11 +223,11 @@ Prose should carry the message.
 
 | Callout          | Use for                                                                                                              |
 |------------------|----------------------------------------------------------------------------------------------------------------------|
-| `> [!NOTE]`      | Supplementary context the reader benefits from but does not need to act on before proceeding                         |
+| `> [!NOTE]`      | Supplementary context the reader benefits from but doesn't need to act on before proceeding                          |
 | `> [!TIP]`       | An optional optimization, shortcut, or related feature                                                               |
 | `> [!IMPORTANT]` | A required step or prerequisite the reader will miss if they skim                                                    |
 | `> [!WARNING]`   | An action with a serious side effect (data loss, downtime, security exposure) that the reader must read before doing |
-| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` is not strong enough                         |
+| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` isn't strong enough                          |
 
 A follow-up PR will demonstrate each callout rendered against an existing docs page so reviewers can calibrate when each one fits.
 
@@ -233,7 +261,7 @@ curl -L https://coder.com/install.sh | sh
 
 ### Windows
 
-```powershell
+```ps1
 winget install Coder.Coder
 ```
 
@@ -266,13 +294,13 @@ If one item is a complete sentence, rewrite the rest so every item is a complete
 
 **Do**:
 
-```markdown
+```md
 1. Run `coder login` to authenticate.
 2. Create the workspace template.
 3. Build the workspace from the template.
 ```
 
-```markdown
+```md
 The provisioner supports:
 
 - AWS
@@ -280,7 +308,7 @@ The provisioner supports:
 - Google Cloud
 ```
 
-```markdown
+```md
 The agent reconnect logic uses the following timeouts:
 
 - Initial reconnect: 1 second.
@@ -290,13 +318,13 @@ The agent reconnect logic uses the following timeouts:
 
 **Don't**:
 
-```markdown
+```md
 1. The user runs `coder login` to authenticate
 2. Creating the workspace template comes next.
 3. Then the workspace gets built from the template
 ```
 
-```markdown
+```md
 The provisioner supports:
 
 - AWS.
@@ -312,14 +340,14 @@ When such a list needs a lead-in, end the lead-in with a colon on a clause that 
 
 **Do**:
 
-```markdown
+```md
 You have two options:
 
 - Install the tool with `apt-get` in the template's startup script.
 - Bake the tool into the workspace image.
 ```
 
-```markdown
+```md
 ## Learn more
 
 - [Extending templates](./extending-templates.md)
@@ -328,7 +356,7 @@ You have two options:
 
 **Don't**:
 
-```markdown
+```md
 Install it where it persists across rebuilds:
 
 - Add it to the template's startup script with `apt-get`.
@@ -381,12 +409,12 @@ Place image assets under the matching subdirectory of `docs/images/`.
 Use lowercase filenames with hyphens between words (`template-insights-dashboard.png`).
 Reference the asset with a relative path from the Markdown source.
 
-Captions go below the image in a `<small>` tag.
+Captions follow the image in a `<small>` tag.
 
-```markdown
+```md
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
-<small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
+<small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
 For alt text and decorative-image conventions, refer to [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images) and [Decorative images](./accessibility-and-inclusion.md#decorative-images).
@@ -405,7 +433,7 @@ A worked example, a code block, or a precise written instruction is almost alway
 
 Screenshots carry an ongoing maintenance burden.
 The product UI changes, strings get renamed, themes get retuned, and a screenshot that was accurate at merge time silently rots.
-Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader cannot use the screenshot at all.
+Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader can't use the screenshot at all.
 The writer who adds a screenshot owns the cost of replacing it every time the captured surface changes.
 
 When a screenshot is the right answer:
@@ -426,7 +454,7 @@ When a screenshot is the right answer:
 
 > ![Workspace settings page with Autostart set to Weekdays at 9 AM](../../images/workspaces/autostart.png)
 >
-> Configure autostart as shown above.
+> Configure autostart as shown in the screenshot.
 
 The authoritative screenshot policy, including the obfuscation, PHI, and PII rules, lives in [`content-guidelines.md`](../content-guidelines.md).
 

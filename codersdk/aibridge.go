@@ -4,13 +4,131 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
+
+// MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
+// $1,000,000 per member per budget period.
+const MaxAISpendLimitMicros int64 = 1_000_000_000_000
+
+// AIBudgetLimitSource identifies which tier produced the user's
+// effective budget limit.
+type AIBudgetLimitSource string
+
+const (
+	// AIBudgetLimitSourceUserOverride indicates the limit came from a
+	// per-user override.
+	AIBudgetLimitSourceUserOverride AIBudgetLimitSource = "user_override"
+	// AIBudgetLimitSourceGroup indicates the limit came from a group
+	// budget selected by the deployment budget policy.
+	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
+)
+
+// AIBudgetLimit is an AI spend limit and the tier that produced it. Both
+// fields are always populated together.
+type AIBudgetLimit struct {
+	SpendLimitMicros int64               `json:"spend_limit_micros"`
+	LimitSource      AIBudgetLimitSource `json:"limit_source"`
+}
+
+// UserAIBudgetSummary is the effective AI budget for a user. When no budget
+// applies, the effective group falls back to the Everyone group with a null
+// budget.
+type UserAIBudgetSummary struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the group the spend is attributed to, falling back to
+	// the Everyone group when no budget applies. Null only when the user has no
+	// organization membership.
+	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// EffectiveBudget is the spend limit that applies to the user, whether it
+	// came from a group budget or a user override. Null when no budget
+	// applies, leaving the user's spend unlimited.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+}
+
+// AISpendPeriodWindow is the [Start, End) window over which AI spend is
+// aggregated.
+type AISpendPeriodWindow struct {
+	// PeriodStart is the inclusive lower bound of the current budget
+	// period.
+	PeriodStart time.Time `json:"period_start" format:"date-time"`
+	// PeriodEnd is the exclusive upper bound of the current budget
+	// period.
+	PeriodEnd time.Time `json:"period_end" format:"date-time"`
+}
+
+// UserAISpendStatus is the current AI spend snapshot for a user within
+// the active budget period.
+type UserAISpendStatus struct {
+	UserAIBudgetSummary
+	AISpendPeriodWindow
+	// CurrentSpendMicros is the user's spend on their effective group over
+	// the current budget period.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+}
+
+// OrganizationGroupsAISpend reports AI spend for a set of groups in the
+// active budget period.
+type OrganizationGroupsAISpend struct {
+	AISpendPeriodWindow
+	Groups []OrganizationGroupAISpend `json:"groups"`
+}
+
+// OrganizationGroupAISpend is the current AI spend snapshot for a group
+// within the active budget period.
+type OrganizationGroupAISpend struct {
+	GroupID uuid.UUID `json:"group_id" format:"uuid"`
+	// SpendLimitMicros is the group's configured AI spend budget per member.
+	// Null when the group has no configured budget.
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
+	// TotalSpendLimitMicros is the currently configured combined budget of the
+	// members attributed to this group, with each member's override replacing
+	// their share. Null when the group has no budget, and zero when no members
+	// are attributed to it.
+	TotalSpendLimitMicros *int64 `json:"total_spend_limit_micros"`
+	// CurrentSpendMicros is the group's spend over the current budget period.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+}
+
+// GroupAISpend is the current AI spend snapshot for a single group within
+// the active budget period.
+type GroupAISpend struct {
+	AISpendPeriodWindow
+	OrganizationGroupAISpend
+}
+
+// GroupMembersAISpend reports per-member AI spend attributed to a specific
+// group in the active budget period.
+type GroupMembersAISpend struct {
+	AISpendPeriodWindow
+	Members []GroupMemberAISpend `json:"members"`
+}
+
+// GroupMemberAISpend is a single member's AI spend attributed to the queried
+// group in the current budget period.
+type GroupMemberAISpend struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the user's effective budget group within the queried
+	// group's organization, falling back to the Everyone group when no budget
+	// applies. Null when the effective group belongs to a different organization
+	// than the queried group.
+	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// GroupBudget is the budget when the queried group is this user's
+	// effective budget source. Null when the user's budget resolves to another
+	// group or no budget applies to the user.
+	GroupBudget *AIBudgetLimit `json:"group_budget"`
+	// GroupSpendMicros is the user's spend attributed to the queried group
+	// over the current budget period.
+	GroupSpendMicros int64 `json:"group_spend_micros"`
+}
 
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
@@ -23,8 +141,13 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	LastPrompt        *string                          `json:"last_prompt,omitempty"`
-	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
+	// NetworkCalls summarizes the Agent Firewall network requests made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	LastPrompt   *string                            `json:"last_prompt,omitempty"`
+	LastActiveAt time.Time                          `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
@@ -32,6 +155,21 @@ type AIBridgeSessionTokenUsageSummary struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
+}
+
+// AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
+// calls made during a session. Blocked counts calls denied by the firewall
+// allow-list.
+type AIBridgeSessionNetworkCallSummary struct {
+	Total   int64 `json:"total"`
+	Blocked int64 `json:"blocked"`
+}
+
+// AIBridgeSessionNetworkDomain is one destination host contacted during a
+// session, with the number of network calls made to it.
+type AIBridgeSessionNetworkDomain struct {
+	Domain string `json:"domain"`
+	Count  int64  `json:"count"`
 }
 
 type AIBridgeListSessionsResponse struct {
@@ -54,7 +192,23 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
-	Threads           []AIBridgeThread                 `json:"threads"`
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	// NetworkTopDomains lists the most contacted destination hosts, ordered by
+	// call count descending. NetworkDomainCount is the total number of distinct
+	// domains, used to render a "+N more" overflow beyond the listed domains.
+	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
+	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
+	// NetworkCallLogs is the chronological list of individual network calls made
+	// during the session, holding the earliest calls up to a server-side cap.
+	// NetworkCalls remains authoritative for whole-session totals, so a shorter
+	// list than NetworkCalls.Total means the list was truncated. Empty when the
+	// session did not pass through Agent Firewall.
+	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
+	Threads         []AIBridgeThread   `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage
@@ -80,6 +234,13 @@ type AIBridgeThread struct {
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
 	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// ErrorType is the categorized terminal upstream error from the root
+	// interception, or nil when the interception succeeded. See the
+	// aibridge_interception_error_type enum for possible values.
+	ErrorType *string `json:"error_type,omitempty"`
+	// ErrorMessage is the raw terminal upstream error message from the root
+	// interception. Nil when the interception succeeded.
+	ErrorMessage *string `json:"error_message,omitempty"`
 	// AgentFirewallSessionID links this thread to an agent firewall
 	// confinement session. Nil when the request did not pass through
 	// the agent firewall.
@@ -244,6 +405,36 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, json.NewDecoder(res.Body).Decode(&clients)
 }
 
+// ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
+// per-provider AI spend for the organization over the requested period. Both
+// bounds are optional and interpreted as UTC, and zero values fall back to the
+// current budget period on the server. The caller is responsible for closing
+// the returned ReadCloser.
+func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			if !opts.PeriodStart.IsZero() {
+				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
+			}
+			if !opts.PeriodEnd.IsZero() {
+				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
+			}
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, ReadBodyAsError(res)
+	}
+	return res.Body, nil
+}
+
 type GroupAIBudget struct {
 	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
 	SpendLimitMicros int64     `json:"spend_limit_micros"`
@@ -252,6 +443,7 @@ type GroupAIBudget struct {
 }
 
 type UpsertGroupAIBudgetRequest struct {
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
@@ -319,14 +511,15 @@ type UserAIBudgetOverride struct {
 type UpsertUserAIBudgetOverrideRequest struct {
 	// GroupID is the group the user's spend is attributed to. The user must
 	// be a member of this group.
-	GroupID          uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
-	SpendLimitMicros int64     `json:"spend_limit_micros" validate:"gte=0"`
+	GroupID uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
+	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
 // UserAIBudgetOverride returns the AI spend budget override configured for the given user.
 func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (UserAIBudgetOverride, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		nil,
 	)
 	if err != nil {
@@ -344,7 +537,7 @@ func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (User
 // UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
 func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID, req UpsertUserAIBudgetOverrideRequest) (UserAIBudgetOverride, error) {
 	res, err := c.Request(ctx, http.MethodPut,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		req,
 	)
 	if err != nil {
@@ -362,7 +555,7 @@ func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID,
 // DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
 func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		fmt.Sprintf("/api/v2/users/%s/ai/budget/override", user.String()),
 		nil,
 	)
 	if err != nil {
@@ -374,4 +567,96 @@ func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID)
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// UserAISpendStatus returns the current AI spend snapshot for the given user
+// within the active budget period.
+func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/spend", user.String()),
+		nil,
+	)
+	if err != nil {
+		return UserAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp UserAISpendStatus
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// OrganizationGroupsAISpend returns AI spend for the given groups within the
+// organization for the active budget period. At most 100 group IDs may be
+// requested per call, and callers with more groups are expected to batch
+// across multiple requests.
+func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uuid.UUID, groupIDs []uuid.UUID) (OrganizationGroupsAISpend, error) {
+	ids := slice.List(groupIDs, func(id uuid.UUID) string { return id.String() })
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/groups/ai/spend", organization.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("group_ids", strings.Join(ids, ","))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return OrganizationGroupsAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationGroupsAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupAISpend returns AI spend for the given group within the active budget
+// period.
+func (c *Client) GroupAISpend(ctx context.Context, group uuid.UUID) (GroupAISpend, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/ai/spend", group.String()),
+		nil,
+	)
+	if err != nil {
+		return GroupAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupMembersAISpend returns AI spend attributed to the given group for the
+// specified users within the active budget period. At most 100 user IDs may be
+// requested per call, and callers with more members are expected to batch
+// across multiple requests.
+func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userIDs []uuid.UUID) (GroupMembersAISpend, error) {
+	ids := slice.List(userIDs, func(id uuid.UUID) string { return id.String() })
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/members/ai/spend", group.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("user_ids", strings.Join(ids, ","))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return GroupMembersAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupMembersAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupMembersAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

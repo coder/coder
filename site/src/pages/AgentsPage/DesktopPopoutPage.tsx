@@ -95,7 +95,7 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 		return (
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">
 				<div className="flex flex-col items-center gap-2 text-content-secondary">
-					<Spinner loading className="h-6 w-6" />
+					<Spinner loading className="size-6" />
 					<span className="text-sm">
 						{status === "idle"
 							? "Initializing desktop..."
@@ -126,7 +126,7 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 		return (
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">
 				<div className="flex flex-col items-center gap-2 text-content-secondary">
-					<Spinner loading className="h-6 w-6" />
+					<Spinner loading className="size-6" />
 					<span className="text-sm">Desktop disconnected. Reconnecting...</span>
 				</div>
 			</div>

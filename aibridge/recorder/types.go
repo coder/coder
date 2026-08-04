@@ -2,6 +2,7 @@ package recorder
 
 import (
 	"context"
+	"net/http"
 	"time"
 )
 
@@ -55,12 +56,62 @@ type InterceptionRecord struct {
 	CredentialHint string
 }
 
+// ErrorType categorizes the terminal upstream error observed when an
+// interception fails. The empty value means the interception succeeded and no
+// error should be recorded. Values must match the
+// aibridge_interception_error_type Postgres enum.
+type ErrorType string
+
+const (
+	// ErrorTypeBadRequest is a malformed or otherwise rejected request (HTTP 400).
+	ErrorTypeBadRequest ErrorType = "bad_request"
+	// ErrorTypeUnauthorized is an authentication or authorization failure (HTTP 401/403).
+	ErrorTypeUnauthorized ErrorType = "unauthorized"
+	// ErrorTypeRateLimited is an upstream rate-limit response (HTTP 429).
+	ErrorTypeRateLimited ErrorType = "rate_limited"
+	// ErrorTypeOverloaded is an upstream overloaded response (Anthropic's HTTP
+	// 529 or OpenAI's HTTP 503).
+	ErrorTypeOverloaded ErrorType = "overloaded"
+	// ErrorTypeServerError is an upstream or gateway server error (HTTP 5xx).
+	ErrorTypeServerError ErrorType = "server_error"
+	// ErrorTypeTimeout is an upstream request timeout (HTTP 408).
+	ErrorTypeTimeout ErrorType = "timeout"
+	// ErrorTypeUnknown is any error that could not be categorized.
+	ErrorTypeUnknown ErrorType = "unknown"
+)
+
+// ErrorTypeFromStatus maps a standard upstream HTTP status code to an ErrorType.
+// Provider-specific statuses (e.g. Anthropic's 529) are handled by the provider
+// before calling this. Unrecognized codes yield ErrorTypeUnknown.
+func ErrorTypeFromStatus(status int) ErrorType {
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity:
+		return ErrorTypeBadRequest
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return ErrorTypeUnauthorized
+	case http.StatusTooManyRequests:
+		return ErrorTypeRateLimited
+	case http.StatusRequestTimeout:
+		return ErrorTypeTimeout
+	}
+	if status >= 500 && status <= 599 {
+		return ErrorTypeServerError
+	}
+	return ErrorTypeUnknown
+}
+
 type InterceptionRecordEnded struct {
 	ID      string
 	EndedAt time.Time
 	// CredentialHint is the hint observed at end-of-interception.
 	// Only applied to the DB row for centralized; ignored for BYOK.
 	CredentialHint string
+	// ErrorType is the categorized terminal upstream error. Empty when the
+	// interception succeeded.
+	ErrorType ErrorType
+	// ErrorMessage is the raw terminal upstream error message. Empty when the
+	// interception succeeded.
+	ErrorMessage string
 }
 
 type TokenUsageRecord struct {

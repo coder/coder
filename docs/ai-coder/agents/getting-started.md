@@ -224,8 +224,7 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Admin settings** > **AI** >
-  **Models** (Input Price, Output Price) to track spend.
+- Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
@@ -269,7 +268,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 
 Stream updates in real time by connecting to the WebSocket endpoint:
 
-```text
+```txt
 GET /api/experimental/chats/{chat}/stream
 ```
 

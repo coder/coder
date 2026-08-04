@@ -27,6 +27,16 @@ CREATE TYPE ai_seat_usage_reason AS ENUM (
     'task'
 );
 
+CREATE TYPE aibridge_interception_error_type AS ENUM (
+    'bad_request',
+    'unauthorized',
+    'rate_limited',
+    'overloaded',
+    'server_error',
+    'timeout',
+    'unknown'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -258,7 +268,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_gateway_key:create',
     'ai_gateway_key:delete',
     'ai_gateway_key:read',
-    'ai_gateway_key:update'
+    'ai_gateway_key:update',
+    'workspace_build_orchestration:*',
+    'workspace_build_orchestration:create',
+    'workspace_build_orchestration:delete',
+    'workspace_build_orchestration:read',
+    'workspace_build_orchestration:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -335,12 +350,19 @@ CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
 );
 
+CREATE TYPE chat_reasoning_effort AS ENUM (
+    'none',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
-    'pending',
     'running',
-    'paused',
-    'completed',
     'error',
     'requires_action',
     'interrupting'
@@ -357,7 +379,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'tunnel'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -573,7 +596,8 @@ CREATE TYPE resource_type AS ENUM (
     'group_ai_budget',
     'user_skill',
     'ai_gateway_key',
-    'user_ai_budget_override'
+    'user_ai_budget_override',
+    'oauth2_provider_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -704,7 +728,7 @@ CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     AS $$
 BEGIN
     -- Check for supported event types and throw error for unknown types.
-    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1') THEN
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1', 'hb_agent_runtime_v1') THEN
         RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
     END IF;
 
@@ -732,6 +756,13 @@ BEGIN
 						COALESCE((NEW.event_data->>'count')::bigint, 0)
 					)
 				)
+            -- Hourly runtime heartbeats: sum the runtime per day.
+            WHEN NEW.event_type IN ('hb_agent_runtime_v1') THEN
+                jsonb_build_object(
+                    'runtime_ms',
+                    COALESCE((usage_events_daily.usage_data->>'runtime_ms')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'runtime_ms')::bigint, 0)
+                )
         END;
 
     RETURN NEW;
@@ -760,6 +791,18 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT CASE WHEN jsonb_typeof(content) = 'array' THEN (
+        SELECT string_agg(part->>'text', ' ' ORDER BY ordinality)
+        FROM jsonb_array_elements(content) WITH ORDINALITY AS t(part, ordinality)
+        WHERE part->>'type' = 'text'
+    ) END
+$$;
+
+COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
 
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
@@ -1343,6 +1386,7 @@ CREATE FUNCTION set_chat_message_revision_before() RETURNS trigger
     AS $$
 DECLARE
     chat_snapshot_version bigint;
+    cmp chat_messages;
 BEGIN
     IF TG_OP = 'INSERT' AND NEW.revision IS NOT NULL THEN
         RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
@@ -1357,7 +1401,9 @@ BEGIN
             RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
         END IF;
 
-        IF OLD IS NOT DISTINCT FROM NEW THEN
+        cmp := NEW;
+        cmp.search_tsv := OLD.search_tsv;
+        IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
     END IF;
@@ -1373,6 +1419,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1424,7 +1472,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE o IS DISTINCT FROM n
+        WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1434,6 +1482,8 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -1495,6 +1545,7 @@ CREATE TABLE ai_providers (
     settings_key_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    icon text DEFAULT ''::text NOT NULL,
     CONSTRAINT ai_providers_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
 );
 
@@ -1553,7 +1604,9 @@ CREATE TABLE aibridge_interceptions (
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
     credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
     agent_firewall_session_id uuid,
-    agent_firewall_sequence_number integer
+    agent_firewall_sequence_number integer,
+    error_type aibridge_interception_error_type,
+    error_message character varying(1024)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1577,6 +1630,10 @@ COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential i
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
 
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -1915,9 +1972,14 @@ CREATE TABLE chat_messages (
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
-    api_key_id text,
-    revision bigint NOT NULL
+    revision bigint NOT NULL,
+    reasoning_effort chat_reasoning_effort,
+    search_tsv tsvector
 );
+
+COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
+
+COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -1962,10 +2024,12 @@ CREATE TABLE chat_queued_messages (
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     model_config_id uuid,
-    api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    reasoning_effort chat_reasoning_effort
 );
+
+COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2040,6 +2104,10 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
+    last_reasoning_effort chat_reasoning_effort,
+    compaction_requested_at timestamp with time zone,
+    summary text,
+    summary_generated_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2060,6 +2128,10 @@ COMMENT ON COLUMN chats.context_dirty_since IS 'Set when an agent push changes t
 COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.';
 
 COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
+
+COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
+
+COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2126,6 +2198,7 @@ CREATE VIEW chats_expanded AS
     c.parent_chat_id,
     c.root_chat_id,
     c.last_model_config_id,
+    c.last_reasoning_effort,
     c.archived,
     c.last_error,
     c.mode,
@@ -2140,6 +2213,8 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    c.summary,
+    c.summary_generated_at,
     c.snapshot_version,
     c.history_version,
     c.queue_version,
@@ -2155,7 +2230,8 @@ CREATE VIEW chats_expanded AS
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,
-    c.context_error
+    c.context_error,
+    c.compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -2435,6 +2511,7 @@ CREATE TABLE mcp_server_configs (
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
+    oauth2_revocation_url text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -2451,7 +2528,8 @@ CREATE TABLE mcp_server_user_tokens (
     token_type text DEFAULT 'Bearer'::text NOT NULL,
     expiry timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE notification_messages (
@@ -3458,7 +3536,7 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text])))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text])))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -3468,6 +3546,8 @@ COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a rand
 COMMENT ON COLUMN usage_events.event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
 
 COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
+
+COMMENT ON COLUMN usage_events.created_at IS 'The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.';
 
 COMMENT ON COLUMN usage_events.publish_started_at IS 'Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.';
 
@@ -3555,7 +3635,9 @@ CREATE TABLE user_secrets (
     file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    value_key_id text
+    value_key_id text,
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT user_secrets_enabled_requires_target CHECK (((NOT enabled) OR (env_name <> ''::text) OR (file_path <> ''::text)))
 );
 
 CREATE TABLE user_skills (
@@ -3866,6 +3948,44 @@ CREATE TABLE workspace_app_statuses (
     message text NOT NULL,
     uri text
 );
+
+CREATE TABLE workspace_build_orchestrations (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    workspace_id uuid NOT NULL,
+    parent_build_id uuid NOT NULL,
+    child_build_id uuid,
+    child_transition workspace_transition NOT NULL,
+    child_template_version_id uuid,
+    child_template_version_preset_id uuid,
+    child_rich_parameter_values jsonb DEFAULT '[]'::jsonb NOT NULL,
+    child_log_level text DEFAULT ''::text NOT NULL,
+    child_reason build_reason,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    next_retry_after timestamp with time zone,
+    status text DEFAULT 'pending'::text NOT NULL,
+    error text,
+    CONSTRAINT workspace_build_orchestrations_attempt_count_check CHECK ((attempt_count >= 0)),
+    CONSTRAINT workspace_build_orchestrations_child_log_level_check CHECK ((child_log_level = ANY (ARRAY[''::text, 'debug'::text]))),
+    CONSTRAINT workspace_build_orchestrations_child_parameters_check CHECK ((jsonb_typeof(child_rich_parameter_values) = 'array'::text)),
+    CONSTRAINT workspace_build_orchestrations_child_preset_version_check CHECK (((child_template_version_preset_id IS NULL) OR (child_template_version_id IS NOT NULL))),
+    CONSTRAINT workspace_build_orchestrations_completed_child_check CHECK (((status <> 'completed'::text) OR (child_build_id IS NOT NULL))),
+    CONSTRAINT workspace_build_orchestrations_next_retry_after_check CHECK (((status = 'pending'::text) OR (next_retry_after IS NULL))),
+    CONSTRAINT workspace_build_orchestrations_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text, 'canceled'::text])))
+);
+
+COMMENT ON TABLE workspace_build_orchestrations IS 'Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.workspace_id IS 'Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.parent_build_id IS 'Unique because we only support sequences with one child build per parent build.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.child_build_id IS 'Nullable because the child build is created only after the parent build completes successfully.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.attempt_count IS 'Counts retryable child build creation failures for this orchestration row.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.next_retry_after IS 'When set, the orchestrator skips this pending row until the timestamp has passed.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
@@ -4382,6 +4502,9 @@ ALTER TABLE ONLY template_version_preset_prebuild_schedules
     ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_id_template_version_id_key UNIQUE (id, template_version_id);
+
+ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_terraform_values
@@ -4498,8 +4621,20 @@ ALTER TABLE ONLY workspace_apps
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_build_id_key UNIQUE (child_build_id);
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_parent_build_id_key UNIQUE (parent_build_id);
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_name_key UNIQUE (workspace_build_id, name);
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_id_workspace_id_key UNIQUE (id, workspace_id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
@@ -4552,7 +4687,7 @@ CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHER
 
 CREATE INDEX idx_ai_user_daily_spend_effective_group_id_day ON ai_user_daily_spend USING btree (effective_group_id, day);
 
-CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_seq ON aibridge_interceptions USING btree (agent_firewall_session_id, agent_firewall_sequence_number) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -4575,6 +4710,8 @@ CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptio
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
@@ -4606,7 +4743,7 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (captured_at);
 
-CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number);
+CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number) INCLUDE (matched_rule);
 
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
@@ -4624,6 +4761,8 @@ CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btre
 
 CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
+CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
@@ -4638,11 +4777,19 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+CREATE INDEX idx_chat_messages_chat_role_id ON chat_messages USING btree (chat_id, role, id DESC) WHERE (deleted = false);
+
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, id DESC) WHERE ((compressed = true) AND (deleted = false) AND (visibility = 'model'::chat_message_visibility));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_messages_search_tsv ON chat_messages USING gin (search_tsv) WHERE ((search_tsv IS NOT NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
+
+COMMENT ON INDEX idx_chat_messages_search_tsv IS 'Partial index over chat_messages used for populating search_tsv in the background. Only defined over ''searchable'' rows of chat_messages where search_tsv is NULL.';
+
+CREATE INDEX idx_chat_messages_search_tsv_pending ON chat_messages USING btree (id DESC) WHERE ((search_tsv IS NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
 
 CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
@@ -4668,9 +4815,11 @@ CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
-CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
-
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
+
+CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
+
+COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
 CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
 
@@ -4730,6 +4879,8 @@ CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree 
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
 
+CREATE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
+
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
@@ -4745,6 +4896,8 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
+
+CREATE INDEX idx_workspace_build_orchestrations_pending ON workspace_build_orchestrations USING btree (created_at) WHERE (status = 'pending'::text);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
 
@@ -5013,9 +5166,6 @@ ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -5029,9 +5179,6 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
-
-ALTER TABLE ONLY chat_queued_messages
-    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -5374,6 +5521,21 @@ ALTER TABLE ONLY workspace_app_statuses
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_build_workspace_id_fkey FOREIGN KEY (child_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_preset_id_fkey FOREIGN KEY (child_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_preset_version_fkey FOREIGN KEY (child_template_version_preset_id, child_template_version_id) REFERENCES template_version_presets(id, template_version_id);
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_template_version_id_fkey FOREIGN KEY (child_template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_parent_build_workspace_id_fkey FOREIGN KEY (parent_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;

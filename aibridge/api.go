@@ -34,6 +34,7 @@ type (
 	ModelThoughtRecord      = recorder.ModelThoughtRecord
 	Recorder                = recorder.Recorder
 	Metadata                = recorder.Metadata
+	ErrorType               = recorder.ErrorType
 
 	AnthropicConfig  = config.Anthropic
 	AWSBedrockConfig = config.AWSBedrock
@@ -69,6 +70,8 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func() (Recorder, error)) Recorder {
+// NewRecorder creates a [Recorder] which acquires a client per call.
+// clientFn receives the context of the call it serves.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) Recorder {
 	return recorder.NewWrappedRecorder(logger, tracer, clientFn)
 }

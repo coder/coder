@@ -183,7 +183,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
 				},
 			}
-			opts, err := base.withAWSBedrockOptions(context.Background())
+			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -198,12 +198,12 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 // TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
 // the Bedrock runtime was not set. This should never happen in practice, since
-// withAWSBedrockOptions is only called when i.bedrock != nil.
+// withBedrockInvokeModelOptions is only called when i.bedrock != nil.
 func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	t.Parallel()
 
 	base := &interceptionBase{}
-	_, err := base.withAWSBedrockOptions(context.Background())
+	_, err := base.withBedrockInvokeModelOptions(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nil bedrock runtime")
 }
@@ -716,7 +716,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config", "metadata", "service_tier", "container", "inference_geo", "context_management"},
 		},
 
-		// Adaptive-only models (Opus 4.7+), see coder/aibridge#280. The
+		// Adaptive-only models, see coder/aibridge#280. The
 		// conversion drops budget_tokens and flips the type; an explicit
 		// output_config.effort from the caller is preserved, but none is
 		// fabricated when absent.
@@ -766,6 +766,21 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectThinkingType: "adaptive",
 		},
 		{
+			name:               "sonnet_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-sonnet-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:                "regional_sonnet_5_model_keeps_adaptive_thinking_and_effort_and_strips_output_config_format",
+			bedrockModel:        "us.anthropic.claude-sonnet-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"medium","format":{"type":"json_schema","schema":{"type":"object"}}}}`,
+			expectThinkingType:  "adaptive",
+			expectEffort:        "medium",
+			expectKeptFields:    []string{"output_config", "output_config.effort"},
+			expectRemovedFields: []string{"output_config.format"},
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
@@ -800,7 +815,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 				logger:        slog.Make(),
 			}
 
-			i.augmentRequestForBedrock()
+			i.augmentRequestForBedrockInvokeModel()
 
 			thinkingType := gjson.GetBytes(i.reqPayload, "thinking.type")
 			if tc.expectThinkingType == "" {
@@ -979,6 +994,13 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
 			expectedStatus: http.StatusBadGateway,
 		},
+		{
+			// Auth-failure exhaustion: 502, no Retry-After.
+			name:               "unauthorized_returns_502_without_retry_after",
+			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindUnauthorized, RetryAfter: 60 * time.Second},
+			expectedStatus:     http.StatusBadGateway,
+			expectedRetryAfter: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1020,18 +1042,18 @@ func TestMarkKeyOnError(t *testing.T) {
 			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth failure: mark permanent.
-			name:           "401_marks_permanent",
+			// Auth failure: temporary cooldown so the key recovers.
+			name:           "401_marks_temporary",
 			err:            &anthropic.Error{StatusCode: http.StatusUnauthorized, Response: &http.Response{StatusCode: http.StatusUnauthorized}},
 			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth forbidden: mark permanent.
-			name:           "403_marks_permanent",
+			// Forbidden is per-request, not key-specific.
+			name:           "403_does_not_mark",
 			err:            &anthropic.Error{StatusCode: http.StatusForbidden, Response: &http.Response{StatusCode: http.StatusForbidden}},
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedReturn: false,
+			expectedState:  keypool.KeyStateValid,
 		},
 		{
 			// Server errors are not key-specific.
@@ -1122,6 +1144,90 @@ func TestWriteUpstreamError(t *testing.T) {
 			assert.Contains(t, w.Body.String(), `"type":"error"`, "outer error envelope")
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
+			}
+		})
+	}
+}
+
+// TestBedrockMantleIsPassthrough verifies a mantle provider reports the mantle
+// protocol, that Model() returns the client's model, and that building the
+// upstream service leaves the request body untouched.
+func TestBedrockMantleIsPassthrough(t *testing.T) {
+	t.Parallel()
+
+	i := &interceptionBase{
+		reqPayload: mustMessagesPayload(t,
+			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
+		bedrock: &BedrockRuntime{
+			Cfg: config.AWSBedrock{
+				Region:   "us-east-1",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Protocol: config.BedrockProtocolMantle,
+			},
+			Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+		},
+		logger: slog.Make(),
+	}
+
+	require.True(t, i.isBedrockMantle())
+	require.False(t, i.isBedrockInvokeModel())
+	require.Equal(t, "anthropic.claude-opus-4-8", i.Model())
+
+	// newMessagesService dispatches InvokeModel augmentation but skips it for
+	// mantle. Building the service must not rewrite the body, and the signing
+	// middleware it installs only runs at request time, so reqPayload stays
+	// byte-identical here.
+	before := string(i.reqPayload)
+	_, err := i.newMessagesService(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, before, string(i.reqPayload))
+}
+
+// TestAWSMantleOptionsValidation verifies the mantle protocol requires a
+// region (it scopes the SigV4 signature) but NOT model fields.
+func TestAWSMantleOptionsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      config.AWSBedrock
+		errorMsg string
+	}{
+		{
+			name: "valid without model fields",
+			cfg: config.AWSBedrock{
+				Region:   "us-east-1",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Protocol: config.BedrockProtocolMantle,
+			},
+		},
+		{
+			name: "missing region even with base url",
+			cfg: config.AWSBedrock{
+				BaseURL:  "https://proxy.internal",
+				Protocol: config.BedrockProtocolMantle,
+			},
+			errorMsg: "region required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := &interceptionBase{
+				bedrock: &BedrockRuntime{
+					Cfg:   tt.cfg,
+					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				},
+			}
+			opts, err := base.withBedrockMantleOptions(t.Context())
+			if tt.errorMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, opts)
 			}
 		})
 	}

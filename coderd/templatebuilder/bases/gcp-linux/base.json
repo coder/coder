@@ -2,5 +2,15 @@
 	"id": "gcp-linux",
 	"display_name": "Google Compute Engine (Linux)",
 	"os": "linux",
-	"default_context": {}
+	"default_context": {},
+	"variables": [
+		{
+			"name": "project_id",
+			"type": "string",
+			"description": "Which Google Compute Project should your workspace live in?",
+			"required": true,
+			"sensitive": false,
+			"computed": false
+		}
+	]
 }

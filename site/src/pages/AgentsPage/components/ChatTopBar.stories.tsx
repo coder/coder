@@ -72,8 +72,9 @@ export const WithParentChat: Story = {
 			mcp_server_ids: [],
 			labels: {},
 			title: "Set up CI/CD pipeline",
-			status: "completed",
+			status: "waiting",
 			last_turn_summary: null,
+			summary: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
@@ -187,7 +188,7 @@ const mobileDecorator: Story["decorators"] = [
 
 export const MobileWithOpenPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -204,7 +205,7 @@ export const MobileWithOpenPR: Story = {
 
 export const MobileWithDraftPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -221,7 +222,7 @@ export const MobileWithDraftPR: Story = {
 
 export const MobileWithMergedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -239,7 +240,7 @@ export const MobileWithMergedPR: Story = {
 
 export const MobileWithClosedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -307,9 +308,10 @@ export const UnpinAgentItem: Story = {
 	},
 };
 
-export const ChildChatHidesPinAction: Story = {
+export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		isChildChat: true,
+		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -318,11 +320,34 @@ export const ChildChatHidesPinAction: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedChildChatHasNoActionsMenu: Story = {
+	args: {
+		isChildChat: true,
+		isArchived: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Build authentication feature"),
+			).toBeInTheDocument();
+		});
+		// Archive state is root-only, so an archived child chat has no menu
+		// actions at all and the actions trigger is hidden entirely.
+		expect(
+			canvas.queryByLabelText("Open agent actions"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -345,7 +370,7 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {
-		chromatic: { viewports: [390] },
+		pixel: { matrix: { viewports: ["phone"] } },
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/agents/chat-123",

@@ -10,7 +10,6 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -22,6 +21,9 @@ export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
+
+const chatQueueConvergenceKey = (chatId: string) =>
+	["chats", chatId, "queue-convergence"] as const;
 
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
@@ -420,6 +422,7 @@ export const mergeWatchedChatSummary = (
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
+	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
@@ -456,10 +459,17 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	const nextLastTurnSummary =
-		isFreshEnough || isSummaryEvent
-			? watchedChat.last_turn_summary
-			: cachedChat.last_turn_summary;
+	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
+	// bump chats.updated_at, and both events publish pre-write chat snapshots,
+	// so updated_at cannot order summary_change against chat_summary_change and
+	// isFreshEnough cannot guard these fields. Scope each field to its own
+	// event, else one event's stale snapshot clobbers the other field's value.
+	const nextLastTurnSummary = isSummaryEvent
+		? watchedChat.last_turn_summary
+		: cachedChat.last_turn_summary;
+	const nextSummary = isChatSummaryEvent
+		? watchedChat.summary
+		: cachedChat.summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -478,6 +488,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context
@@ -494,6 +505,7 @@ export const mergeWatchedChatSummary = (
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
 		last_turn_summary: nextLastTurnSummary,
+		summary: nextSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
@@ -737,6 +749,15 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+
+// The queued messages ride on the uncursored page of the messages endpoint,
+// so settling the queue after a promote needs its own request. Refetching
+// chatMessagesForInfiniteScroll would reload every page already scrolled.
+export const chatQueueConvergence = (chatId: string) => ({
+	queryKey: chatQueueConvergenceKey(chatId),
+	queryFn: () => API.experimental.getChatMessages(chatId),
+	gcTime: 0,
+});
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
@@ -1338,6 +1359,10 @@ export const createChatMessage = (
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
@@ -1413,7 +1438,8 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessages: response.messages ?? [response.message],
+				deletedMessageIds: response.deleted_message_ids,
 			}),
 		);
 	},
@@ -1441,6 +1467,19 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
 	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
+export const compactChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.compactChat(chatId),
+	onSuccess: () => {
+		// The compaction transitions the chat to running; the summary
+		// rows stream in over the websocket like any other turn.
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
@@ -1785,6 +1824,7 @@ const toChatProviderConfig = (
 	id: provider.id,
 	provider: provider.type,
 	display_name: provider.display_name || provider.type,
+	icon: provider.icon,
 	enabled: provider.enabled,
 	has_api_key: provider.api_keys.length > 0,
 	central_api_key_enabled: true,
@@ -1804,7 +1844,7 @@ export const chatProviderConfigs = () => ({
 	},
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -1824,6 +1864,8 @@ export const userChatProviderConfigs = () => ({
 			provider_id: config.provider.id,
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
+			icon: config.provider.icon,
+			enabled: config.provider.enabled,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1870,6 +1912,16 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
+// Called after AI provider mutations so open model pickers refresh.
+export const invalidateChatProviderDependentQueries = async (
+	queryClient: QueryClient,
+) => {
+	await Promise.all([
+		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
+	]);
+};
+
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
 		API.experimental.createChatModelConfig(req),
@@ -1899,131 +1951,15 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-type ChatCostDateParams = {
-	start_date?: string;
-	end_date?: string;
-};
+export const chatCostKey = (rootChatId: string) =>
+	[...chatsKey, rootChatId, "cost"] as const;
 
-export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
-	[...chatsKey, "costSummary", user, params] as const;
+const GATEWAY_REQUEST_STALE_MS = 30_000;
 
-export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
-	queryKey: chatCostSummaryKey(user, params),
-	queryFn: () => API.experimental.getChatCostSummary(user, params),
-	staleTime: 60_000,
-});
-
-interface PaginatedChatCostUsersPayload {
-	username: string;
-	start_date: string;
-	end_date: string;
-}
-
-export function paginatedChatCostUsers(
-	payload: PaginatedChatCostUsersPayload,
-): UsePaginatedQueryOptions<
-	TypesGen.ChatCostUsersResponse,
-	PaginatedChatCostUsersPayload
-> {
-	return {
-		queryPayload: () => payload,
-		queryKey: ({ payload, pageNumber }) =>
-			[...chatsKey, "costUsers", payload, pageNumber] as const,
-		queryFn: ({ payload, limit, offset }) =>
-			API.experimental.getChatCostUsers({
-				start_date: payload.start_date,
-				end_date: payload.end_date,
-				username: payload.username || undefined,
-				limit,
-				offset,
-			}),
-		staleTime: 60_000,
-	};
-}
-
-export const chatUsageLimitStatusKey = [
-	...chatsKey,
-	"usageLimitStatus",
-] as const;
-
-export const chatUsageLimitStatus = () => ({
-	queryKey: chatUsageLimitStatusKey,
-	queryFn: () => API.experimental.getChatUsageLimitStatus(),
-	refetchInterval: 60_000,
-});
-
-const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
-
-export const chatUsageLimitConfig = () => ({
-	queryKey: chatUsageLimitConfigKey,
-	queryFn: () => API.experimental.getChatUsageLimitConfig(),
-});
-
-export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
-		API.experimental.updateChatUsageLimitConfig(req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-type UpsertChatUsageLimitOverrideMutationArgs = {
-	userID: string;
-	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
-};
-
-export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
-	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
-		API.experimental.upsertChatUsageLimitOverride(userID, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
-	mutationFn: (userID: string) =>
-		API.experimental.deleteChatUsageLimitOverride(userID),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-type UpsertChatUsageLimitGroupOverrideMutationArgs = {
-	groupID: string;
-	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
-};
-
-export const upsertChatUsageLimitGroupOverride = (
-	queryClient: QueryClient,
-) => ({
-	mutationFn: ({
-		groupID,
-		req,
-	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
-		API.experimental.upsertChatUsageLimitGroupOverride(groupID, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
-});
-
-export const deleteChatUsageLimitGroupOverride = (
-	queryClient: QueryClient,
-) => ({
-	mutationFn: (groupID: string) =>
-		API.experimental.deleteChatUsageLimitGroupOverride(groupID),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatUsageLimitConfigKey,
-		});
-	},
+export const chatCost = (rootChatId: string) => ({
+	queryKey: chatCostKey(rootChatId),
+	queryFn: () => API.experimental.getChatCost(rootChatId),
+	staleTime: GATEWAY_REQUEST_STALE_MS,
 });
 
 // ── MCP Server Configs ───────────────────────────────────────
@@ -2063,6 +1999,13 @@ export const updateMCPServerConfig = (queryClient: QueryClient) => ({
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

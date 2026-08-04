@@ -21,6 +21,20 @@ type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
 
+/**
+ * Archive state is root-only on the backend and cascades to children, so
+ * child chats expose no archive or unarchive actions. An archived child chat
+ * therefore has no menu actions at all; call sites use this to hide the menu
+ * trigger instead of rendering an empty menu.
+ */
+export const chatHasMenuActions = ({
+	isArchived,
+	isChildChat,
+}: {
+	isArchived: boolean;
+	isChildChat: boolean;
+}): boolean => !(isArchived && isChildChat);
+
 interface ChatActionsMenuItemsProps {
 	readonly isArchived: boolean;
 	readonly isPinned: boolean;
@@ -53,9 +67,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	Item,
 	Separator,
 }) => {
+	const showPinAction =
+		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
+	const showArchiveActions = !isArchived && !isChildChat;
+
 	return (
 		<>
-			{!isArchived && !isChildChat && onPinAgent && onUnpinAgent && (
+			{showPinAction && (
 				<Item onSelect={isPinned ? onUnpinAgent : onPinAgent}>
 					{isPinned ? (
 						<>
@@ -71,10 +89,12 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 				</Item>
 			)}
 			{isArchived ? (
-				<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
-					<ArchiveRestoreIcon className="size-3.5" />
-					Unarchive agent
-				</Item>
+				!isChildChat && (
+					<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+						<ArchiveRestoreIcon className="size-3.5" />
+						Unarchive agent
+					</Item>
+				)
 			) : (
 				<>
 					{onOpenRenameDialog && (
@@ -83,25 +103,28 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					{(onOpenRenameDialog ||
-						(!isChildChat && onPinAgent && onUnpinAgent)) && <Separator />}
-					<Item
-						className="text-content-destructive focus:text-content-destructive"
-						disabled={isArchiving}
-						onSelect={onArchiveAgent}
-					>
-						<ArchiveIcon className="size-3.5" />
-						Archive agent
-					</Item>
-					{hasWorkspace && (
-						<Item
-							className="text-content-destructive focus:text-content-destructive"
-							disabled={isArchiving}
-							onSelect={onArchiveAndDeleteWorkspace}
-						>
-							<Trash2Icon className="size-3.5" />
-							Archive & delete workspace
-						</Item>
+					{showArchiveActions && (
+						<>
+							{(onOpenRenameDialog || showPinAction) && <Separator />}
+							<Item
+								className="text-content-destructive focus:text-content-destructive"
+								disabled={isArchiving}
+								onSelect={onArchiveAgent}
+							>
+								<ArchiveIcon className="size-3.5" />
+								Archive agent
+							</Item>
+							{hasWorkspace && (
+								<Item
+									className="text-content-destructive focus:text-content-destructive"
+									disabled={isArchiving}
+									onSelect={onArchiveAndDeleteWorkspace}
+								>
+									<Trash2Icon className="size-3.5" />
+									Archive & delete workspace
+								</Item>
+							)}
+						</>
 					)}
 				</>
 			)}

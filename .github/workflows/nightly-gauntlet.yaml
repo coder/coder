@@ -28,7 +28,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -54,7 +54,7 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -66,9 +66,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go terraform"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum

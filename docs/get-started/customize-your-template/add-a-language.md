@@ -128,7 +128,7 @@ ruby --version
 
 The command fails:
 
-```text
+```txt
 ruby: command not found
 ```
 

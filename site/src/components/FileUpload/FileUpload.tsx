@@ -1,13 +1,14 @@
-import CircularProgress from "@mui/material/CircularProgress";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { cn } from "#/utils/cn";
+import { Spinner } from "../Spinner/Spinner";
 
 interface FileUploadProps {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
+	onUnsupportedFile?: (file: File) => void;
 	onRemove?: () => void;
 	file?: File;
 	removeLabel: string;
@@ -19,6 +20,7 @@ interface FileUploadProps {
 export const FileUpload: FC<FileUploadProps> = ({
 	isUploading,
 	onUpload,
+	onUnsupportedFile,
 	onRemove,
 	file,
 	removeLabel,
@@ -26,7 +28,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 	description,
 	extensions,
 }) => {
-	const fileDrop = useFileDrop(onUpload, extensions);
+	const fileDrop = useFileDrop(onUpload, extensions, onUnsupportedFile);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const clickable = useClickable<HTMLDivElement>(() =>
 		inputRef.current?.click(),
@@ -67,7 +69,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				<div className="flex flex-col items-center gap-2">
 					<div className="flex size-16 items-center justify-center">
 						{isUploading ? (
-							<CircularProgress size={32} />
+							<Spinner size="lg" loading />
 						) : (
 							<CloudUploadIcon className="size-16" />
 						)}
@@ -87,6 +89,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				data-testid="file-upload"
 				ref={inputRef}
 				className="hidden"
+				disabled={isUploading}
 				accept={extensions?.map((ext) => `.${ext}`).join(",")}
 				onChange={(event) => {
 					const file = event.currentTarget.files?.[0];
@@ -102,6 +105,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 const useFileDrop = (
 	callback: (file: File) => void,
 	extensions?: string[],
+	onUnsupportedFile?: (file: File) => void,
 ): {
 	onDragOver: (e: DragEvent<HTMLDivElement>) => void;
 	onDrop: (e: DragEvent<HTMLDivElement>) => void;
@@ -123,15 +127,14 @@ const useFileDrop = (
 			return;
 		}
 
-		const extension = file.name.split(".").pop();
+		const extension = file.name.split(".").pop()?.toLowerCase();
 
-		if (!extension) {
-			throw new Error(`File has no extension to compare with ${extensions}`);
-		}
-
-		if (extensions.includes(extension)) {
+		if (extension && extensions.includes(extension)) {
 			callback(file);
+			return;
 		}
+
+		onUnsupportedFile?.(file);
 	};
 
 	return {

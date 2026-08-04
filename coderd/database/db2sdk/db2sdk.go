@@ -59,6 +59,7 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
 		DisplayName: display,
+		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
@@ -1113,6 +1114,15 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			CacheWriteInputTokens: row.CacheWriteInputTokens,
 		},
 	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if row.FirewallActive {
+		session.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   row.NetworkCallsTotal,
+			Blocked: row.NetworkCallsBlocked,
+		}
+	}
 	// Ensure non-nil slices for JSON serialization.
 	if session.Providers == nil {
 		session.Providers = []string{}
@@ -1132,33 +1142,43 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	return session
 }
 
+// AIBridgeSessionThreadsParams groups the session row and its subresources for
+// AIBridgeSessionThreads. Named fields avoid transposing the several adjacent
+// slice arguments (notably TopDomains and NetworkCalls) at the call site.
+type AIBridgeSessionThreadsParams struct {
+	Session       database.ListAIBridgeSessionsRow
+	Interceptions []database.ListAIBridgeSessionThreadsRow
+	TokenUsages   []database.AIBridgeTokenUsage
+	ToolUsages    []database.AIBridgeToolUsage
+	UserPrompts   []database.AIBridgeUserPrompt
+	ModelThoughts []database.AIBridgeModelThought
+	TopDomains    []database.GetAIBridgeSessionTopDomainsRow
+	NetworkCalls  []database.BoundaryLog
+}
+
 // AIBridgeSessionThreads converts session metadata and thread interceptions
 // into the threads response. It groups interceptions into threads, builds
 // agentic actions from tool usages and model thoughts, and aggregates
 // token usage with metadata.
-func AIBridgeSessionThreads(
-	session database.ListAIBridgeSessionsRow,
-	interceptions []database.ListAIBridgeSessionThreadsRow,
-	tokenUsages []database.AIBridgeTokenUsage,
-	toolUsages []database.AIBridgeToolUsage,
-	userPrompts []database.AIBridgeUserPrompt,
-	modelThoughts []database.AIBridgeModelThought,
-) codersdk.AIBridgeSessionThreadsResponse {
+func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSessionThreadsResponse {
+	session := p.Session
+	interceptions := p.Interceptions
+
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
-	for _, tu := range tokenUsages {
+	for _, tu := range p.TokenUsages {
 		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
 	}
 	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(interceptions))
-	for _, tu := range toolUsages {
+	for _, tu := range p.ToolUsages {
 		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
 	}
 	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(interceptions))
-	for _, up := range userPrompts {
+	for _, up := range p.UserPrompts {
 		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
 	}
 	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought, len(interceptions))
-	for _, mt := range modelThoughts {
+	for _, mt := range p.ModelThoughts {
 		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
 	}
 
@@ -1196,7 +1216,7 @@ func AIBridgeSessionThreads(
 
 	// Aggregate session-level token usage metadata from all token
 	// usages in the session (not just the page).
-	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
+	sessionTokenMeta := aggregateTokenMetadata(p.TokenUsages)
 
 	resp := codersdk.AIBridgeSessionThreadsResponse{
 		ID: session.SessionID,
@@ -1233,7 +1253,50 @@ func AIBridgeSessionThreads(
 	if !session.EndedAt.IsZero() {
 		resp.EndedAt = &session.EndedAt
 	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if session.FirewallActive {
+		resp.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   session.NetworkCallsTotal,
+			Blocked: session.NetworkCallsBlocked,
+		}
+	}
+	for _, d := range p.TopDomains {
+		resp.NetworkTopDomains = append(resp.NetworkTopDomains, codersdk.AIBridgeSessionNetworkDomain{
+			Domain: d.Domain,
+			Count:  d.Count,
+		})
+		// TotalDomains is the same on every row (a window aggregate); take it
+		// from the last row processed.
+		resp.NetworkDomainCount = d.TotalDomains
+	}
+	resp.NetworkCallLogs = AgentFirewallLogs(p.NetworkCalls)
 	return resp
+}
+
+// AgentFirewallLogs converts boundary logs to their SDK representation.
+// Allowed is derived from MatchedRule being non-NULL.
+func AgentFirewallLogs(logs []database.BoundaryLog) []codersdk.AgentFirewallLog {
+	results := make([]codersdk.AgentFirewallLog, 0, len(logs))
+	for _, l := range logs {
+		bl := codersdk.AgentFirewallLog{
+			ID:             l.ID,
+			SessionID:      l.SessionID,
+			SequenceNumber: l.SequenceNumber,
+			Allowed:        l.MatchedRule.Valid,
+			CreatedAt:      l.CreatedAt,
+			Proto:          l.Proto,
+			Method:         l.Method,
+			Detail:         l.Detail,
+			CapturedAt:     &l.CapturedAt,
+		}
+		if l.MatchedRule.Valid {
+			bl.MatchedRule = &l.MatchedRule.String
+		}
+		results = append(results, bl)
+	}
+	return results
 }
 
 func buildAIBridgeThread(
@@ -1279,6 +1342,17 @@ func buildAIBridgeThread(
 		if rootIntc.AgentFirewallSequenceNumber.Valid {
 			n := rootIntc.AgentFirewallSequenceNumber.Int32
 			thread.AgentFirewallSequenceNumber = &n
+		}
+		// Surface the terminal upstream error from the root interception. The
+		// message is only meaningful alongside a type, so it is nested to avoid
+		// a half-populated error on the response.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+			if rootIntc.ErrorMessage.Valid {
+				errMsg := rootIntc.ErrorMessage.String
+				thread.ErrorMessage = &errMsg
+			}
 		}
 	}
 
@@ -1446,6 +1520,37 @@ func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudget
 	}
 }
 
+func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) codersdk.OrganizationGroupAISpend {
+	group := codersdk.OrganizationGroupAISpend{
+		GroupID:            row.GroupID,
+		CurrentSpendMicros: row.CurrentSpendMicros,
+	}
+	if row.SpendLimitMicros.Valid {
+		group.SpendLimitMicros = &row.SpendLimitMicros.Int64
+	}
+	if row.TotalSpendLimitMicros.Valid {
+		group.TotalSpendLimitMicros = &row.TotalSpendLimitMicros.Int64
+	}
+	return group
+}
+
+func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMemberAISpend {
+	member := codersdk.GroupMemberAISpend{
+		UserID:           row.UserID,
+		GroupSpendMicros: row.GroupSpendMicros,
+	}
+	if row.EffectiveGroupID.Valid {
+		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
+	}
+	if row.SpendLimitMicros.Valid {
+		member.GroupBudget = &codersdk.AIBudgetLimit{
+			SpendLimitMicros: row.SpendLimitMicros.Int64,
+			LimitSource:      codersdk.AIBudgetLimitSource(row.LimitSource.String),
+		}
+	}
+	return member
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
@@ -1589,11 +1694,17 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	if err != nil {
 		return nil, err
 	}
-	// Strip internal-only fields before API responses.
+	// Strip internal-only fields before API responses. Hook context
+	// parts are model-only and must never reach clients.
+	filtered := parts[:0]
 	for i := range parts {
+		if parts[i].Type == codersdk.ChatMessagePartTypeHookContext {
+			continue
+		}
 		parts[i].StripInternal()
+		filtered = append(filtered, parts[i])
 	}
-	return parts, nil
+	return filtered, nil
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1700,6 +1811,13 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
+	}
+	if c.Summary.Valid {
+		chat.Summary = &c.Summary.String
+	}
+	if c.LastReasoningEffort.Valid {
+		lastReasoningEffort := string(c.LastReasoningEffort.ChatReasoningEffort)
+		chat.LastReasoningEffort = &lastReasoningEffort
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
@@ -2042,6 +2160,7 @@ func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}
@@ -2056,6 +2175,7 @@ func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}

@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -96,6 +97,8 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -165,7 +168,7 @@ type Options struct {
 	Pubsub           pubsub.Pubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
@@ -205,6 +208,13 @@ type Options struct {
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
+	// ClusterHost is this replica's routable cluster address (IP or hostname),
+	// resolved from DeploymentValues.Cluster.Host, falling back to the DERP
+	// relay host for older HA deployments that predate the setting. It is used
+	// as the NATS cluster route host and, when it is an IP, the cluster mTLS
+	// leaf IP SAN. It is consumed by the NATS pubsub (AGPL) and, under
+	// enterprise HA, by replicasync.
+	ClusterHost string
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
 	BaseDERPMap                    *tailcfg.DERPMap
@@ -305,7 +315,15 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
-	Clock                 quartz.Clock
+	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
+	// cache for the nats_ca feature. SigningKey returns the active CA
+	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
+	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
+	NATSCACache cryptokeys.SigningKeycache
+	Clock       quartz.Clock
+	// Acquirer acquires provisioner jobs. Defaults to provisionerdserver.Acquirer
+	// backed by Database and Pubsub.
+	Acquirer *provisionerdserver.Acquirer
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
@@ -333,7 +351,7 @@ type Options struct {
 
 // @securitydefinitions.apiKey Authorization
 // @in header
-// @name Authorizaiton
+// @name Authorization
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
@@ -366,13 +384,17 @@ func New(options *Options) *API {
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
 
-	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
-			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
-		})
+	// Only reload when an option deviates from the defaults so the zero
+	// value keeps the stock builtin roles. Constructing the full options
+	// struct here (rather than mirroring individual fields in the guard)
+	// ensures a newly added RoleOptions field cannot be silently ignored.
+	roleOptions := rbac.RoleOptions{
+		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+	}
+	if roleOptions != (rbac.RoleOptions{}) {
+		rbac.ReloadBuiltinRoles(&roleOptions)
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
@@ -607,10 +629,34 @@ func New(options *Options) *API {
 
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
 
+	// The NATS cluster CA is only minted and served when NATS pubsub is in use.
+	// It is experiment-gated, so it is opted into rotation and backed by a real
+	// signing cache only when the experiment is enabled; otherwise the rotator
+	// leaves it alone and the cache is a noop, which still answers requests (the
+	// pubsub treats a missing CA as "mTLS off"). This avoids minting CA private
+	// keys on deployments that never run NATS clustering.
+	rotatedFeatures := cryptokeys.DefaultRotatedFeatures()
+	if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+		rotatedFeatures = append(rotatedFeatures, database.CryptoKeyFeatureNATSCA)
+	}
+
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
-	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database, cryptokeys.WithFeatures(rotatedFeatures))
+
+	// The NATS CA cache is read-only and depends on the rotator having minted
+	// the nats_ca CA, so it must be constructed after StartRotator.
+	if options.NATSCACache == nil {
+		if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+			options.NATSCACache, err = cryptokeys.NewSigningCache(ctx, options.Logger.Named("nats_ca_cache"), &cryptokeys.DBFetcher{DB: options.Database}, codersdk.CryptoKeyFeatureNATSCA)
+			if err != nil {
+				options.Logger.Fatal(ctx, "failed to instantiate NATS CA cache", slog.Error(err))
+			}
+		} else {
+			options.NATSCACache = cryptokeys.NoopSigningKeycache{}
+		}
+	}
 
 	// Ensure all system role permissions are current.
 	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
@@ -634,6 +680,15 @@ func New(options *Options) *API {
 	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
+	acquirer := options.Acquirer
+	if acquirer == nil {
+		acquirer = provisionerdserver.NewAcquirer(
+			ctx,
+			options.Logger.Named("acquirer"),
+			options.Database,
+			options.Pubsub,
+		)
+	}
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -659,15 +714,10 @@ func New(options *Options) *API {
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
-		Acquirer: provisionerdserver.NewAcquirer(
-			ctx,
-			options.Logger.Named("acquirer"),
-			options.Database,
-			options.Pubsub,
-		),
-		dbRolluper:       options.DatabaseRolluper,
-		ProfileCollector: defaultProfileCollector{},
-		AISeatTracker:    aiseats.Noop{},
+		Acquirer:                    acquirer,
+		dbRolluper:                  options.DatabaseRolluper,
+		ProfileCollector:            defaultProfileCollector{},
+		AISeatTracker:               aiseats.Noop{},
 	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
@@ -834,6 +884,27 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			var hookDispatcher *dispatch.Dispatcher
+			chatConfig := options.DeploymentValues.AI.Chat
+			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
+			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
+			if hooksConfigured && !hooksExperimentEnabled {
+				options.Logger.Warn(ctx, "chat lifecycle hooks are configured but inactive; enable the agent-lifecycle-hooks experiment to activate them",
+					slog.F("experiment", codersdk.ExperimentAgentLifecycleHooks),
+				)
+			}
+			if hooksConfigured && hooksExperimentEnabled {
+				hookDispatcher = dispatch.New(
+					options.Logger,
+					nil,
+					chatConfig.HookURL.String(),
+					chatConfig.HookSecret.Value(),
+					chatConfig.HookTimeout.Value(),
+					api.DeploymentID,
+					buildinfo.Version(),
+					options.PrometheusRegistry,
+				)
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -853,6 +924,7 @@ func New(options *Options) *API {
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
 				WebpushDispatcher:              options.WebPushDispatcher,
+				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				OIDCTokenSource:                oidcMCPSrc,
@@ -967,6 +1039,19 @@ func New(options *Options) *API {
 	})
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+
+	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
+		Logger:            options.Logger,
+		Database:          options.Database,
+		Pubsub:            options.Pubsub,
+		FileCache:         api.FileCache,
+		BuildUsageChecker: api.BuildUsageChecker,
+		DeploymentValues:  options.DeploymentValues,
+		Experiments:       api.Experiments,
+		BuilderMetrics:    options.WorkspaceBuilderMetrics,
+		Clock:             quartz.NewReal(),
+	})
+	api.workspaceBuildOrchestrator.Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1264,13 +1349,6 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
-			r.Route("/cost", func(r chi.Router) {
-				r.Get("/users", api.chatCostUsers)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/summary", api.chatCostSummary)
-				})
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1335,19 +1413,6 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
-			r.Route("/usage-limits", func(r chi.Router) {
-				r.Get("/", api.getChatUsageLimitConfig)
-				r.Put("/", api.updateChatUsageLimitConfig)
-				r.Get("/status", api.getMyChatUsageLimitStatus)
-				r.Route("/overrides/{user}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitOverride)
-					r.Delete("/", api.deleteChatUsageLimitOverride)
-				})
-				r.Route("/group-overrides/{group}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitGroupOverride)
-					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
-				})
-			})
 			r.Route("/user-provider-configs", func(r chi.Router) {
 				r.Get("/", api.listUserChatProviderConfigs)
 				r.Route("/{providerConfig}", func(r chi.Router) {
@@ -1363,6 +1428,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
+				r.Get("/cost", api.getChatCost)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
@@ -1374,6 +1440,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/compact", api.compactChat)
 				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
@@ -1645,6 +1712,7 @@ func New(options *Options) *API {
 				r.Get("/modules", api.templateBuilderModules)
 				r.Post("/compose", api.templateBuilderCompose)
 				r.Post("/compose/template", api.templateBuilderCreateTemplate)
+				r.Post("/sessions", api.templateBuilderSession)
 			})
 		}
 
@@ -1758,6 +1826,7 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
+							r.Post("/batch", api.postUserSecretsBatch)
 							r.Get("/", api.getUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)
@@ -2049,6 +2118,10 @@ func New(options *Options) *API {
 					})
 				})
 			})
+			r.Route("/settings", func(r chi.Router) {
+				r.Get("/", api.oauth2ProviderSettings)
+				r.Put("/", api.putOAuth2ProviderSettings)
+			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -2257,6 +2330,8 @@ type API struct {
 	// routes (license-gated) which apply their own StripPrefix, and by
 	// the in-memory transport (used by chatd, license-exempt).
 	aiGatewayHandler http.Handler
+	// AIGatewayServerMetrics records AI budget cost-control metrics. May be nil.
+	AIGatewayServerMetrics *aibridgedserver.Metrics
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -2316,7 +2391,8 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
-	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
+	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
 }
 
 // chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
@@ -2398,8 +2474,12 @@ func (api *API) Close() error {
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
+	if api.NATSCACache != nil {
+		_ = api.NATSCACache.Close()
+	}
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
+	api.workspaceBuildOrchestrator.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

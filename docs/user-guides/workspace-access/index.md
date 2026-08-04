@@ -95,20 +95,20 @@ each user to simplify the setup process.
 
 1. Use your terminal to authenticate the CLI with Coder web UI and your workspaces:
 
-   ```bash
+   ```sh
    coder login <accessURL>
    ```
 
 1. Access Coder via SSH:
 
-   ```shell
+   ```sh
    coder config-ssh
    ```
 
 1. Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
    before you proceed:
 
-   ```shell
+   ```sh
    coder config-ssh --dry-run
    ```
 

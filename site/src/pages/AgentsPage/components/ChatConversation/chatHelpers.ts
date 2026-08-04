@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getWorkspaceAgents } from "#/utils/workspace";
+import { findWorkspaceAgent } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
@@ -46,8 +46,17 @@ export const extractContextUsageFromMessage = (
 export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 ): AgentContextUsage | null => {
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const usage = extractContextUsageFromMessage(messages[index]);
+	for (const message of messages.toReversed()) {
+		const isCompactionSummary = message.content?.some(
+			(part) =>
+				(part.type === "tool-call" || part.type === "tool-result") &&
+				part.tool_name === "chat_summarized",
+		);
+		if (isCompactionSummary) {
+			return null;
+		}
+
+		const usage = extractContextUsageFromMessage(message);
 		if (usage) {
 			return usage;
 		}
@@ -55,17 +64,25 @@ export const getLatestContextUsage = (
 	return null;
 };
 
-type ChatWithHierarchyMetadata = TypesGen.Chat & {
-	readonly parent_chat_id?: string;
-};
-
 export const getParentChatID = (
 	chat: TypesGen.Chat | undefined,
 ): string | undefined => {
-	return asNonEmptyString(
-		(chat as ChatWithHierarchyMetadata | undefined)?.parent_chat_id,
-	);
+	return asNonEmptyString(chat?.parent_chat_id);
 };
+
+/**
+ * Identifies the chat tree that AI Gateway cost is aggregated over, matching
+ * the server's COALESCE(root_chat_id, parent_chat_id) precedence. Both columns
+ * are ON DELETE SET NULL, so deleting a root leaves descendants with only a
+ * parent. Cost readers and cost invalidators must agree, or a mounted cost
+ * goes stale.
+ */
+export const getChatCostTreeID = (
+	chat: TypesGen.Chat | undefined,
+): string | undefined =>
+	asNonEmptyString(chat?.root_chat_id) ??
+	asNonEmptyString(chat?.parent_chat_id) ??
+	asNonEmptyString(chat?.id);
 
 export const resolveModelFromChatConfig = (
 	modelConfig: unknown,
@@ -96,12 +113,7 @@ export const getWorkspaceAgent = (
 	workspace: TypesGen.Workspace | undefined,
 	workspaceAgentId: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	if (!workspace) {
-		return undefined;
-	}
-	const agents = getWorkspaceAgents(workspace);
-	if (agents.length === 0) {
-		return undefined;
-	}
-	return agents.find((agent) => agent.id === workspaceAgentId) ?? agents[0];
+	return workspace && workspaceAgentId
+		? findWorkspaceAgent(workspace, workspaceAgentId)
+		: undefined;
 };

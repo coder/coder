@@ -1,4 +1,22 @@
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
+
 export type UsageSeverity = "normal" | "warning" | "exceeded";
+
+/**
+ * Formats an AI budget window in UTC, e.g. "June 1 - July 1, 2026". Renders
+ * the exclusive period_end as-is.
+ */
+export function formatSpendPeriodLabel(
+	periodStart: string,
+	periodEnd: string,
+): string {
+	const start = dayjs.utc(periodStart).format("MMMM D");
+	const end = dayjs.utc(periodEnd).format("MMMM D, YYYY");
+	return `${start} - ${end}`;
+}
 
 /**
  * Classifies usage against a budget. Returns "warning" once usage reaches 85%
@@ -16,54 +34,6 @@ export function getSeverity(used: number, budget: number): UsageSeverity {
 		return "exceeded";
 	}
 	return used / budget >= 0.85 ? "warning" : "normal";
-}
-
-const SEVERITY_CLASSES = {
-	normal: {
-		text: "text-content-secondary",
-		progress: "bg-content-secondary",
-		ring: "stroke-content-secondary",
-		border: "border-content-secondary",
-	},
-	warning: {
-		text: "text-content-warning",
-		progress: "bg-content-warning",
-		ring: "stroke-content-warning",
-		border: "border-content-warning",
-	},
-	exceeded: {
-		text: "text-content-destructive",
-		progress: "bg-content-destructive",
-		ring: "stroke-content-destructive",
-		border: "border-content-destructive",
-	},
-} as const satisfies Record<
-	UsageSeverity,
-	{ text: string; progress: string; ring: string; border: string }
->;
-
-export function severityTextClassName(
-	severity: UsageSeverity = "normal",
-): string {
-	return SEVERITY_CLASSES[severity].text;
-}
-
-export function severityProgressClassName(
-	severity: UsageSeverity = "normal",
-): string {
-	return SEVERITY_CLASSES[severity].progress;
-}
-
-export function severityRingClassName(
-	severity: UsageSeverity = "normal",
-): string {
-	return SEVERITY_CLASSES[severity].ring;
-}
-
-export function severityBorderClassName(
-	severity: UsageSeverity = "normal",
-): string {
-	return SEVERITY_CLASSES[severity].border;
 }
 
 export function usageProgressPercentage(used: number, budget: number): number {
