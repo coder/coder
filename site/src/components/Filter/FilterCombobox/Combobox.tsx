@@ -344,7 +344,7 @@ export const ComboboxInputGroup: FC<ComboboxInputGroupProps> = ({
 		<PopoverAnchor asChild>
 			<InputGroup
 				ref={anchorRef ?? undefined}
-				className={cn("h-auto min-h-10 w-full", className)}
+				className={cn("h-auto min-h-10 w-full items-start", className)}
 				{...props}
 			/>
 		</PopoverAnchor>
@@ -361,7 +361,7 @@ export const ComboboxChips: FC<ComboboxChipsProps> = ({
 		<div
 			data-slot="combobox-chips"
 			className={cn(
-				"flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 self-stretch py-1.5",
+				"flex min-h-10 min-w-0 flex-1 flex-wrap content-start items-center gap-1 py-1",
 				className,
 			)}
 			{...props}
@@ -441,7 +441,7 @@ export const ComboboxChipsInput: FC<ComboboxChipsInputProps> = ({
 				onInputValueChange?.(next, { reason: "input-change" })
 			}
 			className={cn(
-				`h-6 min-w-24 flex-1 border-0 bg-transparent p-0 text-sm font-medium
+				`h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium
 				text-content-primary outline-none placeholder:text-content-secondary`,
 				className,
 			)}

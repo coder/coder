@@ -136,7 +136,7 @@ export function FilterCombobox({
 			label={placeholder}
 		>
 			<ComboboxInputGroup className={className}>
-				<InputGroupAddon>
+				<InputGroupAddon className="min-h-10">
 					<SearchIcon aria-hidden className="size-icon-sm" />
 				</InputGroupAddon>
 				<ComboboxChips>
@@ -184,7 +184,7 @@ export function FilterCombobox({
 				</ComboboxChips>
 				<InputGroupAddon
 					align="inline-end"
-					className="w-10 self-stretch border-0 border-l border-solid border-border p-0"
+					className="w-10 items-start self-stretch border-0 border-l border-solid border-border p-0"
 				>
 					<InputGroupButton
 						type="button"
@@ -192,7 +192,7 @@ export function FilterCombobox({
 						aria-label="Toggle filters"
 						aria-expanded={open}
 						aria-haspopup="listbox"
-						className="h-full min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
+						className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
 						onMouseDown={(event) => {
 							// Prevent the button from taking focus on pointer open.
 							// toggleFilterMenu focuses the combobox input next so
