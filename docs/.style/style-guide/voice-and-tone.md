@@ -119,6 +119,81 @@ Use plain present tense for behavior the product already exhibits.
 *Documentation-only.
 No Vale rule.*
 
+## Keep sentences and paragraphs short
+
+Aim for 25 words or fewer per sentence in body prose.
+Step sentences in a procedure get a tighter budget: refer to [Keep steps short](./procedural-writing.md#keep-steps-short).
+
+Give each paragraph one topic and open with the sentence that states it.
+Split a paragraph when it grows past roughly 6 sentences.
+
+The budgets are targets, not ceilings.
+A sentence that needs 30 words to be precise beats two vague short ones.
+
+**Do**:
+
+> The provisioner reads the template files and validates them against the schema.
+> It then creates the workspace and starts the agent.
+
+**Don't**:
+
+> The provisioner, which reads the template files that the administrator pushed and validates them against the schema before it creates any resources, then creates the workspace and starts the agent.
+
+*Adapted from ASD-STE100 Issue 9, rules 6.1 to 6.6.
+Documentation-only.
+No Vale rule.*
+
+## Prefer verbs over noun forms
+
+English can wrap an action in a noun ("perform the installation of") instead of stating the verb ("install").
+The noun form adds words and hides the actor.
+Use the verb.
+
+**Do**:
+
+> Before you remove the template, export its insights.
+>
+> Coder validates the token on each request.
+
+**Don't**:
+
+> Before the removal of the template, perform an export of its insights.
+>
+> Coder performs validation of the token on each request.
+
+*Adapted from ASD-STE100 Issue 9, rule 3.7.
+Documentation-only.
+No Vale rule.*
+
+## Give each pronoun one clear referent
+
+A pronoun (`it`, `this`, `they`, `that`) must point to exactly one thing.
+If the pronoun can point to two nouns, repeat the noun instead.
+The repetition reads slightly worse to the writer and much clearer to the reader.
+
+The same rule covers a bare `this` that summarizes a whole clause.
+Name the thing that `this` refers to.
+
+**Do**:
+
+> Restart the server and the agent.
+> The agent reconnects automatically.
+>
+> The build can fail when the quota is exhausted.
+> This failure appears in the audit log.
+
+**Don't**:
+
+> Restart the server and the agent.
+> It reconnects automatically.
+>
+> The build can fail when the quota is exhausted.
+> This appears in the audit log.
+
+*Adapted from ASD-STE100 Issue 9, general recommendations GR-3 and GR-4.
+Documentation-only.
+No Vale rule.*
+
 ## Contractions are the default
 
 Contractions match how a reader's internal voice sounds.
@@ -182,6 +257,10 @@ The contracted forms read fast and let a busy reader skip past the warning.
 > Coder can't restore a deleted workspace.
 >
 > You can't undo `coder delete`.
+
+**The default trades against the international audience.** Plain-language guidance for non-native readers, including [ASD-STE100](https://www.asd-ste100.org/), bans contractions because the expanded forms are easier to parse and to machine-translate.
+The Coder docs keep contractions because the genre reads conversationally and the [reading-level target](./accessibility-and-inclusion.md#reading-level) already bounds sentence complexity.
+The high-stakes exception above applies the STE logic exactly where a misreading costs the most.
 
 *Documentation-only.
 No Vale rule.*
