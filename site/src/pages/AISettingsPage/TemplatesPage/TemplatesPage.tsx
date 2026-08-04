@@ -7,7 +7,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplatesFilter } from "#/pages/TemplatesPage/TemplatesFilter";
 import { pageTitle } from "#/utils/page";
-import { TemplatesPageView } from "./TemplatesPageView";
+import {
+	TemplatesPageView,
+	type TemplateUpdateError,
+} from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {
 	const { permissions } = useAuthenticated();
@@ -31,7 +34,7 @@ const TemplatesPage: FC = () => {
 	// Errors are tracked per template so a failure on one row is neither
 	// overwritten nor cleared by a later toggle on another row.
 	const [updateErrors, setUpdateErrors] = useState<
-		ReadonlyMap<string, unknown>
+		ReadonlyMap<string, TemplateUpdateError>
 	>(new Map());
 
 	const toggleAgentsAllowed = async (
@@ -53,7 +56,9 @@ const TemplatesPage: FC = () => {
 				data: { agents_allowed: agentsAllowed },
 			});
 		} catch (error) {
-			setUpdateErrors((current) => new Map(current).set(template.id, error));
+			setUpdateErrors((current) =>
+				new Map(current).set(template.id, { template, error }),
+			);
 		} finally {
 			setPendingTemplateIDs((current) => {
 				const next = new Set(current);

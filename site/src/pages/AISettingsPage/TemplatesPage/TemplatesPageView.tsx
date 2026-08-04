@@ -9,6 +9,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
@@ -31,13 +32,18 @@ import {
 	TemplatesFilter,
 } from "#/pages/TemplatesPage/TemplatesFilter";
 import { createDayString } from "#/utils/createDayString";
-import { formatTemplateActiveDevelopers } from "#/utils/templates";
+import { formatTemplateActiveDevelopersLabel } from "#/utils/templates";
 
 const getTemplateLabel = (template: TypesGen.Template) =>
 	template.display_name || template.name;
 
 const getTemplateOrganization = (template: TypesGen.Template) =>
 	template.organization_display_name || template.organization_name;
+
+export type TemplateUpdateError = {
+	template: TypesGen.Template;
+	error: unknown;
+};
 
 interface TemplatesPageViewProps {
 	filterState: TemplateFilterState;
@@ -50,7 +56,7 @@ interface TemplatesPageViewProps {
 		agentsAllowed: boolean,
 	) => void;
 	pendingTemplateIDs: ReadonlySet<string>;
-	updateErrors: ReadonlyMap<string, unknown>;
+	updateErrors: ReadonlyMap<string, TemplateUpdateError>;
 }
 
 interface TemplateRowProps {
@@ -73,28 +79,19 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	return (
 		<TableRow>
 			<TableCell className="w-full max-w-0 px-4 py-3">
-				<div className="flex min-w-0 items-center gap-4">
-					<Avatar
-						size="lg"
-						variant="icon"
-						src={template.icon}
-						fallback={label}
-					/>
-					<div className="flex min-w-0 flex-col">
-						<span
-							className="truncate text-sm font-medium leading-5 text-content-primary"
-							title={label}
-						>
-							{label}
-						</span>
-						<span
-							className="truncate text-sm font-medium leading-5 text-content-secondary"
-							title={organization}
-						>
-							{organization}
-						</span>
-					</div>
-				</div>
+				<AvatarData
+					truncate
+					title={<span title={label}>{label}</span>}
+					subtitle={<span title={organization}>{organization}</span>}
+					avatar={
+						<Avatar
+							size="lg"
+							variant="icon"
+							src={template.icon}
+							fallback={label}
+						/>
+					}
+				/>
 			</TableCell>
 			<TableCell
 				data-pixel="ignore"
@@ -103,7 +100,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{createDayString(template.updated_at)}
 			</TableCell>
 			<TableCell className="whitespace-nowrap text-sm font-medium leading-6 text-content-secondary">
-				{`${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count === 1 ? "" : "s"}`}
+				{formatTemplateActiveDevelopersLabel(template.active_user_count)}
 			</TableCell>
 			<TableCell className="whitespace-nowrap pr-4 text-right">
 				<Switch
@@ -160,67 +157,63 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 					</Button>
 				</div>
 			) : hasValidationError ? null : (
-				<>
-					<Table
-						aria-label="Templates Coder Agents can use to create workspaces"
-						className="table-fixed"
-					>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-1/2">Template</TableHead>
-								<TableHead className="w-44">Last updated</TableHead>
-								<TableHead className="w-44">Used by</TableHead>
-								<TableHead className="w-36 text-right">
-									New workspaces
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody size="lg">
-							{isLoading || !templates ? (
-								<TableLoader />
-							) : templates.length === 0 ? (
-								<TableEmpty
-									message={
-										filterState.filter.used
-											? "No results matched your search"
-											: "No templates found."
-									}
-									description={
-										filterState.filter.used
-											? undefined
-											: "Create a template before configuring Coder Agents access."
-									}
-									isCompact
-									className="min-h-52"
+				<Table
+					aria-label="Templates Coder Agents can use to create workspaces"
+					className="table-fixed"
+				>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-1/2">Template</TableHead>
+							<TableHead className="w-44">Last updated</TableHead>
+							<TableHead className="w-44">Used by</TableHead>
+							<TableHead className="w-36 text-right">
+								<span className="sr-only">Coder Agents workspace creation</span>
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody size="lg">
+						{isLoading || !templates ? (
+							<TableLoader />
+						) : templates.length === 0 ? (
+							<TableEmpty
+								message={
+									filterState.filter.used
+										? "No results matched your search."
+										: "No templates found."
+								}
+								description={
+									filterState.filter.used
+										? undefined
+										: "Create a template before configuring Coder Agents access."
+								}
+								isCompact
+								className="min-h-52"
+							/>
+						) : (
+							templates.map((template) => (
+								<TemplateRow
+									key={template.id}
+									template={template}
+									isPending={pendingTemplateIDs.has(template.id)}
+									onToggleAgentsAllowed={onToggleAgentsAllowed}
 								/>
-							) : (
-								templates.map((template) => (
-									<TemplateRow
-										key={template.id}
-										template={template}
-										isPending={pendingTemplateIDs.has(template.id)}
-										onToggleAgentsAllowed={onToggleAgentsAllowed}
-									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-					{templates
-						?.filter((template) => updateErrors.has(template.id))
-						.map((template) => (
-							<p
-								key={template.id}
-								role="alert"
-								className="m-0 pt-3 text-xs text-content-destructive"
-							>
-								{`${getTemplateLabel(template)}: ${getErrorMessage(
-									updateErrors.get(template.id),
-									"Failed to update Coder Agents access.",
-								)}`}
-							</p>
-						))}
-				</>
+							))
+						)}
+					</TableBody>
+				</Table>
 			)}
+			{Array.from(updateErrors.values()).map(({ template, error }) => (
+				<p
+					key={template.id}
+					role="alert"
+					className="m-0 pt-3 text-xs text-content-destructive"
+				>
+					{`${getTemplateLabel(template)} in ${getTemplateOrganization(template)}: ${getErrorMessage(
+						error,
+						"Failed to update Coder Agents access.",
+					)}`}
+				</p>
+			))}
 		</div>
 	);
 };

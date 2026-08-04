@@ -162,7 +162,7 @@ export const ConcurrentToggles: Story = {
 
 		const alert = await canvas.findByRole("alert");
 		expect(alert).toHaveTextContent(
-			"Test Template: Template access is locked.",
+			"Test Template in My Organization: Template access is locked.",
 		);
 		await waitFor(() => expect(firstSwitch).toBeEnabled());
 		await waitFor(() => expect(secondSwitch).toBeEnabled());
@@ -191,7 +191,13 @@ export const NoDeploymentConfigPermission: Story = {
 		permissions: {
 			editDeploymentConfig: false,
 			updateTemplates: true,
+			viewAllUsers: true,
 		},
+		queries: [],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([]);
+		spyOn(API, "getUsers").mockResolvedValue({ users: [], count: 0 });
 	},
 	play: async () => {
 		const body = within(document.body);
@@ -199,6 +205,32 @@ export const NoDeploymentConfigPermission: Story = {
 			await body.findByText("You don't have permission to view this page"),
 		).toBeInTheDocument();
 		expect(body.queryByText("Test Template")).not.toBeInTheDocument();
+		expect(API.getTemplates).not.toHaveBeenCalled();
+		expect(API.getUsers).not.toHaveBeenCalled();
+	},
+};
+
+export const FetchesWhenAllowed: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: true,
+			updateTemplates: true,
+			viewAllUsers: true,
+		},
+		queries: [],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: [MockUserOwner],
+			count: 1,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Test Template")).toBeVisible();
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
+		await waitFor(() => expect(API.getUsers).toHaveBeenCalled());
 	},
 };
 

@@ -5,7 +5,10 @@ import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import type { TemplateFilterState } from "#/pages/TemplatesPage/TemplatesFilter";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import { TemplatesPageView } from "./TemplatesPageView";
+import {
+	TemplatesPageView,
+	type TemplateUpdateError,
+} from "./TemplatesPageView";
 
 const templates = [
 	{
@@ -56,15 +59,13 @@ const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
 	decorators: [withDashboardProvider],
-	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
-	parameters: { pixel: { exclude: true } },
 	args: {
 		filterState,
 		templates,
 		isLoading: false,
 		error: undefined,
 		pendingTemplateIDs: new Set<string>(),
-		updateErrors: new Map<string, unknown>(),
+		updateErrors: new Map<string, TemplateUpdateError>(),
 		onRetry: fn(),
 		onToggleAgentsAllowed: fn(),
 	},
@@ -155,6 +156,15 @@ export const ValidationError: Story = {
 			],
 		}),
 		templates: undefined,
+		updateErrors: new Map<string, TemplateUpdateError>([
+			[
+				templates[0].id,
+				{
+					template: templates[0],
+					error: "Template access is locked.",
+				},
+			],
+		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -162,6 +172,11 @@ export const ValidationError: Story = {
 			await canvas.findByText("The template filter is invalid."),
 		).toBeVisible();
 		expect(canvas.queryByRole("table")).not.toBeInTheDocument();
+		expect(
+			await canvas.findByText(
+				"Docker containers in My Organization: Template access is locked.",
+			),
+		).toBeVisible();
 		expect(canvas.queryByRole("status")).not.toBeInTheDocument();
 	},
 };
@@ -196,7 +211,7 @@ export const FilteredEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findByText("No results matched your search"),
+			await canvas.findByText("No results matched your search."),
 		).toBeVisible();
 	},
 };
@@ -253,21 +268,72 @@ export const UpdatingOneTemplate: Story = {
 
 export const MutationError: Story = {
 	args: {
-		updateErrors: new Map<string, unknown>([
-			["t-01", "Template access is locked."],
-			["t-03", {}],
+		updateErrors: new Map<string, TemplateUpdateError>([
+			[
+				templates[0].id,
+				{
+					template: templates[0],
+					error: "Template access is locked.",
+				},
+			],
+			[
+				templates[2].id,
+				{
+					template: templates[2],
+					error: {},
+				},
+			],
 		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const alerts = await canvas.findAllByRole("alert");
 		expect(alerts).toHaveLength(2);
-		expect(alerts[0]).toHaveTextContent(
-			"Docker containers: Template access is locked.",
-		);
-		expect(alerts[1]).toHaveTextContent(
-			"AI webinar: Failed to update Coder Agents access.",
-		);
+		expect(
+			canvas.getByText(
+				"Docker containers in My Organization: Template access is locked.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				"AI webinar in My Organization: Failed to update Coder Agents access.",
+			),
+		).toBeVisible();
 		expect(canvas.getByText("Docker containers")).toBeVisible();
+	},
+};
+
+export const FilteredOutMutationError: Story = {
+	args: {
+		templates: [templates[1]],
+		filterState: {
+			...filterState,
+			filter: {
+				...filterState.filter,
+				query: "product",
+				used: true,
+			},
+		},
+		updateErrors: new Map<string, TemplateUpdateError>([
+			[
+				templates[0].id,
+				{
+					template: templates[0],
+					error: "Template access is locked.",
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Product ops engineering")).toBeVisible();
+		expect(
+			canvas.queryByRole("switch", {
+				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
+			}),
+		).not.toBeInTheDocument();
+		expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"Docker containers in My Organization: Template access is locked.",
+		);
 	},
 };
