@@ -38,6 +38,7 @@ import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
+import { QueuedForCapacityCallout } from "./ChatConversation/QueuedForCapacityCallout";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
@@ -88,6 +89,10 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	queuedForCapacity?: {
+		hasLicense: boolean;
+		canManageLicenses: boolean;
+	};
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -99,6 +104,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	queuedForCapacity,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -170,6 +176,12 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
+				{queuedForCapacity && (
+					<QueuedForCapacityCallout
+						hasLicense={queuedForCapacity.hasLicense}
+						canManageLicenses={queuedForCapacity.canManageLicenses}
+					/>
+				)}
 			</div>
 		</Profiler>
 	);

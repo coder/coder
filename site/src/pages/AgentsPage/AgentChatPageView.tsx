@@ -18,7 +18,6 @@ import type {
 	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
-import { Link } from "#/components/Link/Link";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
@@ -895,70 +894,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									{chatOwnerWarning}
 								</div>
 							)}
-							{isQueuedForCapacity && (
-								<div
-									role="status"
-									aria-live="polite"
-									className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3 text-sm text-content-primary"
-								>
-									<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-warning" />
-									<p className="m-0">
-										{hasLicense
-											? "Your team has reached your license’s limit for active agents."
-											: "Your team has reached the Community license limit for active agents."}{" "}
-										This agent is queued and will start automatically when
-										capacity is available.{" "}
-										{canManageLicenses ? (
-											hasLicense ? (
-												<>
-													Contact your Coder account team or{" "}
-													<Link
-														href="mailto:sales@coder.com"
-														size="sm"
-														showExternalIcon={false}
-													>
-														sales@coder.com
-													</Link>{" "}
-													to upgrade to unlimited concurrent agents.
-												</>
-											) : (
-												<>
-													<Link
-														href="https://coder.com/trial"
-														target="_blank"
-														rel="noreferrer"
-														size="sm"
-													>
-														Start an unlimited trial
-													</Link>{" "}
-													or{" "}
-													<Link
-														href="https://coder.com/pricing"
-														target="_blank"
-														rel="noreferrer"
-														size="sm"
-													>
-														learn more
-													</Link>
-													.
-												</>
-											)
-										) : (
-											<>
-												<Link
-													href="https://coder.com/pricing"
-													target="_blank"
-													rel="noreferrer"
-													size="sm"
-												>
-													Learn more
-												</Link>
-												.
-											</>
-										)}
-									</p>
-								</div>
-							)}
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="size-4 shrink-0" />
@@ -1004,6 +939,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										isOtherUserReadOnly
 											? undefined
 											: canSendAskUserQuestionResponse
+									}
+									queuedForCapacity={
+										isQueuedForCapacity
+											? { hasLicense, canManageLicenses }
+											: undefined
 									}
 								/>
 							</div>

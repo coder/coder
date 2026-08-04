@@ -324,7 +324,10 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const message = canvas.getByText(
+		// The callout renders inline in the conversation timeline, not as a
+		// banner below the top bar.
+		const timeline = within(canvas.getByTestId("chat-timeline-wrapper"));
+		const message = timeline.getByText(
 			/reached the Community license limit for active agents/,
 		);
 		expect(message).toBeVisible();
