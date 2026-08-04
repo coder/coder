@@ -1,7 +1,7 @@
 import { CircleCheckBigIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
-import { Link as RouterLink, type LinkProps } from "react-router";
+import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
