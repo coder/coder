@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
-	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
 	extractFreeText,
@@ -12,7 +11,7 @@ import {
 	queryToChips,
 } from "./filterQuery";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
-import { parseSearchResultToken, searchResultToken } from "./types";
+import { parseSearchResultToken } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -304,29 +303,7 @@ export const useFilterCombobox = ({
 	const searchResultsRef = useRef(searchResults);
 	searchResultsRef.current = searchResults;
 
-	const optionItems = useMemo(() => {
-		if (activeCategoryKey && activeOptions) {
-			return activeOptions.map((option) =>
-				chipToken(activeCategoryKey, option.value),
-			);
-		}
-		if (activeCategoryKey === null && isBrowsing) {
-			return [
-				...listedCategories.map((category) => category.key),
-				...valueSuggestions.map((suggestion) => suggestion.token),
-				...searchResults.map((result) => searchResultToken(result.value)),
-			];
-		}
-		return [] as string[];
-	}, [
-		activeCategoryKey,
-		activeOptions,
-		isBrowsing,
-		listedCategories,
-		searchResults,
-		valueSuggestions,
-	]);
-	// The token of the row Base UI currently has highlighted (via
+	// The token of the row cmdk currently has highlighted (via
 	// aria-activedescendant), or null when nothing is highlighted. Enter/Tab
 	// commit this row rather than always committing the first option.
 	const highlightedItemRef = useRef<string | null>(null);
@@ -593,7 +570,6 @@ export const useFilterCombobox = ({
 		searchResults,
 		searchResultsLoading,
 		chipValues,
-		optionItems,
 		toggleFilterMenu,
 		setInputRef,
 		handleInputFocus,

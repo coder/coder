@@ -52,14 +52,6 @@ function useComboboxState(): ComboboxStateValue {
 
 type ComboboxProps = {
 	multiple?: boolean;
-	/** Accepted for API parity; cmdk auto-highlights the first row. */
-	autoHighlight?: boolean;
-	/** Accepted for API parity; filtering is owned by the caller. */
-	filter?: unknown;
-	/** Accepted for API parity; opening is caller-controlled. */
-	openOnInputClick?: boolean;
-	/** Accepted for API parity; navigation order comes from the DOM. */
-	items?: readonly string[];
 	open?: boolean;
 	onOpenChange?: (open: boolean, details: { reason: string }) => void;
 	value?: string[];
@@ -158,16 +150,12 @@ export const ComboboxValue: FC<ComboboxValueProps> = ({ children }) => {
 	return <>{children(value)}</>;
 };
 
-type ComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent> & {
-	/** Accepted for API parity; the Radix anchor provides the position target. */
-	anchor?: unknown;
-};
+type ComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
 
 export const ComboboxContent: FC<ComboboxContentProps> = ({
 	className,
 	align = "start",
 	sideOffset = 6,
-	anchor: _anchor,
 	...props
 }) => {
 	const anchorRef = useContext(ComboboxAnchorContext);

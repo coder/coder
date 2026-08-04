@@ -70,7 +70,6 @@ export function FilterCombobox({
 		searchResults,
 		searchResultsLoading,
 		chipValues,
-		optionItems,
 		toggleFilterMenu,
 		setInputRef,
 		handleInputFocus,
@@ -122,9 +121,6 @@ export function FilterCombobox({
 	return (
 		<Combobox
 			multiple
-			autoHighlight
-			filter={null}
-			openOnInputClick={false}
 			open={open}
 			onOpenChange={handleOpenChange}
 			value={chipValues}
@@ -132,7 +128,6 @@ export function FilterCombobox({
 			inputValue={inputValue}
 			onInputValueChange={handleInputValueChange}
 			onItemHighlighted={handleItemHighlighted}
-			items={optionItems}
 			label={placeholder}
 		>
 			<ComboboxInputGroup className={className}>
