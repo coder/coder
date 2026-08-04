@@ -425,15 +425,7 @@ func (p *Server) titleGenerationProviderOptions(
 			)
 		}
 	}
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
-		callConfig.ProviderOptions,
-	)
-	return chatprovider.ApplyReasoningEffort(
-		model,
-		providerOptions,
-		chatprovider.ResolveReasoningEffort(nil, callConfig.ReasoningEffort),
-	)
+	return chatprovider.ProviderOptionsForCall(model, callConfig, nil)
 }
 
 func (p *Server) newQuickgenDebugModel(

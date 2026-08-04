@@ -424,19 +424,7 @@ func (p *Server) newAdvisorRuntime(
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
 	// The override resolver pins an explicit advisor effort into the model
 	// config. Fallback models keep their configured default effort.
-	advisorReasoningEffort := chatprovider.ResolveReasoningEffort(
-		nil,
-		advisorCallConfig.ReasoningEffort,
-	)
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		advisorModel,
-		advisorCallConfig.ProviderOptions,
-	)
-	providerOptions = chatprovider.ApplyReasoningEffort(
-		advisorModel,
-		providerOptions,
-		advisorReasoningEffort,
-	)
+	providerOptions := chatprovider.ProviderOptionsForCall(advisorModel, advisorCallConfig, nil)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisorModel.LanguageModel(),

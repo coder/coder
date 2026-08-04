@@ -1109,9 +1109,22 @@ func missingProviderAPIKeyError(provider string) error {
 	}
 }
 
-// ProviderOptionsFromChatModelConfig converts chat model provider options to
-// fantasy provider options used for inference calls.
-func ProviderOptionsFromChatModelConfig(
+// ProviderOptionsForCall builds the provider options for one inference call.
+// Config conversion and reasoning effort both create OpenAI option structs, so
+// owning them together is what keeps their type aligned with the model's
+// transport. requestedEffort is the caller's per-turn choice, which the
+// config's bounds clamp.
+func ProviderOptionsForCall(
+	model Model,
+	config codersdk.ChatModelCallConfig,
+	requestedEffort *string,
+) fantasy.ProviderOptions {
+	options := providerOptionsFromChatModelConfig(model, config.ProviderOptions)
+	effort := ResolveReasoningEffort(requestedEffort, config.ReasoningEffort)
+	return applyReasoningEffort(model, options, effort)
+}
+
+func providerOptionsFromChatModelConfig(
 	model Model,
 	options *codersdk.ChatModelProviderOptions,
 ) fantasy.ProviderOptions {
