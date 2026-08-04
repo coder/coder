@@ -1944,6 +1944,7 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
 	 * Children holds child (subagent) chats nested under this root
@@ -3798,6 +3799,7 @@ export interface CreateChatMessageResponse {
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -4893,6 +4895,7 @@ export interface EditChatMessageResponse {
 	 * Clients should drop them from local caches.
 	 */
 	readonly deleted_message_ids?: readonly number[];
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/externalauth.go

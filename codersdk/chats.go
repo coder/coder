@@ -142,6 +142,7 @@ type Chat struct {
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
 	Context    *ChatContext   `json:"context,omitempty"`
+	Warnings   []string       `json:"warnings,omitempty"`
 	ClientType ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
@@ -651,6 +652,7 @@ type CreateChatMessageResponse struct {
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Warnings      []string           `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -663,7 +665,8 @@ type EditChatMessageResponse struct {
 	// DeletedMessageIDs holds the IDs of previously visible messages the
 	// edit removed, including stale hook notices from the edited turn.
 	// Clients should drop them from local caches.
-	DeletedMessageIDs []int64 `json:"deleted_message_ids,omitempty"`
+	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
+	Warnings          []string `json:"warnings,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.

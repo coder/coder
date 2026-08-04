@@ -757,8 +757,11 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread comes from list-query rows, so Chat leaves it unset.
-	skip := map[string]bool{"HasUnread": true}
+	// HasUnread is populated by ChatRowsWithChildren (which joins the
+	// read-cursor query), not by Chat. Warnings is a transient
+	// field populated by handlers, not the converter. Both are
+	// expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
