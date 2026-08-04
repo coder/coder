@@ -638,22 +638,9 @@ export const invalidateChatEntity = (
 		exact: true,
 	});
 
-export const invalidateChatEntityFamily = (
-	queryClient: QueryClient,
-	chatId: string,
-) =>
-	queryClient.invalidateQueries({
-		queryKey: chatEntityKey(chatId),
-	});
-
 export const invalidateChatListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({
 		queryKey: chatListFamilyKey,
-	});
-
-export const invalidateChatSearches = (queryClient: QueryClient) =>
-	queryClient.invalidateQueries({
-		queryKey: chatSearchFamilyKey,
 	});
 
 export const invalidateChatsByWorkspace = (queryClient: QueryClient) =>

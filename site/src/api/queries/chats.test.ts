@@ -43,11 +43,9 @@ import {
 	invalidateChatDebugRuns,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
-	invalidateChatEntityFamily,
 	invalidateChatListQueries,
 	invalidateChatMessages,
 	invalidateChatPrompts,
-	invalidateChatSearches,
 	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
@@ -2879,121 +2877,97 @@ describe("chat ACL query factories", () => {
 	});
 });
 
-// Every per-chat entry used to probe family boundaries.
-const entitySubKeys = (chatId: string) => ({
-	detail: chatEntityKey(chatId),
-	messages: chatMessagesKey(chatId),
-	prompts: chatPromptsKey(chatId),
-	acl: chatACLKey(chatId),
-	diffContents: chatDiffContentsKey(chatId),
-	debugRuns: chatDebugRunsKey(chatId),
-	debugRun: chatDebugRunKey(chatId, "run-1"),
-});
-
-// Collection entries must never be touched by entity operations.
-const collectionKeys = () => ({
-	list: chatListKey(toChatListParams()),
-	byWorkspace: ["chats", "collections", "by-workspace", ["ws-1"]] as const,
-});
-
-type SemanticOpInfiniteChatsData = {
-	pages: TypesGen.Chat[][];
-	pageParams: unknown[];
-};
-
-const makeSemanticOpMessages = () => ({
-	pages: [{ messages: [], queued_messages: [], has_more: false }],
-	pageParams: [undefined] as (number | undefined)[],
-});
-
-const seedAll = (queryClient: QueryClient, chatId: string) => {
-	queryClient.setQueryData(entitySubKeys(chatId).detail, makeChat(chatId));
-	queryClient.setQueryData(
-		entitySubKeys(chatId).messages,
-		makeSemanticOpMessages(),
-	);
-	queryClient.setQueryData(entitySubKeys(chatId).prompts, { prompts: [] });
-	queryClient.setQueryData(entitySubKeys(chatId).acl, {});
-	queryClient.setQueryData(entitySubKeys(chatId).diffContents, { files: [] });
-	queryClient.setQueryData(entitySubKeys(chatId).debugRuns, []);
-	queryClient.setQueryData(entitySubKeys(chatId).debugRun, {});
-	queryClient.setQueryData(collectionKeys().list, {
-		pages: [[makeChat(chatId)]],
-		pageParams: [0],
-	} satisfies SemanticOpInfiniteChatsData);
-	queryClient.setQueryData(collectionKeys().byWorkspace, {});
-};
-
-type ExactOp = {
-	name: string;
-	call: (queryClient: QueryClient, chatId: string) => unknown;
-	target: (chatId: string) => readonly unknown[];
-	untouched: readonly (keyof ReturnType<typeof entitySubKeys>)[];
-};
-
 describe("semantic cache operations: exact invalidations", () => {
-	const exactOps: readonly ExactOp[] = [
-		{
-			name: "invalidateDetail",
-			call: invalidateChatEntity,
-			target: (id) => chatEntityKey(id),
-			untouched: ["messages", "prompts", "acl", "diffContents", "debugRuns"],
-		},
-		{
-			name: "invalidateDiffContents",
-			call: invalidateChatDiffContents,
-			target: (id) => chatDiffContentsKey(id),
-			untouched: ["detail", "messages", "prompts", "acl", "debugRuns"],
-		},
-		{
-			name: "invalidatePrompts",
-			call: invalidateChatPrompts,
-			target: (id) => chatPromptsKey(id),
-			untouched: ["detail", "messages", "acl", "diffContents", "debugRuns"],
-		},
-		{
-			name: "invalidateMessages",
-			call: invalidateChatMessages,
-			target: (id) => chatMessagesKey(id),
-			untouched: ["detail", "prompts", "acl", "diffContents", "debugRuns"],
-		},
-		{
-			name: "invalidateACL",
-			call: invalidateChatACL,
-			target: (id) => chatACLKey(id),
-			untouched: ["detail", "messages", "prompts", "diffContents", "debugRuns"],
-		},
-	];
-
-	for (const { name, call, target, untouched } of exactOps) {
-		it(`${name} touches only the exact entry`, async () => {
-			const queryClient = createTestQueryClient();
-			seedAll(queryClient, "chat-1");
-			const keys = entitySubKeys("chat-1");
-
-			await call(queryClient, "chat-1");
-
-			expect(queryClient.getQueryState(target("chat-1"))?.isInvalidated).toBe(
-				true,
-			);
-			for (const label of untouched) {
-				expect(
-					queryClient.getQueryState(keys[label])?.isInvalidated,
-					`${label} entry should NOT be invalidated by ${name}`,
-				).not.toBe(true);
-			}
-			expect(
-				queryClient.getQueryState(collectionKeys().list)?.isInvalidated,
-				"list entry should NOT be invalidated",
-			).not.toBe(true);
-		});
-	}
-
-	it("invalidateCostTree touches only the matching cost tree entry", async () => {
+	it("invalidateChatEntity touches only the detail entry", async () => {
 		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatEntityKey("chat-2"), makeChat("chat-2"));
+
+		await invalidateChatEntity(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-2"))?.isInvalidated,
+			"other chat's detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatDiffContents touches only the diff-contents entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatDiffContentsKey("chat-1"), { files: [] });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatDiffContents(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatDiffContentsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatPrompts touches only the prompts entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatPrompts(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatPromptsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatMessages touches only the messages entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatMessages(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatACL touches only the ACL entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatACLKey("chat-1"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatACL(queryClient, "chat-1");
+
+		expect(queryClient.getQueryState(chatACLKey("chat-1"))?.isInvalidated).toBe(
+			true,
+		);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatCostTree touches only the matching cost tree entry", async () => {
+		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
 		queryClient.setQueryData(chatCostTreeKey("chat-2"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
 
 		await invalidateChatCostTree(queryClient, "chat-1");
 
@@ -3011,52 +2985,18 @@ describe("semantic cache operations: exact invalidations", () => {
 });
 
 describe("semantic cache operations: prefix invalidations", () => {
-	it("invalidateEntityFamily touches the entity family and nothing else", async () => {
+	it("invalidateChatListQueries touches every list entry and nothing outside the family", async () => {
 		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
-		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
-		const keys = entitySubKeys("chat-1");
-
-		await invalidateChatEntityFamily(queryClient, "chat-1");
-
-		for (const label of Object.keys(keys) as (keyof ReturnType<
-			typeof entitySubKeys
-		>)[]) {
-			expect(
-				queryClient.getQueryState(keys[label])?.isInvalidated,
-				`${label} entry should be invalidated`,
-			).toBe(true);
-		}
-		expect(
-			queryClient.getQueryState(collectionKeys().list)?.isInvalidated,
-			"list entry should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(collectionKeys().byWorkspace)?.isInvalidated,
-			"by-workspace entry should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatCostTreeKey("chat-1"))?.isInvalidated,
-			"cost tree is analytics, not an entity descendant",
-		).not.toBe(true);
-	});
-
-	it("invalidateLists touches every list entry and nothing outside the family", async () => {
-		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
-		queryClient.setQueryData(
-			chatListKey(toChatListParams({ archived: true })),
-			{
-				pages: [[makeChat("chat-1")]],
-				pageParams: [0],
-			},
-		);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], { archived: true });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
 
 		await invalidateChatListQueries(queryClient);
 
-		expect(
-			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
-		).toBe(true);
+		expect(queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated).toBe(
+			true,
+		);
 		expect(
 			queryClient.getQueryState(
 				chatListKey(toChatListParams({ archived: true })),
@@ -3066,101 +3006,84 @@ describe("semantic cache operations: prefix invalidations", () => {
 			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(collectionKeys().byWorkspace)?.isInvalidated,
-		).not.toBe(true);
-	});
-
-	it("invalidateSearches touches search entries and nothing outside the family", async () => {
-		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
-		queryClient.setQueryData(
-			["chats", "collections", "search", { q: "a" }],
-			[],
-		);
-
-		await invalidateChatSearches(queryClient);
-
-		expect(
-			queryClient.getQueryState(["chats", "collections", "search", { q: "a" }])
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
 				?.isInvalidated,
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(collectionKeys().list)?.isInvalidated,
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(collectionKeys().byWorkspace)?.isInvalidated,
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
 		).not.toBe(true);
 	});
 
-	it("invalidateByWorkspace touches by-workspace entries only", async () => {
+	it("invalidateChatsByWorkspace touches by-workspace entries only", async () => {
 		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
 
 		await invalidateChatsByWorkspace(queryClient);
 
 		expect(
-			queryClient.getQueryState(collectionKeys().byWorkspace)?.isInvalidated,
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
 		).toBe(true);
 		expect(
-			queryClient.getQueryState(collectionKeys().list)?.isInvalidated,
+			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 		).not.toBe(true);
 		expect(
 			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
 		).not.toBe(true);
 	});
 
-	it("invalidateDebugRuns touches the runs list and run details only", async () => {
+	it("invalidateChatDebugRuns touches the runs list and run details only", async () => {
 		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
-		const keys = entitySubKeys("chat-1");
+		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
+		queryClient.setQueryData(chatDebugRunKey("chat-1", "run-1"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
 
 		await invalidateChatDebugRuns(queryClient, "chat-1");
 
-		expect(queryClient.getQueryState(keys.debugRuns)?.isInvalidated).toBe(true);
-		expect(queryClient.getQueryState(keys.debugRun)?.isInvalidated).toBe(true);
-		for (const label of [
-			"detail",
-			"messages",
-			"prompts",
-			"acl",
-			"diffContents",
-		] as const) {
-			expect(
-				queryClient.getQueryState(keys[label])?.isInvalidated,
-				`${label} entry should NOT be invalidated`,
-			).not.toBe(true);
-		}
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatDebugRunKey("chat-1", "run-1"))
+				?.isInvalidated,
+			"run detail entry should be invalidated by the family prefix",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
 	});
 });
 
 describe("semantic cache operations: cancellation", () => {
-	it("cancelLists cancels unconditionally across the list family", async () => {
+	it("cancelChatListQueries cancels unconditionally across the list family", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
 		await cancelChatListQueries(queryClient);
 
 		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: ["chats", "collections", "list"],
+			queryKey: chatListFamilyKey,
 		});
 	});
 
-	it("cancelListRefetches cancels with the loaded-refetch predicate", async () => {
+	it("cancelChatListRefetches cancels with the loaded-refetch predicate", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
 		await cancelChatListRefetches(queryClient);
 
 		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: ["chats", "collections", "list"],
+			queryKey: chatListFamilyKey,
 			predicate: expect.any(Function),
 		});
 	});
 
-	it("cancelDetail cancels the exact detail entry unconditionally", async () => {
+	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
@@ -3194,7 +3117,7 @@ describe("semantic cache operations: cancellation", () => {
 		});
 	});
 
-	it("cancelMessages cancels the exact messages entry", async () => {
+	it("cancelChatMessages cancels the exact messages entry", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
@@ -3208,34 +3131,40 @@ describe("semantic cache operations: cancellation", () => {
 });
 
 describe("semantic cache operations: removal and patching", () => {
-	it("removeDetail removes only the exact detail entry", () => {
+	it("removeChatEntity removes only the exact detail entry", () => {
 		const queryClient = createTestQueryClient();
-		seedAll(queryClient, "chat-1");
-		const keys = entitySubKeys("chat-1");
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatACLKey("chat-1"), {});
+		queryClient.setQueryData(chatDiffContentsKey("chat-1"), { files: [] });
+		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
+		queryClient.setQueryData(chatDebugRunKey("chat-1", "run-1"), {});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
 
 		removeChatEntity(queryClient, "chat-1");
 
-		expect(queryClient.getQueryData(keys.detail)).toBeUndefined();
-		for (const label of [
-			"messages",
-			"prompts",
-			"acl",
-			"diffContents",
-			"debugRuns",
-			"debugRun",
+		expect(queryClient.getQueryData(chatEntityKey("chat-1"))).toBeUndefined();
+		for (const [label, key] of [
+			["messages", chatMessagesKey("chat-1")],
+			["prompts", chatPromptsKey("chat-1")],
+			["acl", chatACLKey("chat-1")],
+			["diff-contents", chatDiffContentsKey("chat-1")],
+			["debug-runs", chatDebugRunsKey("chat-1")],
+			["debug-run detail", chatDebugRunKey("chat-1", "run-1")],
 		] as const) {
 			expect(
-				queryClient.getQueryData(keys[label]),
-				`${label} entry should survive removeDetail`,
+				queryClient.getQueryData(key),
+				`${label} entry should survive removeChatEntity`,
 			).toBeDefined();
 		}
 		expect(
-			queryClient.getQueryData(collectionKeys().list),
-			"list entry should survive removeDetail",
+			queryClient.getQueryData(infiniteChatsTestKey),
+			"list entry should survive removeChatEntity",
 		).toBeDefined();
 	});
 
-	it("patchDetail applies the updater to the exact detail entry", () => {
+	it("patchChatEntity applies the updater to the exact detail entry", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
 
@@ -3248,12 +3177,12 @@ describe("semantic cache operations: removal and patching", () => {
 		).toBe("Patched");
 	});
 
-	it("patchMessages preserves the previous reference when the updater is a no-op", () => {
+	it("patchChatMessages preserves the previous reference when the updater is a no-op", () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(
-			chatMessagesKey("chat-1"),
-			makeSemanticOpMessages(),
-		);
+		queryClient.setQueryData(chatMessagesKey("chat-1"), {
+			pages: [{ messages: [], queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
 		const before = queryClient.getQueryData(chatMessagesKey("chat-1"));
 
 		patchChatMessages(queryClient, "chat-1", (data) => data);
