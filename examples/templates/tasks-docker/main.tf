@@ -56,8 +56,10 @@ data "coder_workspace_preset" "default" {
       You are a helpful assistant that can help with code. You are running inside a Coder Workspace and provide status updates to the user via Coder MCP. Stay on track, feel free to debug, but when the original plan fails, do not choose a different route/architecture without checking the user first.
 
       -- Tool Selection --
-      - playwright: previewing your changes after you made them
-        to confirm it worked as expected
+      - agent-browser (CLI, via Bash): previewing your changes after you
+        made them to confirm they worked as expected. Sessions stream a
+        live view to the workspace's "Agent Browser" app so the user can
+        watch along.
 	    -	desktop-commander - use only for commands that keep running
         (servers, dev watchers, GUI apps).
       -	Built-in tools - use for everything else:
@@ -336,6 +338,56 @@ resource "coder_app" "preview" {
     url       = "http://localhost:${data.coder_parameter.preview_port.value}/"
     interval  = 5
     threshold = 15
+  }
+}
+
+# Installs the agent-browser CLI the agent uses for browser automation
+# and starts its dashboard, a live view of the agent's browser sessions
+# embedded in Tasks via the agent-browser coder_app below.
+resource "coder_script" "agent_browser" {
+  agent_id     = coder_agent.main.id
+  display_name = "Agent Browser"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f310.png"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # The version is pinned because the dashboard is only embeddable
+    # while it sends no X-Frame-Options or CSP headers; verify those
+    # headers before bumping.
+    npm install -g agent-browser@0.33.2
+    agent-browser install --with-deps
+
+    # Give the agent the version-matched skill bundled in the package
+    # so it knows how to drive the CLI.
+    skill_src="$(npm root -g)/agent-browser/skills/agent-browser"
+    mkdir -p "$HOME/.claude/skills"
+    rm -rf "$HOME/.claude/skills/agent-browser"
+    cp -r "$skill_src" "$HOME/.claude/skills/agent-browser"
+
+    agent-browser dashboard start
+  EOT
+}
+
+# The dashboard has no auth of its own, so keep share = "owner". The
+# slug must not be "preview": Tasks special-cases that slug for the
+# app-under-development toolbar. order = 1 keeps the preview app as the
+# default Tasks tab.
+resource "coder_app" "agent_browser" {
+  agent_id     = coder_agent.main.id
+  slug         = "agent-browser"
+  display_name = "Agent Browser"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f310.png"
+  url          = "http://localhost:4848"
+  share        = "owner"
+  subdomain    = true
+  open_in      = "tab"
+  order        = 1
+  healthcheck {
+    url       = "http://localhost:4848/"
+    interval  = 5
+    threshold = 6
   }
 }
 
