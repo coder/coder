@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -61,10 +60,10 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (database.ChatModelConfig, fantasy.LanguageModel, aiGatewayModelRoute, bool, error) {
+) (database.ChatModelConfig, chatprovider.Model, aiGatewayModelRoute, bool, error) {
 	raw, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
@@ -82,17 +81,17 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, overrideSet, err
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, overrideSet, err
 	}
 	if !overrideSet {
-		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, nil
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, nil
 	}
 	modelConfig = withResolvedReasoningEffort(modelConfig, overrideEffort)
 
 	//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
 	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, true, err
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:          chat,
@@ -102,7 +101,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		ConfigOptions: modelConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, true, xerrors.Errorf(
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, xerrors.Errorf(
 			"create title generation model override: %w",
 			err,
 		)

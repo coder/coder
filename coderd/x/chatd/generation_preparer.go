@@ -36,7 +36,7 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            fantasy.LanguageModel
+		model            chatprovider.Model
 		modelConfig      database.ChatModelConfig
 		modelRoute       aiGatewayModelRoute
 		modelOpts        modelBuildOptions
@@ -300,7 +300,7 @@ func (server *Server) prepareGeneration(
 		acceptsFilePart := func(mediaType string) bool {
 			return chatprovider.AcceptsFilePartMediaType(
 				model.Provider(),
-				model.Model(),
+				model.ModelID(),
 				mediaType,
 				chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig),
 			)
@@ -371,7 +371,7 @@ func (server *Server) prepareGeneration(
 		logger,
 		"persisted_history_replay",
 		model.Provider(),
-		model.Model(),
+		model.ModelID(),
 		sanitizeStats,
 	)
 
@@ -559,12 +559,12 @@ func (server *Server) prepareGeneration(
 	)
 	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
+		model.LanguageModel(),
 		callConfig.ProviderOptions,
 		responsesOverride,
 	)
 	providerOptions = chatprovider.ApplyReasoningEffort(
-		model,
+		model.LanguageModel(),
 		providerOptions,
 		reasoningEffort,
 		responsesOverride,
@@ -627,7 +627,7 @@ func (server *Server) prepareGeneration(
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                model,
+		Model:                model.LanguageModel(),
 		Messages:             prompt,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,

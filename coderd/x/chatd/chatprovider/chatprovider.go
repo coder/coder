@@ -920,16 +920,16 @@ func ModelFromConfig(
 	extraHeaders map[string]string,
 	httpClient *http.Client,
 	openAIResponsesOverride *bool,
-) (fantasy.LanguageModel, error) {
+) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
-		return nil, err
+		return Model{}, err
 	}
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
 		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
-		return nil, missingProviderAPIKeyError(provider)
+		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
 
@@ -952,7 +952,7 @@ func ModelFromConfig(
 		providerClient, err = fantasyanthropic.New(options...)
 	case fantasyazure.Name:
 		if baseURL == "" {
-			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
+			return Model{}, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
 		}
 		azureOpts := []fantasyazure.Option{
 			fantasyazure.WithAPIKey(apiKey),
@@ -1068,17 +1068,17 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyvercel.New(options...)
 	default:
-		return nil, xerrors.Errorf("unsupported model provider %q", provider)
+		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return nil, providerCreationError(provider, err)
+		return Model{}, providerCreationError(provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
 	if err != nil {
-		return nil, xerrors.Errorf("load %s model: %w", provider, err)
+		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
-	return model, nil
+	return NewModel(model, openAIResponsesOverride), nil
 }
 
 func providerCreationError(provider string, err error) error {

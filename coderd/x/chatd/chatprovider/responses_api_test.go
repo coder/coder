@@ -65,7 +65,7 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			_, err = model.Generate(context.Background(), fantasy.Call{
+			_, err = model.LanguageModel().Generate(context.Background(), fantasy.Call{
 				Prompt: []fantasy.Message{{
 					Role:    fantasy.MessageRoleUser,
 					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Test message"}},

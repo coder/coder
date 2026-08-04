@@ -36,7 +36,7 @@ func readCompactionModelOverride(
 // the identity metadata debug runs and prompt sanitization need.
 type compactionModelOverride struct {
 	modelConfig      database.ChatModelConfig
-	model            fantasy.LanguageModel
+	model            chatprovider.Model
 	resolvedProvider string
 	resolvedModel    string
 	// providerOptions include the override's reasoning effort for the
@@ -169,7 +169,7 @@ func (p *Server) buildCompactionOverrideModel(
 // options, including the admin-resolved reasoning effort, into provider
 // options for the summary call.
 func compactionOverrideProviderOptions(
-	model fantasy.LanguageModel,
+	model chatprovider.Model,
 	modelConfig database.ChatModelConfig,
 ) (fantasy.ProviderOptions, *bool, error) {
 	callConfig := codersdk.ChatModelCallConfig{}
@@ -183,7 +183,7 @@ func compactionOverrideProviderOptions(
 	}
 	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
+		model.LanguageModel(),
 		callConfig.ProviderOptions,
 		responsesOverride,
 	)
@@ -192,7 +192,7 @@ func compactionOverrideProviderOptions(
 		callConfig.ReasoningEffort,
 	)
 	return chatprovider.ApplyReasoningEffort(
-		model,
+		model.LanguageModel(),
 		providerOptions,
 		reasoningEffort,
 		responsesOverride,

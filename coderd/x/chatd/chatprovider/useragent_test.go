@@ -53,7 +53,7 @@ func TestModelFromConfig_UserAgent(t *testing.T) {
 
 	// Make a real call so Fantasy sends an HTTP request to the
 	// fake server, which asserts the User-Agent header.
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role: fantasy.MessageRoleUser,
