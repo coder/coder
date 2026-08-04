@@ -5,6 +5,11 @@ these can also be [managed and synced by the identity provider](./idp-sync.md).
 
 ## Groups
 
+> [!NOTE]
+> Groups require a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
+
 Groups are logical segmentations of users in Coder and can be used to control
 which templates developers can use. For example:
 

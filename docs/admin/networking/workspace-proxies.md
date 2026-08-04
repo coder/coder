@@ -1,6 +1,11 @@
-# Workspace Proxies
+# Workspace Proxies (Premium)
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.
+
+> [!NOTE]
+> Workspace proxies require a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
 
 Coder's networking does a best effort to make direct connections to a workspace.
 In situations where this is not possible, such as connections via the web
