@@ -1,3 +1,7 @@
+CREATE INDEX workspace_agents_parent_id_not_deleted_idx
+ON workspace_agents (parent_id)
+WHERE deleted = FALSE;
+
 CREATE TABLE workspace_agent_subagent_execution_statuses (
 	workspace_build_id UUID NOT NULL,
 	declaration_id UUID NOT NULL,

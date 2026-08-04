@@ -7608,6 +7608,106 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 	})
 }
 
+func TestExactParentWorkspaceAuthorizationIgnoresCachedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	parentID := uuid.New()
+	cachedWorkspace := database.WorkspaceIdentity{
+		ID:             uuid.New(),
+		OwnerID:        uuid.New(),
+		OrganizationID: uuid.New(),
+	}
+	requestedWorkspace := database.Workspace{
+		ID:             uuid.New(),
+		OwnerID:        uuid.New(),
+		OrganizationID: uuid.New(),
+	}
+
+	tests := []struct {
+		name string
+		call func(context.Context, database.Store) error
+	}{
+		{
+			name: "List",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentID)
+				return err
+			},
+		},
+		{
+			name: "Get",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+					ID:       uuid.New(),
+					ParentID: parentID,
+				})
+				return err
+			},
+		},
+		{
+			name: "Delete",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+					ID:       uuid.New(),
+					ParentID: parentID,
+				})
+				return err
+			},
+		},
+		{
+			name: "Status",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.GetWorkspaceAgentSubagentExecutionStatus(ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+					WorkspaceBuildID: uuid.New(),
+					DeclarationID:    uuid.New(),
+					ParentAgentID:    parentID,
+				})
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := dbauthz.As(context.Background(), rbac.Subject{
+				ID:    cachedWorkspace.OwnerID.String(),
+				Scope: rbac.ScopeAll,
+			})
+			ctx, err := dbauthz.WithWorkspaceRBAC(ctx, cachedWorkspace.RBACObject())
+			require.NoError(t, err)
+
+			ctrl := gomock.NewController(t)
+			dbm := dbmock.NewMockStore(ctrl)
+			dbm.EXPECT().Wrappers().Return([]string{})
+			dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(requestedWorkspace, nil)
+
+			var authorizedObjectID string
+			authorizer := &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, object rbac.Object) error {
+					authorizedObjectID = object.ID
+					switch object.ID {
+					case cachedWorkspace.ID.String():
+						return nil
+					case requestedWorkspace.ID.String():
+						return xerrors.New("requested workspace is unauthorized")
+					default:
+						return xerrors.Errorf("unexpected workspace %q", object.ID)
+					}
+				},
+			}
+			q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+			err = tt.call(ctx, q)
+			require.Error(t, err)
+			require.True(t, dbauthz.IsNotAuthorizedError(err))
+			require.Equal(t, requestedWorkspace.ID.String(), authorizedObjectID)
+			// The strict mock fails if the parent-scoped operation is called.
+		})
+	}
+}
+
 // TestAuthorizeProvisionerJob_SystemFastPath verifies that
 // authorizeProvisionerJob short-circuits for system-restricted callers
 // instead of fanning out into GetWorkspaceBuildByJobID -> GetWorkspaceByID.

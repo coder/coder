@@ -173,6 +173,16 @@ func (q *querier) authorizeWorkspaceByAgentID(ctx context.Context, agentID uuid.
 	return q.authorizeContext(ctx, action, workspace)
 }
 
+// authorizeWorkspaceByExactAgentID resolves the supplied agent before
+// authorizing so a cached workspace from another agent cannot be used.
+func (q *querier) authorizeWorkspaceByExactAgentID(ctx context.Context, agentID uuid.UUID, action policy.Action) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, workspace)
+}
+
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
 // supporting delete operations. This function first attempts normal workspace
@@ -2649,7 +2659,7 @@ func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params 
 }
 
 func (q *querier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
 		return 0, err
 	}
 	return q.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
@@ -5440,14 +5450,14 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 }
 
 func (q *querier) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentID, policy.ActionUpdateAgent); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionUpdateAgent); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, parentID, policy.ActionRead); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, parentID, policy.ActionRead); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentID)
@@ -5535,7 +5545,7 @@ func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAf
 }
 
 func (q *querier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentAgentID, policy.ActionRead); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionRead); err != nil {
 		return database.WorkspaceAgentSubagentExecutionStatus{}, err
 	}
 	return q.db.GetWorkspaceAgentSubagentExecutionStatus(ctx, arg)

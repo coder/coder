@@ -5017,6 +5017,8 @@ CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents U
 
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
+CREATE INDEX workspace_agents_parent_id_not_deleted_idx ON workspace_agents USING btree (parent_id) WHERE (deleted = false);
+
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
 CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_audit_sessions USING btree (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);

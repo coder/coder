@@ -8230,6 +8230,51 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Empty(t, status.LastError)
 	})
 
+	t.Run("DuplicateStatusRow", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		_, err = fixture.sqlDB.ExecContext(fixture.ctx, `
+			INSERT INTO workspace_agent_subagent_execution_statuses (
+				workspace_build_id,
+				declaration_id
+			) VALUES ($1, $2)
+		`, params.WorkspaceBuildID, params.DeclarationID)
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueWorkspaceAgentSubagentExecutionStatusesPkey))
+	})
+
+	t.Run("MaximumLastError", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		lastError := strings.Repeat("x", 4096)
+		_, err = fixture.sqlDB.ExecContext(fixture.ctx, `
+			UPDATE workspace_agent_subagent_execution_statuses
+			SET last_error = $3
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID, lastError)
+		require.NoError(t, err)
+
+		status, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lastError, status.LastError)
+	})
+
 	t.Run("StatusMutableFields", func(t *testing.T) {
 		t.Parallel()
 
@@ -8344,6 +8389,12 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			name:       "OversizedLastError",
 			column:     "last_error",
 			value:      strings.Repeat("x", 4097),
+			constraint: database.CheckWorkspaceAgentSubagentExecutionStatusesLastErrorCheck,
+		},
+		{
+			name:       "OversizedMultibyteLastError",
+			column:     "last_error",
+			value:      strings.Repeat("界", 1366),
 			constraint: database.CheckWorkspaceAgentSubagentExecutionStatusesLastErrorCheck,
 		},
 	} {
