@@ -314,7 +314,7 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 	providerLogger := params.logger.Named("providers")
 	gateway := &standaloneGateway{
 		daemon:   daemon,
-		reloader: agpl.NewPoolRPCReloader(params.pool, daemon.ClientContext, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
+		reloader: agpl.NewPoolRPCReloader(params.pool, daemon.Client, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
 
 		coderURL:    params.coderURL,
 		httpAddress: params.httpAddress,
@@ -384,7 +384,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 			return
 		}
 		// WatchProviderReload reconnects internally and normally returns only when canceled.
-		err := aibridged.WatchProviderReload(provReloadCtx, s.daemon.ClientContext, s.reloader, s.providerLogger)
+		err := aibridged.WatchProviderReload(provReloadCtx, s.daemon.Client, s.reloader, s.providerLogger)
 		if err != nil && provReloadCtx.Err() == nil {
 			s.providerLogger.Error(provReloadCtx, "ai provider reload watch stopped", slog.Error(err))
 		}

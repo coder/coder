@@ -228,8 +228,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), p.tracer, func() (aibridge.Recorder, error) {
-		client, err := clientFn()
+	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), p.tracer, func(clientCtx context.Context) (aibridge.Recorder, error) {
+		// The recorder outlives this Acquire call, so the client is acquired
+		// against the context of the record call being served.
+		client, err := clientFn(clientCtx)
 		if err != nil {
 			return nil, xerrors.Errorf("acquire client: %w", err)
 		}
