@@ -894,21 +894,21 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
 	t.Parallel()
 
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	allowed := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
+		AgentsAllowed:  true,
 	})
 	require.True(t, allowed.AgentsAllowed)
 	blocked := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
+		AgentsAllowed:  false,
 	})
-	_, err := sqlDB.ExecContext(ctx, `UPDATE templates SET agents_allowed = false WHERE id = $1`, blocked.ID)
-	require.NoError(t, err)
 
 	tests := []struct {
 		name  string

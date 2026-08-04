@@ -5963,7 +5963,7 @@ type TemplateTable struct {
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
-	// Whether Coder Agents can use this template to create workspaces.
+	// Whether Coder Agents can create workspaces using this template.
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 }
 

@@ -3487,7 +3487,7 @@ COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to
 
 COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.';
 
-COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can use this template to create workspaces.';
+COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,

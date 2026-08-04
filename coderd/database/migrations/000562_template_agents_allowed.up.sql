@@ -1,6 +1,6 @@
 ALTER TABLE templates ADD COLUMN agents_allowed boolean DEFAULT true NOT NULL;
 
-COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can use this template to create workspaces.';
+COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 DO $$
 DECLARE

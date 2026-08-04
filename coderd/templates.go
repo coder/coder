@@ -224,6 +224,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		Icon:                    createTemplate.Icon,
 		DisplayName:             createTemplate.DisplayName,
 		UseClassicParameterFlow: useClassicParameterFlow,
+		AgentsAllowed:           true,
 	}
 
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
@@ -447,6 +448,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      useClassicParameterFlow,
 			CorsBehavior:                 corsBehavior,
+			AgentsAllowed:                true,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -778,6 +780,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
 			DisableModuleCache:           resolved.disableModuleCache,
+			AgentsAllowed:                template.AgentsAllowed,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
