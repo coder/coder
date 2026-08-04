@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { isApiErrorResponse } from "#/api/errors";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 
@@ -106,7 +107,9 @@ const shareAttachmentFile = async ({
 			type: blob.type || mediaType || "application/octet-stream",
 		});
 		if (!canShareFiles([file])) {
-			console.warn("Attachment cannot be shared:", fileName);
+			toast.error(`Couldn't download ${fileName}`, {
+				description: "This file cannot be shared on this device.",
+			});
 			return;
 		}
 		await navigator.share({ files: [file] });
@@ -122,7 +125,9 @@ const shareAttachmentFile = async ({
 		) {
 			return;
 		}
-		console.warn("Failed to share attachment:", error);
+		toast.error(`Couldn't download ${fileName}`, {
+			description: error instanceof Error ? error.message : "Tap to try again.",
+		});
 	}
 };
 

@@ -1,4 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("sonner", () => ({
+	toast: {
+		error: vi.fn(),
+	},
+}));
+
+import { toast } from "sonner";
 import {
 	handleAttachmentDownloadClick,
 	isChatAttachmentFile,
@@ -36,6 +44,7 @@ describe("handleAttachmentDownloadClick", () => {
 		}
 		overriddenNavigatorKeys.clear();
 		vi.restoreAllMocks();
+		vi.mocked(toast.error).mockClear();
 	});
 
 	it("keeps the native anchor download outside iOS", () => {
@@ -117,15 +126,14 @@ describe("handleAttachmentDownloadClick", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(new Blob(["png-bytes"], { type: "image/png" })),
 		);
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, target);
 
-		expect(warn).not.toHaveBeenCalled();
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("warns without a late popup when the download fetch fails", async () => {
+	it("shows an error toast without a late popup when the download fetch fails", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
 		overrideNavigator("share", share);
@@ -134,14 +142,16 @@ describe("handleAttachmentDownloadClick", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response("nope", { status: 503 }),
 		);
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, target);
 
 		expect(share).not.toHaveBeenCalled();
 		expect(open).not.toHaveBeenCalled();
-		expect(warn).toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledWith(
+			"Couldn't download 01-agents-list.png",
+			{ description: "HTTP 503" },
+		);
 	});
 
 	it("skips sharing when the fetched file turns out unshareable", async () => {
@@ -157,13 +167,15 @@ describe("handleAttachmentDownloadClick", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(new Blob(["png-bytes"], { type: "image/png" })),
 		);
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, target);
 
 		expect(share).not.toHaveBeenCalled();
-		expect(warn).toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledWith(
+			"Couldn't download 01-agents-list.png",
+			{ description: "This file cannot be shared on this device." },
+		);
 	});
 });
 
