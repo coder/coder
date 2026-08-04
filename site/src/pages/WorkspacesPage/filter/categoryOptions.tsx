@@ -121,7 +121,7 @@ export const getOwnerFilterOptions = async (
 
 	return [
 		{
-			label: me.username,
+			label: `${me.username} (you)`,
 			value: me.username,
 			startIcon: (
 				<Avatar fallback={me.username} src={me.avatar_url} size="md" />
