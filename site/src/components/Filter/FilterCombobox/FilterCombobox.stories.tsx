@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CircleDotIcon, LayoutGridIcon, UserIcon } from "lucide-react";
+import {
+	CircleDotIcon,
+	LayoutGridIcon,
+	SlidersHorizontalIcon,
+	UserIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -37,6 +42,12 @@ const templateOptions: FilterOption[] = [
 	{ label: "kubernetes", value: "kubernetes" },
 ];
 
+const attributeOptions: FilterOption[] = [
+	{ label: "Outdated", value: "outdated", token: "outdated:true" },
+	{ label: "Dormant", value: "dormant", token: "dormant:true" },
+	{ label: "Shared", value: "shared", token: "shared:true" },
+];
+
 const filterOptions = (
 	options: readonly FilterOption[],
 	query: string,
@@ -71,6 +82,19 @@ const categories: FilterCategory[] = [
 		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
+// Attributes groups boolean workspace filters; each option commits its own
+// `key:true` chip, and the category owns those keys for parsing.
+const categoriesWithAttributes: FilterCategory[] = [
+	...categories,
+	{
+		key: "attributes",
+		label: "Attributes",
+		icon: <SlidersHorizontalIcon />,
+		chipKeys: ["outdated", "dormant", "shared"],
+		getOptions: async (query) => filterOptions(attributeOptions, query),
 	},
 ];
 
@@ -392,5 +416,49 @@ export const CrossCategoryValueSuggestions: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.click(body.getByRole("option", { name: /testuser01/i }));
 		await expect(canvas.getByText("owner:testuser01")).toBeVisible();
+	},
+};
+
+// The Attributes category commits a distinct `key:true` chip per option, and
+// several attribute chips can coexist because each owns its own key.
+export const AttributesCommitBooleanChips: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Attributes/i })).toBeVisible(),
+		);
+		await userEvent.click(body.getByRole("option", { name: /Attributes/i }));
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Outdated/i })).toBeVisible(),
+		);
+		await userEvent.click(body.getByRole("option", { name: /Outdated/i }));
+		await waitFor(() =>
+			expect(canvas.getByText("outdated:true")).toBeVisible(),
+		);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await userEvent.click(body.getByRole("option", { name: /Attributes/i }));
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Shared/i })).toBeVisible(),
+		);
+		await userEvent.click(body.getByRole("option", { name: /Shared/i }));
+		await waitFor(() => expect(canvas.getByText("shared:true")).toBeVisible());
+
+		// Both boolean chips coexist because each attribute owns a distinct key.
+		await expect(canvas.getByText("outdated:true")).toBeVisible();
+		await expect(canvas.getByText("shared:true")).toBeVisible();
 	},
 };

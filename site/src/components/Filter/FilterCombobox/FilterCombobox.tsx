@@ -336,7 +336,9 @@ export function FilterCombobox({
 										<ComboboxLabel>{activeCategory.label}</ComboboxLabel>
 									)}
 									{activeOptions.map((option) => {
-										const item = chipToken(activeCategoryKey, option.value);
+										const item =
+											option.token ??
+											chipToken(activeCategoryKey, option.value);
 										return (
 											<ComboboxItem
 												className="gap-2 px-2 py-2.5"

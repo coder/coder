@@ -2,6 +2,7 @@ import {
 	Building2Icon,
 	CircleDotIcon,
 	LayoutGridIcon,
+	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
@@ -22,6 +23,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
+	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
 	getOwnerFilterOptions,
 	getStatusFilterOptions,
@@ -44,9 +46,11 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
 	error,
 }) => {
-	const { showOrganizations } = useDashboard();
+	const { showOrganizations, entitlements } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
 	const canFilterByUser = permissions.viewDeploymentConfig;
+	const canFilterDormant =
+		entitlements.features.advanced_template_scheduling.enabled;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
@@ -63,6 +67,16 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Template",
 				icon: <LayoutGridIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
+			},
+			{
+				key: "attributes",
+				label: "Attributes",
+				icon: <SlidersHorizontalIcon />,
+				// Groups the boolean workspace filters; each option commits its own
+				// `key:true` chip, so the category owns those keys for parsing.
+				chipKeys: ["outdated", "dormant", "shared"],
+				getOptions: (query) =>
+					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
 		];
 
@@ -86,7 +100,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		}
 
 		return next;
-	}, [canFilterByUser, me, showOrganizations, queryClient]);
+	}, [canFilterByUser, canFilterDormant, me, showOrganizations, queryClient]);
 
 	const getSearchResults = useCallback(
 		async (query: string): Promise<SearchResult[]> => {

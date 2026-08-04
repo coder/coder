@@ -218,7 +218,7 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = chipToken(category.key, option.value);
+			const token = option.token ?? chipToken(category.key, option.value);
 			if (selected.has(token)) {
 				continue;
 			}

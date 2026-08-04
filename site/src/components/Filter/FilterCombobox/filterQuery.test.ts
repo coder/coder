@@ -200,4 +200,29 @@ describe("filterQuery", () => {
 			]),
 		).toEqual([]);
 	});
+
+	it("uses an option's explicit token when suggesting values", () => {
+		const categories = [{ key: "attributes", label: "Attributes" }];
+		const optionsByKey = new Map([
+			[
+				"attributes",
+				[
+					{ label: "Outdated", value: "outdated", token: "outdated:true" },
+					{ label: "Dormant", value: "dormant", token: "dormant:true" },
+				],
+			],
+		]);
+
+		expect(
+			collectValueSuggestions("out", categories, optionsByKey, []).map(
+				(suggestion) => suggestion.token,
+			),
+		).toEqual(["outdated:true"]);
+		// An already-applied attribute chip is filtered out by its token.
+		expect(
+			collectValueSuggestions("dormant", categories, optionsByKey, [
+				"dormant:true",
+			]),
+		).toEqual([]);
+	});
 });

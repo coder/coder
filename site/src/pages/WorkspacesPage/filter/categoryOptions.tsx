@@ -1,3 +1,4 @@
+import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
@@ -129,6 +130,56 @@ export const getOwnerFilterOptions = async (
 		},
 		...options,
 	];
+};
+
+type AttributeOption = FilterOption & {
+	/** Hidden when the deployment lacks the entitlement gating this attribute. */
+	entitled: boolean;
+};
+
+/**
+ * Boolean workspace attributes exposed as a single "Attributes" category. Each
+ * option commits its own `key:true` chip (e.g. `outdated:true`) rather than a
+ * shared `attributes:` key, matching the backend workspace search filters.
+ */
+export const getAttributeFilterOptions = async (
+	query: string,
+	options: Readonly<{ canFilterDormant: boolean }>,
+): Promise<FilterOption[]> => {
+	const normalized = query.trim().toLowerCase();
+	const attributes: AttributeOption[] = [
+		{
+			label: "Outdated",
+			value: "outdated",
+			token: "outdated:true",
+			startIcon: <RefreshCwOffIcon className="size-icon-sm" />,
+			entitled: true,
+		},
+		{
+			label: "Dormant",
+			value: "dormant",
+			token: "dormant:true",
+			startIcon: <MoonIcon className="size-icon-sm" />,
+			entitled: options.canFilterDormant,
+		},
+		{
+			label: "Shared",
+			value: "shared",
+			token: "shared:true",
+			startIcon: <Share2Icon className="size-icon-sm" />,
+			entitled: true,
+		},
+	];
+
+	return attributes
+		.filter((attribute) => attribute.entitled)
+		.filter(
+			(attribute) =>
+				normalized.length === 0 ||
+				attribute.label.toLowerCase().includes(normalized) ||
+				attribute.value.toLowerCase().includes(normalized),
+		)
+		.map(({ entitled: _entitled, ...option }) => option);
 };
 
 export const getOrganizationFilterOptions = async (

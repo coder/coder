@@ -38,7 +38,7 @@ export const useFilterCombobox = ({
 	onSearchResultSelect,
 }: UseFilterComboboxOptions) => {
 	const chipKeys = useMemo(
-		() => categories.map((category) => category.key),
+		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
 		[categories],
 	);
 	const [open, setOpen] = useState(false);
