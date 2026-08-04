@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -365,6 +366,47 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
+}
+
+func TestInmemTailnetDialerCoordinateeAuth(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		require.NoError(t, coord.Close())
+	})
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+
+	type decision struct {
+		agentID uuid.UUID
+		allowed bool
+	}
+	decisions := make(chan decision, 1)
+	dialer := &coderd.InmemTailnetDialer{
+		CoordPtr: &coordPtr,
+		Logger:   logger,
+		ClientID: uuid.New(),
+		OnTunnelAuthorization: func(agentID uuid.UUID, allowed bool) {
+			decisions <- decision{agentID: agentID, allowed: allowed}
+		},
+	}
+	clients, err := dialer.Dial(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, clients.Closer.Close())
+	})
+
+	agentID := uuid.New()
+	require.NoError(t, clients.Coordinator.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
+	}))
+	require.Equal(t, decision{
+		agentID: agentID,
+		allowed: true,
+	}, testutil.TryReceive(ctx, t, decisions))
 }
 
 func TestDialFailure(t *testing.T) {

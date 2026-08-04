@@ -839,11 +839,12 @@ func New(options *Options) *API {
 	api.ConnectionLogger.Store(&options.ConnectionLogger)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr:            &api.TailnetCoordinator,
-		DERPFn:              api.DERPMap,
-		Logger:              options.Logger,
-		ClientID:            uuid.New(),
-		DatabaseHealthCheck: api.Database,
+		CoordPtr:              &api.TailnetCoordinator,
+		DERPFn:                api.DERPMap,
+		Logger:                options.Logger,
+		ClientID:              uuid.New(),
+		DatabaseHealthCheck:   api.Database,
+		OnTunnelAuthorization: api.SystemTunnelAuthorizationCallback("coderd", ""),
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,

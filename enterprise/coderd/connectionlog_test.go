@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -203,6 +204,7 @@ func TestConnectionLogs(t *testing.T) {
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
 			UserAgent:        sql.NullString{String: "coder-cli/2.0.0", Valid: true},
+			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
 			UserID:           uuid.NullUUID{UUID: ws.OwnerID, Valid: true},
 		})
 
@@ -216,6 +218,42 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, clog.UserAgent.String, logs.ConnectionLogs[0].WebInfo.UserAgent)
 		require.NotNil(t, logs.ConnectionLogs[0].WebInfo.User)
 		require.Equal(t, ws.OwnerID, logs.ConnectionLogs[0].WebInfo.User.ID)
+		require.EqualValues(t, http.StatusSwitchingProtocols, logs.ConnectionLogs[0].WebInfo.StatusCode)
+	})
+
+	t.Run("WebInfoSystemTunnel", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog:      1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		ws := createWorkspace(t, db)
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             dbtime.Now().Add(-time.Hour),
+			Type:             database.ConnectionTypeTunnel,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			UserAgent:        sql.NullString{String: "coderd", Valid: true},
+			UserID:           uuid.NullUUID{},
+			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
+		})
+
+		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{})
+		require.NoError(t, err)
+		require.Len(t, logs.ConnectionLogs, 1)
+		require.NotNil(t, logs.ConnectionLogs[0].WebInfo)
+		require.Nil(t, logs.ConnectionLogs[0].WebInfo.User)
+		require.Equal(t, "coderd", logs.ConnectionLogs[0].WebInfo.UserAgent)
+		require.EqualValues(t, http.StatusSwitchingProtocols, logs.ConnectionLogs[0].WebInfo.StatusCode)
 	})
 
 	t.Run("SSHInfo", func(t *testing.T) {

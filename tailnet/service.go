@@ -204,7 +204,7 @@ func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) erro
 		_ = stream.Close()
 		return xerrors.New("no Stream ID")
 	}
-	logger := s.Logger.With(slog.F("peer_id", streamID), slog.F("name", streamID.Name))
+	logger := s.Logger.With(slog.F("peer_id", streamID.ID.String()), slog.F("name", streamID.Name))
 	logger.Debug(ctx, "starting tailnet Coordinate")
 	coord := *(s.CoordPtr.Load())
 	reqs, resps := coord.Coordinate(ctx, streamID.ID, streamID.Name, streamID.Auth)

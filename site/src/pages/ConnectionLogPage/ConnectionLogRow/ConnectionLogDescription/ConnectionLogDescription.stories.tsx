@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
+	MockCoderdTunnelConnectionLog,
 	MockConnectedSSHConnectionLog,
+	MockDeniedTunnelConnectionLog,
+	MockTunnelConnectionLog,
 	MockWebConnectionLog,
+	MockWorkspaceProxyTunnelConnectionLog,
 } from "#/testHelpers/entities";
 import { ConnectionLogDescription } from "./ConnectionLogDescription";
 
@@ -97,10 +102,11 @@ export const JetBrains: Story = {
 
 export const Tunnel: Story = {
 	args: {
-		connectionLog: {
-			...MockWebConnectionLog,
-			type: "tunnel",
-		},
+		connectionLog: MockTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/established a tunnel to/)).toBeVisible();
 	},
 };
 
@@ -109,10 +115,63 @@ export const Tunnel: Story = {
 export const TunnelOtherUser: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
-			type: "tunnel",
+			...MockTunnelConnectionLog,
 			workspace_owner_username: "some-other-user",
 		},
+	},
+};
+
+export const TunnelDenied: Story = {
+	args: {
+		connectionLog: MockDeniedTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/was denied a tunnel to/)).toBeVisible();
+	},
+};
+
+export const TunnelCoderdSystem: Story = {
+	args: {
+		connectionLog: MockCoderdTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Coder system established a tunnel to/),
+		).toBeVisible();
+	},
+};
+
+export const TunnelWorkspaceProxy: Story = {
+	args: {
+		connectionLog: MockWorkspaceProxyTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Workspace proxy established a tunnel to/),
+		).toBeVisible();
+	},
+};
+
+export const TunnelUnknownSystem: Story = {
+	args: {
+		connectionLog: {
+			...MockCoderdTunnelConnectionLog,
+			web_info: {
+				user: null,
+				user_agent: "internal-component",
+				slug_or_port: "",
+				status_code: 101,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/System actor established a tunnel to/),
+		).toBeVisible();
 	},
 };
 

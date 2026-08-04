@@ -556,7 +556,8 @@ type InmemTailnetDialer struct {
 	Logger   slog.Logger
 	ClientID uuid.UUID
 	// DatabaseHealthCheck is used to validate that the store is reachable.
-	DatabaseHealthCheck Pinger
+	DatabaseHealthCheck   Pinger
+	OnTunnelAuthorization tailnet.TunnelAuthorizationCallback
 }
 
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
@@ -571,7 +572,11 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 		return tailnet.ControlProtocolClients{}, xerrors.Errorf("tailnet coordinator not initialized")
 	}
 	coordClient := tailnet.NewInMemoryCoordinatorClient(
-		a.Logger, a.ClientID, tailnet.SingleTailnetCoordinateeAuth{}, *coord)
+		a.Logger,
+		a.ClientID,
+		tailnet.SingleTailnetCoordinateeAuth{OnTunnelAuthorization: a.OnTunnelAuthorization},
+		*coord,
+	)
 	derpClient := newPollingDERPClient(a.DERPFn, a.Logger)
 	return tailnet.ControlProtocolClients{
 		Closer:      closeAll{coord: coordClient, derp: derpClient},

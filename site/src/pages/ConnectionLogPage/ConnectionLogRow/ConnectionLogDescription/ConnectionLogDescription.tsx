@@ -92,13 +92,21 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 
 		case "tunnel": {
 			if (!web_info) return null;
-			const { user } = web_info;
+			const { user, user_agent, status_code } = web_info;
+			const actor = (() => {
+				if (user) return user.username;
+				if (user_agent === "coderd") return "Coder system";
+				if (user_agent.startsWith("wsproxy/")) return "Workspace proxy";
+				return "System actor";
+			})();
+			const action =
+				status_code >= 400
+					? "was denied a tunnel to"
+					: "established a tunnel to";
 			const isOwnWorkspace = workspace_owner_username === user?.username;
 			return (
 				<span>
-					{/* Tunnel rows are only written for authenticated requests,
-					    so user should always be present. */}
-					{user?.username ?? "Unknown user"} established a tunnel to{" "}
+					{actor} {action}{" "}
 					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
 					<Link asChild showExternalIcon={false} className="text-base">
 						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
