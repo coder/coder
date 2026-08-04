@@ -169,7 +169,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func() (aibridge.Recorder, error) {
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func(context.Context) (aibridge.Recorder, error) {
 		return mockRec, nil
 	})
 
