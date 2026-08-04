@@ -137,10 +137,11 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs,
 		max_port_sharing_level,
 		use_classic_parameter_flow,
-		cors_behavior
+		cors_behavior,
+		allow_workspace_renames
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -174,7 +175,8 @@ SET
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
-	disable_module_cache = $12
+	disable_module_cache = $12,
+	allow_workspace_renames = $13
 WHERE
 	id = $1
 ;

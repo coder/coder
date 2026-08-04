@@ -220,7 +220,44 @@ func TestWorkspace(t *testing.T) {
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})
-		require.ErrorContains(t, err, "Workspace renames are not allowed")
+		require.ErrorContains(t, err, "Workspace renames are not enabled for this template")
+	})
+
+	t.Run("RenameAllowedByTemplate", func(t *testing.T) {
+		t.Parallel()
+		// The deployment-wide flag is off. The template setting alone must be
+		// enough to permit renames.
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			AllowWorkspaceRenames:    false,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
+			req.AllowWorkspaceRenames = ptr.Ref(true)
+		})
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		require.True(t, template.AllowWorkspaceRenames)
+
+		fetched, err := client.Workspace(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.True(t, fetched.AllowRenames)
+
+		const want = "new-name"
+		err = client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
+			Name: want,
+		})
+		require.NoError(t, err, "workspace rename failed")
+
+		ws, err := client.Workspace(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.Equal(t, want, ws.Name)
 	})
 
 	t.Run("TemplateProperties", func(t *testing.T) {

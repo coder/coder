@@ -418,6 +418,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
 		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
+		allowWorkspaceRenames        = ptr.NilToDefault(createTemplate.AllowWorkspaceRenames, false)
 	)
 
 	defaultsGroups := database.TemplateACL{}
@@ -447,6 +448,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      useClassicParameterFlow,
 			CorsBehavior:                 corsBehavior,
+			AllowWorkspaceRenames:        allowWorkspaceRenames,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -778,6 +780,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
 			DisableModuleCache:           resolved.disableModuleCache,
+			AllowWorkspaceRenames:        resolved.allowWorkspaceRenames,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1054,6 +1057,7 @@ func (api *API) convertTemplate(
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 		DisableModuleCache:      template.DisableModuleCache,
+		AllowWorkspaceRenames:   template.AllowWorkspaceRenames,
 	}
 }
 

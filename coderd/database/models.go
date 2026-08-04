@@ -5908,6 +5908,7 @@ type Template struct {
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5960,6 +5961,8 @@ type TemplateTable struct {
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	// Whether workspaces built from this template may be renamed. Renaming is destructive for templates whose Terraform references the workspace name in a resource identifier.
+	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

@@ -229,6 +229,12 @@ type CreateTemplateRequest struct {
 
 	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
 	CORSBehavior *CORSBehavior `json:"cors_behavior"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming is destructive for templates whose Terraform
+	// references the workspace name in a resource identifier, so this defaults
+	// to false.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

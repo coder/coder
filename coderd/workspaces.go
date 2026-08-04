@@ -1157,9 +1157,17 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
-		if !api.Options.AllowWorkspaceRenames {
+		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace template.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !workspaceRenamesAllowed(api.Options.AllowWorkspaceRenames, template) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Workspace renames are not allowed.",
+				Message: "Workspace renames are not enabled for this template.",
 			})
 			return
 		}
@@ -2599,10 +2607,19 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceData struct {
-	templates    []database.Template
-	builds       []codersdk.WorkspaceBuild
-	appStatuses  []codersdk.WorkspaceAppStatus
-	allowRenames bool
+	templates   []database.Template
+	builds      []codersdk.WorkspaceBuild
+	appStatuses []codersdk.WorkspaceAppStatus
+	// deploymentAllowsRenames is the deprecated deployment-wide rename flag.
+	deploymentAllowsRenames bool
+}
+
+// workspaceRenamesAllowed reports whether workspaces built from the given
+// template may be renamed. The template setting is the supported control. The
+// deployment-wide flag is deprecated and force-enables renames everywhere it is
+// set, so that deployments relying on it are unaffected until it is removed.
+func workspaceRenamesAllowed(deploymentAllowsRenames bool, template database.Template) bool {
+	return deploymentAllowsRenames || template.AllowWorkspaceRenames
 }
 
 // @Summary Completely clears the workspace's user and group ACLs.
@@ -2751,10 +2768,10 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	return workspaceData{
-		templates:    templates,
-		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
-		builds:       apiBuilds,
-		allowRenames: api.Options.AllowWorkspaceRenames,
+		templates:               templates,
+		appStatuses:             db2sdk.WorkspaceAppStatuses(appStatuses),
+		builds:                  apiBuilds,
+		deploymentAllowsRenames: api.Options.AllowWorkspaceRenames,
 	}, nil
 }
 
@@ -2802,7 +2819,7 @@ func convertWorkspaces(
 			workspace,
 			build,
 			template,
-			data.allowRenames,
+			data.deploymentAllowsRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2821,7 +2838,7 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	allowRenames bool,
+	deploymentAllowsRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
@@ -2909,7 +2926,7 @@ func convertWorkspace(
 			FailingAgents: failingAgents,
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
-		AllowRenames:     allowRenames,
+		AllowRenames:     workspaceRenamesAllowed(deploymentAllowsRenames, template),
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),

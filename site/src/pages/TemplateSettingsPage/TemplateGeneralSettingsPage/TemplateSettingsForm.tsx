@@ -21,11 +21,13 @@ import {
 	HorizontalForm,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
+import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	StackLabel,
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -45,6 +47,7 @@ export const validationSchema = Yup.object({
 		MAX_DESCRIPTION_MESSAGE,
 	),
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
+	allow_workspace_renames: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
 	disable_module_cache: Yup.boolean(),
@@ -93,6 +96,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			cors_behavior: template.cors_behavior,
 			disable_module_cache: template.disable_module_cache,
+			allow_workspace_renames: template.allow_workspace_renames,
 		},
 		validationSchema,
 		onSubmit,
@@ -242,6 +246,41 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 										Warning: This makes workspace builds less predictable and is
 										not recommended for production templates.
 									</strong>
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="allow_workspace_renames"
+								name="allow_workspace_renames"
+								checked={form.values.allow_workspace_renames}
+								onChange={form.handleChange}
+								disabled={isSubmitting}
+							/>
+						}
+						label={
+							<StackLabel>
+								Allow users to rename their workspaces.
+								<StackLabelHelperText>
+									<div>
+										Only enable this if your template does not use the workspace
+										name in a resource identifier.{" "}
+										<strong>
+											If checked, renaming a workspace may destroy and recreate
+											resources, causing data loss.
+										</strong>
+									</div>
+									<Link
+										className="text-xs"
+										href={docs(
+											"/admin/templates/extending-templates/resource-persistence",
+										)}
+									>
+										Learn more
+									</Link>
 								</StackLabelHelperText>
 							</StackLabel>
 						}
