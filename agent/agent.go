@@ -613,6 +613,12 @@ func (a *agent) subagentExecutionDriver() subagentexec.Driver {
 	}
 	driver, err := subagentexec.NewScriptDriver(cfg)
 	if err != nil {
+		if errors.Is(err, subagentexec.ErrUnsupportedPlatform) {
+			// Every agent on a platform the driver does not support would
+			// otherwise warn at startup, declarations or not.
+			a.logger.Debug(a.hardCtx, "subagent execution driver is unavailable", slog.Error(err))
+			return nil
+		}
 		a.logger.Warn(a.hardCtx, "subagent execution driver is unavailable", slog.Error(err))
 		return nil
 	}

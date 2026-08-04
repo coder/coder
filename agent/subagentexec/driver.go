@@ -293,6 +293,14 @@ func (d *ScriptDriver) Start(_ context.Context, launch Launch) (Process, error) 
 		slog.F("child_agent_id", launch.ChildAgentID),
 	)
 	paths := d.paths(decl.ExecutionID)
+	// The token, protocol document, driver script, and the child's private
+	// home, temporary, and runtime directories must never be reachable
+	// from the shared project directory the child and the owner both write
+	// to.
+	if isWithin(paths.dir, decl.SharedHostPath) {
+		return nil, xerrors.Errorf("private execution state %s is inside the declared shared path %s",
+			paths.dir, decl.SharedHostPath)
+	}
 
 	if err := d.prepare(paths, launch); err != nil {
 		removeState(logger, paths)
@@ -588,6 +596,18 @@ func validateDriverBody(decl agentsdk.SubagentExecution) error {
 		return xerrors.Errorf("driver shebang %q must name an absolute interpreter path", shebang)
 	}
 	return nil
+}
+
+// isWithin reports whether path is dir itself or lives inside it.
+func isWithin(path, dir string) bool {
+	if dir == "" {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // mkdirPrivate creates dir with privateDirMode and tightens an existing

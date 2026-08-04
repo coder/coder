@@ -613,6 +613,33 @@ func TestNewScriptDriver_Validation(t *testing.T) {
 	}
 }
 
+func TestScriptDriver_RejectsStateInsideSharedPath(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	driver := newTestDriver(t, nil)
+	launch := testDriverLaunch("#!/bin/sh\nexit 0\n")
+	// A declaration that shares the directory holding the token file, or
+	// any parent of it, must not launch at all.
+	launch.Declaration.SharedHostPath = filepath.Dir(driver.stateRoot)
+
+	_, err := driver.Start(ctx, launch)
+	require.ErrorContains(t, err, "is inside the declared shared path")
+	require.NoDirExists(t, driver.paths(launch.Declaration.ExecutionID).dir)
+}
+
+func TestIsWithin(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, isWithin("/a/b/c", "/a/b"))
+	require.True(t, isWithin("/a/b", "/a/b"))
+	require.True(t, isWithin("/a/b/c", "/a/b/"))
+	require.False(t, isWithin("/a/bc", "/a/b"))
+	require.False(t, isWithin("/a", "/a/b"))
+	require.False(t, isWithin("/x/y", "/a/b"))
+	require.False(t, isWithin("/a/b", ""))
+}
+
 func TestScriptDriver_RejectsLaunchWithoutToken(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
