@@ -93,6 +93,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -140,12 +141,11 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (

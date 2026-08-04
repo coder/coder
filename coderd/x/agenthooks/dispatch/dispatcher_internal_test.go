@@ -671,7 +671,8 @@ func newTestEvent(t *testing.T, eventType agenthooks.EventType, data any) Event 
 			ChatID:  uuid.New(),
 			OwnerID: uuid.New(),
 		},
-		Data: data,
+		Data:     data,
+		Capacity: CapacityClassGeneration,
 	}
 }
 
@@ -698,4 +699,112 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestDispatcherCapacityClassRequired(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	event.Capacity = CapacityClassUnset
+	dispatcher := newTestDispatcher(t, nil, "https://unused.test", time.Second)
+
+	_, dispatchID, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitShort), event)
+	require.ErrorContains(t, err, "no capacity class")
+	require.Equal(t, uuid.Nil, dispatchID)
+}
+
+func TestDispatcherAdmissionReserve(t *testing.T) {
+	t.Parallel()
+
+	fill := func(t *testing.T, pool chan struct{}, count int) {
+		t.Helper()
+		for range count {
+			pool <- struct{}{}
+		}
+		t.Cleanup(func() {
+			for range count {
+				<-pool
+			}
+		})
+	}
+
+	t.Run("AdmissionReleasesBothPools", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		}))
+		t.Cleanup(server.Close)
+
+		dispatcher := New(
+			testutil.Logger(t), server.Client(), server.URL, testSecret, testutil.WaitShort,
+			testDeploymentID, testVersion, prometheus.NewRegistry(),
+		)
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		require.NoError(t, err)
+		require.Empty(t, dispatcher.admission)
+		require.Empty(t, dispatcher.semaphore)
+	})
+
+	t.Run("SaturatedAdmissionRefusesAdmission", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, nil, "https://unused.test", 10*time.Millisecond)
+		fill(t, dispatcher.admission, maxAdmissionDispatches)
+
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		assertDispatchErrorClass(t, err, ResultOverCapacity)
+		require.Empty(t, dispatcher.semaphore, "a refused admission must not hold a shared slot")
+	})
+
+	t.Run("ExpiredDeadlineRefusesFreeSlot", func(t *testing.T) {
+		t.Parallel()
+
+		pool := make(chan struct{}, 1)
+		release, outcome, ok := acquire(testutil.Context(t, testutil.WaitShort), pool, time.Now().Add(-time.Millisecond))
+		require.False(t, ok)
+		require.Nil(t, release)
+		require.Equal(t, ResultOverCapacity, outcome.result)
+		require.Empty(t, pool)
+	})
+
+	t.Run("RefusedSharedAcquireReleasesAdmission", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, nil, "https://unused.test", 10*time.Millisecond)
+		fill(t, dispatcher.semaphore, maxConcurrentDispatches)
+
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		assertDispatchErrorClass(t, err, ResultOverCapacity)
+		require.Empty(t, dispatcher.admission, "an admission refused by the shared pool must release its gate token")
+	})
+
+	t.Run("SaturatedAdmissionStillServesGeneration", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		}))
+		t.Cleanup(server.Close)
+
+		dispatcher := New(
+			testutil.Logger(t), server.Client(), server.URL, testSecret, testutil.WaitShort,
+			testDeploymentID, testVersion, prometheus.NewRegistry(),
+		)
+		fill(t, dispatcher.admission, maxAdmissionDispatches)
+		fill(t, dispatcher.semaphore, maxAdmissionDispatches)
+
+		event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		require.NoError(t, err)
+	})
 }

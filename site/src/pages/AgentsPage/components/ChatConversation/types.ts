@@ -7,6 +7,7 @@ export type ParsedToolCall = {
 	args?: unknown;
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
+	hookRewritten?: boolean;
 };
 
 export type ParsedToolResult = {
@@ -27,6 +28,7 @@ export type MergedTool = {
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
 };
@@ -59,6 +61,7 @@ export type ParsedMessageContent = {
 	tools: MergedTool[];
 	blocks: RenderBlock[];
 	sources: Array<{ url: string; title: string }>;
+	hookNotices: string[];
 };
 
 export type ParsedMessageEntry = {

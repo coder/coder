@@ -1,11 +1,8 @@
-import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
+import type { ChatDetailError } from "./chatError";
 import {
 	selectIsAwaitingFirstStreamChunk,
 	selectReconnectState,
@@ -55,8 +52,6 @@ export const LiveStreamTailContent = ({
 }: LiveStreamTailContentProps) => {
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
-	const usageLimitStatus =
-		terminalStatus?.kind === "usage_limit" ? terminalStatus : null;
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 
@@ -93,20 +88,7 @@ export const LiveStreamTailContent = ({
 					mcpServers={mcpServers}
 				/>
 			)}
-			{usageLimitStatus && !usageLimitStatus.provider ? (
-				<Alert
-					severity="info"
-					actions={
-						<Button asChild size="sm">
-							<Link to="/agents/analytics">View usage</Link>
-						</Button>
-					}
-				>
-					<AlertDescription>{usageLimitStatus.message}</AlertDescription>
-				</Alert>
-			) : terminalStatus ? (
-				<ChatStatusCallout status={terminalStatus} />
-			) : null}
+			{terminalStatus && <ChatStatusCallout status={terminalStatus} />}
 		</div>
 	);
 };

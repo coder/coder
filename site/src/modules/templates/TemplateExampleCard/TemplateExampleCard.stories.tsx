@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -8,7 +7,6 @@ import { TemplateExampleCard } from "./TemplateExampleCard";
 
 const meta: Meta<typeof TemplateExampleCard> = {
 	title: "modules/templates/TemplateExampleCard",
-	parameters: { chromatic },
 	component: TemplateExampleCard,
 	args: {
 		example: MockTemplateExample,

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockFailedWorkspaceBuild,
 	MockWorkspaceBuild,
@@ -15,7 +14,6 @@ const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
 
 const meta: Meta<typeof WorkspaceBuildPageView> = {
 	title: "pages/WorkspaceBuildPage",
-	parameters: { chromatic },
 	component: WorkspaceBuildPageView,
 	args: {
 		build: MockWorkspaceBuild,
