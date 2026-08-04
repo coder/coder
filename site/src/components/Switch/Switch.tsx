@@ -34,8 +34,8 @@ const thumbVariants = cva(
 		variants: {
 			size: {
 				default:
-					"size-4 data-[state=checked]:translate-x-2.5 data-[state=unchecked]:-translate-x-1.5",
-				sm: "size-3 data-[state=checked]:translate-x-1.5 data-[state=unchecked]:-translate-x-1.5",
+					"data-[state=checked]:translate-x-2.5 data-[state=unchecked]:-translate-x-1.5 size-4",
+				sm: "data-[state=checked]:translate-x-1.5 data-[state=unchecked]:-translate-x-1.5 size-3",
 			},
 		},
 		defaultVariants: {
