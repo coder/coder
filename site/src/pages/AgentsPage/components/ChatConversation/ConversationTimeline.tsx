@@ -9,7 +9,7 @@ import {
 	Fragment,
 	memo,
 	type ReactNode,
-	useCallback,
+	type Ref,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -53,6 +53,7 @@ import {
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
 import { groupSequentialReadFileBlocks } from "./blockUtils";
+import { useChatScrollElements } from "./ChatScrollElementsContext";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	buildDisplayMessages,
@@ -566,6 +567,10 @@ const ChatMessageItem = memo<{
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	// The clipped bubble and its unclipped content, forwarded to the user
+	// message so a pinned prompt can measure both.
+	bubbleRef?: Ref<HTMLDivElement>;
+	bodyRef?: Ref<HTMLDivElement>;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -592,6 +597,8 @@ const ChatMessageItem = memo<{
 		isAwaitingFirstStreamChunk = false,
 		isLastMessage = false,
 		fadeFromBottom = false,
+		bubbleRef,
+		bodyRef,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -658,6 +665,8 @@ const ChatMessageItem = memo<{
 							markdown={parsed.markdown}
 							isEditing={editingMessageId === message.id}
 							fadeFromBottom={fadeFromBottom}
+							bubbleRef={bubbleRef}
+							bodyRef={bodyRef}
 							onImageClick={setPreviewImage}
 							onTextFileClick={setPreviewText}
 						/>
@@ -831,14 +840,8 @@ const FADE_RANGE = 40;
 const TURN_GAP = 8;
 
 /**
- * A turn's prompt. The section around it is the sticky containing block, so the
- * browser owns pinning and push-out; the only thing measured here is how much
- * of the bubble is still visible.
- *
- * The sticky box is deliberately only as tall as the visible bubble plus its
- * action row, because native push-out is driven by that height. The clipped
- * remainder is reproduced by a spacer outside the sticky box, which keeps the
- * section, and therefore the scroll geometry, at its full height.
+ * A turn's prompt. The sticky box's height drives native push-out, so it holds
+ * only the visible bubble, and the spacer outside it restores the turn's height.
  */
 const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
@@ -876,18 +879,18 @@ const StickyUserMessage = memo<{
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const spacerRef = useRef<HTMLDivElement>(null);
+		const bubbleRef = useRef<HTMLDivElement>(null);
+		const bodyRef = useRef<HTMLDivElement>(null);
+		const { scroller, content } = useChatScrollElements();
 
 		// The frosted band carries `backdrop-filter`, which is the most
 		// expensive thing in the transcript: 150 of them cost WebKit about 14ms
 		// per frame, because every forced style and layout update has to bring
 		// that many filtered layers up to date. Only the prompt in the
-		// scrollport can show a band, so only that prompt renders one.
-		const [showBand, setShowBand] = useState(false);
-		const bandInputs = useRef({ inView: false, tooTall: false });
-		const syncBand = useCallback(() => {
-			const { inView, tooTall } = bandInputs.current;
-			setShowBand(inView && !tooTall);
-		}, []);
+		// scrollport can show a band, and a prompt too tall to pin never fades.
+		const [inView, setInView] = useState(false);
+		const [tooTall, setTooTall] = useState(false);
+		const showBand = inView && !tooTall;
 
 		// A layout effect, never a passive one: `ResizeObserver` delivers its
 		// first callback after layout and before the first paint, so the clip is
@@ -897,17 +900,11 @@ const StickyUserMessage = memo<{
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
 			const spacer = spacerRef.current;
-			if (!sentinel || !container || !spacer) return;
-			const scroller = sentinel.closest<HTMLElement>(".overflow-y-auto");
-			if (!scroller) return;
-			// The bubble carries `max-height`, so its own height reports the
-			// clipped size. Its inner body is never clipped, which is the only
-			// reliable source for the uncompressed height.
-			const body = container.querySelector<HTMLElement>(
-				"[data-turn-prompt-body]",
-			);
-			const bubble = body?.parentElement;
-			if (!body || !bubble) return;
+			const body = bodyRef.current;
+			const bubble = bubbleRef.current;
+			if (!sentinel || !container || !spacer || !body || !bubble || !scroller) {
+				return;
+			}
 
 			// The clip shrinks only the bubble's content box. The bubble's own
 			// padding and border, and the action row below it, keep their height,
@@ -916,6 +913,11 @@ const StickyUserMessage = memo<{
 			let rowHeight = 0;
 			let bodyHeight = 0;
 			let scrollerHeight = 0;
+			// Prompts taller than most of the scrollport are not worth pinning:
+			// they would cover the reply they belong to. Only a resize can change
+			// that, so it is settled while measuring and the band's state is set
+			// on the crossing alone, never per frame.
+			let tooTallNow = false;
 			const measure = () => {
 				const bubbleStyle = getComputedStyle(bubble);
 				bubbleChrome =
@@ -930,6 +932,12 @@ const StickyUserMessage = memo<{
 				);
 				bodyHeight = body.getBoundingClientRect().height;
 				scrollerHeight = scroller.clientHeight;
+				const next =
+					bodyHeight + bubbleChrome + rowHeight > scrollerHeight * 0.75;
+				if (next !== tooTallNow) {
+					tooTallNow = next;
+					setTooTall(next);
+				}
 			};
 
 			const update = () => {
@@ -944,19 +952,12 @@ const StickyUserMessage = memo<{
 					0,
 				);
 
-				// Prompts taller than most of the scrollport are not worth
-				// pinning: they would cover the reply they belong to.
-				const tooTall = fullHeight > scrollerHeight * 0.75;
-				if (bandInputs.current.tooTall !== tooTall) {
-					bandInputs.current.tooTall = tooTall;
-					syncBand();
-				}
-				container.style.position = tooTall ? "relative" : "";
+				container.style.position = tooTallNow ? "relative" : "";
 				// A prompt that is not pinned never covers a sibling, and the
 				// stacking context the raised prompt opens changes how its text is
 				// antialiased, so it is given up along with the pinning.
-				container.style.zIndex = tooTall ? "auto" : "";
-				if (tooTall) {
+				container.style.zIndex = tooTallNow ? "auto" : "";
+				if (tooTallNow) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
 					container.style.setProperty("--pin-slack", "0px");
@@ -1000,19 +1001,24 @@ const StickyUserMessage = memo<{
 			// event, and the growth changes neither the scroller's own box nor
 			// the prompt body. The content wrapper is observed as well, so the
 			// clip keeps up with a streaming reply.
-			const content = sentinel.closest<HTMLElement>(
-				"[data-chat-scroll-content]",
-			);
 			let rafId: number | null = null;
+			let needsMeasure = false;
 			const schedule = () => {
 				if (rafId !== null) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = null;
+					if (needsMeasure) {
+						needsMeasure = false;
+						measure();
+					}
 					update();
 				});
 			};
+			// `measure` reads computed style and three rects, and a window resize
+			// fires continuously while a window is dragged, so it waits for the
+			// frame rather than running per event.
 			const remeasure = () => {
-				measure();
+				needsMeasure = true;
 				schedule();
 			};
 			const observer = new ResizeObserver(remeasure);
@@ -1029,28 +1035,23 @@ const StickyUserMessage = memo<{
 				observer.disconnect();
 				if (rafId !== null) cancelAnimationFrame(rafId);
 			};
-		}, [syncBand]);
+		}, [scroller, content]);
 
 		// Whether this prompt can show a band at all. `IntersectionObserver`
 		// answers that without reading geometry during the frame, so it adds no
 		// forced layout to a scroll.
 		useLayoutEffect(() => {
 			const container = containerRef.current;
-			if (!container) return;
-			const scroller = container.closest<HTMLElement>(".overflow-y-auto");
-			if (!scroller) return;
+			if (!container || !scroller) return;
 			const observer = new IntersectionObserver(
 				(entries) => {
-					const inView = entries[entries.length - 1].isIntersecting;
-					if (bandInputs.current.inView === inView) return;
-					bandInputs.current.inView = inView;
-					syncBand();
+					setInView(entries[entries.length - 1].isIntersecting);
 				},
 				{ root: scroller },
 			);
 			observer.observe(container);
 			return () => observer.disconnect();
-		}, [syncBand]);
+		}, [scroller]);
 
 		const handleEditUserMessage = onEditUserMessage
 			? (
@@ -1106,6 +1107,8 @@ const StickyUserMessage = memo<{
 					<ChatMessageItem
 						message={message}
 						parsed={parsed}
+						bubbleRef={bubbleRef}
+						bodyRef={bodyRef}
 						onEditUserMessage={handleEditUserMessage}
 						editingMessageId={editingMessageId}
 						isAfterEditingMessage={isAfterEditingMessage}

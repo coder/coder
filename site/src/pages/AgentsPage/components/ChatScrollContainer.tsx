@@ -100,6 +100,10 @@ const ScrollToBottomButton: FC<{
 const ChatScrollContainer: FC<{
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	scrollToBottomRef: RefObject<(() => void) | null>;
+	// The scrollport itself, for descendants that have to read or observe it.
+	// A ref cannot serve them: their layout effects run before this element's
+	// ref is attached, so they need the element as state.
+	onScrollContainerElement?: (element: HTMLDivElement | null) => void;
 	isFetchingMoreMessages: boolean;
 	hasMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
@@ -108,6 +112,7 @@ const ChatScrollContainer: FC<{
 }> = ({
 	scrollContainerRef,
 	scrollToBottomRef,
+	onScrollContainerElement,
 	isFetchingMoreMessages,
 	hasMoreMessages,
 	onFetchMoreMessages,
@@ -132,6 +137,7 @@ const ChatScrollContainer: FC<{
 	const setScrollContainer = (element: HTMLDivElement | null) => {
 		scrollContainerRef.current = element;
 		setScrollContainerElement(element);
+		onScrollContainerElement?.(element);
 		scrollToBottomRef.current = element ? scrollToBottom : null;
 	};
 

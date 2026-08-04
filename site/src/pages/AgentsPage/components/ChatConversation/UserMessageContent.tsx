@@ -1,4 +1,4 @@
-import { type FC, Fragment } from "react";
+import { type FC, Fragment, type Ref } from "react";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
@@ -62,6 +62,10 @@ export const UserMessageContent: FC<{
 	markdown: string;
 	isEditing?: boolean;
 	fadeFromBottom?: boolean;
+	/** The clipped bubble, whose padding and border a pinned prompt measures. */
+	bubbleRef?: Ref<HTMLDivElement>;
+	/** The unclipped content, the only source of the prompt's full height. */
+	bodyRef?: Ref<HTMLDivElement>;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
@@ -69,12 +73,15 @@ export const UserMessageContent: FC<{
 	markdown,
 	isEditing = false,
 	fadeFromBottom = false,
+	bubbleRef,
+	bodyRef,
 	onImageClick,
 	onTextFileClick,
 }) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
+				ref={bubbleRef}
 				className={cn(
 					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 					isEditing &&
@@ -85,7 +92,7 @@ export const UserMessageContent: FC<{
 					fadeFromBottom ? { maxHeight: "var(--clip-h, none)" } : undefined
 				}
 			>
-				<div className="flex flex-col gap-1.5" data-turn-prompt-body>
+				<div ref={bodyRef} className="flex flex-col gap-1.5">
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
