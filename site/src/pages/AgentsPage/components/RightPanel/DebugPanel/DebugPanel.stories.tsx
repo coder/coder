@@ -456,7 +456,7 @@ const getAllRunSummaries = () =>
 const getDebugRunDetailById = () =>
 	new Map(getAllRunDetails().map((run) => [run.id, run]));
 
-const debugRunsQueryKey = ["chats", CHAT_ID, "debug-runs"] as const;
+const debugRunsQueryKey = ["chats", "entities", CHAT_ID, "debug-runs"] as const;
 
 const getSeededRunSummaries = (
 	queries: readonly { key: readonly unknown[]; data: unknown }[] | undefined,
@@ -535,7 +535,7 @@ export const Empty: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [],
 			},
 		],
@@ -615,7 +615,7 @@ export const RunDetailLoading: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [detailProbeSummary],
 			},
 		],
@@ -649,7 +649,7 @@ export const RunDetailError: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [detailProbeSummary],
 			},
 		],
@@ -682,11 +682,11 @@ export const RunWithNoSteps: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [detailProbeSummary],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", detailProbeRunId],
+				key: ["chats", "entities", CHAT_ID, "debug-runs", detailProbeRunId],
 				data: {
 					...MockRun,
 					id: detailProbeRunId,
@@ -719,7 +719,7 @@ export const SingleStepSuccessfulRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -728,7 +728,13 @@ export const SingleStepSuccessfulRun: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					successfulRunDetail.id,
+				],
 				data: successfulRunDetail,
 			},
 		],
@@ -770,7 +776,7 @@ export const ExportAllRuns: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -819,7 +825,7 @@ export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -828,7 +834,13 @@ export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					successfulRunDetail.id,
+				],
 				data: successfulRunDetail,
 			},
 		],
@@ -979,7 +991,7 @@ export const ExportSingleRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -988,7 +1000,13 @@ export const ExportSingleRun: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					successfulRunDetail.id,
+				],
 				data: successfulRunDetail,
 			},
 		],
@@ -1060,7 +1078,7 @@ export const MultiStepRunWithRetries: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: multiStepRunDetail.id,
@@ -1073,7 +1091,13 @@ export const MultiStepRunWithRetries: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", multiStepRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					multiStepRunDetail.id,
+				],
 				data: multiStepRunDetail,
 			},
 		],
@@ -1118,7 +1142,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: errorRunDetail.id,
@@ -1131,7 +1155,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", errorRunDetail.id],
+				key: ["chats", "entities", CHAT_ID, "debug-runs", errorRunDetail.id],
 				data: errorRunDetail,
 			},
 		],
@@ -1174,7 +1198,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: "run-compaction",
@@ -1222,7 +1246,7 @@ export const LongRawPayloads: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: longPayloadRunDetail.id,
@@ -1234,7 +1258,13 @@ export const LongRawPayloads: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", longPayloadRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					longPayloadRunDetail.id,
+				],
 				data: longPayloadRunDetail,
 			},
 		],
@@ -1266,7 +1296,7 @@ export const RichPayloadWithTranscript: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: richRunDetail.id,
@@ -1275,7 +1305,7 @@ export const RichPayloadWithTranscript: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", richRunDetail.id],
+				key: ["chats", "entities", CHAT_ID, "debug-runs", richRunDetail.id],
 				data: richRunDetail,
 			},
 		],
@@ -1343,7 +1373,7 @@ export const ToolCallStep: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: toolCallRunDetail.id,
@@ -1352,7 +1382,7 @@ export const ToolCallStep: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", toolCallRunDetail.id],
+				key: ["chats", "entities", CHAT_ID, "debug-runs", toolCallRunDetail.id],
 				data: toolCallRunDetail,
 			},
 		],
@@ -1380,7 +1410,7 @@ export const FallbackLabeledRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: "run-fallback",
@@ -1409,7 +1439,7 @@ export const InProgressRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: "run-progress",
@@ -1586,7 +1616,7 @@ export const BackendNormalizedShape: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: ["chats", "entities", CHAT_ID, "debug-runs"],
 				data: [
 					buildRunSummary({
 						id: backendShapeRunDetail.id,
@@ -1597,7 +1627,13 @@ export const BackendNormalizedShape: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", backendShapeRunDetail.id],
+				key: [
+					"chats",
+					"entities",
+					CHAT_ID,
+					"debug-runs",
+					backendShapeRunDetail.id,
+				],
 				data: backendShapeRunDetail,
 			},
 		],

@@ -106,7 +106,7 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: ["chats", "entities", "chat-1"],
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -144,7 +144,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		expect(invalidateSpy).not.toHaveBeenCalledWith({
-			queryKey: ["chats", "chat-1"],
+			queryKey: ["chats", "entities", "chat-1"],
 		});
 	});
 
@@ -183,7 +183,7 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: ["chats", "entities", "chat-1"],
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -250,7 +250,7 @@ describe("useChatToolInvalidations", () => {
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledTimes(6);
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-2"],
+				queryKey: ["chats", "entities", "chat-2"],
 			});
 		});
 	});

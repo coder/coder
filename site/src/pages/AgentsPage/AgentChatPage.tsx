@@ -27,7 +27,7 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatKey,
+	chatEntityKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -1182,8 +1182,10 @@ const AgentChatPage: FC = () => {
 				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
-		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
+		queryClient.setQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+			(previousChat) =>
+				previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
 	};
 
@@ -1693,7 +1695,7 @@ const AgentChatPage: FC = () => {
 					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
 					void queryClient.invalidateQueries({
-						queryKey: chatKey(agentId),
+						queryKey: chatEntityKey(agentId),
 						exact: true,
 					});
 				},
@@ -1744,7 +1746,7 @@ const AgentChatPage: FC = () => {
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(agentId),
+				queryKey: chatEntityKey(agentId),
 				exact: true,
 			});
 			throw error;

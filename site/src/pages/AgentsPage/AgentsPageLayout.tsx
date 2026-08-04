@@ -20,12 +20,12 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
-	chatCostKey,
+	chatCostTreeKey,
 	chatDiffContentsKey,
-	chatKey,
+	chatEntityKey,
 	chatModelConfigs,
 	chatModels,
-	chatsByWorkspaceKeyPrefix,
+	chatsByWorkspaceFamilyKey,
 	infiniteChats,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
@@ -304,11 +304,11 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
+				queryKey: chatEntityKey(chatId),
 				exact: true,
 			});
 			void queryClient.invalidateQueries({
-				queryKey: chatsByWorkspaceKeyPrefix,
+				queryKey: chatsByWorkspaceFamilyKey,
 			});
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
@@ -410,7 +410,7 @@ const AgentsPageLayout: FC = () => {
 			return;
 		}
 		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
 		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
@@ -441,11 +441,11 @@ const AgentsPageLayout: FC = () => {
 				archivedChatId,
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
+				// parent's chatEntityKey is removed). This must be read at
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+					? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
 							?.root_chat_id
 					: undefined,
 			)
@@ -617,7 +617,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatEntityKey(updatedChat.id),
 							exact: true,
 						});
 						return;
@@ -625,7 +625,7 @@ const AgentsPageLayout: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
-						// chatKey and infinite-list caches below.
+						// chatEntityKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
 							queryKey: chatDiffContentsKey(updatedChat.id),
 							exact: true,
@@ -648,9 +648,9 @@ const AgentsPageLayout: FC = () => {
 					// reverts the query to pending/idle with no data
 					// and no retry, which AgentChatPage shows as
 					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+					if (queryClient.getQueryData(chatEntityKey(updatedChat.id))) {
 						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatEntityKey(updatedChat.id),
 							exact: true,
 						});
 					}
@@ -683,7 +683,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						if (costChatId) {
 							void queryClient.invalidateQueries({
-								queryKey: chatCostKey(costChatId),
+								queryKey: chatCostTreeKey(costChatId),
 								exact: true,
 							});
 						}
@@ -695,7 +695,7 @@ const AgentsPageLayout: FC = () => {
 							// active chat has an observer, so other chats are
 							// merely marked stale.
 							void queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
+								queryKey: chatEntityKey(updatedChat.id),
 								exact: true,
 							});
 						}
