@@ -814,6 +814,15 @@ export const UsageLimitExceeded: Story = {
 			},
 		),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/^You've used \$0\.90 of your \$0\.50 limit\./),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const ForbiddenErrorWithRole: Story = {

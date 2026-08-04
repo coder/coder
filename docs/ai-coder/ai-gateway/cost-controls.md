@@ -270,35 +270,31 @@ see [Prometheus metrics](../../admin/integrations/prometheus.md).
 
 ## Migrate from Coder Agents Cost Control
 
-In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control. The
-legacy Coder Agents Spend page remains available until v2.37.
+In release 2.36, the native Coder Agents usage-limit configuration UI is no
+longer available. Existing native values remain stored and enforced, and are not
+migrated to AI Gateway budgets.
 
-> [!WARNING]
-> Spend limits configured under **Admin settings** > **AI** > **Spend** are no
-> longer enforced by Coder Agents. To enforce spend, set an AI Governance budget.
-
-To migrate existing limits:
-
-1. Record the limits currently set under **Admin settings** > **AI** >
-   **Spend**, including the default limit and any group or user overrides.
-1. Recreate group limits as [group budgets](#group-budget).
-1. Recreate per-user limits as [user overrides](#user-override).
+Configure new AI Gateway budgets from the group settings page or use the API to
+[get](../../reference/api/enterprise.md#get-group-ai-budget),
+[upsert](../../reference/api/enterprise.md#upsert-group-ai-budget), or
+[delete](../../reference/api/enterprise.md#delete-group-ai-budget) a group
+budget.
 
 Expect the following differences:
 
-- No deployment-wide default exists. Each group that needs a limit requires its
-  own budget.
-- The UTC calendar month is the only period. Daily and weekly periods are not
-  currently supported.
-- Users in several budgeted groups receive the highest budget. Coder Agents Cost
-  Control applied the lowest.
+- Native limits and AI Gateway budgets are independent. A user can be subject to
+  both until native limits are removed in a later release.
+- AI Gateway has no deployment-wide default budget. Each group that needs a
+  limit requires its own budget.
+- The UTC calendar month is the only budget period. Daily and weekly periods are
+  not currently supported.
+- Users in several budgeted groups receive the highest budget by default. Native
+  Coder Agents usage limits apply the lowest group limit.
 - Budgets cover priced AI Gateway traffic. Chat, IDE extensions, and CLI agents
   draw on the same budget when their provider and model are priced. See
   [How spend is estimated](#how-spend-is-estimated).
-- Recorded spend does not carry over. Every user starts the first period at
-  $0 USD.
-- Coder Agents users who exceed their budget see a usage limit error in chat.
-  The error details include the AI Governance budget limit.
+- Recorded spend and native limit values do not carry over to AI Gateway
+  budgets.
 
 ## Next steps
 
