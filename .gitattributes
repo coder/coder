@@ -36,3 +36,6 @@ site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
+
+# AI Gateway prices
+coderd/aibridge/prices/data/prices.json linguist-generated=true
