@@ -790,32 +790,6 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 	},
 };
 
-export const UsageLimitExceeded: Story = {
-	args: {
-		...defaultArgs,
-		createError: Object.assign(
-			new Error("Request failed with status code 409"),
-			{
-				isAxiosError: true,
-				response: {
-					status: 409,
-					statusText: "Conflict",
-					data: {
-						message: "Chat usage limit exceeded.",
-						spent_micros: 900_000,
-						limit_micros: 500_000,
-						resets_at: "2026-03-16T00:00:00Z",
-					},
-					headers: {},
-					config: {},
-				},
-				config: {},
-				toJSON: () => ({}),
-			},
-		),
-	},
-};
-
 export const HookDispatchFailed: Story = {
 	args: {
 		...defaultArgs,

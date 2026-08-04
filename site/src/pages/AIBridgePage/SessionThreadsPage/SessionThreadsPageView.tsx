@@ -134,6 +134,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						<SessionTimeline
 							initiator={session.initiator}
 							threads={threads}
+							networkCallSummary={session.network_calls}
+							networkCalls={session.network_call_logs ?? []}
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}

@@ -50,7 +50,7 @@ describe("formatContextBadge", () => {
 
 describe("getKnownModelsForProvider", () => {
 	it("returns unsupported provider as an empty list", () => {
-		expect(getKnownModelsForProvider("azure")).toEqual([]);
+		expect(getKnownModelsForProvider("openai-compat")).toEqual([]);
 	});
 
 	it("returns empty provider as an empty list", () => {

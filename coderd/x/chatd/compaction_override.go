@@ -36,7 +36,7 @@ func readCompactionModelOverride(
 // the identity metadata debug runs and prompt sanitization need.
 type compactionModelOverride struct {
 	modelConfig      database.ChatModelConfig
-	model            fantasy.LanguageModel
+	model            chatprovider.Model
 	resolvedProvider string
 	resolvedModel    string
 	// providerOptions include the override's reasoning effort for the
@@ -136,10 +136,11 @@ func (p *Server) buildCompactionOverrideModel(
 		)
 	}
 	model, _, err := p.newDebugAwareModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    modelConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     modelConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: modelConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
 		return compactionModelOverride{}, xerrors.Errorf(
@@ -164,7 +165,7 @@ func (p *Server) buildCompactionOverrideModel(
 // options, including the admin-resolved reasoning effort, into provider
 // options for the summary call.
 func compactionOverrideProviderOptions(
-	model fantasy.LanguageModel,
+	model chatprovider.Model,
 	modelConfig database.ChatModelConfig,
 ) (fantasy.ProviderOptions, error) {
 	callConfig := codersdk.ChatModelCallConfig{}
@@ -176,13 +177,5 @@ func compactionOverrideProviderOptions(
 			)
 		}
 	}
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
-		callConfig.ProviderOptions,
-	)
-	reasoningEffort := chatprovider.ResolveReasoningEffort(
-		nil,
-		callConfig.ReasoningEffort,
-	)
-	return chatprovider.ApplyReasoningEffort(model, providerOptions, reasoningEffort), nil
+	return chatprovider.ProviderOptionsForCall(model, callConfig, nil), nil
 }
