@@ -186,7 +186,7 @@ func TestWatchProviderReloadCancelUnblocksClient(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	// clientFn blocks until its context is canceled, modeling
-	// Server.ClientContext waiting for the daemon to connect to coderd. Only
+	// Server.Client waiting for the daemon to connect to coderd. Only
 	// watchCancel is exercised (no stream activity, no daemon close), so the
 	// loop can return only if clientFn honors the context it receives.
 	var once sync.Once
