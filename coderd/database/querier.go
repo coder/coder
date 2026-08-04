@@ -1340,6 +1340,8 @@ type sqlcQuerier interface {
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
 	// Queue admission is internal bookkeeping, so this does not update
 	// updated_at. The guard returns no row when a marker would be stale.
+	// Queue entry is timestamped with the database clock so ordering and
+	// wait metrics are consistent across replicas.
 	SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error)
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the

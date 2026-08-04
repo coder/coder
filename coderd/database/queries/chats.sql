@@ -2875,11 +2875,17 @@ LIMIT @limit_count::bigint;
 -- name: SetChatConcurrencyState :one
 -- Queue admission is internal bookkeeping, so this does not update
 -- updated_at. The guard returns no row when a marker would be stale.
+-- Queue entry is timestamped with the database clock so ordering and
+-- wait metrics are consistent across replicas.
 WITH updated_chat AS (
     UPDATE chats
     SET
         concurrency_state = sqlc.narg('concurrency_state')::chat_concurrency_state,
-        concurrency_queued_at = sqlc.narg('concurrency_queued_at')::timestamptz
+        concurrency_queued_at = CASE
+            WHEN sqlc.narg('concurrency_state')::chat_concurrency_state = 'queued'
+                THEN COALESCE(concurrency_queued_at, clock_timestamp())
+            ELSE NULL
+        END
     WHERE id = @id::uuid
       AND NOT archived
       AND status IN ('running', 'interrupting')

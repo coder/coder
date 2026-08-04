@@ -946,7 +946,7 @@ Capacity denial does not reject chat creation or message sends. The generation t
 Capacity accounting uses two nullable columns on `chats`:
 
 - `concurrency_state`: `active` holds a slot, `queued` waits, and `yielded` gives up a parent slot while `wait_agent` blocks. Only queued chats expose `Chat.QueuedForCapacityAt`; queue entry and admission publish `capacity_change` watch events. `NULL` excludes the chat from accounting.
-- `concurrency_queued_at` is set on first queue entry, preserved across running and interrupting status changes, and orders queued claims. It also records the wait start for metrics.
+- `concurrency_queued_at` is set on first queue entry using the database clock, so ordering and wait metrics are consistent across replicas. It is preserved across running and interrupting status changes and orders queued claims.
 
 Capacity queries ignore archived chats. Status transitions clear markers when chats leave `running` or `interrupting`, and stale-heartbeat recovery makes a replacement runner check the gate again.
 
@@ -966,9 +966,9 @@ Subagent chats count against the cap. The generation context carries a lease tha
 
 ### Entitlement bypass
 
-The gate checks the entitlement before each claim and during fallback polling. A newly entitled queued chat proceeds on the next poll if no nudge arrives; marker cleanup is best effort.
+The gate checks the entitlement before each claim and during fallback polling. A newly entitled queued chat proceeds on the next poll if no nudge arrives. Entitled claims clear any leftover marker so a running chat is not reported as queued; that cleanup is best effort.
 
-Known windows remain: a chat running when the entitlement expires can finish without a marker; a rollout does not mark existing chats until their next claim; queue ordering is oldest first per claim, not strict FIFO across replicas.
+Known windows remain: a chat running when the entitlement expires can finish without a marker; a rollout does not mark existing chats until their next claim; queue ordering is oldest first per claim, not strict FIFO across replicas. Capacity watch events carry no freshness ordering, so overlapping claims for one chat can deliver them out of order; the database state stays correct and the UI corrects at the next status transition.
 
 ### Observability
 

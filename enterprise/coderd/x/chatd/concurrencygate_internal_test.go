@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -174,6 +173,13 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
+	// The frozen mock clock proves the queue timestamp comes from the
+	// database clock, not the replica clock.
+	queuedRow, err := f.db.GetChatByID(ctx, queued.ID)
+	require.NoError(t, err)
+	require.True(t, queuedRow.ConcurrencyQueuedAt.Valid)
+	require.WithinDuration(t, time.Now(), queuedRow.ConcurrencyQueuedAt.Time, time.Minute)
+
 	// ChatMachine.Update publishes the nudge after FinishTurn commits.
 	machine := chatstate.NewChatMachine(f.db, f.ps, active.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
@@ -254,8 +260,6 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Advance the clock so the second chat gets a later queue timestamp.
-	clock.Advance(time.Second).MustWait(ctx)
 	newerAdmitted := make(chan error, 1)
 	go func() {
 		newerAdmitted <- g.Acquire(ctx, newer.ID)
@@ -299,6 +303,47 @@ func TestGateEntitledBypass(t *testing.T) {
 		state := concurrencyStateOf(ctx, t, f.db, chat.ID)
 		require.False(t, state.Valid)
 	}
+}
+
+func TestGateEntitledBypassClearsStaleMarker(t *testing.T) {
+	t.Parallel()
+	f := newGateFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	admittedChats := make(chan database.Chat, 1)
+	g := newGate(gateOptions{
+		Entitlements: entitledSet(t),
+		Store:        f.db,
+		Pubsub:       f.ps,
+		Capacity:     1,
+		Logger:       testutil.Logger(t),
+		OnAdmitted: func(chat database.Chat) {
+			admittedChats <- chat
+		},
+	})
+
+	// A queued marker left behind by a canceled waiter, e.g. a runner
+	// replaced before the entitlement was installed.
+	stale := f.chat(t)
+	_, err := f.db.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
+		ID: stale.ID,
+		ConcurrencyState: database.NullChatConcurrencyState{
+			ChatConcurrencyState: database.ChatConcurrencyStateQueued,
+			Valid:                true,
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, g.Acquire(ctx, stale.ID))
+	state := concurrencyStateOf(ctx, t, f.db, stale.ID)
+	require.False(t, state.Valid)
+	admitted := testutil.RequireReceive(ctx, t, admittedChats)
+	require.Equal(t, stale.ID, admitted.ID)
+
+	// Unmarked chats admit without publishing.
+	clean := f.chat(t)
+	require.NoError(t, g.Acquire(ctx, clean.ID))
+	require.Len(t, admittedChats, 0)
 }
 
 func TestGateLicensedWithoutHoursIsCapped(t *testing.T) {
@@ -403,16 +448,16 @@ func TestGateQueuedAtSurvivesInterrupt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chat := f.chat(t)
-	queuedAt := time.Now().Add(-time.Minute).UTC().Truncate(time.Millisecond)
-	_, err := f.db.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
+	seeded, err := f.db.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
 		ID: chat.ID,
 		ConcurrencyState: database.NullChatConcurrencyState{
 			ChatConcurrencyState: database.ChatConcurrencyStateQueued,
 			Valid:                true,
 		},
-		ConcurrencyQueuedAt: sql.NullTime{Time: queuedAt, Valid: true},
 	})
 	require.NoError(t, err)
+	require.True(t, seeded.ConcurrencyQueuedAt.Valid)
+	queuedAt := seeded.ConcurrencyQueuedAt.Time
 
 	// running -> interrupting -> running keeps the queue position;
 	// leaving the counted statuses clears it.

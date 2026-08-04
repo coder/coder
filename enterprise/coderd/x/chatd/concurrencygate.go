@@ -153,6 +153,7 @@ func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
 	if g.entitled() {
+		g.releaseQueuedMarker(ctx, chatID)
 		return nil
 	}
 	if admitted := g.claimOnce(ctx, chatID); admitted {
@@ -328,7 +329,6 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 					ChatConcurrencyState: database.ChatConcurrencyStateQueued,
 					Valid:                true,
 				},
-				ConcurrencyQueuedAt: sql.NullTime{Time: g.clock.Now(), Valid: true},
 			})
 			if errors.Is(err, sql.ErrNoRows) {
 				res = claimResult{admitted: true}
@@ -353,7 +353,9 @@ func (g *gate) finishAdmission(res claimResult) {
 		return
 	}
 	if !res.queuedSince.IsZero() {
-		g.waitSeconds.Observe(g.clock.Since(res.queuedSince).Seconds())
+		// Queue entry uses the database clock, so clamp the skew-induced
+		// negative case.
+		g.waitSeconds.Observe(max(0, g.clock.Since(res.queuedSince).Seconds()))
 	}
 	if g.onAdmitted != nil {
 		g.onAdmitted(res.chat)
@@ -361,7 +363,19 @@ func (g *gate) finishAdmission(res claimResult) {
 }
 
 // Entitlement-bypass cleanup is best effort and does not block admission.
+// The read keeps entitled claims cheap: unmarked chats skip the write and
+// publish nothing.
 func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID) {
+	chat, err := g.store.GetChatByID(ctx, chatID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			g.logger.Warn(ctx, "read chat for entitlement bypass", slog.F("chat_id", chatID), slog.Error(err))
+		}
+		return
+	}
+	if !chat.ConcurrencyState.Valid {
+		return
+	}
 	updated, err := g.store.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
 		ID: chatID,
 	})
