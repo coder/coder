@@ -8060,6 +8060,10 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		ctx               context.Context
 		newBuild          func(t *testing.T, buildNumber int32) executionBuild
 		newWorkspaceBuild func(t *testing.T, buildNumber int32) executionBuild
+		// newBuildParams returns the parameters for a build that has not been
+		// inserted yet, so a test can publish it from inside a transaction it
+		// controls.
+		newBuildParams func(t *testing.T, buildNumber int32, transition database.WorkspaceTransition) database.InsertWorkspaceBuildParams
 	}
 	newFixture := func(t *testing.T) fixture {
 		t.Helper()
@@ -8122,6 +8126,29 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 					TemplateID:     template.ID,
 				})
 				return newBuild(t, anotherWorkspace.ID, buildNumber)
+			},
+			newBuildParams: func(t *testing.T, buildNumber int32, transition database.WorkspaceTransition) database.InsertWorkspaceBuildParams {
+				t.Helper()
+
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					OrganizationID: org.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				})
+				now := dbtime.Now()
+				return database.InsertWorkspaceBuildParams{
+					ID:                uuid.New(),
+					CreatedAt:         now,
+					UpdatedAt:         now,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					BuildNumber:       buildNumber,
+					Transition:        transition,
+					InitiatorID:       user.ID,
+					JobID:             job.ID,
+					ProvisionerState:  []byte{},
+					Deadline:          now.Add(time.Hour),
+					Reason:            database.BuildReasonInitiator,
+				}
 			},
 		}
 	}
@@ -8240,8 +8267,10 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		t.Helper()
 
 		before := statusOf(t, fixture, params)
-		_, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, arg)
+		row, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, arg)
 		require.ErrorIs(t, err, sql.ErrNoRows)
+		// A rejected acquisition hands out no credentials at all.
+		require.Equal(t, database.AcquireWorkspaceAgentSubagentExecutionRow{}, row)
 		require.Equal(t, before, statusOf(t, fixture, params))
 	}
 
@@ -8262,6 +8291,96 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			`, queryFragment).Scan(&blocked)
 			return err == nil && blocked
 		}, testutil.IntervalFast, "database query containing %q did not block", queryFragment)
+	}
+
+	type acquireOutcome struct {
+		row database.AcquireWorkspaceAgentSubagentExecutionRow
+		err error
+	}
+	// startAcquire runs an acquisition on its own connection so the caller can
+	// observe it contending for a lock another transaction holds. The returned
+	// channel carries the acquisition result once it finishes.
+	startAcquire := func(t *testing.T, fixture fixture, arg database.AcquireWorkspaceAgentSubagentExecutionParams) <-chan acquireOutcome {
+		t.Helper()
+
+		started := make(chan struct{})
+		done := make(chan acquireOutcome, 1)
+		go func() {
+			close(started)
+			row, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, arg)
+			done <- acquireOutcome{row: row, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, started)
+		return done
+	}
+	// holdOpenTx runs op inside a transaction that keeps holding op's locks
+	// until the returned release func is called, so a concurrent statement is
+	// forced to contend with them. The returned channel carries the transaction
+	// result.
+	holdOpenTx := func(t *testing.T, fixture fixture, op func(tx database.Store) error) (func(), <-chan error) {
+		t.Helper()
+
+		applied := make(chan struct{})
+		releaseTx := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseTx:
+			default:
+				close(releaseTx)
+			}
+		}
+		t.Cleanup(release)
+		done := make(chan error, 1)
+		go func() {
+			done <- fixture.db.InTx(func(tx database.Store) error {
+				if err := op(tx); err != nil {
+					return err
+				}
+				close(applied)
+				select {
+				case <-releaseTx:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+		}()
+		select {
+		case <-applied:
+		case err := <-done:
+			require.FailNowf(t, "held transaction ended early", "error: %v", err)
+		case <-fixture.ctx.Done():
+			require.FailNow(t, "held transaction never applied")
+		}
+		return release, done
+	}
+	// holdOpenRawTx executes stmt inside a raw transaction that stays open, and
+	// returns the func that commits it. Raw SQL is used for mutations that
+	// production code has no query for, so the acquisition can still be raced
+	// against them.
+	holdOpenRawTx := func(t *testing.T, fixture fixture, stmt string, args ...any) func() {
+		t.Helper()
+
+		tx, err := fixture.sqlDB.BeginTx(fixture.ctx, nil)
+		require.NoError(t, err)
+		committed := false
+		t.Cleanup(func() {
+			if !committed {
+				_ = tx.Rollback()
+			}
+		})
+		_, err = tx.ExecContext(fixture.ctx, stmt, args...)
+		require.NoError(t, err)
+		return func() {
+			require.NoError(t, tx.Commit())
+			committed = true
+		}
+	}
+	requireRejectedOutcome := func(t *testing.T, outcome acquireOutcome) {
+		t.Helper()
+
+		require.ErrorIs(t, outcome.err, sql.ErrNoRows)
+		require.Equal(t, database.AcquireWorkspaceAgentSubagentExecutionRow{}, outcome.row)
 	}
 
 	writeContextState := func(ctx context.Context, db database.Store, agentID uuid.UUID, now time.Time) error {
@@ -9875,6 +9994,218 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.True(t, status.StatusChangedAt.Equal(firstNow))
 		require.True(t, status.UpdatedAt.Equal(secondNow))
 		require.True(t, status.LastAcquiredAt.Time.Equal(secondNow))
+	})
+
+	// Build publication and acquisition both take the workspace build
+	// publication guard, so they are mutually exclusive. Whichever transaction
+	// takes the guard first wins, and the loser only ever observes the winner's
+	// committed state.
+	for _, transition := range []database.WorkspaceTransition{
+		database.WorkspaceTransitionStart,
+		database.WorkspaceTransitionStop,
+	} {
+		t.Run(fmt.Sprintf("BuildPublicationWinsAcquireRace/%s", transition), func(t *testing.T) {
+			t.Parallel()
+
+			fixture, _, params := acquirableDeclaration(t)
+			before := statusOf(t, fixture, params)
+			buildParams := fixture.newBuildParams(t, 2, transition)
+
+			release, buildDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+				return tx.InsertWorkspaceBuild(fixture.ctx, buildParams)
+			})
+			acquireDone := startAcquire(t, fixture, acquireParams(params, dbtime.Now()))
+			// The acquisition must wait for the guard instead of validating a
+			// generation the build transaction is about to replace.
+			requireQueryBlocked(t, fixture, "AcquireWorkspaceBuildPublicationLock")
+
+			release()
+			require.NoError(t, testutil.TryReceive(fixture.ctx, t, buildDone))
+			requireRejectedOutcome(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+			require.Equal(t, before, statusOf(t, fixture, params))
+		})
+
+		t.Run(fmt.Sprintf("AcquireWinsBuildPublicationRace/%s", transition), func(t *testing.T) {
+			t.Parallel()
+
+			fixture, build, params := acquirableDeclaration(t)
+			acquiredAt := dbtime.Now().Truncate(time.Microsecond)
+			buildParams := fixture.newBuildParams(t, 2, transition)
+
+			var acquired database.AcquireWorkspaceAgentSubagentExecutionRow
+			release, acquireDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+				var err error
+				acquired, err = tx.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, acquiredAt))
+				return err
+			})
+
+			buildStarted := make(chan struct{})
+			buildDone := make(chan error, 1)
+			go func() {
+				close(buildStarted)
+				buildDone <- fixture.db.InsertWorkspaceBuild(fixture.ctx, buildParams)
+			}()
+			testutil.TryReceive(fixture.ctx, t, buildStarted)
+			// The insert takes the same guard through the
+			// serialize_workspace_build_publication trigger, so the new
+			// generation cannot become visible until the acquisition commits.
+			requireQueryBlocked(t, fixture, "InsertWorkspaceBuild")
+
+			release()
+			require.NoError(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+			require.NoError(t, testutil.TryReceive(fixture.ctx, t, buildDone))
+
+			require.Equal(t, build.child.ID, acquired.ChildAgentID)
+			require.Equal(t, build.child.AuthToken, acquired.AuthToken)
+			require.EqualValues(t, 1, acquired.AcquisitionVersion)
+			status := statusOf(t, fixture, params)
+			require.Equal(t, "starting", status.Status)
+			require.EqualValues(t, 1, status.AcquisitionVersion)
+
+			// The published build is now the workspace's latest generation, so
+			// the declaration's build can no longer be acquired.
+			requireAcquireRejected(t, fixture, params, acquireParams(params, acquiredAt.Add(time.Minute)))
+		})
+	}
+
+	t.Run("ChildDeleteWinsAcquireRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, build, params := acquirableDeclaration(t)
+		before := statusOf(t, fixture, params)
+
+		release, deleteDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			return tx.DeleteWorkspaceSubAgentByID(fixture.ctx, build.child.ID)
+		})
+		acquireDone := startAcquire(t, fixture, acquireParams(params, dbtime.Now()))
+		// The child lock is FOR SHARE, so it conflicts with the uncommitted
+		// soft-delete and waits for it.
+		requireQueryBlocked(t, fixture, "LockWorkspaceAgentSubagentExecutionChildForAcquisition")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, deleteDone))
+		// The EvalPlanQual recheck observes the committed soft-delete, so the
+		// child is not handed out.
+		requireRejectedOutcome(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+		require.Equal(t, before, statusOf(t, fixture, params))
+	})
+
+	t.Run("AcquireWinsChildDeleteRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, build, params := acquirableDeclaration(t)
+		acquiredAt := dbtime.Now().Truncate(time.Microsecond)
+
+		var acquired database.AcquireWorkspaceAgentSubagentExecutionRow
+		release, acquireDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			var err error
+			acquired, err = tx.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, acquiredAt))
+			return err
+		})
+
+		deleteStarted := make(chan struct{})
+		deleteDone := make(chan error, 1)
+		go func() {
+			close(deleteStarted)
+			deleteDone <- fixture.db.DeleteWorkspaceSubAgentByID(fixture.ctx, build.child.ID)
+		}()
+		testutil.TryReceive(fixture.ctx, t, deleteStarted)
+		// The soft-delete must wait for the child lock the acquisition holds.
+		requireQueryBlocked(t, fixture, "DeleteWorkspaceSubAgentByID")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, deleteDone))
+
+		require.Equal(t, build.child.ID, acquired.ChildAgentID)
+		require.Equal(t, build.child.AuthToken, acquired.AuthToken)
+		require.EqualValues(t, 1, acquired.AcquisitionVersion)
+
+		var deletedFlag bool
+		err := fixture.sqlDB.QueryRowContext(fixture.ctx, `
+			SELECT deleted
+			FROM workspace_agents
+			WHERE id = $1
+		`, build.child.ID).Scan(&deletedFlag)
+		require.NoError(t, err)
+		require.True(t, deletedFlag)
+		requireAcquireRejected(t, fixture, params, acquireParams(params, acquiredAt.Add(time.Minute)))
+	})
+
+	// A rebuild can invalidate the declared child without deleting it, and
+	// production has no query that reparents an agent or revokes its execution
+	// isolation, so the mutation is applied with raw SQL.
+	for _, tt := range []struct {
+		name string
+		// invalidate leaves the child mutated but uncommitted, and returns the
+		// func that commits it.
+		invalidate func(t *testing.T, fixture fixture, build executionBuild) func()
+	}{
+		{
+			name: "Reparented",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild) func() {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				return holdOpenRawTx(t, fixture, `
+					UPDATE workspace_agents
+					SET parent_id = $2
+					WHERE id = $1
+				`, build.child.ID, otherParent.ID)
+			},
+		},
+		{
+			name: "IsolationRevoked",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild) func() {
+				return holdOpenRawTx(t, fixture, `
+					UPDATE workspace_agents
+					SET execution_isolation = FALSE
+					WHERE id = $1
+				`, build.child.ID)
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("ChildInvalidationWinsAcquireRace/%s", tt.name), func(t *testing.T) {
+			t.Parallel()
+
+			fixture, build, params := acquirableDeclaration(t)
+			before := statusOf(t, fixture, params)
+
+			commit := tt.invalidate(t, fixture, build)
+			acquireDone := startAcquire(t, fixture, acquireParams(params, dbtime.Now()))
+			requireQueryBlocked(t, fixture, "LockWorkspaceAgentSubagentExecutionChildForAcquisition")
+
+			commit()
+			// The EvalPlanQual recheck re-evaluates the child predicates
+			// against the committed row, which no longer matches.
+			requireRejectedOutcome(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+			require.Equal(t, before, statusOf(t, fixture, params))
+		})
+	}
+
+	t.Run("StoppingStatusWinsAcquireRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params := acquirableDeclaration(t)
+		before := statusOf(t, fixture, params)
+
+		commit := holdOpenRawTx(t, fixture, `
+			UPDATE workspace_agent_subagent_execution_statuses
+			SET status = 'stopping'
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID)
+		acquireDone := startAcquire(t, fixture, acquireParams(params, dbtime.Now()))
+		// The status lock is FOR UPDATE, so it waits for the uncommitted
+		// transition to 'stopping'.
+		requireQueryBlocked(t, fixture, "LockWorkspaceAgentSubagentExecutionStatusForAcquisition")
+
+		commit()
+		// The EvalPlanQual recheck applies the status != 'stopping' predicate
+		// to the committed row, so a shutting-down execution is not restarted.
+		requireRejectedOutcome(t, testutil.TryReceive(fixture.ctx, t, acquireDone))
+		expected := before
+		expected.Status = "stopping"
+		require.Equal(t, expected, statusOf(t, fixture, params))
 	})
 
 	for _, timeout := range []int32{0, -1} {
