@@ -101,11 +101,6 @@ export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	};
 };
 
-/**
- * Updates a single chat inside every page of the infinite chats query
- * cache. Targets the list family prefix, which matches every list
- * entry regardless of its params object.
- */
 export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
