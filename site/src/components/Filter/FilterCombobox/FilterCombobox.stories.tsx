@@ -103,7 +103,7 @@ const FilterComboboxHarness = ({
 	);
 };
 
-/** Combobox popup is portaled to document.body, outside the Storybook canvas. */
+/** The popup renders under document.body; scope queries there to find it. */
 const bodyOf = (canvasElement: HTMLElement) =>
 	within(canvasElement.ownerDocument.body);
 
@@ -118,6 +118,27 @@ export const Default: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
+	},
+};
+
+// Backspace with an empty input removes the last committed chip.
+export const BackspaceRemovesLastChip: Story = {
+	render: () => (
+		<FilterComboboxHarness initialQuery="owner:me status:running" />
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await expect(canvas.getByText("status:running")).toBeVisible();
+		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await userEvent.click(input);
+		await userEvent.keyboard("{Backspace}");
+		await waitFor(() =>
+			expect(canvas.queryByText("owner:me")).not.toBeInTheDocument(),
+		);
+		await expect(canvas.getByText("status:running")).toBeVisible();
 	},
 };
 

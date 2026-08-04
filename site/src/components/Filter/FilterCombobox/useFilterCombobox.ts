@@ -549,6 +549,19 @@ export const useFilterCombobox = ({
 			return;
 		}
 
+		// With an empty input and no active category, Backspace/Delete removes
+		// the last committed chip.
+		if (
+			(event.key === "Backspace" || event.key === "Delete") &&
+			inputValue === "" &&
+			!activeCategory &&
+			chipValues.length > 0
+		) {
+			event.preventDefault();
+			updateFromChips(chipValues.slice(0, -1));
+			return;
+		}
+
 		// Enter is committed by cmdk through the highlighted item's `onSelect`.
 		// Tab additionally completes the highlighted category/suggestion.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
