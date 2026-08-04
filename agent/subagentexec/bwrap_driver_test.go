@@ -4,6 +4,7 @@ package subagentexec
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -372,6 +373,297 @@ func (a bwrapArgv) hostBinds(flags ...string) [][]string {
 	return binds
 }
 
+// bwrapFlagArity is the number of arguments each bubblewrap flag consumes.
+// The recorded argument list is walked with this table rather than by
+// searching for flag names, so a mount whose source or destination happens to
+// look like a flag cannot be read as one, and a flag this table does not know
+// is reported instead of being skipped: an unknown flag has an unknown arity,
+// which would desynchronise the walk and could hide a host mount behind it.
+var bwrapFlagArity = map[string]int{
+	// Namespaces, privileges, and process setup. None of them names a host
+	// path.
+	"--unshare-all":            0,
+	"--unshare-user":           0,
+	"--unshare-user-try":       0,
+	"--unshare-ipc":            0,
+	"--unshare-pid":            0,
+	"--unshare-net":            0,
+	"--unshare-uts":            0,
+	"--unshare-cgroup":         0,
+	"--unshare-cgroup-try":     0,
+	"--share-net":              0,
+	"--disable-userns":         0,
+	"--assert-userns-disabled": 0,
+	"--as-pid-1":               0,
+	"--die-with-parent":        0,
+	"--new-session":            0,
+	"--level-prefix":           0,
+	"--clearenv":               0,
+	"--userns":                 1,
+	"--userns2":                1,
+	"--pidns":                  1,
+	"--uid":                    1,
+	"--gid":                    1,
+	"--hostname":               1,
+	"--chdir":                  1,
+	"--argv0":                  1,
+	"--args":                   1,
+	"--cap-add":                1,
+	"--cap-drop":               1,
+	"--seccomp":                1,
+	"--add-seccomp-fd":         1,
+	"--sync-fd":                1,
+	"--info-fd":                1,
+	"--json-status-fd":         1,
+	"--block-fd":               1,
+	"--userns-block-fd":        1,
+	"--exec-label":             1,
+	"--file-label":             1,
+	"--unsetenv":               1,
+	"--setenv":                 2,
+
+	// Filesystem construction inside the sandbox. These create or adjust
+	// sandbox-owned objects and expose nothing from the host.
+	"--proc":        1,
+	"--dev":         1,
+	"--tmpfs":       1,
+	"--mqueue":      1,
+	"--dir":         1,
+	"--lock-file":   1,
+	"--remount-ro":  1,
+	"--perms":       1,
+	"--size":        1,
+	"--tmp-overlay": 1,
+	"--ro-overlay":  1,
+	"--chmod":       2,
+	"--symlink":     2,
+
+	// Everything that can put host content into the sandbox, including the
+	// variants this driver must never use.
+	"--bind":         2,
+	"--bind-try":     2,
+	"--ro-bind":      2,
+	"--ro-bind-try":  2,
+	"--dev-bind":     2,
+	"--dev-bind-try": 2,
+	"--overlay-src":  1,
+	"--overlay":      3,
+	"--file":         2,
+	"--bind-data":    2,
+	"--ro-bind-data": 2,
+}
+
+// bwrapHostExposingFlags are the operations that can place host content in the
+// sandbox, whether by path or through an inherited file descriptor.
+var bwrapHostExposingFlags = map[string]bool{
+	"--bind":         true,
+	"--bind-try":     true,
+	"--ro-bind":      true,
+	"--ro-bind-try":  true,
+	"--dev-bind":     true,
+	"--dev-bind-try": true,
+	"--overlay-src":  true,
+	"--overlay":      true,
+	"--file":         true,
+	"--bind-data":    true,
+	"--ro-bind-data": true,
+}
+
+// bwrapOp is one parsed bubblewrap operation: the flag and exactly the
+// arguments it consumed.
+type bwrapOp struct {
+	flag string
+	args []string
+}
+
+// bwrapPolicyAbort is what the policy assertion's FailNow panics with when it
+// runs against a recorder rather than a real test.
+type bwrapPolicyAbort struct{}
+
+// bwrapPolicyRecorder captures the failures an assertion reports instead of
+// failing the enclosing test. It lets the policy assertion itself be tested
+// against a tampered argument list.
+type bwrapPolicyRecorder struct {
+	failures []string
+}
+
+func (r *bwrapPolicyRecorder) Errorf(format string, args ...any) {
+	r.failures = append(r.failures, fmt.Sprintf(format, args...))
+}
+
+func (*bwrapPolicyRecorder) FailNow() {
+	panic(bwrapPolicyAbort{})
+}
+
+// bwrapPolicyFailures runs the mount policy assertion against argv and returns
+// the failures it reported, so a test can assert that a mutated argument list
+// is rejected.
+func bwrapPolicyFailures(f *bwrapFixture, argv bwrapArgv) []string {
+	recorder := &bwrapPolicyRecorder{}
+	func() {
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				return
+			}
+			if _, ok := recovered.(bwrapPolicyAbort); !ok {
+				panic(recovered)
+			}
+		}()
+		requireBwrapMountPolicy(recorder, f, argv)
+	}()
+	return recorder.failures
+}
+
+// bwrapOps parses the recorded argument list into operations, stopping at the
+// end of options separator because everything after it is the child command
+// line rather than a bubblewrap operation.
+func bwrapOps(t require.TestingT, argv bwrapArgv) []bwrapOp {
+	ops := []bwrapOp{}
+	for i := 0; i < len(argv); {
+		element := argv[i]
+		if element == "--" {
+			break
+		}
+		arity, known := bwrapFlagArity[element]
+		if !known {
+			require.Failf(t, "unrecognised bubblewrap operand",
+				"element %d is %q, which is not a bubblewrap flag this test knows the arity of", i, element)
+			return ops
+		}
+		if i+1+arity > len(argv) {
+			require.Failf(t, "truncated bubblewrap operation",
+				"%s needs %d arguments but only %d elements follow it", element, arity, len(argv)-i-1)
+			return ops
+		}
+		ops = append(ops, bwrapOp{
+			flag: element,
+			args: append([]string(nil), argv[i+1:i+1+arity]...),
+		})
+		i += 1 + arity
+	}
+	return ops
+}
+
+// bwrapHostFileExists reports whether path is a regular file, which is the
+// same condition the driver's `[ -f ... ]` tests apply to its optional host
+// files.
+func bwrapHostFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+// bwrapCABundleCandidates returns the ordered CA bundle list the driver itself
+// declares. Reading it from the script keeps the expected mount set from
+// drifting away from the candidates the driver actually tries.
+func bwrapCABundleCandidates(t require.TestingT, script string) []string {
+	body, err := os.ReadFile(script)
+	require.NoError(t, err)
+
+	const marker = "readonly ca_bundle_candidates='"
+	start := strings.Index(string(body), marker)
+	require.GreaterOrEqual(t, start, 0, "the driver must declare ca_bundle_candidates")
+	rest := string(body)[start+len(marker):]
+	end := strings.Index(rest, "'")
+	require.GreaterOrEqual(t, end, 0, "the ca_bundle_candidates list must be closed")
+
+	candidates := strings.Fields(rest[:end])
+	require.NotEmpty(t, candidates)
+	for _, candidate := range candidates {
+		require.True(t, strings.HasPrefix(candidate, "/"),
+			"CA bundle candidate %s must be an absolute path", candidate)
+	}
+	return candidates
+}
+
+// expectedReadOnlyBinds is the complete set of read-only host binds the driver
+// may emit for this fixture: the resolved BusyBox, the support files the
+// driver generated, the Coder binary, the child's token file, and the optional
+// host resolver and trust files exactly when this machine has them.
+func (f *bwrapFixture) expectedReadOnlyBinds(t require.TestingT) [][]string {
+	generated := filepath.Join(f.runtimePath, "etc")
+	expected := [][]string{
+		{filepath.Join(f.binDir, "busybox"), "/bin/busybox"},
+		{filepath.Join(generated, "passwd"), "/etc/passwd"},
+		{filepath.Join(generated, "group"), "/etc/group"},
+		{filepath.Join(generated, "nsswitch.conf"), "/etc/nsswitch.conf"},
+		{f.coderPath, "/opt/coder/coder"},
+		{f.tokenPath, "/run/coder/token"},
+	}
+	for _, optional := range []string{"/etc/resolv.conf", "/etc/hosts"} {
+		if bwrapHostFileExists(optional) {
+			expected = append(expected, []string{optional, optional})
+		}
+	}
+	// Only the first candidate that exists is mounted, so a machine with
+	// several bundles still gets exactly one.
+	for _, candidate := range bwrapCABundleCandidates(t, f.script) {
+		if bwrapHostFileExists(candidate) {
+			expected = append(expected, []string{candidate, candidate})
+			break
+		}
+	}
+	return expected
+}
+
+// expectedWritableBinds is the complete set of read-write host binds: the
+// child's private per-execution directories and the one declared shared
+// project.
+func (f *bwrapFixture) expectedWritableBinds() [][]string {
+	return [][]string{
+		{f.homePath, "/home/coder"},
+		{f.tmpPath, "/tmp"},
+		{filepath.Join(f.runtimePath, "xdg"), "/run/user/1000"},
+		{f.sharedPath, f.input.SharedChildPath},
+	}
+}
+
+// requireBwrapMountPolicy pins every host path the sandbox is given. It walks
+// the recorded operations, refuses any host-exposing operation other than the
+// two bind flags the driver is allowed to use, and then compares the complete
+// read-only and read-write bind sets against the exact expected ones. An extra
+// mount of any kind, of any host path, fails here.
+func requireBwrapMountPolicy(t require.TestingT, f *bwrapFixture, argv bwrapArgv) {
+	var readOnly, writable [][]string
+	for _, op := range bwrapOps(t, argv) {
+		if !bwrapHostExposingFlags[op.flag] {
+			continue
+		}
+		switch op.flag {
+		case "--ro-bind":
+			readOnly = append(readOnly, op.args)
+		case "--bind":
+			writable = append(writable, op.args)
+		default:
+			require.Failf(t, "forbidden host-exposing bubblewrap operation",
+				"%s %v must not be used: the driver may only expose host paths with --ro-bind and --bind",
+				op.flag, op.args)
+		}
+	}
+
+	require.ElementsMatch(t, f.expectedReadOnlyBinds(t), readOnly,
+		"the read-only host binds must be exactly the allowlist")
+	require.Equal(t, f.expectedWritableBinds(), writable,
+		"the read-write host binds must be exactly the private directories and the declared shared project")
+}
+
+// withOp returns the argument list with an extra operation spliced in ahead of
+// the end of options separator, which is where a driver change would add a
+// mount.
+func (a bwrapArgv) withOp(t *testing.T, op ...string) bwrapArgv {
+	t.Helper()
+
+	for i, element := range a {
+		if element == "--" {
+			mutated := append(bwrapArgv{}, a[:i]...)
+			mutated = append(mutated, op...)
+			return append(mutated, a[i:]...)
+		}
+	}
+	t.Fatal("the recorded argument list has no end of options separator")
+	return nil
+}
+
 func TestBwrapDriverSyntax(t *testing.T) {
 	t.Parallel()
 
@@ -495,23 +787,17 @@ func TestBwrapDriverRun(t *testing.T) {
 		require.Equal(t, 0, argv.count(f.statePath))
 	})
 
-	t.Run("ExactlyTheSharedProjectIsWritable", func(t *testing.T) {
+	t.Run("HostMountsAreExactlyTheAllowlist", func(t *testing.T) {
 		t.Parallel()
 
 		f := newBwrapFixture(t)
 		f.requireRun(t, OperationRun, f.runInput)
 		argv := f.argv(t)
 
-		// Read-write binds: the child's own private home, temporary, and
-		// runtime directories, and the one declared shared project.
-		writable := argv.hostBinds(bwrapReadWriteBindFlags...)
-		require.Len(t, writable, 4, "unexpected read-write binds: %v", writable)
-		require.Equal(t, [][]string{
-			{f.homePath, "/home/coder"},
-			{f.tmpPath, "/tmp"},
-			{filepath.Join(f.runtimePath, "xdg"), "/run/user/1000"},
-			{f.sharedPath, f.input.SharedChildPath},
-		}, writable)
+		// Every host path the sandbox is given, read-only and read-write,
+		// against the exact expected set. Nothing else is exposed, and the
+		// only writable host directory is the declared shared project.
+		requireBwrapMountPolicy(t, f, argv)
 
 		// The private directories are separate paths, none of them inside
 		// the shared project.
@@ -590,20 +876,10 @@ func TestBwrapDriverRun(t *testing.T) {
 		require.Contains(t, string(passwd), "coder:x:1000:1000:")
 		require.Contains(t, string(passwd), ":/home/coder:/bin/sh")
 
-		// The host's optional resolver and trust files are mounted read-only
-		// exactly when the host has them, and never read-write.
-		for _, optional := range []string{"/etc/resolv.conf", "/etc/hosts"} {
-			_, statErr := os.Stat(optional)
-			bound := false
-			for _, bind := range readOnly {
-				if bind[0] == optional {
-					bound = true
-					require.Equal(t, optional, bind[1])
-				}
-			}
-			require.Equal(t, statErr == nil, bound,
-				"%s must be bound only when it exists on the host", optional)
-		}
+		// The host's optional resolver and trust files are covered by the
+		// exact read-only allowlist in HostMountsAreExactlyTheAllowlist,
+		// which requires each of them to be bound exactly when this machine
+		// has it.
 	})
 
 	t.Run("ChildCommandAndEnvironment", func(t *testing.T) {
@@ -648,6 +924,55 @@ func TestBwrapDriverRun(t *testing.T) {
 			require.True(t, info.IsDir())
 		}
 	})
+}
+
+// TestBwrapDriverMountPolicyRejectsExtraMounts shows that the mount policy
+// assertion is the thing catching an extra host mount rather than passing by
+// construction. Each case takes the argument list the checked-in driver really
+// produced, splices one extra operation into it, and requires the assertion to
+// reject the result. Only the recorded argument list is mutated: the driver
+// script is never modified.
+func TestBwrapDriverMountPolicyRejectsExtraMounts(t *testing.T) {
+	t.Parallel()
+
+	f := newBwrapFixture(t)
+	f.requireRun(t, OperationRun, f.runInput)
+	argv := f.argv(t)
+
+	// The unmutated argument list satisfies the policy, so every failure
+	// below is caused by the mutation and nothing else.
+	require.Empty(t, bwrapPolicyFailures(f, argv),
+		"the checked-in driver's own argument list must satisfy the mount policy")
+
+	for name, mutation := range map[string][]string{
+		"ShadowFile":       {"--ro-bind", "/etc/shadow", "/etc/shadow"},
+		"ArbitraryPath":    {"--ro-bind", "/etc/machine-id", "/etc/machine-id"},
+		"HostUsr":          {"--ro-bind", "/usr", "/usr"},
+		"HostLib":          {"--ro-bind", "/lib", "/lib"},
+		"HostRoot":         {"--ro-bind", "/", "/host"},
+		"ParentHome":       {"--ro-bind", f.parentHome, "/home/coder/host"},
+		"LauncherState":    {"--bind", f.stateRoot, "/mnt/state"},
+		"DockerSocket":     {"--bind", f.dockerSocket, "/run/docker.sock"},
+		"DevBind":          {"--dev-bind", "/dev/sda", "/dev/sda"},
+		"ReadOnlyBindTry":  {"--ro-bind-try", "/etc/shadow", "/etc/shadow"},
+		"ReadWriteBindTry": {"--bind-try", "/root", "/root"},
+		"OverlaySource":    {"--overlay-src", "/usr"},
+		"UnknownFlag":      {"--smuggle-host", "/usr"},
+		// A duplicate of an allowed mount is still an extra mount: the
+		// comparison is a multiset, so the second copy has nothing to match.
+		"DuplicateToken": {"--ro-bind", f.tokenPath, "/run/coder/token"},
+		// Rebinding an allowed read-only source read-write must not pass as
+		// the read-only entry it resembles.
+		"WritableCoderBinary": {"--bind", f.coderPath, "/opt/coder/coder"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			failures := bwrapPolicyFailures(f, argv.withOp(t, mutation...))
+			require.NotEmpty(t, failures,
+				"the mount policy assertion accepted the extra operation %v", mutation)
+		})
+	}
 }
 
 // TestBwrapDriverRealJQ runs the driver against the real jq and the real
