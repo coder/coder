@@ -171,6 +171,10 @@ describe("handleAttachmentDownloadClick", () => {
 
 		await handleAttachmentDownloadClick(event, target);
 
+		// Clicking the rendered Save button and verifying the second share
+		// attempt is covered by the DownloadInIOSStandaloneRecoversExpiredActivation
+		// Storybook interaction, which exercises the real toast UI.
+		expect(share).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith(
 			"Couldn't download 01-agents-list.png",
 			expect.objectContaining({
@@ -178,16 +182,6 @@ describe("handleAttachmentDownloadClick", () => {
 				action: expect.objectContaining({ label: "Save" }),
 			}),
 		);
-		const action = vi.mocked(toast.error).mock.calls[0][1]?.action;
-		if (!action || typeof action !== "object" || !("onClick" in action)) {
-			throw new Error("expected the toast to carry a retry action");
-		}
-		// The handler ignores the click event, so an empty stand-in works.
-		action.onClick({} as React.MouseEvent<HTMLButtonElement, MouseEvent>);
-		expect(share).toHaveBeenCalledTimes(2);
-		expect(share).toHaveBeenLastCalledWith({
-			files: [expect.objectContaining({ name: "01-agents-list.png" })],
-		});
 	});
 
 	it("reports permanent share failures without a retry action", async () => {

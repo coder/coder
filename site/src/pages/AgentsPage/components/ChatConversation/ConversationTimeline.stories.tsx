@@ -10,6 +10,7 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { withToaster } from "#/testHelpers/storybook";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -1364,6 +1365,40 @@ export const DownloadInIOSStandaloneSharesFile: Story = {
 			expect(shared.files[0].name).toBe("deployment-report.pdf");
 			expect(shared.files[0].type).toBe("application/pdf");
 			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+/** When user activation expires before share(), the error toast's Save action retries with a fresh gesture. */
+export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
+	decorators: [withToaster],
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn()
+			.mockRejectedValueOnce(
+				new DOMException("activation expired", "NotAllowedError"),
+			)
+			.mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			// The toast renders in a portal outside the story canvas.
+			const saveButton = await screen.findByRole("button", { name: "Save" });
+			await userEvent.click(saveButton);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+			const shared: { files: File[] } = share.mock.calls[1][0];
+			expect(shared.files).toHaveLength(1);
+			expect(shared.files[0].name).toBe("deployment-report.pdf");
 			expect(open).not.toHaveBeenCalled();
 		} finally {
 			restoreNavigator();
