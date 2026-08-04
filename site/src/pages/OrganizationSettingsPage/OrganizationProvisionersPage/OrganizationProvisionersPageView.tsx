@@ -1,5 +1,5 @@
 import { XIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
@@ -56,6 +57,8 @@ export const OrganizationProvisionersPageView: FC<
 	onFilterChange,
 	onRetry,
 }) => {
+	const auth = useContext(AuthContext);
+
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
@@ -99,6 +102,7 @@ export const OrganizationProvisionersPageView: FC<
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
 					documentationLink={docs("/admin/provisioners")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			) : (
 				<>

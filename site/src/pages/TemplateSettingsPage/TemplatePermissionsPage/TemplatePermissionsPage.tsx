@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -8,6 +8,7 @@ import {
 	templateACL,
 } from "#/api/queries/templates";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
@@ -15,6 +16,7 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 const TemplatePermissionsPage: FC = () => {
+	const auth = useContext(AuthContext);
 	const { template, permissions } = useTemplateSettings();
 	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
 	const templateACLQuery = useQuery(templateACL(template.id));
@@ -37,6 +39,7 @@ const TemplatePermissionsPage: FC = () => {
 					message="Template permissions"
 					description="Control users and groups access to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			) : (
 				<TemplatePermissionsPageView

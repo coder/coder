@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useContext, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
 import { PremiumBadge } from "#/components/Badges/Badges";
@@ -25,6 +25,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
@@ -62,6 +63,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
+	const auth = useContext(AuthContext);
+
 	const showDefaultRoles =
 		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
 
@@ -72,6 +75,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			)}
 			{showDefaultRoles && onUpdateDefaultRoles && (

@@ -1,5 +1,5 @@
 import { PlusIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -20,6 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import { relativeTime } from "#/utils/time";
 
@@ -40,6 +41,8 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 	onCreateKey,
 	onDeleteKey,
 }) => {
+	const auth = useContext(AuthContext);
+
 	return (
 		<div>
 			<SettingsHeader
@@ -65,6 +68,7 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 					message="AI Gateway"
 					description="Authenticate standalone AI Gateway replicas to your deployment. You need a Premium license with AI Gateway enabled to use this feature."
 					documentationLink={docs("/ai-coder/ai-gateway")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			)}
 

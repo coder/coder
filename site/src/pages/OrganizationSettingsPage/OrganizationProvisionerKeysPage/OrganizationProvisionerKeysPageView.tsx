@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
@@ -23,6 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -44,6 +45,8 @@ interface OrganizationProvisionerKeysPageViewProps {
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
 > = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
+	const auth = useContext(AuthContext);
+
 	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
 		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
 	);
@@ -63,6 +66,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
 					documentationLink={docs("/admin/provisioners")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			) : (
 				<Table className="mt-6">

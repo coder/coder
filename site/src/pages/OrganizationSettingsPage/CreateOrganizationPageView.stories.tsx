@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { mockApiError } from "#/testHelpers/entities";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
@@ -13,11 +14,28 @@ const meta: Meta<typeof CreateOrganizationPageView> = {
 export default meta;
 type Story = StoryObj<typeof CreateOrganizationPageView>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The badge is passive: hovering it must not surface a paywall.
+		await userEvent.hover(canvas.getByText("Premium"));
+		await expect(
+			screen.queryByRole("link", { name: "Read the documentation" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const NotEntitled: Story = {
 	args: {
 		isEntitled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByRole("link", { name: "Read the documentation" }),
+		).toBeVisible();
 	},
 };
 

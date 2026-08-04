@@ -13,18 +13,11 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -71,29 +64,7 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<Badges>
-				<Tooltip>
-					{isEntitled && !isPremium ? (
-						<EnterpriseBadge />
-					) : (
-						<TooltipTrigger asChild>
-							<span>
-								<PremiumBadge />
-							</span>
-						</TooltipTrigger>
-					)}
-
-					<TooltipContent
-						sideOffset={-28}
-						collisionPadding={16}
-						className="p-0"
-					>
-						<PopoverPaywall
-							message="Appearance"
-							description="With a Premium license, you can customize the appearance and branding of your deployment."
-							documentationLink={docs("/admin/setup/appearance")}
-						/>
-					</TooltipContent>
-				</Tooltip>
+				{isEntitled && !isPremium ? <EnterpriseBadge /> : <PremiumBadge />}
 			</Badges>
 
 			<Fieldset

@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import { Link, useNavigate } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -11,13 +11,8 @@ import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -47,6 +42,7 @@ interface CreateOrganizationPageViewProps {
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
 > = ({ error, onSubmit, isEntitled }) => {
+	const auth = useContext(AuthContext);
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",
@@ -79,29 +75,11 @@ export const CreateOrganizationPageView: FC<
 						</div>
 					)}
 
-					<Badges>
-						<Tooltip>
-							{isEntitled && (
-								<TooltipTrigger asChild>
-									<span>
-										<PremiumBadge />
-									</span>
-								</TooltipTrigger>
-							)}
-
-							<TooltipContent
-								sideOffset={-28}
-								collisionPadding={16}
-								className="p-0"
-							>
-								<PopoverPaywall
-									message="Organizations"
-									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-									documentationLink={docs("/admin/users/organizations")}
-								/>
-							</TooltipContent>
-						</Tooltip>
-					</Badges>
+					{isEntitled && (
+						<Badges>
+							<PremiumBadge />
+						</Badges>
+					)}
 
 					<header className="flex flex-col items-center">
 						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
@@ -117,6 +95,7 @@ export const CreateOrganizationPageView: FC<
 							message="Organizations"
 							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
 							documentationLink={docs("/admin/users/organizations")}
+							canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 						/>
 					</div>
 				) : (

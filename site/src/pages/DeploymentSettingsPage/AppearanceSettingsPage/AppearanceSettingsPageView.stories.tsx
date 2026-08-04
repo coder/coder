@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent } from "storybook/test";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
@@ -28,10 +29,25 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof AppearanceSettingsPageView>;
 
+/** The badge is passive: hovering it must not surface a paywall. */
+const expectPassiveBadge = async (label: string) => {
+	await userEvent.hover(screen.getByText(label));
+	await expect(
+		screen.queryByRole("link", { name: "Read the documentation" }),
+	).not.toBeInTheDocument();
+};
+
 export const Entitled: Story = {
 	args: {
 		isEntitled: true,
 	},
+	play: async () => {
+		await expectPassiveBadge("Enterprise");
+	},
 };
 
-export const NotEntitled: Story = {};
+export const NotEntitled: Story = {
+	play: async () => {
+		await expectPassiveBadge("Premium");
+	},
+};

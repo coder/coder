@@ -1,4 +1,4 @@
-import type { ComponentProps, FC } from "react";
+import { type ComponentProps, type FC, useContext } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
@@ -20,6 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { AuthContext } from "#/contexts/auth/AuthProvider";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
@@ -42,6 +43,8 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	filterProps,
 	connectionLogsQuery: paginationResult,
 }) => {
+	const auth = useContext(AuthContext);
+
 	const isLoading =
 		(connectionLogs === undefined ||
 			paginationResult.totalRecords === undefined) &&
@@ -89,6 +92,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					message="Connection logs"
 					description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/monitoring/connection-logs")}
+					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
 				/>
 			)}
 		</Margins>
