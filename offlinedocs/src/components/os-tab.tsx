@@ -1,8 +1,19 @@
 "use client";
 
 import { AppleLogo, LinuxLogo, WindowsLogo } from "@phosphor-icons/react/ssr";
-import { Tabs, TabsList, TabsTrigger } from "fumadocs-ui/components/tabs";
-import { type ReactNode, useRef } from "react";
+import { TabsContent, TabsList, TabsTrigger } from "fumadocs-ui/components/tabs";
+// The unstyled Tabs container is the same component the styled `Tabs` wraps, but
+// it accepts a controlled `value`/`onValueChange` (the styled one omits them).
+// We need that control to clamp the shared group value (see below).
+import { Tabs } from "fumadocs-ui/components/tabs.unstyled";
+import {
+	Children,
+	isValidElement,
+	type ReactElement,
+	type ReactNode,
+	useRef,
+	useState,
+} from "react";
 
 // Shared identifier so every OS tab set on the site stays in sync (and syncs
 // with itself across client navigations). Must match the value the Fumadocs
@@ -20,6 +31,12 @@ const OS_ICONS: Record<string, ReactNode> = {
 	linux: <LinuxLogo />,
 	windows: <WindowsLogo />,
 };
+
+// Container styling copied from Fumadocs' styled `Tabs`; the unstyled container
+// we build on omits it. The styled `TabsList`/`TabsTrigger`/`TabsContent` below
+// keep their own styling.
+const TABS_CLASSNAME =
+	"flex flex-col overflow-hidden rounded-xl border bg-fd-secondary my-4";
 
 // Match the escaping Fumadocs' Tabs applies to a label before comparing it to
 // the stored group value (lowercase, first whitespace to a dash).
@@ -58,6 +75,16 @@ function detectOS(items: string[]): string | undefined {
  * markup, so there is no hydration mismatch. A persisted explicit choice
  * (`localStorage`, written by Tabs on click) is left untouched, and if the OS
  * cannot be detected or is not one of the tabs, Tabs keeps its default.
+ *
+ * OS tab sets offer different subsets of operating systems (some show all
+ * three, some only macOS/Windows). The `os` group value is shared across every
+ * set, so a value one set stores (e.g. `linux`) is applied to every other set
+ * too. Fumadocs only guards that in its styled `Tabs` when `items` is passed,
+ * which also renders a plain text tab list and would drop the OS icons. So we
+ * build on the unstyled container with a controlled value and clamp updates to
+ * the operating systems this set actually offers: an out-of-set value is
+ * ignored (this set keeps its default) while the shared choice stays intact for
+ * the sets that can honor it.
  */
 export function OSTab({
 	items,
@@ -66,6 +93,9 @@ export function OSTab({
 	items: string[];
 	children: ReactNode;
 }) {
+	const values = items.map(escapeValue);
+	const [value, setValue] = useState(() => values[0]);
+
 	const seeded = useRef(false);
 	if (!seeded.current && typeof window !== "undefined") {
 		seeded.current = true;
@@ -82,26 +112,51 @@ export function OSTab({
 		}
 	}
 
-	// Render the triggers ourselves (rather than passing `items` to Tabs) so
-	// each OS gets its brand icon; the Tab panels carry explicit `value`s, so
-	// they still resolve without `items`. `groupId` + `persist` keep the OS
-	// choice synced across tab sets and pages.
-	const defaultValue = items[0] ? escapeValue(items[0]) : undefined;
-
 	return (
-		<Tabs groupId={OS_GROUP} persist defaultValue={defaultValue}>
+		<Tabs
+			className={TABS_CLASSNAME}
+			groupId={OS_GROUP}
+			persist
+			value={value}
+			onValueChange={(next) => {
+				// Only adopt a group value this set can display. The seeded/broadcast
+				// value may be an OS this set does not offer; adopting it would select
+				// no panel and render an empty box.
+				if (values.includes(next)) setValue(next);
+			}}
+		>
 			<TabsList>
 				{items.map((os) => {
-					const value = escapeValue(os);
+					const v = escapeValue(os);
 					return (
-						<TabsTrigger key={value} value={value}>
-							{OS_ICONS[value]}
+						<TabsTrigger key={v} value={v}>
+							{OS_ICONS[v]}
 							{os}
 						</TabsTrigger>
 					);
 				})}
 			</TabsList>
-			{children}
+			{/*
+			 * Panels arrive as `<Tab value="macOS">` (Fumadocs' styled `Tab`, which
+			 * needs the styled `Tabs` context we are not using). Render them as
+			 * `TabsContent` instead - the same element `Tab` produces - so they work
+			 * under the unstyled container. Their `value` is escaped to match the
+			 * triggers.
+			 */}
+			{Children.map(children, (child) => {
+				if (!isValidElement(child)) return child;
+				const panel = child as ReactElement<{
+					value?: string;
+					children?: ReactNode;
+				}>;
+				const raw = panel.props.value;
+				if (typeof raw !== "string") return child;
+				return (
+					<TabsContent value={escapeValue(raw)}>
+						{panel.props.children}
+					</TabsContent>
+				);
+			})}
 		</Tabs>
 	);
 }
