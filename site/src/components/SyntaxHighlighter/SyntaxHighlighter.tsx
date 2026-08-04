@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import Editor, { DiffEditor, loader } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import * as monaco from "monaco-editor";
 import { type ComponentProps, type FC, useCallback } from "react";
+import { useTheme } from "#/theme/context";
 import { useCoderTheme } from "./coderTheme";
 
 loader.config({ monaco });

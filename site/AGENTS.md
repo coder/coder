@@ -80,7 +80,6 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 
 ## Components
 
-- MUI components are deprecated - migrate away from these when encountered
 - Use shadcn/ui components first - check `site/src/components` for existing implementations.
 - Do not use shadcn CLI - manually add components to maintain consistency
 - The modules folder should contain components with business logic specific to the codebase.
@@ -103,9 +102,8 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 
 ## Styling
 
-- Emotion CSS is deprecated. Use Tailwind CSS instead.
+- Use Tailwind CSS for styling.
 - Use custom Tailwind classes in tailwind.config.js.
-- Tailwind CSS reset is currently not used to maintain compatibility with MUI
 - Responsive design - use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
 - Do not use `dark:` prefix for dark mode
 
@@ -278,23 +276,6 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
    [.claude/skills/frontend-review](../.claude/skills/frontend-review/SKILL.md)):
    audit the diff against FE1 to FE10 and fix every FAIL before creating
    the PR
-
-## Migration (MUI → shadcn) (Emotion → Tailwind)
-
-### Migration Strategy
-
-- Identify MUI components in current feature
-- Find shadcn equivalent in existing components
-- Create wrapper if needed for missing functionality
-- Update tests to reflect new component structure
-- Remove MUI imports once migration complete
-
-### Migration Guidelines
-
-- Use Tailwind classes for all new styling
-- Replace Emotion `css` prop with Tailwind classes
-- Leverage custom color tokens: `content-primary`, `surface-secondary`, etc.
-- Use `className` with `clsx` for conditional styling
 
 ## React Rules
 

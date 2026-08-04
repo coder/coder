@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { type FC, useEffect } from "react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
+import { useTheme } from "#/theme/context";
 
 loader.config({ monaco });
 

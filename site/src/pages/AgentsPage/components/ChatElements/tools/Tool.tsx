@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {

@@ -7,31 +7,37 @@ import { cn } from "#/utils/cn";
 
 export const Slider: React.FC<
 	React.ComponentPropsWithRef<typeof SliderPrimitive.Root>
-> = ({ className, ...props }) => {
+> = ({ className, defaultValue, value, min = 0, max = 100, ...props }) => {
+	const thumbCount = Array.isArray(value)
+		? value.length
+		: Array.isArray(defaultValue)
+			? defaultValue.length
+			: 1;
+
 	return (
 		<SliderPrimitive.Root
 			className={cn(
-				"relative flex w-full items-center h-1.5",
+				"relative flex w-full touch-none select-none items-center h-1.5",
 				className,
-				"touch-none select-none",
 			)}
+			defaultValue={defaultValue}
+			value={value}
+			min={min}
+			max={max}
 			{...props}
 		>
 			<SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-surface-secondary data-[disabled]:opacity-40">
 				<SliderPrimitive.Range className="absolute h-full bg-content-primary" />
 			</SliderPrimitive.Track>
-			<SliderPrimitive.Thumb
-				className="block size-4 rounded-full border border-solid border-surface-invert-secondary bg-surface-primary shadow transition-colors
+			{Array.from({ length: thumbCount }, (_, index) => (
+				<SliderPrimitive.Thumb
+					key={index}
+					className="block size-4 rounded-full border border-solid border-surface-invert-secondary bg-surface-primary shadow transition-colors
 			focus-visible:outline-none hover:border-content-primary
 			focus-visible:ring-0 focus-visible:ring-content-primary focus-visible:ring-offset-surface-primary
 			disabled:pointer-events-none data-[disabled]:opacity-100 data-[disabled]:border-border"
-			/>
-			<SliderPrimitive.Thumb
-				className="block size-4 rounded-full border border-solid border-surface-invert-secondary bg-surface-primary shadow transition-colors
-			focus-visible:outline-none hover:border-content-primary
-			focus-visible:ring-0 focus-visible:ring-content-primary focus-visible:ring-offset-surface-primary
-			disabled:pointer-events-none data-[disabled]:opacity-100 data-[disabled]:border-border"
-			/>
+				/>
+			))}
 		</SliderPrimitive.Root>
 	);
 };

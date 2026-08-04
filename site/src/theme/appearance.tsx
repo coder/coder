@@ -8,8 +8,7 @@ import {
 import type { ExternalImageModeStyles } from "#/theme/externalImages";
 
 /**
- * Publishes *user* appearance values derived from the active site theme so
- * components can consume them without depending on Emotion's `useTheme`.
+ * Publishes *user* appearance values derived from the active site theme.
  *
  * This is the client-side, theme-derived appearance surface (for example, how
  * external images should be tinted for the active theme). It is intentionally

@@ -29,13 +29,12 @@ const switchVariants = cva(
 );
 
 const thumbVariants = cva(
-	"pointer-events-none block rounded-full bg-surface-primary shadow-lg ring-0 transition-transform",
+	"pointer-events-none block rounded-full bg-surface-primary shadow-lg ring-0 transition-transform data-[state=unchecked]:translate-x-0",
 	{
 		variants: {
 			size: {
-				default:
-					"size-4 data-[state=checked]:translate-x-2.5 data-[state=unchecked]:-translate-x-1.5",
-				sm: "size-3 data-[state=checked]:translate-x-1.5 data-[state=unchecked]:-translate-x-1.5",
+				default: "size-4 data-[state=checked]:translate-x-4",
+				sm: "size-3 data-[state=checked]:translate-x-3",
 			},
 		},
 		defaultVariants: {

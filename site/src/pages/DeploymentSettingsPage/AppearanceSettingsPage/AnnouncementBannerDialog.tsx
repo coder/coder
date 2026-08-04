@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -14,6 +12,8 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { useTheme } from "#/theme/context";
+import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {

@@ -364,6 +364,10 @@
 		@apply h-full;
 	}
 
+	body {
+		@apply bg-surface-primary text-content-primary font-sans antialiased;
+	}
+
 	button,
 	input {
 		@apply font-sans;
@@ -416,19 +420,6 @@
 			margin-right: 0 !important;
 			overflow-y: scroll !important;
 		}
-	}
-
-	/*
-	  This is a temporary fix for MUI Modals/Popovers until they are removed.
-	  When html has scrollbar-gutter: stable, the browser reserves space for the scrollbar.
-	  MUI Modals/Popovers, when locking body scroll, add `overflow: hidden` and `padding-right`
-	  to the body to compensate for the scrollbar they are hiding. This added padding-right
-	  conflicts with the already reserved gutter space, causing a layout shift.
-	  This rule overrides MUI's added padding-right on the body specifically when MUI
-	  is likely to have set both overflow:hidden and padding-right.
-	*/
-	body[style*="overflow: hidden"][style*="padding-right"] {
-		padding-right: 0px;
 	}
 }
 
