@@ -3852,6 +3852,24 @@ CREATE TABLE workspace_agent_stats (
     usage boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE workspace_agent_subagent_executions (
+    workspace_build_id uuid NOT NULL,
+    declaration_id uuid NOT NULL,
+    parent_agent_id uuid NOT NULL,
+    child_agent_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    driver text NOT NULL,
+    driver_protocol integer NOT NULL,
+    shared_host_path text NOT NULL,
+    shared_child_path text NOT NULL,
+    startup_timeout_seconds integer NOT NULL,
+    restart_policy text NOT NULL,
+    CONSTRAINT workspace_agent_subagent_executions_driver_protocol_check CHECK ((driver_protocol > 0)),
+    CONSTRAINT workspace_agent_subagent_executions_parent_child_check CHECK ((parent_agent_id <> child_agent_id)),
+    CONSTRAINT workspace_agent_subagent_executions_restart_policy_check CHECK ((restart_policy = ANY (ARRAY['never'::text, 'on-failure'::text]))),
+    CONSTRAINT workspace_agent_subagent_executions_startup_timeout_check CHECK ((startup_timeout_seconds > 0))
+);
+
 CREATE TABLE workspace_agent_volume_resource_monitors (
     agent_id uuid NOT NULL,
     enabled boolean NOT NULL,
@@ -4106,7 +4124,7 @@ CREATE VIEW workspace_prebuilds AS
            FROM (((workspaces w
              JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
-             JOIN workspace_agents wa ON (((wa.resource_id = wr.id) AND (wa.deleted = false))))
+             JOIN workspace_agents wa ON (((wa.resource_id = wr.id) AND (wa.deleted = false) AND ((wa.parent_id IS NULL) OR (wa.execution_isolation = false)))))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
           GROUP BY w.id
         ), current_presets AS (
@@ -4597,6 +4615,12 @@ ALTER TABLE ONLY workspace_agent_scripts
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_subagent_executions
+    ADD CONSTRAINT workspace_agent_subagent_executions_child_agent_id_key UNIQUE (child_agent_id);
+
+ALTER TABLE ONLY workspace_agent_subagent_executions
+    ADD CONSTRAINT workspace_agent_subagent_executions_pkey PRIMARY KEY (workspace_build_id, declaration_id);
+
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_pkey PRIMARY KEY (agent_id, path);
 
@@ -4967,6 +4991,8 @@ CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_log
 CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
+
+CREATE INDEX workspace_agent_subagent_executions_parent_agent_id_idx ON workspace_agent_subagent_executions USING btree (parent_agent_id);
 
 CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents USING btree (auth_instance_id, deleted);
 
@@ -5491,6 +5517,15 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_subagent_executions
+    ADD CONSTRAINT workspace_agent_subagent_executions_child_agent_id_fkey FOREIGN KEY (child_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_subagent_executions
+    ADD CONSTRAINT workspace_agent_subagent_executions_parent_agent_id_fkey FOREIGN KEY (parent_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_subagent_executions
+    ADD CONSTRAINT workspace_agent_subagent_executions_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

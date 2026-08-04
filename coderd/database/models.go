@@ -6524,6 +6524,20 @@ type WorkspaceAgentStat struct {
 	Usage                       bool            `db:"usage" json:"usage"`
 }
 
+type WorkspaceAgentSubagentExecution struct {
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	CreatedAt             time.Time `db:"created_at" json:"created_at"`
+	Driver                string    `db:"driver" json:"driver"`
+	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
+	SharedHostPath        string    `db:"shared_host_path" json:"shared_host_path"`
+	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
+	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
+}
+
 type WorkspaceAgentVolumeResourceMonitor struct {
 	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
 	Enabled        bool                       `db:"enabled" json:"enabled"`

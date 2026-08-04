@@ -36169,6 +36169,118 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
+const getWorkspaceAgentSubagentExecutionsByParentAgentID = `-- name: GetWorkspaceAgentSubagentExecutionsByParentAgentID :many
+SELECT workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
+FROM workspace_agent_subagent_executions
+WHERE parent_agent_id = $1
+ORDER BY created_at, declaration_id
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]WorkspaceAgentSubagentExecution, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentSubagentExecutionsByParentAgentID, parentAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentSubagentExecution
+	for rows.Next() {
+		var i WorkspaceAgentSubagentExecution
+		if err := rows.Scan(
+			&i.WorkspaceBuildID,
+			&i.DeclarationID,
+			&i.ParentAgentID,
+			&i.ChildAgentID,
+			&i.CreatedAt,
+			&i.Driver,
+			&i.DriverProtocol,
+			&i.SharedHostPath,
+			&i.SharedChildPath,
+			&i.StartupTimeoutSeconds,
+			&i.RestartPolicy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentSubagentExecution = `-- name: InsertWorkspaceAgentSubagentExecution :one
+INSERT INTO workspace_agent_subagent_executions (
+	workspace_build_id,
+	declaration_id,
+	parent_agent_id,
+	child_agent_id,
+	driver,
+	driver_protocol,
+	shared_host_path,
+	shared_child_path,
+	startup_timeout_seconds,
+	restart_policy
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10
+)
+RETURNING workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
+`
+
+type InsertWorkspaceAgentSubagentExecutionParams struct {
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	Driver                string    `db:"driver" json:"driver"`
+	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
+	SharedHostPath        string    `db:"shared_host_path" json:"shared_host_path"`
+	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
+	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (WorkspaceAgentSubagentExecution, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentSubagentExecution,
+		arg.WorkspaceBuildID,
+		arg.DeclarationID,
+		arg.ParentAgentID,
+		arg.ChildAgentID,
+		arg.Driver,
+		arg.DriverProtocol,
+		arg.SharedHostPath,
+		arg.SharedChildPath,
+		arg.StartupTimeoutSeconds,
+		arg.RestartPolicy,
+	)
+	var i WorkspaceAgentSubagentExecution
+	err := row.Scan(
+		&i.WorkspaceBuildID,
+		&i.DeclarationID,
+		&i.ParentAgentID,
+		&i.ChildAgentID,
+		&i.CreatedAt,
+		&i.Driver,
+		&i.DriverProtocol,
+		&i.SharedHostPath,
+		&i.SharedChildPath,
+		&i.StartupTimeoutSeconds,
+		&i.RestartPolicy,
+	)
+	return i, err
+}
+
 const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
 INSERT INTO
 	workspace_app_audit_sessions (

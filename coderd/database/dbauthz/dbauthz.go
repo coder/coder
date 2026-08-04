@@ -5513,6 +5513,13 @@ func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAf
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.WorkspaceAgentSubagentExecution, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, parentAgentID, policy.ActionRead); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parentAgentID)
+}
+
 func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStats(ctx, createdAt)
 }
@@ -6621,6 +6628,13 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	}
 
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
+		return database.WorkspaceAgentSubagentExecution{}, err
+	}
+	return q.db.InsertWorkspaceAgentSubagentExecution(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {

@@ -1017,6 +1017,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
+	GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]WorkspaceAgentSubagentExecution, error)
 	// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
 	GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error)
 	GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error)
@@ -1226,6 +1227,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error)
 	InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
+	InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (WorkspaceAgentSubagentExecution, error)
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error

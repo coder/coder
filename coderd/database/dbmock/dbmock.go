@@ -6793,6 +6793,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, createdAt 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, createdAt)
 }
 
+// GetWorkspaceAgentSubagentExecutionsByParentAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.WorkspaceAgentSubagentExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSubagentExecutionsByParentAgentID", ctx, parentAgentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgentSubagentExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSubagentExecutionsByParentAgentID indicates an expected call of GetWorkspaceAgentSubagentExecutionsByParentAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parentAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionsByParentAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionsByParentAgentID), ctx, parentAgentID)
+}
+
 // GetWorkspaceAgentUsageStats mocks base method.
 func (m *MockStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	m.ctrl.T.Helper()
@@ -8712,6 +8727,21 @@ func (m *MockStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentStats), ctx, arg)
+}
+
+// InsertWorkspaceAgentSubagentExecution mocks base method.
+func (m *MockStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentSubagentExecution", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentSubagentExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentSubagentExecution indicates an expected call of InsertWorkspaceAgentSubagentExecution.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentSubagentExecution(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentSubagentExecution", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentSubagentExecution), ctx, arg)
 }
 
 // InsertWorkspaceAppStats mocks base method.

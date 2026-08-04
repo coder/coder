@@ -6558,10 +6558,14 @@ func createTmplVersionAndPreset(
 }
 
 type createPrebuiltWorkspaceOpts struct {
-	failedJob      bool
-	createdAt      time.Time
-	readyAgents    int
-	notReadyAgents int
+	failedJob                   bool
+	createdAt                   time.Time
+	readyAgents                 int
+	notReadyAgents              int
+	readyChildAgents            int
+	notReadyChildAgents         int
+	readyIsolatedChildAgents    int
+	notReadyIsolatedChildAgents int
 }
 
 func createPrebuiltWorkspace(
@@ -6587,42 +6591,61 @@ func createPrebuiltWorkspace(
 		Error:     jobError,
 	})
 
-	// create ready agents
-	readyAgents := 0
-	if opts != nil {
-		readyAgents = opts.readyAgents
-	}
-	for i := 0; i < readyAgents; i++ {
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
+	var parentAgent database.WorkspaceAgent
+	createAgent := func(lifecycleState database.WorkspaceAgentLifecycleState, parentID uuid.NullUUID, executionIsolation bool) {
+		resourceID := parentAgent.ResourceID
+		if !parentID.Valid {
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+			resourceID = resource.ID
+		}
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+			ResourceID:         resourceID,
+			ParentID:           parentID,
+			ExecutionIsolation: executionIsolation,
 		})
+		if !parentID.Valid && parentAgent.ID == uuid.Nil {
+			parentAgent = agent
+		}
 		err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 			ID:             agent.ID,
-			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			LifecycleState: lifecycleState,
 		})
 		require.NoError(t, err)
 	}
 
-	// create not ready agents
+	readyAgents := 0
 	notReadyAgents := 1
 	if opts != nil {
+		readyAgents = opts.readyAgents
 		notReadyAgents = opts.notReadyAgents
 	}
-	for i := 0; i < notReadyAgents; i++ {
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
-		})
-		err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-			ID:             agent.ID,
-			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
-		})
-		require.NoError(t, err)
+	for range readyAgents {
+		createAgent(database.WorkspaceAgentLifecycleStateReady, uuid.NullUUID{}, false)
+	}
+	for range notReadyAgents {
+		createAgent(database.WorkspaceAgentLifecycleStateCreated, uuid.NullUUID{}, false)
+	}
+
+	if opts != nil {
+		childCount := opts.readyChildAgents + opts.notReadyChildAgents + opts.readyIsolatedChildAgents + opts.notReadyIsolatedChildAgents
+		if childCount > 0 {
+			require.NotEqual(t, uuid.Nil, parentAgent.ID)
+		}
+		parentID := uuid.NullUUID{UUID: parentAgent.ID, Valid: true}
+		for range opts.readyChildAgents {
+			createAgent(database.WorkspaceAgentLifecycleStateReady, parentID, false)
+		}
+		for range opts.notReadyChildAgents {
+			createAgent(database.WorkspaceAgentLifecycleStateCreated, parentID, false)
+		}
+		for range opts.readyIsolatedChildAgents {
+			createAgent(database.WorkspaceAgentLifecycleStateReady, parentID, true)
+		}
+		for range opts.notReadyIsolatedChildAgents {
+			createAgent(database.WorkspaceAgentLifecycleStateCreated, parentID, true)
+		}
 	}
 
 	// Create corresponding workspace and workspace build
@@ -6682,10 +6705,12 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name           string
-		readyAgents    int
-		notReadyAgents int
-		expectReady    bool
+		name                        string
+		readyAgents                 int
+		notReadyAgents              int
+		notReadyChildAgents         int
+		notReadyIsolatedChildAgents int
+		expectReady                 bool
 	}{
 		{
 			name:           "one ready agent",
@@ -6710,6 +6735,18 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 			readyAgents:    2,
 			notReadyAgents: 0,
 			expectReady:    true,
+		},
+		{
+			name:                "ordinary child must be ready",
+			readyAgents:         1,
+			notReadyChildAgents: 1,
+			expectReady:         false,
+		},
+		{
+			name:                        "isolated child does not affect readiness",
+			readyAgents:                 1,
+			notReadyIsolatedChildAgents: 1,
+			expectReady:                 true,
 		},
 		{
 			name:           "five ready, one not ready",
@@ -6740,8 +6777,10 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 			tmpl := createTemplate(t, db, orgID, userID)
 			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
 			createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
-				readyAgents:    tc.readyAgents,
-				notReadyAgents: tc.notReadyAgents,
+				readyAgents:                 tc.readyAgents,
+				notReadyAgents:              tc.notReadyAgents,
+				notReadyChildAgents:         tc.notReadyChildAgents,
+				notReadyIsolatedChildAgents: tc.notReadyIsolatedChildAgents,
 			})
 
 			workspacePrebuilds := getWorkspacePrebuilds(sqlDB)
@@ -8003,6 +8042,233 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 		// Then: We expect to see no agents.
 		require.Len(t, agents, 0)
 	})
+}
+
+func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
+	t.Parallel()
+
+	type executionBuild struct {
+		build  database.WorkspaceBuild
+		parent database.WorkspaceAgent
+		child  database.WorkspaceAgent
+	}
+	type fixture struct {
+		db       database.Store
+		ctx      context.Context
+		newBuild func(t *testing.T, buildNumber int32) executionBuild
+	}
+	newFixture := func(t *testing.T) fixture {
+		t.Helper()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+		})
+
+		return fixture{
+			db:  db,
+			ctx: ctx,
+			newBuild: func(t *testing.T, buildNumber int32) executionBuild {
+				t.Helper()
+
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					OrganizationID: org.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					BuildNumber:       buildNumber,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					InitiatorID:       user.ID,
+				})
+				resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+					JobID: build.JobID,
+				})
+				parent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					ResourceID: resource.ID,
+				})
+				child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+					ExecutionIsolation: true,
+				})
+				return executionBuild{build: build, parent: parent, child: child}
+			},
+		}
+	}
+	validParams := func(build executionBuild) database.InsertWorkspaceAgentSubagentExecutionParams {
+		return database.InsertWorkspaceAgentSubagentExecutionParams{
+			WorkspaceBuildID:      build.build.ID,
+			DeclarationID:         uuid.New(),
+			ParentAgentID:         build.parent.ID,
+			ChildAgentID:          build.child.ID,
+			Driver:                "docker",
+			DriverProtocol:        7,
+			SharedHostPath:        "/home/coder/project",
+			SharedChildPath:       "/workspace/project",
+			StartupTimeoutSeconds: 30,
+			RestartPolicy:         "on-failure",
+		}
+	}
+
+	t.Run("InsertGetRoundTrip", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		inserted, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, params.WorkspaceBuildID, inserted.WorkspaceBuildID)
+		require.Equal(t, params.DeclarationID, inserted.DeclarationID)
+		require.Equal(t, params.ParentAgentID, inserted.ParentAgentID)
+		require.Equal(t, params.ChildAgentID, inserted.ChildAgentID)
+		require.False(t, inserted.CreatedAt.IsZero())
+		require.Equal(t, params.Driver, inserted.Driver)
+		require.Equal(t, params.DriverProtocol, inserted.DriverProtocol)
+		require.Equal(t, params.SharedHostPath, inserted.SharedHostPath)
+		require.Equal(t, params.SharedChildPath, inserted.SharedChildPath)
+		require.Equal(t, params.StartupTimeoutSeconds, inserted.StartupTimeoutSeconds)
+		require.Equal(t, params.RestartPolicy, inserted.RestartPolicy)
+
+		got, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentSubagentExecution{inserted}, got)
+	})
+
+	t.Run("SameDeclarationSeparateBuilds", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		first := fixture.newBuild(t, 1)
+		second := fixture.newBuild(t, 2)
+		declarationID := uuid.New()
+		firstParams := validParams(first)
+		firstParams.DeclarationID = declarationID
+		secondParams := validParams(second)
+		secondParams.DeclarationID = declarationID
+
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, firstParams)
+		require.NoError(t, err)
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, secondParams)
+		require.NoError(t, err)
+	})
+
+	t.Run("DuplicateBuildDeclaration", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		secondChild := dbgen.WorkspaceSubAgent(t, fixture.db, build.parent, database.WorkspaceAgent{
+			ExecutionIsolation: true,
+		})
+		params.ChildAgentID = secondChild.ID
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueWorkspaceAgentSubagentExecutionsPkey))
+	})
+
+	t.Run("DuplicateChildAgent", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		params.DeclarationID = uuid.New()
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueWorkspaceAgentSubagentExecutionsChildAgentIDKey))
+	})
+
+	t.Run("ParentForeignKey", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		params := validParams(fixture.newBuild(t, 1))
+		params.ParentAgentID = uuid.New()
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyWorkspaceAgentSubagentExecutionsParentAgentID))
+	})
+
+	t.Run("ChildForeignKey", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		params := validParams(fixture.newBuild(t, 1))
+		params.ChildAgentID = uuid.New()
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyWorkspaceAgentSubagentExecutionsChildAgentID))
+	})
+
+	t.Run("ParentEqualsChild", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		params := validParams(fixture.newBuild(t, 1))
+		params.ChildAgentID = params.ParentAgentID
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsParentChildCheck))
+	})
+
+	t.Run("InvalidRestartPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		params := validParams(fixture.newBuild(t, 1))
+		params.RestartPolicy = "always"
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsRestartPolicyCheck))
+	})
+
+	for _, protocol := range []int32{0, -1} {
+		t.Run(fmt.Sprintf("InvalidDriverProtocol/%d", protocol), func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newFixture(t)
+			params := validParams(fixture.newBuild(t, 1))
+			params.DriverProtocol = protocol
+			_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsDriverProtocolCheck))
+		})
+	}
+
+	for _, timeout := range []int32{0, -1} {
+		t.Run(fmt.Sprintf("InvalidStartupTimeout/%d", timeout), func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newFixture(t)
+			params := validParams(fixture.newBuild(t, 1))
+			params.StartupTimeoutSeconds = timeout
+			_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsStartupTimeoutCheck))
+		})
+	}
 }
 
 func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {

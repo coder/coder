@@ -61,6 +61,10 @@ const (
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
 	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
 	CheckUserSkillsNameSize                                  CheckConstraint = "user_skills_name_size"                                     // user_skills
+	CheckWorkspaceAgentSubagentExecutionsDriverProtocolCheck CheckConstraint = "workspace_agent_subagent_executions_driver_protocol_check" // workspace_agent_subagent_executions
+	CheckWorkspaceAgentSubagentExecutionsParentChildCheck    CheckConstraint = "workspace_agent_subagent_executions_parent_child_check"    // workspace_agent_subagent_executions
+	CheckWorkspaceAgentSubagentExecutionsRestartPolicyCheck  CheckConstraint = "workspace_agent_subagent_executions_restart_policy_check"  // workspace_agent_subagent_executions
+	CheckWorkspaceAgentSubagentExecutionsStartupTimeoutCheck CheckConstraint = "workspace_agent_subagent_executions_startup_timeout_check" // workspace_agent_subagent_executions
 	CheckWorkspaceBuildOrchestrationsAttemptCountCheck       CheckConstraint = "workspace_build_orchestrations_attempt_count_check"        // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsChildLogLevelCheck      CheckConstraint = "workspace_build_orchestrations_child_log_level_check"      // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsChildParametersCheck    CheckConstraint = "workspace_build_orchestrations_child_parameters_check"     // workspace_build_orchestrations

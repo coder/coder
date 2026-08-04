@@ -3633,6 +3633,14 @@ func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.WorkspaceAgentSubagentExecution, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parentAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionsByParentAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionsByParentAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, createdAt)
@@ -4655,6 +4663,14 @@ func (m queryMetricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg da
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceAgentStats").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentSubagentExecution(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentSubagentExecution").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceAgentSubagentExecution").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
