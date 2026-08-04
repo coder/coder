@@ -133,6 +133,7 @@ export function FilterCombobox({
 			onInputValueChange={handleInputValueChange}
 			onItemHighlighted={handleItemHighlighted}
 			items={optionItems}
+			label={placeholder}
 		>
 			<ComboboxInputGroup className={className}>
 				<InputGroupAddon>

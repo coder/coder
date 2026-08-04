@@ -1,102 +1,196 @@
-import { Combobox as ComboboxPrimitive } from "@base-ui/react";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { CheckIcon, XIcon } from "lucide-react";
 import {
 	type ComponentPropsWithRef,
 	createContext,
 	type FC,
+	type ReactNode,
 	type RefObject,
 	useContext,
 	useRef,
+	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
+import {
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
+
+/**
+ * A chip-based multi-select combobox built on cmdk (listbox, keyboard
+ * navigation, `aria-activedescendant`) and Radix Popover (positioning,
+ * dismissal). It exposes a controlled API shaped for `FilterCombobox`:
+ * `value`/`onValueChange` are the selected chip tokens, `inputValue`/
+ * `onInputValueChange` the free-text input, and `onItemHighlighted` reports the
+ * cmdk-highlighted row so callers can implement Tab completion.
+ */
 
 const ComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
-type ComboboxProps<
-	Value = string,
-	Multiple extends boolean | undefined = true,
-> = ComboboxPrimitive.Root.Props<Value, Multiple>;
+type ComboboxStateValue = {
+	value: string[];
+	inputValue: string;
+	open: boolean;
+	multiple: boolean;
+	onInputValueChange?: (value: string, details: { reason: string }) => void;
+	select: (value: string) => void;
+};
 
-export function Combobox<
-	Value = string,
-	Multiple extends boolean | undefined = true,
->(props: ComboboxProps<Value, Multiple>) {
+const ComboboxStateContext = createContext<ComboboxStateValue | null>(null);
+
+function useComboboxState(): ComboboxStateValue {
+	const context = useContext(ComboboxStateContext);
+	if (!context) {
+		throw new Error("Combobox components must be used within a <Combobox />");
+	}
+	return context;
+}
+
+type ComboboxProps = {
+	multiple?: boolean;
+	/** Accepted for API parity; cmdk auto-highlights the first row. */
+	autoHighlight?: boolean;
+	/** Accepted for API parity; filtering is owned by the caller. */
+	filter?: unknown;
+	/** Accepted for API parity; opening is caller-controlled. */
+	openOnInputClick?: boolean;
+	/** Accepted for API parity; navigation order comes from the DOM. */
+	items?: readonly string[];
+	open?: boolean;
+	onOpenChange?: (open: boolean, details: { reason: string }) => void;
+	value?: string[];
+	onValueChange?: (value: string[]) => void;
+	inputValue?: string;
+	onInputValueChange?: (value: string, details: { reason: string }) => void;
+	onItemHighlighted?: (value: string | undefined) => void;
+	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
+	label?: string;
+	children?: ReactNode;
+};
+
+export function Combobox({
+	multiple = true,
+	open = false,
+	onOpenChange,
+	value = [],
+	onValueChange,
+	inputValue = "",
+	onInputValueChange,
+	onItemHighlighted,
+	label,
+	children,
+}: ComboboxProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
+	// cmdk only reports highlight changes through `onValueChange` when its value
+	// is controlled, so track the highlighted row here and surface it to callers.
+	const [highlightedValue, setHighlightedValue] = useState("");
+	const valueRef = useRef(value);
+	valueRef.current = value;
+	const onValueChangeRef = useRef(onValueChange);
+	onValueChangeRef.current = onValueChange;
+	const onOpenChangeRef = useRef(onOpenChange);
+	onOpenChangeRef.current = onOpenChange;
+	const onItemHighlightedRef = useRef(onItemHighlighted);
+	onItemHighlightedRef.current = onItemHighlighted;
+
+	const select = (next: string) => {
+		const current = valueRef.current;
+		const exists = current.includes(next);
+		const updated = exists
+			? current.filter((entry) => entry !== next)
+			: multiple
+				? [...current, next]
+				: [next];
+		onValueChangeRef.current?.(updated);
+	};
+
+	// Radix only reports a boolean, so synthesize a reason for the caller. Opens
+	// are driven directly by the caller through `open`; Radix mostly reports
+	// dismissals (outside press / escape).
+	const handleOpenChange = (nextOpen: boolean) => {
+		onOpenChangeRef.current?.(nextOpen, {
+			reason: nextOpen ? "trigger-press" : "outside-press",
+		});
+	};
+
+	const state: ComboboxStateValue = {
+		value,
+		inputValue,
+		open,
+		multiple,
+		onInputValueChange,
+		select,
+	};
 
 	return (
 		<ComboboxAnchorContext.Provider value={anchorRef}>
-			<ComboboxPrimitive.Root {...props} />
+			<ComboboxStateContext.Provider value={state}>
+				<CommandPrimitive
+					shouldFilter={false}
+					loop
+					label={label}
+					className="flex w-full flex-col"
+					value={highlightedValue}
+					onValueChange={(highlighted) => {
+						setHighlightedValue(highlighted);
+						onItemHighlightedRef.current?.(highlighted || undefined);
+					}}
+				>
+					<Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+						{children}
+					</Popover>
+				</CommandPrimitive>
+			</ComboboxStateContext.Provider>
 		</ComboboxAnchorContext.Provider>
 	);
 }
 
-type ComboboxValueProps = ComboboxPrimitive.Value.Props;
-
-export const ComboboxValue: FC<ComboboxValueProps> = (props) => {
-	return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />;
+type ComboboxValueProps = {
+	children: (selected: string[]) => ReactNode;
 };
 
-type ComboboxContentProps = ComboboxPrimitive.Popup.Props &
-	Pick<
-		ComboboxPrimitive.Positioner.Props,
-		"side" | "align" | "sideOffset" | "alignOffset" | "anchor"
-	>;
+export const ComboboxValue: FC<ComboboxValueProps> = ({ children }) => {
+	const { value } = useComboboxState();
+	return <>{children(value)}</>;
+};
+
+type ComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent> & {
+	/** Accepted for API parity; the Radix anchor provides the position target. */
+	anchor?: unknown;
+};
 
 export const ComboboxContent: FC<ComboboxContentProps> = ({
 	className,
-	side = "bottom",
-	sideOffset = 6,
 	align = "start",
-	alignOffset = 0,
-	anchor,
+	sideOffset = 6,
+	anchor: _anchor,
 	...props
 }) => {
-	const defaultAnchor = useContext(ComboboxAnchorContext);
+	const anchorRef = useContext(ComboboxAnchorContext);
+	// cmdk keeps a running count of the rows it renders; drive the `data-empty`
+	// styling group from it so `ComboboxEmpty` can show/hide via CSS.
+	const count = useCommandState((state) => state.filtered.count) ?? 0;
 
 	return (
-		<ComboboxPrimitive.Portal>
-			<ComboboxPrimitive.Positioner
-				side={side}
-				sideOffset={sideOffset}
-				align={align}
-				alignOffset={alignOffset}
-				anchor={anchor ?? defaultAnchor}
-				className="isolate z-50"
-			>
-				<ComboboxPrimitive.Popup
-					data-slot="combobox-content"
-					className={cn(
-						`group/combobox-content relative z-50 max-h-[min(24rem,var(--available-height))]
-						w-[var(--anchor-width)] min-w-[var(--anchor-width)] overflow-hidden rounded-md
-						border border-solid border-border bg-surface-primary text-content-primary shadow-md
-						origin-[var(--transform-origin)]
-						data-[open]:animate-in data-[open]:fade-in-0 data-[open]:zoom-in-95
-						data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95
-						data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2
-						data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2`,
-						className,
-					)}
-					{...props}
-				/>
-			</ComboboxPrimitive.Positioner>
-		</ComboboxPrimitive.Portal>
-	);
-};
-
-type ComboboxListProps = ComboboxPrimitive.List.Props;
-
-export const ComboboxList: FC<ComboboxListProps> = ({
-	className,
-	...props
-}) => {
-	return (
-		<ComboboxPrimitive.List
-			data-slot="combobox-list"
+		<PopoverContent
+			disablePortal
+			align={align}
+			sideOffset={sideOffset}
+			data-empty={count === 0 ? "" : undefined}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onInteractOutside={(event) => {
+				const target = event.target as Node | null;
+				if (target && anchorRef?.current?.contains(target)) {
+					event.preventDefault();
+				}
+			}}
 			className={cn(
-				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1 data-[empty]:p-0",
+				`group/combobox-content w-[var(--radix-popover-trigger-width)] overflow-hidden p-0
+				max-h-[min(24rem,var(--radix-popper-available-height))]`,
 				className,
 			)}
 			{...props}
@@ -104,7 +198,28 @@ export const ComboboxList: FC<ComboboxListProps> = ({
 	);
 };
 
-type ComboboxItemProps = ComboboxPrimitive.Item.Props & {
+type ComboboxListProps = ComponentPropsWithRef<typeof CommandPrimitive.List>;
+
+export const ComboboxList: FC<ComboboxListProps> = ({
+	className,
+	...props
+}) => {
+	const count = useCommandState((state) => state.filtered.count) ?? 0;
+
+	return (
+		<CommandPrimitive.List
+			data-slot="combobox-list"
+			data-empty={count === 0 ? "" : undefined}
+			className={cn(
+				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type ComboboxItemProps = ComponentPropsWithRef<typeof CommandPrimitive.Item> & {
 	showIndicator?: boolean;
 };
 
@@ -112,16 +227,28 @@ export const ComboboxItem: FC<ComboboxItemProps> = ({
 	className,
 	children,
 	showIndicator = true,
+	value,
+	onSelect,
 	...props
 }) => {
+	const { value: selected, select } = useComboboxState();
+	const isSelected = value !== undefined && selected.includes(String(value));
+
 	return (
-		<ComboboxPrimitive.Item
+		<CommandPrimitive.Item
 			data-slot="combobox-item"
+			value={value}
+			onSelect={(selectedValue) => {
+				if (value !== undefined) {
+					select(String(value));
+				}
+				onSelect?.(selectedValue);
+			}}
 			className={cn(
 				`relative flex w-full cursor-default select-none items-center gap-2 rounded-sm
 				py-1.5 pr-8 pl-2 text-sm text-content-secondary outline-none
-				data-[highlighted]:bg-surface-secondary data-[highlighted]:text-content-primary
-				data-[disabled]:pointer-events-none data-[disabled]:opacity-50
+				data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
+				data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 				[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm`,
 				!showIndicator && "pr-2",
 				className,
@@ -129,27 +256,23 @@ export const ComboboxItem: FC<ComboboxItemProps> = ({
 			{...props}
 		>
 			{children}
-			{showIndicator && (
-				<ComboboxPrimitive.ItemIndicator
-					render={
-						<span className="pointer-events-none absolute right-2 flex size-icon-sm items-center justify-center">
-							<CheckIcon className="pointer-events-none size-icon-sm" />
-						</span>
-					}
-				/>
+			{showIndicator && isSelected && (
+				<span className="pointer-events-none absolute right-2 flex size-icon-sm items-center justify-center">
+					<CheckIcon className="pointer-events-none size-icon-sm" />
+				</span>
 			)}
-		</ComboboxPrimitive.Item>
+		</CommandPrimitive.Item>
 	);
 };
 
-type ComboboxGroupProps = ComboboxPrimitive.Group.Props;
+type ComboboxGroupProps = ComponentPropsWithRef<typeof CommandPrimitive.Group>;
 
 export const ComboboxGroup: FC<ComboboxGroupProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<ComboboxPrimitive.Group
+		<CommandPrimitive.Group
 			data-slot="combobox-group"
 			className={cn(className)}
 			{...props}
@@ -157,14 +280,14 @@ export const ComboboxGroup: FC<ComboboxGroupProps> = ({
 	);
 };
 
-type ComboboxLabelProps = ComboboxPrimitive.GroupLabel.Props;
+type ComboboxLabelProps = ComponentPropsWithRef<"div">;
 
 export const ComboboxLabel: FC<ComboboxLabelProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<ComboboxPrimitive.GroupLabel
+		<div
 			data-slot="combobox-label"
 			className={cn("px-2 py-1.5 text-xs text-content-secondary", className)}
 			{...props}
@@ -172,17 +295,19 @@ export const ComboboxLabel: FC<ComboboxLabelProps> = ({
 	);
 };
 
-type ComboboxEmptyProps = ComboboxPrimitive.Empty.Props;
+type ComboboxEmptyProps = ComponentPropsWithRef<"div">;
 
 export const ComboboxEmpty: FC<ComboboxEmptyProps> = ({
 	className,
 	...props
 }) => {
+	// Visibility is driven by the `data-empty` group set on `ComboboxContent`.
 	return (
-		<ComboboxPrimitive.Empty
+		<div
 			data-slot="combobox-empty"
 			className={cn(
-				"hidden w-full justify-center py-6 text-center text-sm text-content-secondary group-data-[empty]/combobox-content:flex",
+				`hidden w-full justify-center py-6 text-center text-sm text-content-secondary
+				group-data-[empty]/combobox-content:flex`,
 				className,
 			)}
 			{...props}
@@ -190,15 +315,17 @@ export const ComboboxEmpty: FC<ComboboxEmptyProps> = ({
 	);
 };
 
-type ComboboxStatusProps = ComboboxPrimitive.Status.Props;
+type ComboboxStatusProps = ComponentPropsWithRef<"div">;
 
 export const ComboboxStatus: FC<ComboboxStatusProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<ComboboxPrimitive.Status
+		<div
 			data-slot="combobox-status"
+			role="status"
+			aria-live="polite"
 			className={cn("sr-only", className)}
 			{...props}
 		/>
@@ -214,29 +341,27 @@ export const ComboboxInputGroup: FC<ComboboxInputGroupProps> = ({
 	const anchorRef = useContext(ComboboxAnchorContext);
 
 	return (
-		<InputGroup
-			ref={anchorRef}
-			className={cn("h-auto min-h-10 w-full", className)}
-			{...props}
-		/>
+		<PopoverAnchor asChild>
+			<InputGroup
+				ref={anchorRef ?? undefined}
+				className={cn("h-auto min-h-10 w-full", className)}
+				{...props}
+			/>
+		</PopoverAnchor>
 	);
 };
 
-type ComboboxChipsProps = ComponentPropsWithRef<
-	typeof ComboboxPrimitive.Chips
-> &
-	ComboboxPrimitive.Chips.Props;
+type ComboboxChipsProps = ComponentPropsWithRef<"div">;
 
 export const ComboboxChips: FC<ComboboxChipsProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<ComboboxPrimitive.Chips
+		<div
 			data-slot="combobox-chips"
 			className={cn(
-				`flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 self-stretch
-				border-0 bg-transparent py-1.5 shadow-none focus-within:ring-0`,
+				"flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 self-stretch py-1.5",
 				className,
 			)}
 			{...props}
@@ -244,7 +369,7 @@ export const ComboboxChips: FC<ComboboxChipsProps> = ({
 	);
 };
 
-type ComboboxChipProps = ComboboxPrimitive.Chip.Props & {
+type ComboboxChipProps = ComponentPropsWithRef<typeof Badge> & {
 	showRemove?: boolean;
 	/** Accessible name for the remove control. Defaults to `Remove ${label}`. */
 	removeLabel?: string;
@@ -257,6 +382,7 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 	removeLabel,
 	...props
 }) => {
+	const { select } = useComboboxState();
 	const chipText =
 		typeof children === "string" || typeof children === "number"
 			? String(children)
@@ -265,48 +391,55 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 		removeLabel ?? (chipText ? `Remove ${chipText}` : "Remove filter");
 
 	return (
-		<ComboboxPrimitive.Chip
+		<Badge
 			data-slot="combobox-chip"
-			render={<Badge className="font-medium text-content-primary" />}
-			className={cn(
-				"outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-				"data-[highlighted]:bg-surface-tertiary data-[highlighted]:ring-2",
-				"data-[highlighted]:ring-content-link",
-				"has-[:disabled]:pointer-events-none",
-				"has-[:disabled]:cursor-not-allowed",
-				"has-[:disabled]:opacity-50",
-				className,
-			)}
+			className={cn("font-medium text-content-primary", className)}
 			{...props}
 		>
 			{children}
 			{showRemove && (
-				<ComboboxPrimitive.ChipRemove
+				<button
+					type="button"
 					data-slot="combobox-chip-remove"
+					aria-label={resolvedRemoveLabel}
 					className={cn(
 						`inline-flex size-4 shrink-0 items-center justify-center rounded-sm border-0
 						bg-transparent p-0 text-content-secondary hover:text-content-primary`,
 					)}
-					aria-label={resolvedRemoveLabel}
+					onMouseDown={(event) => event.preventDefault()}
+					onClick={(event) => {
+						event.stopPropagation();
+						if (chipText) {
+							select(chipText);
+						}
+					}}
 				>
 					<XIcon aria-hidden className="size-icon-xs" />
-				</ComboboxPrimitive.ChipRemove>
+				</button>
 			)}
-		</ComboboxPrimitive.Chip>
+		</Badge>
 	);
 };
 
-type ComboboxChipsInputProps = ComboboxPrimitive.Input.Props;
+type ComboboxChipsInputProps = ComponentPropsWithRef<
+	typeof CommandPrimitive.Input
+>;
 
 export const ComboboxChipsInput: FC<ComboboxChipsInputProps> = ({
 	className,
 	ref,
 	...props
 }) => {
+	const { inputValue, onInputValueChange } = useComboboxState();
+
 	return (
-		<ComboboxPrimitive.Input
+		<CommandPrimitive.Input
 			ref={ref}
 			data-slot="combobox-chip-input"
+			value={inputValue}
+			onValueChange={(next) =>
+				onInputValueChange?.(next, { reason: "input-change" })
+			}
 			className={cn(
 				`h-6 min-w-24 flex-1 border-0 bg-transparent p-0 text-sm font-medium
 				text-content-primary outline-none placeholder:text-content-secondary`,

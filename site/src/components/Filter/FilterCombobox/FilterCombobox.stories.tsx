@@ -215,8 +215,9 @@ export const TabCompletesTopCategory: Story = {
 };
 
 // Regression: Enter must commit the highlighted row, not the first option.
-// Categories render as status, template, owner; arrowing to the second row
-// and pressing Enter must open Template, not Status.
+// Categories render as status, template, owner; cmdk highlights the first row
+// (status) on open, so arrowing down to template and pressing Enter must open
+// Template, not Status.
 export const EnterCommitsHighlightedCategory: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
@@ -230,10 +231,10 @@ export const EnterCommitsHighlightedCategory: Story = {
 			expect(body.getByRole("option", { name: /Template/i })).toBeVisible(),
 		);
 		await userEvent.keyboard("{ArrowDown}");
-		await userEvent.keyboard("{ArrowDown}");
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /Template/i })).toHaveAttribute(
-				"data-highlighted",
+				"aria-selected",
+				"true",
 			),
 		);
 		await userEvent.keyboard("{Enter}");

@@ -542,18 +542,17 @@ export const useFilterCombobox = ({
 		key: string;
 		shiftKey?: boolean;
 		preventDefault: () => void;
-		preventBaseUIHandler?: () => void;
 	}) => {
 		if (event.key === "Backspace" && inputValue === "" && activeCategory) {
 			event.preventDefault();
-			event.preventBaseUIHandler?.();
 			exitActiveCategory();
 			return;
 		}
 
+		// Enter is committed by cmdk through the highlighted item's `onSelect`.
+		// Tab additionally completes the highlighted category/suggestion.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
-		const isCompleteKey = event.key === "Enter" || isTabComplete;
-		if (!isCompleteKey || !isBrowsingRef.current) {
+		if (!isTabComplete || !isBrowsingRef.current) {
 			return;
 		}
 
@@ -563,7 +562,6 @@ export const useFilterCombobox = ({
 		}
 
 		event.preventDefault();
-		event.preventBaseUIHandler?.();
 
 		const searchValue = parseSearchResultToken(highlighted);
 		if (searchValue) {
