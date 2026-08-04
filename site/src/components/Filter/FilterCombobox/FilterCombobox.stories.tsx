@@ -2,6 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	CircleDotIcon,
 	LayoutGridIcon,
+	MoonIcon,
+	RefreshCwOffIcon,
+	Share2Icon,
 	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
@@ -43,9 +46,36 @@ const templateOptions: FilterOption[] = [
 ];
 
 const attributeOptions: FilterOption[] = [
-	{ label: "Outdated", value: "outdated", token: "outdated:true" },
-	{ label: "Dormant", value: "dormant", token: "dormant:true" },
-	{ label: "Shared", value: "shared", token: "shared:true" },
+	{
+		label: "Outdated",
+		value: "outdated",
+		token: "outdated:true",
+		startIcon: (
+			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+				<RefreshCwOffIcon className="size-icon-sm" />
+			</span>
+		),
+	},
+	{
+		label: "Dormant",
+		value: "dormant",
+		token: "dormant:true",
+		startIcon: (
+			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+				<MoonIcon className="size-icon-sm" />
+			</span>
+		),
+	},
+	{
+		label: "Shared",
+		value: "shared",
+		token: "shared:true",
+		startIcon: (
+			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+				<Share2Icon className="size-icon-sm" />
+			</span>
+		),
+	},
 ];
 
 const filterOptions = (

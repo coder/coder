@@ -152,21 +152,33 @@ export const getAttributeFilterOptions = async (
 			label: "Outdated",
 			value: "outdated",
 			token: "outdated:true",
-			startIcon: <RefreshCwOffIcon className="size-icon-sm" />,
+			startIcon: (
+				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+					<RefreshCwOffIcon className="size-icon-sm" />
+				</span>
+			),
 			entitled: true,
 		},
 		{
 			label: "Dormant",
 			value: "dormant",
 			token: "dormant:true",
-			startIcon: <MoonIcon className="size-icon-sm" />,
+			startIcon: (
+				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+					<MoonIcon className="size-icon-sm" />
+				</span>
+			),
 			entitled: options.canFilterDormant,
 		},
 		{
 			label: "Shared",
 			value: "shared",
 			token: "shared:true",
-			startIcon: <Share2Icon className="size-icon-sm" />,
+			startIcon: (
+				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+					<Share2Icon className="size-icon-sm" />
+				</span>
+			),
 			entitled: true,
 		},
 	];
