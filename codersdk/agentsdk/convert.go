@@ -48,6 +48,10 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
 	}
+	subagentExecutions, err := SubagentExecutionsFromProto(manifest.SubagentExecutions)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace agent subagent executions: %w", err)
+	}
 	return Manifest{
 		ParentID:                 parentID,
 		AgentID:                  agentID,
@@ -67,6 +71,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		SubagentExecutions:       subagentExecutions,
 	}, nil
 }
 
@@ -98,6 +103,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
+		SubagentExecutions:       ProtoFromSubagentExecutions(manifest.SubagentExecutions),
 	}, nil
 }
 
@@ -470,6 +476,68 @@ func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.Worksp
 		WorkspaceFolder: dc.WorkspaceFolder,
 		ConfigPath:      dc.ConfigPath,
 		SubagentId:      subagentID,
+	}
+}
+
+// SubagentExecutionsFromProto converts the proto subagent execution
+// declarations to the SDK type, preserving order. It never populates
+// child credentials because declarations do not carry them.
+func SubagentExecutionsFromProto(pses []*proto.SubagentExecution) ([]SubagentExecution, error) {
+	ret := make([]SubagentExecution, len(pses))
+	for i, pse := range pses {
+		se, err := SubagentExecutionFromProto(pse)
+		if err != nil {
+			return nil, xerrors.Errorf("parse subagent execution %v: %w", i, err)
+		}
+		ret[i] = se
+	}
+	return ret, nil
+}
+
+func SubagentExecutionFromProto(pse *proto.SubagentExecution) (SubagentExecution, error) {
+	executionID, err := uuid.FromBytes(pse.GetExecutionId())
+	if err != nil {
+		return SubagentExecution{}, xerrors.Errorf("parse execution id: %w", err)
+	}
+	generation, err := uuid.FromBytes(pse.GetGeneration())
+	if err != nil {
+		return SubagentExecution{}, xerrors.Errorf("parse generation: %w", err)
+	}
+	return SubagentExecution{
+		ExecutionID:     executionID,
+		Generation:      generation,
+		Name:            pse.GetName(),
+		Driver:          pse.GetDriver(),
+		DriverProtocol:  pse.GetDriverProtocol(),
+		SharedHostPath:  pse.GetSharedHostPath(),
+		SharedChildPath: pse.GetSharedChildPath(),
+		StartupTimeout:  time.Duration(pse.GetStartupTimeoutSeconds()) * time.Second,
+		RestartPolicy:   pse.GetRestartPolicy(),
+	}, nil
+}
+
+// ProtoFromSubagentExecutions converts the SDK subagent execution
+// declarations to proto, preserving order.
+func ProtoFromSubagentExecutions(ses []SubagentExecution) []*proto.SubagentExecution {
+	ret := make([]*proto.SubagentExecution, len(ses))
+	for i, se := range ses {
+		ret[i] = ProtoFromSubagentExecution(se)
+	}
+	return ret
+}
+
+func ProtoFromSubagentExecution(se SubagentExecution) *proto.SubagentExecution {
+	return &proto.SubagentExecution{
+		ExecutionId:     se.ExecutionID[:],
+		Generation:      se.Generation[:],
+		Name:            se.Name,
+		Driver:          se.Driver,
+		DriverProtocol:  se.DriverProtocol,
+		SharedHostPath:  se.SharedHostPath,
+		SharedChildPath: se.SharedChildPath,
+		// #nosec G115 - startup timeouts are small, bounded values.
+		StartupTimeoutSeconds: int32(se.StartupTimeout / time.Second),
+		RestartPolicy:         se.RestartPolicy,
 	}
 }
 

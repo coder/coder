@@ -182,6 +182,30 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC210(ctx)
 }
 
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC29(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The concrete drpcAgentClient implements every method on the
+	// generated DRPCAgentClient interface, including
+	// AcquireSubagentExecution and ReportSubagentExecutionStatus, so
+	// the assertion always succeeds for the fixture's own connections.
+	client, ok := aAPI.(agentproto.DRPCAgentClient211)
+	if !ok {
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient211; got %T", aAPI)
+	}
+	return client, tAPI, nil
+}
+
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC211(ctx)
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -269,6 +293,32 @@ func (c *Client) ContextStatePushes() []*agentproto.PushContextStateRequest {
 	return c.fakeAgentAPI.ContextStatePushes()
 }
 
+// SetAcquireSubagentExecutionFunc installs the handler the fake server
+// uses for AcquireSubagentExecution.
+func (c *Client) SetAcquireSubagentExecutionFunc(fn func(context.Context, *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error)) {
+	c.fakeAgentAPI.SetAcquireSubagentExecutionFunc(fn)
+}
+
+// SetReportSubagentExecutionStatusFunc installs the handler the fake
+// server uses for ReportSubagentExecutionStatus.
+func (c *Client) SetReportSubagentExecutionStatusFunc(fn func(context.Context, *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error)) {
+	c.fakeAgentAPI.SetReportSubagentExecutionStatusFunc(fn)
+}
+
+// SubagentExecutionAcquisitions returns every
+// AcquireSubagentExecution request the agent has issued to the fake
+// server so far, in order.
+func (c *Client) SubagentExecutionAcquisitions() []*agentproto.AcquireSubagentExecutionRequest {
+	return c.fakeAgentAPI.SubagentExecutionAcquisitions()
+}
+
+// SubagentExecutionReports returns every
+// ReportSubagentExecutionStatus request the agent has issued to the
+// fake server so far, in order.
+func (c *Client) SubagentExecutionReports() []*agentproto.ReportSubagentExecutionStatusRequest {
+	return c.fakeAgentAPI.SubagentExecutionReports()
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -298,18 +348,87 @@ type FakeAgentAPI struct {
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
 
 	contextStatePushes []*agentproto.PushContextStateRequest
+
+	acquireSubagentExecutionFunc      func(context.Context, *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error)
+	reportSubagentExecutionStatusFunc func(context.Context, *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error)
+	subagentExecutionAcquisitions     []*agentproto.AcquireSubagentExecutionRequest
+	subagentExecutionReports          []*agentproto.ReportSubagentExecutionStatusRequest
 }
+
+// ErrSubagentExecutionUnimplemented is returned by the subagent
+// execution RPCs until a test installs a handler. It stands in for a
+// coderd deployment that does not implement the v2.11 RPCs.
+var ErrSubagentExecutionUnimplemented = xerrors.New("agenttest: subagent execution RPC unimplemented")
 
 func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
 	panic("unimplemented")
 }
 
-func (*FakeAgentAPI) AcquireSubagentExecution(context.Context, *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
-	panic("unimplemented")
+// SetAcquireSubagentExecutionFunc installs the handler used by
+// AcquireSubagentExecution. Until a handler is set, the RPC returns
+// ErrSubagentExecutionUnimplemented so that tests exercising older
+// coderd behavior do not have to install a handler.
+func (f *FakeAgentAPI) SetAcquireSubagentExecutionFunc(fn func(context.Context, *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error)) {
+	f.Lock()
+	defer f.Unlock()
+	f.acquireSubagentExecutionFunc = fn
 }
 
-func (*FakeAgentAPI) ReportSubagentExecutionStatus(context.Context, *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error) {
-	panic("unimplemented")
+// SetReportSubagentExecutionStatusFunc installs the handler used by
+// ReportSubagentExecutionStatus. Until a handler is set, the RPC
+// returns ErrSubagentExecutionUnimplemented.
+func (f *FakeAgentAPI) SetReportSubagentExecutionStatusFunc(fn func(context.Context, *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error)) {
+	f.Lock()
+	defer f.Unlock()
+	f.reportSubagentExecutionStatusFunc = fn
+}
+
+// AcquireSubagentExecution records the request and delegates to the
+// handler installed by SetAcquireSubagentExecutionFunc. Requests are
+// recorded even when no handler is installed so tests can assert on
+// what a launcher attempted.
+func (f *FakeAgentAPI) AcquireSubagentExecution(ctx context.Context, req *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
+	f.Lock()
+	f.subagentExecutionAcquisitions = append(f.subagentExecutionAcquisitions, req)
+	fn := f.acquireSubagentExecutionFunc
+	f.Unlock()
+
+	f.logger.Debug(ctx, "acquire subagent execution called", slog.F("req", req))
+	if fn == nil {
+		return nil, ErrSubagentExecutionUnimplemented
+	}
+	return fn(ctx, req)
+}
+
+// ReportSubagentExecutionStatus records the request and delegates to
+// the handler installed by SetReportSubagentExecutionStatusFunc.
+func (f *FakeAgentAPI) ReportSubagentExecutionStatus(ctx context.Context, req *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error) {
+	f.Lock()
+	f.subagentExecutionReports = append(f.subagentExecutionReports, req)
+	fn := f.reportSubagentExecutionStatusFunc
+	f.Unlock()
+
+	f.logger.Debug(ctx, "report subagent execution status called", slog.F("req", req))
+	if fn == nil {
+		return nil, ErrSubagentExecutionUnimplemented
+	}
+	return fn(ctx, req)
+}
+
+// SubagentExecutionAcquisitions returns a snapshot of every
+// AcquireSubagentExecution request received so far, in order.
+func (f *FakeAgentAPI) SubagentExecutionAcquisitions() []*agentproto.AcquireSubagentExecutionRequest {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.subagentExecutionAcquisitions)
+}
+
+// SubagentExecutionReports returns a snapshot of every
+// ReportSubagentExecutionStatus request received so far, in order.
+func (f *FakeAgentAPI) SubagentExecutionReports() []*agentproto.ReportSubagentExecutionStatusRequest {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.subagentExecutionReports)
 }
 
 // PushContextState records the incoming snapshot and returns

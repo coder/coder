@@ -135,6 +135,42 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	SubagentExecutions       []SubagentExecution                          `json:"subagent_executions"`
+}
+
+// SubagentExecution is a declared nested execution the parent agent
+// must launch. It is a declaration only: it never carries the child
+// agent's ID or auth token, nor the acquisition version. The parent
+// fetches those separately via AcquireSubagentExecution so that
+// credentials are not distributed to agents that never launch the
+// execution.
+type SubagentExecution struct {
+	// ExecutionID is the stable declaration ID for this execution.
+	ExecutionID uuid.UUID `json:"execution_id"`
+	// Generation changes whenever the declaration's desired launch
+	// identity changes, fencing stale launchers.
+	Generation uuid.UUID `json:"generation"`
+	// Name is the declared execution name, used for logging and
+	// state directory naming.
+	Name string `json:"name"`
+	// Driver names the vetted driver responsible for launching the
+	// execution.
+	Driver string `json:"driver"`
+	// DriverProtocol is the driver protocol version the parent must
+	// speak when invoking the driver.
+	DriverProtocol int32 `json:"driver_protocol"`
+	// SharedHostPath is the single declared path shared from the host
+	// side of the boundary.
+	SharedHostPath string `json:"shared_host_path"`
+	// SharedChildPath is the single declared path the child sees for
+	// the shared host path.
+	SharedChildPath string `json:"shared_child_path"`
+	// StartupTimeout bounds how long the parent waits for the child
+	// agent to connect before treating the launch as failed.
+	StartupTimeout time.Duration `json:"startup_timeout"`
+	// RestartPolicy is the declared restart behavior, for example
+	// "never" or "on_failure".
+	RestartPolicy string `json:"restart_policy"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
@@ -356,6 +392,33 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 10), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC211 returns a dRPC client to the Agent API v2.11. It is useful when
+// you want to be maximally compatible with newer Coderd Release Versions that
+// implement the AcquireSubagentExecution and ReportSubagentExecutionStatus
+// RPCs.
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC211WithRole is like ConnectRPC211 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
 	if err != nil {
 		return nil, nil, err
 	}

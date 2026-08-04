@@ -1,6 +1,7 @@
 package agentsdk_test
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -268,4 +269,131 @@ func TestSecretsRoundTrip(t *testing.T) {
 
 	roundTripped := agentsdk.SecretsFromProto(protoSecrets)
 	require.Equal(t, secrets, roundTripped)
+}
+
+func TestSubagentExecutionsRoundTrip(t *testing.T) {
+	t.Parallel()
+	executions := []agentsdk.SubagentExecution{
+		{
+			ExecutionID:     uuid.New(),
+			Generation:      uuid.New(),
+			Name:            "sandbox",
+			Driver:          "bubblewrap",
+			DriverProtocol:  1,
+			SharedHostPath:  "/home/coder/project",
+			SharedChildPath: "/workspace/project",
+			StartupTimeout:  90 * time.Second,
+			RestartPolicy:   "on_failure",
+		},
+	}
+	manifest := agentsdk.Manifest{
+		AgentID:            uuid.New(),
+		WorkspaceID:        uuid.New(),
+		SubagentExecutions: executions,
+	}
+
+	p, err := agentsdk.ProtoFromManifest(manifest)
+	require.NoError(t, err)
+	require.Len(t, p.SubagentExecutions, 1)
+	pse := p.SubagentExecutions[0]
+	require.Equal(t, executions[0].ExecutionID[:], pse.ExecutionId)
+	require.Equal(t, executions[0].Generation[:], pse.Generation)
+	require.Equal(t, "sandbox", pse.Name)
+	require.Equal(t, "bubblewrap", pse.Driver)
+	require.EqualValues(t, 1, pse.DriverProtocol)
+	require.Equal(t, "/home/coder/project", pse.SharedHostPath)
+	require.Equal(t, "/workspace/project", pse.SharedChildPath)
+	require.EqualValues(t, 90, pse.StartupTimeoutSeconds)
+	require.Equal(t, "on_failure", pse.RestartPolicy)
+
+	back, err := agentsdk.ManifestFromProto(p)
+	require.NoError(t, err)
+	require.Equal(t, executions, back.SubagentExecutions)
+}
+
+func TestSubagentExecutionsPreserveOrder(t *testing.T) {
+	t.Parallel()
+	executions := []agentsdk.SubagentExecution{
+		{ExecutionID: uuid.New(), Generation: uuid.New(), Name: "first"},
+		{ExecutionID: uuid.New(), Generation: uuid.New(), Name: "second"},
+		{ExecutionID: uuid.New(), Generation: uuid.New(), Name: "third"},
+	}
+
+	protoExecutions := agentsdk.ProtoFromSubagentExecutions(executions)
+	require.Len(t, protoExecutions, 3)
+	require.Equal(t, []string{"first", "second", "third"}, []string{
+		protoExecutions[0].Name, protoExecutions[1].Name, protoExecutions[2].Name,
+	})
+
+	back, err := agentsdk.SubagentExecutionsFromProto(protoExecutions)
+	require.NoError(t, err)
+	require.Equal(t, executions, back)
+}
+
+func TestSubagentExecutionsMalformedIDs(t *testing.T) {
+	t.Parallel()
+	validID := uuid.New()
+
+	for _, tc := range []struct {
+		name        string
+		execution   *proto.SubagentExecution
+		errContains string
+	}{
+		{
+			name: "ExecutionID",
+			execution: &proto.SubagentExecution{
+				ExecutionId: []byte("too-short"),
+				Generation:  validID[:],
+			},
+			errContains: "parse execution id",
+		},
+		{
+			name: "Generation",
+			execution: &proto.SubagentExecution{
+				ExecutionId: validID[:],
+				Generation:  []byte("too-short"),
+			},
+			errContains: "parse generation",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := agentsdk.SubagentExecutionsFromProto([]*proto.SubagentExecution{tc.execution})
+			require.ErrorContains(t, err, tc.errContains)
+			require.ErrorContains(t, err, "parse subagent execution 0")
+
+			agentID := uuid.New()
+			workspaceID := uuid.New()
+			_, err = agentsdk.ManifestFromProto(&proto.Manifest{
+				AgentId:            agentID[:],
+				WorkspaceId:        workspaceID[:],
+				SubagentExecutions: []*proto.SubagentExecution{tc.execution},
+			})
+			require.ErrorContains(t, err, "error converting workspace agent subagent executions")
+		})
+	}
+}
+
+// TestSubagentExecutionOmitsCredentials pins the declaration-only
+// shape of the SDK type: child agent IDs, auth tokens, and acquisition
+// versions are fetched via AcquireSubagentExecution instead, so they
+// must never appear on a manifest declaration.
+func TestSubagentExecutionOmitsCredentials(t *testing.T) {
+	t.Parallel()
+	typ := reflect.TypeOf(agentsdk.SubagentExecution{})
+	fields := make([]string, 0, typ.NumField())
+	for i := range typ.NumField() {
+		fields = append(fields, typ.Field(i).Name)
+	}
+	require.Equal(t, []string{
+		"ExecutionID",
+		"Generation",
+		"Name",
+		"Driver",
+		"DriverProtocol",
+		"SharedHostPath",
+		"SharedChildPath",
+		"StartupTimeout",
+		"RestartPolicy",
+	}, fields)
 }
