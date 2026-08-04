@@ -44,9 +44,9 @@ describe("updateTemplateListQueries", () => {
 	it("does not update or invalidate non-list template queries", async () => {
 		const queryClient = new QueryClient();
 		const examplesKey = templateExamples().queryKey;
-		const arraySegmentKey = ["templates", []];
+		const objectSegmentKey = ["templates", { view: "summary" }];
 		queryClient.setQueryData(examplesKey, [{ id: "example" }]);
-		queryClient.setQueryData(arraySegmentKey, [MockTemplate]);
+		queryClient.setQueryData(objectSegmentKey, { count: 1 });
 
 		await updateTemplateListQueries(queryClient, {
 			...MockTemplate,
@@ -55,8 +55,8 @@ describe("updateTemplateListQueries", () => {
 
 		expect(queryClient.getQueryData(examplesKey)).toEqual([{ id: "example" }]);
 		expect(queryClient.getQueryState(examplesKey)?.isInvalidated).toBe(false);
-		expect(queryClient.getQueryData(arraySegmentKey)).toEqual([MockTemplate]);
-		expect(queryClient.getQueryState(arraySegmentKey)?.isInvalidated).toBe(
+		expect(queryClient.getQueryData(objectSegmentKey)).toEqual({ count: 1 });
+		expect(queryClient.getQueryState(objectSegmentKey)?.isInvalidated).toBe(
 			false,
 		);
 	});

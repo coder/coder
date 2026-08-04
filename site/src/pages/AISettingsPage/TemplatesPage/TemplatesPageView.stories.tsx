@@ -172,7 +172,7 @@ export const Empty: Story = {
 		expect(await canvas.findByText("No templates found.")).toBeVisible();
 		expect(
 			canvas.getByText(
-				"Create a template before configuring Coder Agents access.",
+				"Create a template before configuring whether Coder Agents can create workspaces.",
 			),
 		).toBeVisible();
 	},

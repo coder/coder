@@ -171,7 +171,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 								description={
 									filterState.filter.used
 										? undefined
-										: "Create a template before configuring Coder Agents access."
+										: "Create a template before configuring whether Coder Agents can create workspaces."
 								}
 								isCompact
 								className="min-h-52"

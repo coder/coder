@@ -43,8 +43,11 @@ const TemplatesPage: FC = () => {
 			});
 		} catch (error) {
 			toast.error(
-				`${template.display_name || template.name} in ${template.organization_display_name || template.organization_name}: ${getErrorMessage(error, "Failed to update Coder Agents access.")}`,
-				{ description: getErrorDetail(error) },
+				`${template.display_name || template.name} in ${template.organization_display_name || template.organization_name}: ${getErrorMessage(error, "Failed to update whether Coder Agents can create workspaces.")}`,
+				{
+					description: getErrorDetail(error),
+					duration: Number.POSITIVE_INFINITY,
+				},
 			);
 		} finally {
 			setPendingTemplateIDs((current) => {

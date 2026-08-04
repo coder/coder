@@ -20,6 +20,7 @@ import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
 const templateKey = (templateId: string) => ["template", templateId];
 const templatesKey = ["templates"] as const;
+const templateListsKey = [...templatesKey, "list"] as const;
 
 export const template = (templateId: string) => {
 	return {
@@ -43,7 +44,7 @@ export const templateByName = (organization: string, name: string) => {
 
 export const getTemplatesQueryKey = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
-) => [...templatesKey, options];
+) => [...templateListsKey, options];
 
 export const templates = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
@@ -54,23 +55,12 @@ export const templates = (
 	};
 };
 
-const isTemplateListQuery = (query: { queryKey: readonly unknown[] }) => {
-	const options = query.queryKey[1];
-	return (
-		query.queryKey.length === 2 &&
-		(options === undefined ||
-			(options !== null &&
-				typeof options === "object" &&
-				!Array.isArray(options)))
-	);
-};
-
 export const updateTemplateListQueries = async (
 	queryClient: QueryClient,
 	updatedTemplate: Template,
 ) => {
 	queryClient.setQueriesData<Template[]>(
-		{ queryKey: templatesKey, predicate: isTemplateListQuery },
+		{ queryKey: templateListsKey },
 		(current) => {
 			if (!current?.some((template) => template.id === updatedTemplate.id)) {
 				return current;
@@ -80,10 +70,7 @@ export const updateTemplateListQueries = async (
 			);
 		},
 	);
-	await queryClient.invalidateQueries({
-		queryKey: templatesKey,
-		predicate: isTemplateListQuery,
-	});
+	await queryClient.invalidateQueries({ queryKey: templateListsKey });
 };
 
 export const updateTemplateMeta = (
@@ -101,8 +88,7 @@ export const updateTemplateMeta = (
 				result
 					? updateTemplateListQueries(queryClient, result)
 					: queryClient.invalidateQueries({
-							queryKey: templatesKey,
-							predicate: isTemplateListQuery,
+							queryKey: templateListsKey,
 						}),
 				queryClient.invalidateQueries({
 					queryKey: templateKey(template.id),

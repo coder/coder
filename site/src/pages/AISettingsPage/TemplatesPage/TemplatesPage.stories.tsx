@@ -228,7 +228,7 @@ export const DisplaysFallbackMutationError: Story = {
 		await userEvent.click(templateSwitch);
 
 		const errorToast = await body.findByText(
-			"Test Template in My Organization: Failed to update Coder Agents access.",
+			"Test Template in My Organization: Failed to update whether Coder Agents can create workspaces.",
 		);
 		await waitFor(() => expect(errorToast).toBeVisible());
 		expect(API.updateTemplateMeta).toHaveBeenCalledWith(MockTemplate.id, {
