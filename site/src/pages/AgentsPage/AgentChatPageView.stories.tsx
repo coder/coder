@@ -317,30 +317,25 @@ export const ArchivedOtherUserChat: Story = {
 	},
 };
 
-export const QueuedForCapacityCommunity: Story = {
+export const QueuedForCapacity: Story = {
 	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"Your team has reached the Community license limit for active agents. This agent will start automatically when capacity is available.",
+		const message = canvas.getByText(
+			"Your organization has reached its limit for agents running at once. Your prompt has been saved and this agent will start automatically when one finishes. To upgrade to unlimited concurrent agents, contact your account team.",
 		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-	},
-};
-
-export const QueuedForCapacityPremium: Story = {
-	parameters: {
-		features: ["multiple_organizations"],
-	},
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"Your team has reached the Premium license limit for active agents. This agent will start automatically when capacity is available.",
+		expect(message).toBeVisible();
+		const banner = canvas
+			.getAllByRole("status")
+			.find((element) => element.contains(message));
+		expect(banner).toBeTruthy();
+		const salesLink = canvas.getByRole("link", {
+			name: /contact sales/i,
+		});
+		expect(salesLink).toHaveAttribute(
+			"href",
+			"https://coder.com/contact/sales",
 		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
 	},
 };
 
@@ -349,7 +344,7 @@ export const NotQueuedForCapacity: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/license limit for active agents/),
+			canvas.queryByText(/reached its limit for agents running at once/),
 		).not.toBeInTheDocument();
 	},
 };

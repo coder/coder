@@ -1,4 +1,4 @@
-import { ArchiveIcon, HourglassIcon, TriangleAlertIcon } from "lucide-react";
+import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -18,11 +18,11 @@ import type {
 	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
 import { useProxy } from "#/contexts/ProxyContext";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -396,7 +396,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
@@ -814,11 +813,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
-	const licenseTier = entitlements.has_license ? "Premium" : "Community";
-	const queuedForCapacityWarning =
-		queuedForCapacityAt !== undefined
-			? `Your team has reached the ${licenseTier} license limit for active agents. This agent will start automatically when capacity is available.`
-			: undefined;
+	const isQueuedForCapacity = queuedForCapacityAt !== undefined;
 
 	const titleElement = (
 		<title>
@@ -894,14 +889,29 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									{chatOwnerWarning}
 								</div>
 							)}
-							{queuedForCapacityWarning && (
+							{isQueuedForCapacity && (
 								<div
 									role="status"
 									aria-live="polite"
-									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+									className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3 text-sm text-content-primary"
 								>
-									<HourglassIcon className="size-4 shrink-0 text-content-warning" />
-									{queuedForCapacityWarning}
+									<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-warning" />
+									<div className="flex flex-col items-start gap-1">
+										<p className="m-0">
+											Your organization has reached its limit for agents running
+											at once. Your prompt has been saved and this agent will
+											start automatically when one finishes. To upgrade to
+											unlimited concurrent agents, contact your account team.
+										</p>
+										<Link
+											href="https://coder.com/contact/sales"
+											target="_blank"
+											rel="noreferrer"
+											size="sm"
+										>
+											Contact sales
+										</Link>
+									</div>
 								</div>
 							)}
 							{isArchived && (
