@@ -684,17 +684,13 @@ resource "coder_script" "install-deps" {
     cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
     npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
 
-    # agent-browser gives coding agents a scriptable browser and serves
-    # a dashboard with a live view of every session on 127.0.0.1:4848,
-    # embedded via the agent-browser coder_app below. The pin matters:
-    # the dashboard is only embeddable while it sends no X-Frame-Options
-    # or CSP headers, which is not a documented contract, so verify
-    # those headers before bumping.
+    # Keep this version pinned because the dashboard is embeddable only while
+    # it omits X-Frame-Options and CSP headers. This is not a documented
+    # contract, so verify those headers before updating.
     npm install -g agent-browser@0.33.2
     agent-browser install
 
-    # Overwrite the agent skill dirs with the version-matched skill
-    # bundled in the npm package so agents drive the CLI correctly.
+    # Keep the agent skill aligned with the installed CLI version.
     skill_src="$(npm root -g)/agent-browser/skills/agent-browser"
     for skill_dir in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
       mkdir -p "$skill_dir"
@@ -1033,11 +1029,10 @@ resource "coder_app" "codex" {
   EOT
 }
 
-# Live view of the coding agents' browser sessions, served by the
-# agent-browser dashboard started in the install-deps script. The
-# dashboard has no auth of its own, so keep share = "owner". The slug
-# must not be "preview": Tasks special-cases that slug for the
-# app-under-development toolbar.
+# Live view of agent browser sessions, served by the dashboard that
+# install-deps starts. The dashboard has no authentication, so restrict
+# it to the workspace owner. "preview" is reserved for apps that need
+# the iframe navigation toolbar.
 resource "coder_app" "agent_browser" {
   agent_id     = coder_agent.dev.id
   slug         = "agent-browser"
