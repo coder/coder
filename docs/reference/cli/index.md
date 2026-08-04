@@ -1,6 +1,6 @@
 ---
 title: Command Line
-description: Learn how to use Coder CLI
+description: "Reference for the Coder command-line interface, with usage and flags for every command."
 icon_path: "./images/icons/terminal.svg"
 ---
 

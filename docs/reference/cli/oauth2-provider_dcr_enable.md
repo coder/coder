@@ -1,5 +1,9 @@
+---
+title: oauth2-provider dcr enable
+description: Enable OAuth2 dynamic client registration
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# oauth2-provider dcr enable
 
 Enable OAuth2 dynamic client registration
 

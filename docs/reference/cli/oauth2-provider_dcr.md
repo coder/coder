@@ -1,5 +1,9 @@
+---
+title: oauth2-provider dcr
+description: "Manage OAuth2 dynamic client registration (RFC 7591)"
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# oauth2-provider dcr
 
 Manage OAuth2 dynamic client registration (RFC 7591)
 

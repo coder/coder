@@ -1,5 +1,9 @@
+---
+title: oauth2-provider
+description: Manage Coder OAuth2 provider settings
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# oauth2-provider
 
 Manage Coder OAuth2 provider settings
 
