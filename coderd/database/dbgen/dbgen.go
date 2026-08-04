@@ -141,7 +141,6 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")

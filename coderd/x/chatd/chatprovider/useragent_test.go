@@ -48,12 +48,12 @@ func TestModelFromConfig_UserAgent(t *testing.T) {
 		BaseURLByProvider: map[string]string{"openai": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, expectedUA, nil, nil)
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, expectedUA, nil, nil, nil)
 	require.NoError(t, err)
 
 	// Make a real call so Fantasy sends an HTTP request to the
 	// fake server, which asserts the User-Agent header.
-	_, err = model.Generate(ctx, fantasy.Call{
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
 		Prompt: []fantasy.Message{
 			{
 				Role: fantasy.MessageRoleUser,

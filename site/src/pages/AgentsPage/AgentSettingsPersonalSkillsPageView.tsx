@@ -3,6 +3,7 @@ import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -11,7 +12,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -168,35 +168,32 @@ const EditSkillDialog: FC<{
 const DeleteSkillDialog: FC<{ state: PersonalSkillDeleteState }> = ({
 	state,
 }) => {
-	const handleOpenChange = (open: boolean) => {
-		if (!open) {
-			state.onClose();
-		}
-	};
-
 	return (
-		<ConfirmDeleteDialog
+		<ConfirmDialog
+			type="delete"
 			open
-			onOpenChange={handleOpenChange}
-			entity="skill"
+			onClose={state.onClose}
+			title="Delete skill"
+			confirmText="Delete skill"
 			description={
 				<>
-					Delete {state.skill.name}? Agents will no longer be able to use this
-					skill. This action cannot be undone.
+					<p className="m-0">
+						Delete {state.skill.name}? Agents will no longer be able to use this
+						skill. This action cannot be undone.
+					</p>
+					{state.error && (
+						<Alert severity="error" className="mt-3">
+							<AlertDescription>
+								{state.error.message}
+								{state.error.detail ? ` ${state.error.detail}` : ""}
+							</AlertDescription>
+						</Alert>
+					)}
 				</>
 			}
 			onConfirm={state.onConfirm}
-			isPending={state.isDeleting}
-		>
-			{state.error && (
-				<Alert severity="error">
-					<AlertDescription>
-						{state.error.message}
-						{state.error.detail ? ` ${state.error.detail}` : ""}
-					</AlertDescription>
-				</Alert>
-			)}
-		</ConfirmDeleteDialog>
+			confirmLoading={state.isDeleting}
+		/>
 	);
 };
 

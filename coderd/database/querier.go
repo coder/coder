@@ -100,9 +100,6 @@ type sqlcQuerier interface {
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
-	// Counts enabled, non-deleted model configs that lack both input and
-	// output pricing in their JSONB options.cost configuration.
-	CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 	// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)
@@ -154,8 +151,6 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error
-	DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -424,19 +419,6 @@ type sqlcQuerier interface {
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatCompactionModelOverride(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
-	// Per-root-chat cost breakdown for a single user within a date range.
-	// Groups by root_chat_id so forked chats roll up under their root.
-	// Only counts assistant-role messages.
-	GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error)
-	// Per-model cost breakdown for a single user within a date range.
-	// Only counts assistant-role messages that have a model_config_id.
-	GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error)
-	// Deployment-wide per-user cost rollup within a date range.
-	// Only counts assistant-role messages.
-	GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error)
-	// Aggregate cost summary for a single user within a date range.
-	// Only counts assistant-role messages.
-	GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
@@ -502,11 +484,6 @@ type sqlcQuerier interface {
 	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
-	// Assistant-message cost rolled up over the requested chat's subtree: the
-	// chat itself plus every descendant reachable through parent_chat_id. A
-	// root chat therefore reports its whole tree, while a subagent chat
-	// reports only its own spend plus any nested subagents it spawned.
-	GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatModelUsageCostByChatIDRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
@@ -534,9 +511,6 @@ type sqlcQuerier interface {
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
-	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
-	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
-	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
 	// Returns the concatenated text of each user-visible user prompt in a
 	// chat, newest first. Used by the composer to populate the up/down
 	// arrow prompt-history cycle. Non-text parts (tool calls, files,
@@ -937,11 +911,6 @@ type sqlcQuerier interface {
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error)
-	// Returns the total spend for a user in the given period.
-	// When organization_id is NULL, spend across all organizations is
-	// returned (global behavior). Otherwise only spend within the
-	// specified organization is included.
-	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
@@ -950,12 +919,6 @@ type sqlcQuerier interface {
 	// no organization membership.
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
-	// Returns the minimum (most restrictive) group limit for a user.
-	// Returns -1 if no group limits match the specified scope.
-	// When organization_id is NULL, groups across all organizations are
-	// considered (global behavior). Otherwise only groups within the
-	// specified organization are considered.
-	GetUserGroupSpendLimit(ctx context.Context, arg GetUserGroupSpendLimitParams) (int64, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates
@@ -1261,6 +1224,26 @@ type sqlcQuerier interface {
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error)
 	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
+	// Returns the individual Agent Firewall network calls made during an AI
+	// session, ordered chronologically. All protocols are included, unlike
+	// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+	// covers the same events the network_calls summary in ListAIBridgeSessions
+	// counts. The list is capped at @limit_ rows, so its length equals the summary
+	// total only for sessions at or below the cap. The summary stays authoritative
+	// for whole-session totals.
+	//
+	// Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+	// interception's boundary logs fall in the open interval (this seq, next
+	// interception's seq) within the same firewall session. The exclusive lower
+	// bound drops the interception's own LLM-provider call. next_seq considers all
+	// interceptions in the firewall session so windows never bleed across AI
+	// sessions that share one firewall session, and falls back to the maximum
+	// sequence_number for the last interception so the window stays an
+	// index-satisfiable range.
+	// created_at leads because a session can span several firewall sessions, whose
+	// sequence numbers are independent streams. id breaks remaining ties so the row
+	// that lands on the limit boundary is stable across identical requests.
+	ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error)
 	// Returns all interceptions belonging to paginated threads within a session.
 	// Threads are paginated by (started_at, thread_id) cursor.
 	ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error)
@@ -1289,8 +1272,6 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
-	ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error)
-	ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
@@ -1352,18 +1333,6 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
-	// Resolves the effective spend limit for a user using the hierarchy:
-	// 1. Individual user override (highest priority, applies globally across
-	//    all organizations since it lives on the users table)
-	// 2. Minimum group limit across the user's groups
-	// 3. Global default from config
-	// Returns -1 if limits are not enabled.
-	// When organization_id is NULL, groups across all organizations are
-	// considered (global behavior). Otherwise only groups within the
-	// specified organization are considered.
-	// limit_source indicates which tier won: 'user', 'group', 'default',
-	// or 'disabled'.
-	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (ResolveUserChatSpendLimitRow, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1683,9 +1652,6 @@ type sqlcQuerier interface {
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
-	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)
-	UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error)
-	UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error)
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
