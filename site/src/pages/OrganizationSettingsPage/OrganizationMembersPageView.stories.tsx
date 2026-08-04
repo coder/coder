@@ -69,6 +69,7 @@ export const Loading: Story = {
 export const NoMembers: Story = {
 	args: {
 		members: [],
+		membersQuery: { ...mockSuccessResult, totalRecords: 0 },
 	},
 };
 
