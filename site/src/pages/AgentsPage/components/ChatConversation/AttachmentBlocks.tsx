@@ -17,6 +17,7 @@ import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getChatFileURL,
+	handleAttachmentDownloadClick,
 	isAbortError,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
@@ -141,11 +142,19 @@ const DownloadOverlay: FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
-}> = ({ href, displayName, downloadName }) => (
+	mediaType: string;
+}> = ({ href, displayName, downloadName, mediaType }) => (
 	<a
 		href={href}
 		download={downloadName}
-		onClick={(event) => event.stopPropagation()}
+		onClick={(event) => {
+			event.stopPropagation();
+			void handleAttachmentDownloadClick(event, {
+				href,
+				fileName: downloadName,
+				mediaType,
+			});
+		}}
 		aria-label={`Download ${displayName}`}
 		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 	>
@@ -157,8 +166,9 @@ const AttachmentPreviewFrame: FC<{
 	href: string | null;
 	displayName: string;
 	downloadName: string;
+	mediaType: string;
 	children: ReactNode;
-}> = ({ href, displayName, downloadName, children }) => {
+}> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
 			{children}
@@ -167,6 +177,7 @@ const AttachmentPreviewFrame: FC<{
 					href={href}
 					displayName={displayName}
 					downloadName={downloadName}
+					mediaType={mediaType}
 				/>
 			) : null}
 		</div>
@@ -385,6 +396,7 @@ const RemoteTextAttachmentButton: FC<{
 			href={frameHref}
 			displayName={fileName ?? "Pasted text"}
 			downloadName={downloadName}
+			mediaType={mediaType ?? ""}
 		>
 			{button}
 		</AttachmentPreviewFrame>
@@ -530,7 +542,14 @@ const FileCard: FC<{
 		<a
 			href={href}
 			download={downloadName}
-			onClick={(event) => event.stopPropagation()}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType: block.media_type,
+				});
+			}}
 			aria-label={`Download ${displayName}`}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
@@ -616,6 +635,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{button}
 			</AttachmentPreviewFrame>
@@ -641,6 +661,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{image}
 			</AttachmentPreviewFrame>

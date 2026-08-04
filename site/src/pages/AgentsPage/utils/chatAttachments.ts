@@ -62,6 +62,97 @@ export async function probeAttachmentFailure(
 	return classifyAttachmentFailureResponse(response);
 }
 
+type IOSNavigator = Navigator & { standalone?: boolean };
+
+const isIOS = (): boolean =>
+	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+	// iPadOS 13+ reports a macOS user agent; the touchscreen is the tell.
+	(navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);
+
+const isStandaloneDisplayMode = (): boolean => {
+	const nav: IOSNavigator = navigator;
+	return (
+		window.matchMedia("(display-mode: standalone)").matches ||
+		nav.standalone === true
+	);
+};
+
+const canShareFiles = (files: File[]): boolean =>
+	typeof navigator.share === "function" &&
+	typeof navigator.canShare === "function" &&
+	navigator.canShare({ files });
+
+type AttachmentDownloadTarget = {
+	href: string;
+	fileName: string;
+	mediaType: string;
+};
+
+const shareAttachmentFile = async ({
+	href,
+	fileName,
+	mediaType,
+}: AttachmentDownloadTarget): Promise<void> => {
+	try {
+		const response = await fetch(href);
+		if (!response.ok) {
+			throw new Error(
+				response.statusText
+					? `${response.status} ${response.statusText}`
+					: `HTTP ${response.status}`,
+			);
+		}
+		const blob = await response.blob();
+		const file = new File([blob], fileName, {
+			type: blob.type || mediaType || "application/octet-stream",
+		});
+		if (!canShareFiles([file])) {
+			console.warn("Attachment cannot be shared:", fileName);
+			return;
+		}
+		await navigator.share({ files: [file] });
+	} catch (error) {
+		// A dismissed share sheet rejects with an AbortError DOMException,
+		// which is not an Error subclass in every engine, so match the
+		// name structurally instead of using isAbortError.
+		if (
+			typeof error === "object" &&
+			error !== null &&
+			"name" in error &&
+			error.name === "AbortError"
+		) {
+			return;
+		}
+		console.warn("Failed to share attachment:", error);
+	}
+};
+
+/**
+ * iOS home-screen web apps open `<a download>` targets in a QuickLook
+ * preview with no dismiss chrome, leaving the app stuck until it is
+ * killed. Intercept those clicks and hand the file to the native share
+ * sheet (Save to Files / Save Image) instead; when file sharing is
+ * unavailable, open a dismissible in-app browser tab. Everywhere else
+ * the anchor's native download behavior is kept.
+ */
+export const handleAttachmentDownloadClick = (
+	event: { preventDefault: () => void },
+	target: AttachmentDownloadTarget,
+): Promise<void> | undefined => {
+	if (!isIOS() || !isStandaloneDisplayMode()) {
+		return undefined;
+	}
+	event.preventDefault();
+	const probe = new File(["0"], target.fileName, { type: target.mediaType });
+	if (!canShareFiles([probe])) {
+		// Open synchronously; after an await the user activation that
+		// popup blockers require may already be consumed.
+		window.open(target.href, "_blank", "noopener");
+		return undefined;
+	}
+	return shareAttachmentFile(target);
+};
+
 // Filename extensions to list in the file-picker's `accept` attribute
 // alongside the MIME types. Browsers and operating systems do not always
 // map these extensions to a registered MIME type (Markdown is the common

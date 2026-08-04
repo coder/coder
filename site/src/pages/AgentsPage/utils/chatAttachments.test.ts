@@ -1,9 +1,171 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	handleAttachmentDownloadClick,
 	isChatAttachmentFile,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
 } from "./chatAttachments";
+
+describe("handleAttachmentDownloadClick", () => {
+	const overriddenNavigatorKeys = new Set<string>();
+	const overrideNavigator = (key: string, value: unknown) => {
+		Object.defineProperty(window.navigator, key, {
+			value,
+			configurable: true,
+		});
+		overriddenNavigatorKeys.add(key);
+	};
+
+	const iPhoneUserAgent =
+		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
+
+	const enterIOSStandalonePWA = () => {
+		overrideNavigator("userAgent", iPhoneUserAgent);
+		overrideNavigator("standalone", true);
+	};
+
+	const target = {
+		href: "/api/experimental/chats/files/file-1",
+		fileName: "01-agents-list.png",
+		mediaType: "image/png",
+	};
+
+	afterEach(() => {
+		for (const key of overriddenNavigatorKeys) {
+			Reflect.deleteProperty(window.navigator, key);
+		}
+		overriddenNavigatorKeys.clear();
+		vi.restoreAllMocks();
+	});
+
+	it("keeps the native anchor download outside iOS", () => {
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		const event = { preventDefault: vi.fn() };
+
+		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		expect(event.preventDefault).not.toHaveBeenCalled();
+		expect(open).not.toHaveBeenCalled();
+	});
+
+	it("keeps the native anchor download in the iOS browser", () => {
+		overrideNavigator("userAgent", iPhoneUserAgent);
+		const event = { preventDefault: vi.fn() };
+
+		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		expect(event.preventDefault).not.toHaveBeenCalled();
+	});
+
+	it("shares the attachment via the share sheet in an iOS standalone PWA", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" }), {
+				status: 200,
+			}),
+		);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(globalThis.fetch).toHaveBeenCalledWith(target.href);
+		expect(open).not.toHaveBeenCalled();
+		expect(share).toHaveBeenCalledTimes(1);
+		const shared: { files: File[] } = share.mock.calls[0][0];
+		expect(shared.files).toHaveLength(1);
+		expect(shared.files[0].name).toBe("01-agents-list.png");
+		expect(shared.files[0].type).toBe("image/png");
+	});
+
+	it("intercepts on iPadOS reporting a macOS user agent", () => {
+		overrideNavigator(
+			"userAgent",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+		);
+		overrideNavigator("maxTouchPoints", 5);
+		overrideNavigator("standalone", true);
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		const event = { preventDefault: vi.fn() };
+
+		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(open).toHaveBeenCalled();
+	});
+
+	it("falls back to a dismissible tab when file sharing is unavailable", () => {
+		enterIOSStandalonePWA();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		const fetchSpy = vi.spyOn(globalThis, "fetch");
+		const event = { preventDefault: vi.fn() };
+
+		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(open).toHaveBeenCalledWith(target.href, "_blank", "noopener");
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it("stays quiet when the user dismisses the share sheet", async () => {
+		enterIOSStandalonePWA();
+		overrideNavigator(
+			"share",
+			vi.fn().mockRejectedValue(new DOMException("canceled", "AbortError")),
+		);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" })),
+		);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	it("warns without a late popup when the download fetch fails", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("nope", { status: 503 }),
+		);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(share).not.toHaveBeenCalled();
+		expect(open).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it("skips sharing when the fetched file turns out unshareable", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator(
+			"canShare",
+			vi
+				.fn<(data: { files: File[] }) => boolean>()
+				.mockImplementation(({ files }) => files[0].size <= 1),
+		);
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" })),
+		);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(share).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalled();
+	});
+});
 
 describe("isChatAttachmentFile", () => {
 	it("accepts allowlisted MIME types", () => {
