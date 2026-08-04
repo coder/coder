@@ -68,7 +68,7 @@ test("Show the new Coder version notification", async () => {
 	renderWithAuth(<DashboardLayout />, {
 		children: [{ element: <h1>Test page</h1> }],
 	});
-	await screen.findByTestId("update-check-snackbar");
+	await screen.findByTestId("update-check-notice");
 });
 
 test("hides AI Governance seat warnings for non-admin users", async () => {
