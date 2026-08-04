@@ -88,6 +88,53 @@ func TestPushContextState(t *testing.T) {
 		require.True(t, resp.GetAccepted())
 	})
 
+	t.Run("UnavailableAgentSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		expectInTx(dbm)
+
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version: 1,
+			Initial: true,
+		})
+		require.Error(t, err)
+		require.Nil(t, resp)
+		require.Contains(t, err.Error(), "PushContextState unavailable")
+		require.NotContains(t, err.Error(), sql.ErrNoRows.Error())
+	})
+
+	t.Run("UnavailableAgentResource", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		expectInTx(dbm)
+
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextSnapshot{}, nil)
+		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextResource{}, errNoRows())
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version: 1,
+			Initial: true,
+			Resources: []*agentproto.ContextResource{
+				instructionResource("/home/coder/AGENTS.md", "hello"),
+			},
+		})
+		require.Error(t, err)
+		require.Nil(t, resp)
+		require.Contains(t, err.Error(), "PushContextState unavailable")
+		require.NotContains(t, err.Error(), sql.ErrNoRows.Error())
+	})
+
 	t.Run("DirtyMarkerInvokedAfterCommit", func(t *testing.T) {
 		t.Parallel()
 

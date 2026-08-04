@@ -175,7 +175,10 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			SnapshotError: req.SnapshotError,
 			ReceivedAt:    now,
 		})
-		if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return xerrors.New("agentapi: PushContextState unavailable")
+		case err != nil:
 			return xerrors.Errorf("upsert snapshot: %w", err)
 		}
 
@@ -183,7 +186,10 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			r.WorkspaceAgentID = a.AgentID
 			r.Now = now
 			_, err = tx.UpsertWorkspaceAgentContextResource(ctx, r)
-			if err != nil {
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return xerrors.New("agentapi: PushContextState unavailable")
+			case err != nil:
 				return xerrors.Errorf("upsert resource %q: %w", r.Source, err)
 			}
 		}

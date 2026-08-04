@@ -1,17 +1,25 @@
 -- name: UpsertWorkspaceAgentContextSnapshot :one
+WITH live_agent AS MATERIALIZED (
+    UPDATE workspace_agents
+    SET updated_at = updated_at
+    WHERE id = @workspace_agent_id
+        AND deleted = FALSE
+    RETURNING id
+)
 INSERT INTO workspace_agent_context_snapshots (
     workspace_agent_id,
     version,
     aggregate_hash,
     snapshot_error,
     received_at
-) VALUES (
-    @workspace_agent_id,
+)
+SELECT
+    live_agent.id,
     @version,
     @aggregate_hash,
     @snapshot_error,
     @received_at
-)
+FROM live_agent
 ON CONFLICT (workspace_agent_id) DO UPDATE SET
     version = EXCLUDED.version,
     aggregate_hash = EXCLUDED.aggregate_hash,
@@ -20,6 +28,13 @@ ON CONFLICT (workspace_agent_id) DO UPDATE SET
 RETURNING *;
 
 -- name: UpsertWorkspaceAgentContextResource :one
+WITH live_agent AS MATERIALIZED (
+    UPDATE workspace_agents
+    SET updated_at = updated_at
+    WHERE id = @workspace_agent_id
+        AND deleted = FALSE
+    RETURNING id
+)
 INSERT INTO workspace_agent_context_resources (
     workspace_agent_id,
     source,
@@ -32,8 +47,9 @@ INSERT INTO workspace_agent_context_resources (
     source_path,
     created_at,
     updated_at
-) VALUES (
-    @workspace_agent_id,
+)
+SELECT
+    live_agent.id,
     @source,
     @body_kind,
     @body,
@@ -44,7 +60,7 @@ INSERT INTO workspace_agent_context_resources (
     @source_path,
     @now,
     @now
-)
+FROM live_agent
 ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     body_kind = EXCLUDED.body_kind,
     body = EXCLUDED.body,

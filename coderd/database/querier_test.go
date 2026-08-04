@@ -8186,6 +8186,25 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Zero(t, statusCount)
 	}
 
+	requireQueryBlocked := func(t *testing.T, fixture fixture, queryFragment string) {
+		t.Helper()
+
+		testutil.Eventually(fixture.ctx, t, func(ctx context.Context) bool {
+			var blocked bool
+			err := fixture.sqlDB.QueryRowContext(ctx, `
+				SELECT EXISTS (
+					SELECT 1
+					FROM pg_stat_activity
+					WHERE datname = current_database()
+						AND pid <> pg_backend_pid()
+						AND query LIKE '%' || $1 || '%'
+						AND CARDINALITY(pg_blocking_pids(pid)) > 0
+				)
+			`, queryFragment).Scan(&blocked)
+			return err == nil && blocked
+		}, testutil.IntervalFast, "database query containing %q did not block", queryFragment)
+	}
+
 	t.Run("InsertGetRoundTrip", func(t *testing.T) {
 		t.Parallel()
 
@@ -8513,6 +8532,254 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		requireTupleRejected(t, fixture, params)
 	})
 
+	t.Run("DeclarationWinsLegacyDeleteRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		declarationInserted := make(chan struct{})
+		releaseDeclaration := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseDeclaration:
+			default:
+				close(releaseDeclaration)
+			}
+		}
+		t.Cleanup(release)
+		declarationTxDone := make(chan error, 1)
+		go func() {
+			declarationTxDone <- fixture.db.InTx(func(tx database.Store) error {
+				_, err := tx.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+				if err != nil {
+					return err
+				}
+				close(declarationInserted)
+				select {
+				case <-releaseDeclaration:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+		}()
+		testutil.TryReceive(fixture.ctx, t, declarationInserted)
+
+		type deleteResult struct {
+			count int64
+			err   error
+		}
+		deleteStarted := make(chan struct{})
+		deleteDone := make(chan deleteResult, 1)
+		go func() {
+			close(deleteStarted)
+			count, err := fixture.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+				ID:       build.child.ID,
+				ParentID: build.parent.ID,
+			})
+			deleteDone <- deleteResult{count: count, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, deleteStarted)
+		requireQueryBlocked(t, fixture, "SET deleted = TRUE")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, declarationTxDone))
+		deleted := testutil.TryReceive(fixture.ctx, t, deleteDone)
+		require.NoError(t, deleted.err)
+		require.Zero(t, deleted.count)
+
+		child, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.False(t, child.Deleted)
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Len(t, declarations, 1)
+	})
+
+	t.Run("LegacyDeleteWinsDeclarationRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		childDeleted := make(chan struct{})
+		releaseDelete := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseDelete:
+			default:
+				close(releaseDelete)
+			}
+		}
+		t.Cleanup(release)
+		type deleteResult struct {
+			count int64
+			err   error
+		}
+		deleteTxDone := make(chan deleteResult, 1)
+		go func() {
+			var count int64
+			err := fixture.db.InTx(func(tx database.Store) error {
+				var err error
+				count, err = tx.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+					ID:       build.child.ID,
+					ParentID: build.parent.ID,
+				})
+				if err != nil {
+					return err
+				}
+				close(childDeleted)
+				select {
+				case <-releaseDelete:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+			deleteTxDone <- deleteResult{count: count, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, childDeleted)
+
+		declarationStarted := make(chan struct{})
+		declarationDone := make(chan error, 1)
+		go func() {
+			close(declarationStarted)
+			_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+			declarationDone <- err
+		}()
+		testutil.TryReceive(fixture.ctx, t, declarationStarted)
+		requireQueryBlocked(t, fixture, "INSERT INTO workspace_agent_subagent_executions")
+
+		release()
+		deleted := testutil.TryReceive(fixture.ctx, t, deleteTxDone)
+		require.NoError(t, deleted.err)
+		require.EqualValues(t, 1, deleted.count)
+		require.ErrorIs(t, testutil.TryReceive(fixture.ctx, t, declarationDone), sql.ErrNoRows)
+
+		var deletedFlag bool
+		err := fixture.sqlDB.QueryRowContext(fixture.ctx, `
+			SELECT deleted
+			FROM workspace_agents
+			WHERE id = $1
+		`, build.child.ID).Scan(&deletedFlag)
+		require.NoError(t, err)
+		require.True(t, deletedFlag)
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Empty(t, declarations)
+		var statusCount int
+		err = fixture.sqlDB.QueryRowContext(fixture.ctx, `
+			SELECT COUNT(*)
+			FROM workspace_agent_subagent_execution_statuses
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID).Scan(&statusCount)
+		require.NoError(t, err)
+		require.Zero(t, statusCount)
+	})
+
+	for _, tc := range []struct {
+		name          string
+		queryFragment string
+		writeContext  func(context.Context, database.Store, uuid.UUID) error
+	}{
+		{
+			name:          "Snapshot",
+			queryFragment: "INSERT INTO workspace_agent_context_snapshots",
+			writeContext: func(ctx context.Context, db database.Store, agentID uuid.UUID) error {
+				_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+					WorkspaceAgentID: agentID,
+					Version:          1,
+					AggregateHash:    []byte("hash"),
+					ReceivedAt:       dbtime.Now(),
+				})
+				return err
+			},
+		},
+		{
+			name:          "Resource",
+			queryFragment: "INSERT INTO workspace_agent_context_resources",
+			writeContext: func(ctx context.Context, db database.Store, agentID uuid.UUID) error {
+				_, err := db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+					WorkspaceAgentID: agentID,
+					Source:           "/workspace/AGENTS.md",
+					BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+					Body:             json.RawMessage(`{}`),
+					ContentHash:      []byte("content-hash"),
+					SizeBytes:        2,
+					Status:           database.WorkspaceAgentContextResourceStatusOk,
+					Now:              dbtime.Now(),
+				})
+				return err
+			},
+		},
+	} {
+		t.Run("LegacyDeleteWinsContext"+tc.name+"WriteRace", func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newFixture(t)
+			build := fixture.newBuild(t, 1)
+			childDeleted := make(chan struct{})
+			releaseDelete := make(chan struct{})
+			release := func() {
+				select {
+				case <-releaseDelete:
+				default:
+					close(releaseDelete)
+				}
+			}
+			t.Cleanup(release)
+			type deleteResult struct {
+				count int64
+				err   error
+			}
+			deleteTxDone := make(chan deleteResult, 1)
+			go func() {
+				var count int64
+				err := fixture.db.InTx(func(tx database.Store) error {
+					var err error
+					count, err = tx.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+						ID:       build.child.ID,
+						ParentID: build.parent.ID,
+					})
+					if err != nil {
+						return err
+					}
+					close(childDeleted)
+					select {
+					case <-releaseDelete:
+						return nil
+					case <-fixture.ctx.Done():
+						return fixture.ctx.Err()
+					}
+				}, nil)
+				deleteTxDone <- deleteResult{count: count, err: err}
+			}()
+			testutil.TryReceive(fixture.ctx, t, childDeleted)
+
+			contextWriteStarted := make(chan struct{})
+			contextWriteDone := make(chan error, 1)
+			go func() {
+				close(contextWriteStarted)
+				contextWriteDone <- tc.writeContext(fixture.ctx, fixture.db, build.child.ID)
+			}()
+			testutil.TryReceive(fixture.ctx, t, contextWriteStarted)
+			requireQueryBlocked(t, fixture, tc.queryFragment)
+
+			release()
+			deleted := testutil.TryReceive(fixture.ctx, t, deleteTxDone)
+			require.NoError(t, deleted.err)
+			require.EqualValues(t, 1, deleted.count)
+			require.ErrorIs(t, testutil.TryReceive(fixture.ctx, t, contextWriteDone), sql.ErrNoRows)
+
+			_, err := fixture.db.GetLatestWorkspaceAgentContextSnapshot(fixture.ctx, build.child.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			resources, err := fixture.db.ListWorkspaceAgentContextResources(fixture.ctx, build.child.ID)
+			require.NoError(t, err)
+			require.Empty(t, resources)
+		})
+	}
+
 	t.Run("NestedParent", func(t *testing.T) {
 		t.Parallel()
 
@@ -8784,6 +9051,30 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, contextResources)
 
+	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: dynamicChild.ID,
+		Version:          2,
+		AggregateHash:    []byte("new-hash"),
+		ReceivedAt:       now,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+		WorkspaceAgentID: dynamicChild.ID,
+		Source:           "/workspace/AGENTS.md",
+		BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:             json.RawMessage(`{"content":"recreated"}`),
+		ContentHash:      []byte("new-content-hash"),
+		SizeBytes:        23,
+		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		Now:              now,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(ctx, dynamicChild.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	contextResources, err = db.ListWorkspaceAgentContextResources(ctx, dynamicChild.ID)
+	require.NoError(t, err)
+	require.Empty(t, contextResources)
+
 	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
 		ID:       devcontainerChild.ID,
 		ParentID: parent.ID,
@@ -8799,6 +9090,8 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	require.Zero(t, deleted)
 	executionChildAfter, err := db.GetWorkspaceAgentByID(ctx, executionChild.ID)
 	require.NoError(t, err)
+	require.True(t, executionChildAfter.UpdatedAt.After(executionChild.UpdatedAt))
+	executionChild.UpdatedAt = executionChildAfter.UpdatedAt
 	require.Equal(t, executionChild, executionChildAfter)
 
 	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{

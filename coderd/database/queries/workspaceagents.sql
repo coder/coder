@@ -563,11 +563,13 @@ WHERE workspace_agents.id = @id
 		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
 	);
 
--- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :execrows
+-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
 -- Soft-deletes one exact child agent while preserving immutable execution-owned
 -- agents for the execution-specific control path.
-WITH target_agent AS (
-	SELECT workspace_agents.id
+WITH candidate_child AS MATERIALIZED (
+	SELECT
+		workspace_agents.id,
+		workspace_agents.updated_at AS candidate_updated_at
 	FROM workspace_agents
 	WHERE workspace_agents.id = @id
 		AND workspace_agents.parent_id = @parent_id::uuid
@@ -577,16 +579,30 @@ WITH target_agent AS (
 			FROM workspace_agent_subagent_executions
 			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
 		)
+), soft_deleted_child AS (
+	UPDATE workspace_agents
+	SET deleted = TRUE
+	FROM candidate_child
+	WHERE workspace_agents.id = @id
+		AND workspace_agents.id = candidate_child.id
+		AND workspace_agents.parent_id = @parent_id::uuid
+		AND workspace_agents.deleted = FALSE
+		AND workspace_agents.updated_at = candidate_child.candidate_updated_at
+	RETURNING workspace_agents.id
 ), purged_context_resources AS (
 	DELETE FROM workspace_agent_context_resources
-	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
+	RETURNING workspace_agent_id
 ), purged_context_snapshots AS (
 	DELETE FROM workspace_agent_context_snapshots
-	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
+		AND (SELECT COUNT(*) FROM purged_context_resources) >= 0
+	RETURNING workspace_agent_id
 )
-UPDATE workspace_agents
-SET deleted = TRUE
-WHERE id IN (SELECT id FROM target_agent);
+SELECT COUNT(*)
+FROM soft_deleted_child
+WHERE (SELECT COUNT(*) FROM purged_context_resources) >= 0
+	AND (SELECT COUNT(*) FROM purged_context_snapshots) >= 0;
 
 -- name: DeleteWorkspaceSubAgentByID :exec
 -- Soft-deletes a single sub-agent (a child agent such as a devcontainer

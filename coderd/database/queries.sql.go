@@ -32691,6 +32691,13 @@ func (q *sqlQuerier) ListWorkspaceAgentContextResources(ctx context.Context, wor
 }
 
 const upsertWorkspaceAgentContextResource = `-- name: UpsertWorkspaceAgentContextResource :one
+WITH live_agent AS MATERIALIZED (
+    UPDATE workspace_agents
+    SET updated_at = updated_at
+    WHERE id = $10
+        AND deleted = FALSE
+    RETURNING id
+)
 INSERT INTO workspace_agent_context_resources (
     workspace_agent_id,
     source,
@@ -32703,7 +32710,9 @@ INSERT INTO workspace_agent_context_resources (
     source_path,
     created_at,
     updated_at
-) VALUES (
+)
+SELECT
+    live_agent.id,
     $1,
     $2,
     $3,
@@ -32713,9 +32722,8 @@ INSERT INTO workspace_agent_context_resources (
     $7,
     $8,
     $9,
-    $10,
-    $10
-)
+    $9
+FROM live_agent
 ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     body_kind = EXCLUDED.body_kind,
     body = EXCLUDED.body,
@@ -32729,7 +32737,6 @@ RETURNING workspace_agent_id, source, body_kind, body, content_hash, size_bytes,
 `
 
 type UpsertWorkspaceAgentContextResourceParams struct {
-	WorkspaceAgentID uuid.UUID                           `db:"workspace_agent_id" json:"workspace_agent_id"`
 	Source           string                              `db:"source" json:"source"`
 	BodyKind         WorkspaceAgentContextBodyKind       `db:"body_kind" json:"body_kind"`
 	Body             json.RawMessage                     `db:"body" json:"body"`
@@ -32739,11 +32746,11 @@ type UpsertWorkspaceAgentContextResourceParams struct {
 	Error            string                              `db:"error" json:"error"`
 	SourcePath       string                              `db:"source_path" json:"source_path"`
 	Now              time.Time                           `db:"now" json:"now"`
+	WorkspaceAgentID uuid.UUID                           `db:"workspace_agent_id" json:"workspace_agent_id"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, arg UpsertWorkspaceAgentContextResourceParams) (WorkspaceAgentContextResource, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAgentContextResource,
-		arg.WorkspaceAgentID,
 		arg.Source,
 		arg.BodyKind,
 		arg.Body,
@@ -32753,6 +32760,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 		arg.Error,
 		arg.SourcePath,
 		arg.Now,
+		arg.WorkspaceAgentID,
 	)
 	var i WorkspaceAgentContextResource
 	err := row.Scan(
@@ -32772,19 +32780,27 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 }
 
 const upsertWorkspaceAgentContextSnapshot = `-- name: UpsertWorkspaceAgentContextSnapshot :one
+WITH live_agent AS MATERIALIZED (
+    UPDATE workspace_agents
+    SET updated_at = updated_at
+    WHERE id = $5
+        AND deleted = FALSE
+    RETURNING id
+)
 INSERT INTO workspace_agent_context_snapshots (
     workspace_agent_id,
     version,
     aggregate_hash,
     snapshot_error,
     received_at
-) VALUES (
+)
+SELECT
+    live_agent.id,
     $1,
     $2,
     $3,
-    $4,
-    $5
-)
+    $4
+FROM live_agent
 ON CONFLICT (workspace_agent_id) DO UPDATE SET
     version = EXCLUDED.version,
     aggregate_hash = EXCLUDED.aggregate_hash,
@@ -32794,20 +32810,20 @@ RETURNING workspace_agent_id, version, aggregate_hash, snapshot_error, received_
 `
 
 type UpsertWorkspaceAgentContextSnapshotParams struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	Version          int64     `db:"version" json:"version"`
 	AggregateHash    []byte    `db:"aggregate_hash" json:"aggregate_hash"`
 	SnapshotError    string    `db:"snapshot_error" json:"snapshot_error"`
 	ReceivedAt       time.Time `db:"received_at" json:"received_at"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg UpsertWorkspaceAgentContextSnapshotParams) (WorkspaceAgentContextSnapshot, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAgentContextSnapshot,
-		arg.WorkspaceAgentID,
 		arg.Version,
 		arg.AggregateHash,
 		arg.SnapshotError,
 		arg.ReceivedAt,
+		arg.WorkspaceAgentID,
 	)
 	var i WorkspaceAgentContextSnapshot
 	err := row.Scan(
@@ -33505,9 +33521,11 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 	return result.RowsAffected()
 }
 
-const deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :execrows
-WITH target_agent AS (
-	SELECT workspace_agents.id
+const deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+WITH candidate_child AS MATERIALIZED (
+	SELECT
+		workspace_agents.id,
+		workspace_agents.updated_at AS candidate_updated_at
 	FROM workspace_agents
 	WHERE workspace_agents.id = $1
 		AND workspace_agents.parent_id = $2::uuid
@@ -33517,16 +33535,30 @@ WITH target_agent AS (
 			FROM workspace_agent_subagent_executions
 			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
 		)
+), soft_deleted_child AS (
+	UPDATE workspace_agents
+	SET deleted = TRUE
+	FROM candidate_child
+	WHERE workspace_agents.id = $1
+		AND workspace_agents.id = candidate_child.id
+		AND workspace_agents.parent_id = $2::uuid
+		AND workspace_agents.deleted = FALSE
+		AND workspace_agents.updated_at = candidate_child.candidate_updated_at
+	RETURNING workspace_agents.id
 ), purged_context_resources AS (
 	DELETE FROM workspace_agent_context_resources
-	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
+	RETURNING workspace_agent_id
 ), purged_context_snapshots AS (
 	DELETE FROM workspace_agent_context_snapshots
-	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
+		AND (SELECT COUNT(*) FROM purged_context_resources) >= 0
+	RETURNING workspace_agent_id
 )
-UPDATE workspace_agents
-SET deleted = TRUE
-WHERE id IN (SELECT id FROM target_agent)
+SELECT COUNT(*)
+FROM soft_deleted_child
+WHERE (SELECT COUNT(*) FROM purged_context_resources) >= 0
+	AND (SELECT COUNT(*) FROM purged_context_snapshots) >= 0
 `
 
 type DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
@@ -33537,11 +33569,10 @@ type DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struc
 // Soft-deletes one exact child agent while preserving immutable execution-owned
 // agents for the execution-specific control path.
 func (q *sqlQuerier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	row := q.db.QueryRowContext(ctx, deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
@@ -36417,7 +36448,34 @@ func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx cont
 }
 
 const insertWorkspaceAgentSubagentExecution = `-- name: InsertWorkspaceAgentSubagentExecution :one
-WITH inserted_execution AS (
+WITH locked_parent AS MATERIALIZED (
+	SELECT parent.id, parent.resource_id
+	FROM workspace_agents AS parent
+	JOIN workspace_resources
+		ON workspace_resources.id = parent.resource_id
+	JOIN workspace_builds
+		ON workspace_builds.job_id = workspace_resources.job_id
+	WHERE parent.id = $1
+		AND parent.parent_id IS NULL
+		AND parent.deleted = FALSE
+		AND workspace_builds.id = $2
+	FOR KEY SHARE OF parent
+), updated_child AS MATERIALIZED (
+	-- Updating updated_at is a deliberate version bump used by the legacy
+	-- delete's optimistic guard.
+	UPDATE workspace_agents AS child
+	SET updated_at = GREATEST(
+		clock_timestamp(),
+		child.updated_at + INTERVAL '1 microsecond'
+	)
+	FROM locked_parent
+	WHERE child.id = $3
+		AND child.parent_id = locked_parent.id
+		AND child.resource_id = locked_parent.resource_id
+		AND child.deleted = FALSE
+		AND child.execution_isolation = TRUE
+	RETURNING child.id
+), inserted_execution AS (
 	INSERT INTO workspace_agent_subagent_executions (
 		workspace_build_id,
 		declaration_id,
@@ -36431,31 +36489,18 @@ WITH inserted_execution AS (
 		restart_policy
 	)
 	SELECT
-		workspace_builds.id,
-		$1,
-		parent.id,
-		child.id,
 		$2,
-		$3,
 		$4,
+		locked_parent.id,
+		updated_child.id,
 		$5,
 		$6,
-		$7
-	FROM workspace_agents AS parent
-	JOIN workspace_resources
-		ON workspace_resources.id = parent.resource_id
-	JOIN workspace_builds
-		ON workspace_builds.job_id = workspace_resources.job_id
-	JOIN workspace_agents AS child
-		ON child.id = $8
-		AND child.parent_id = parent.id
-		AND child.resource_id = parent.resource_id
-	WHERE parent.id = $9
-		AND parent.parent_id IS NULL
-		AND parent.deleted = FALSE
-		AND workspace_builds.id = $10
-		AND child.deleted = FALSE
-		AND child.execution_isolation = TRUE
+		$7,
+		$8,
+		$9,
+		$10
+	FROM locked_parent
+	JOIN updated_child ON TRUE
 	RETURNING workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
 ), inserted_status AS (
 	INSERT INTO workspace_agent_subagent_execution_statuses (
@@ -36474,6 +36519,9 @@ JOIN inserted_status USING (workspace_build_id, declaration_id)
 `
 
 type InsertWorkspaceAgentSubagentExecutionParams struct {
+	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
 	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
 	Driver                string    `db:"driver" json:"driver"`
 	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
@@ -36481,9 +36529,6 @@ type InsertWorkspaceAgentSubagentExecutionParams struct {
 	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
 	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
 	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
-	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
-	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
-	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 }
 
 type InsertWorkspaceAgentSubagentExecutionRow struct {
@@ -36502,6 +36547,9 @@ type InsertWorkspaceAgentSubagentExecutionRow struct {
 
 func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (InsertWorkspaceAgentSubagentExecutionRow, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentSubagentExecution,
+		arg.ParentAgentID,
+		arg.WorkspaceBuildID,
+		arg.ChildAgentID,
 		arg.DeclarationID,
 		arg.Driver,
 		arg.DriverProtocol,
@@ -36509,9 +36557,6 @@ func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, 
 		arg.SharedChildPath,
 		arg.StartupTimeoutSeconds,
 		arg.RestartPolicy,
-		arg.ChildAgentID,
-		arg.ParentAgentID,
-		arg.WorkspaceBuildID,
 	)
 	var i InsertWorkspaceAgentSubagentExecutionRow
 	err := row.Scan(
