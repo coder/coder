@@ -259,7 +259,12 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{Object.entries(resourceActions).map(([resourceKey, value]) => {
+					{(
+						Object.entries(resourceActions) as [
+							RBACResource,
+							Partial<Record<RBACAction, string>>,
+						][]
+					).map(([resourceKey, value]) => {
 						return (
 							<PermissionCheckboxGroup
 								key={resourceKey}
@@ -285,7 +290,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 
 interface PermissionCheckboxGroupProps {
 	checkedActions: readonly Permission[];
-	resourceKey: string;
+	resourceKey: RBACResource;
 	value: Partial<Record<RBACAction, string>>;
 	handleActionCheckChange: (name: string, checked: boolean) => Promise<void>;
 	handleResourceCheckChange: (
@@ -321,7 +326,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 							aria-label={resourceKey}
 							onCheckedChange={(checked) =>
 								handleResourceCheckChange(
-									resourceKey as RBACResource,
+									resourceKey,
 									checked === true,
 									isResourceIndeterminate,
 								)
