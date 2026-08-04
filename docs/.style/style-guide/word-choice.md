@@ -150,6 +150,30 @@ Treat them consistently across the docs.
 
 *Enforced by `Coder.PhrasalVerbs` (planned).*
 
+## Whose for people, not things
+
+"Whose" is the possessive of "who", so it implies the antecedent is a person.
+When the antecedent is an inanimate object or an abstract concept, prefer "with", "where", or "that has".
+
+**Do**:
+
+> A chat with pruned gateway records reports no cost.
+>
+> A template that has conflicting variables fails validation.
+>
+> A region where every proxy is unhealthy drops workspace connections.
+
+**Don't**:
+
+> A chat whose gateway records have been pruned reports no cost.
+>
+> A template whose variables conflict fails validation.
+>
+> A region whose proxies are all unhealthy drops workspace connections.
+
+*Documentation-only.
+No Vale rule.*
+
 ## Refer to, check out, visit, not see
 
 When the prose points the reader at another page, section, or external resource, choose the verb that matches the register:
