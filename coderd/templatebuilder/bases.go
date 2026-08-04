@@ -265,11 +265,9 @@ func BaseVariables(exampleID string) []ModuleVariable {
 	return bases[exampleID].Manifest.Variables
 }
 
-// BaseIncludedModules returns the catalog module IDs that the given base
-// template already declares in its own Terraform. Compose uses these to
-// reject a wizard-selected module that would collide with a module the
-// base already renders. Returns nil if the base is unknown or declares
-// none.
+// BaseIncludedModules returns the catalog module IDs the given base declares
+// in its own Terraform (see BaseManifest.IncludedModules). Returns nil if the
+// base is unknown or declares none.
 func BaseIncludedModules(exampleID string) []string {
 	bases, err := loadBases()
 	if err != nil || bases[exampleID] == nil {
