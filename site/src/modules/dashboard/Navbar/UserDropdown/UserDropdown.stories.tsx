@@ -18,8 +18,7 @@ const mockAISpend: UserAISpendStatus = {
 	period_end: "2026-07-01T00:00:00Z",
 };
 
-// Local-time formatting makes the exact day timezone dependent.
-const spendPeriodLabel = /Estimated AI spend: \w+ \d+ - \w+ \d+, 2026/;
+const spendPeriodLabel = "Estimated AI spend: June 1 - July 1, 2026";
 
 const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],

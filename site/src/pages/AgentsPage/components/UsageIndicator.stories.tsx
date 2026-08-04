@@ -1,7 +1,7 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesKey } from "#/api/queries/workspaces";
@@ -213,6 +213,11 @@ export const UsageAndWorkspaceQuota: Story = {
 		]);
 
 		await openUsageMenu(canvasElement);
+		const menu = within(await within(document.body).findByRole("menu"));
+		await waitFor(() => {
+			expect(menu.getByText("$12.50 of $50.00 used")).toBeVisible();
+			expect(menu.getByText("July 1 - August 1, 2026")).toBeVisible();
+		});
 	},
 };
 
