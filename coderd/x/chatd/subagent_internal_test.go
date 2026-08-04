@@ -540,7 +540,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 
 	model, config, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
 	require.ErrorContains(t, err, "is disabled")
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 	require.Equal(t, database.ChatModelConfig{}, config)
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
