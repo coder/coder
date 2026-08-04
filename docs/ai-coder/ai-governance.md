@@ -90,11 +90,12 @@ To learn more about AI Governance, pricing, or trial options, reach out to your
 > this issue.
 
 **Agent Workspace Builds** (prev. "managed agents") is the usage metric used to
-measure workspaces started specifically for autonomous AI agent workflows.
+measure workspaces provisioned by [Coder Agents](./agents/index.md) to execute
+tasks on behalf of developers.
 
-An Agent Workspace Build is counted each time a workspace is started
-specifically for a coding agent to independently work on a task. Most of the
-work in this workspace is performed by the agent, not a human developer.
+An Agent Workspace Build is counted each time a workspace is started for a
+coding agent to independently work on a task. Most of the work in this
+workspace is performed by the agent, not a human developer.
 
 Traditional Coder Workspaces started manually by developers or scheduled to
 auto-start do not count as an Agent Workspace Build. These are considered
@@ -105,28 +106,29 @@ and coding assistants.
 
 | Scenario                                                                       | Consumes Agent Workspace Build |
 |--------------------------------------------------------------------------------|--------------------------------|
-| Autonomous agent workspace is started to write end-to-end tests                | Yes                            |
-| Automated pipeline starts an agent workspace (with Claude Code) to review a PR | Yes                            |
-| Agent workspace is resumed to continue prototyping                             | Yes                            |
+| Coder Agents provisions a workspace to write end-to-end tests                  | Yes                            |
+| Automated pipeline triggers Coder Agents to review a pull request              | Yes                            |
+| Coder Agents resumes an existing agent workspace to continue prototyping       | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                  | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI          | No                             |
 | Developer creates a workspace for use with Coder AI Gateway and Agent Firewall | No                             |
 
 ### Agent Workspace Build Limits
 
-Without proper controls and sandboxing, it is not recommended to open up
-autonomous agent workspaces to a large audience in the enterprise. Both
-Community and Premium deployments include 1,000 Agent Workspace Builds,
-primarily for proof-of-concept use and basic workflows. Community deployments
-do not have access to [AI Gateway](./ai-gateway/index.md) or
+Without proper controls and sandboxing, it is not recommended to open up Coder
+Agents to a large audience in the enterprise. Both Community and Premium
+deployments include 1,000 Agent Workspace Builds, primarily for
+proof-of-concept use and basic workflows. Community deployments do not have
+access to [AI Gateway](./ai-gateway/index.md) or
 [Agent Firewall](./agent-firewall/index.md).
 
 Premium deployments include a shared usage pool of Agent Workspace Builds for
 automated workflows, along with limits that scale proportionately with user
 count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). AI features continue to
-function normally even if the limit is breached. Admins will receive a warning
-to [contact their account team](https://coder.com/contact) to remediate.
+[usage data reporting](./usage-data-reporting.md). Coder Agents and other AI
+features continue to function normally even if the limit is breached. Admins
+will receive a warning to [contact their account team](https://coder.com/contact)
+to remediate.
 
 ### Tracking Agent Workspace Builds
 

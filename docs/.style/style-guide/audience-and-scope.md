@@ -314,7 +314,7 @@ Caitlin is non-technical (customer success) but uses agentic AI tools to make sm
 They need docs that explain agent-driven flows in plain language, with no assumed dev-environment knowledge and no manual setup steps.
 They avoid anything that requires opening a terminal or editing a config file.
 
-*Coder surface:* AI Gateway, prompt-driven workflows, web-based interfaces.
+*Coder surface:* Coder Agents, AI Gateway, prompt-driven workflows, web-based interfaces.
 
 #### Felipe the FinOps
 
