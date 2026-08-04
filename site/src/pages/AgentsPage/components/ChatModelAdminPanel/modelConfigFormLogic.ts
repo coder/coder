@@ -9,7 +9,6 @@ import {
 	snakeToCamel,
 } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
-import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -143,7 +142,7 @@ function convertFormValue(value: string, field: FieldSchema): unknown {
 		case "integer":
 			return Number.parseInt(trimmed, 10);
 		case "number":
-			return isNonNegativePricingField(field) ? trimmed : Number(trimmed);
+			return Number(trimmed);
 		case "boolean":
 			return trimmed === "true";
 		case "array":
@@ -189,7 +188,6 @@ function buildEmptyProviderState(provider: string): Record<string, unknown> {
 export const emptyModelConfigFormState: ModelConfigFormState = (() => {
 	const state: ModelConfigFormState = {};
 
-	// General fields (e.g. maxOutputTokens, cost.inputPricePerMillionTokens).
 	for (const field of getGeneralFields()) {
 		const camelSegments = field.json_name.split(".").map(snakeToCamel);
 		deepSet(state, camelSegments, "");
@@ -215,7 +213,6 @@ export const extractModelConfigFormState = (
 
 	const state: ModelConfigFormState = {};
 
-	// General fields may be nested (for example, cost.input_price_per_million_tokens).
 	for (const field of getGeneralFields()) {
 		const snakeSegments = field.json_name.split(".");
 		const camelSegments = snakeSegments.map(snakeToCamel);
@@ -268,10 +265,6 @@ export const buildInitialModelFormValues = (
 		: structuredClone(emptyModelConfigFormState),
 });
 
-function isNonNegativePricingField(field: FieldSchema): boolean {
-	return pricingFieldNames.has(field.json_name);
-}
-
 const reasoningEffortEnum =
 	getGeneralFields().find(
 		(field) => field.json_name === "reasoning_effort.default",
@@ -280,19 +273,13 @@ const reasoningEffortEnum =
 const reasoningEffortRank = (value: string): number =>
 	reasoningEffortEnum.indexOf(value.trim().toLowerCase());
 
-function isValidOptionalNumber(
-	value: string | undefined,
-	minimum?: number,
-): boolean {
+function isValidOptionalNumber(value: string | undefined): boolean {
 	const trimmed = value?.trim();
 	if (!trimmed) {
 		return true;
 	}
 
-	const parsed = Number(trimmed);
-	return (
-		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
-	);
+	return Number.isFinite(Number(trimmed));
 }
 
 // ── Schema-driven Yup validation ───────────────────────────────
@@ -317,16 +304,12 @@ function yupTestForField(field: FieldSchema): Yup.StringSchema {
 				},
 			);
 
-		case "number": {
-			const minimum = isNonNegativePricingField(field) ? 0 : undefined;
-			const errorMessage =
-				minimum === 0
-					? `${label} must be zero or greater.`
-					: `${label} must be a valid number.`;
-			return Yup.string().test("optional-number", errorMessage, (value) =>
-				isValidOptionalNumber(value, minimum),
+		case "number":
+			return Yup.string().test(
+				"optional-number",
+				`${label} must be a valid number.`,
+				(value) => isValidOptionalNumber(value),
 			);
-		}
 
 		case "boolean":
 			return Yup.string().test(

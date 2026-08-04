@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -264,34 +263,11 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 	return s.Store.UpdateChatModelConfig(ctx, arg)
 }
 
-func enableDailyChatUsageLimit(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	limitMicros int64,
-) time.Time {
-	t.Helper()
-
-	_, err := db.UpsertChatUsageLimitConfig(
-		dbauthz.AsSystemRestricted(ctx),
-		database.UpsertChatUsageLimitConfigParams{
-			Enabled:            true,
-			DefaultLimitMicros: limitMicros,
-			Period:             string(codersdk.ChatUsageLimitPeriodDay),
-		},
-	)
-	require.NoError(t, err)
-
-	_, periodEnd := chatd.ComputeUsagePeriodBounds(time.Now(), codersdk.ChatUsageLimitPeriodDay)
-	return periodEnd
-}
-
-func insertAssistantCostMessage(
+func insertAssistantMessage(
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
 	modelConfigID uuid.UUID,
-	totalCostMicros int64,
 ) {
 	t.Helper()
 
@@ -301,11 +277,10 @@ func insertAssistantCostMessage(
 	require.NoError(t, err)
 
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chatID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: totalCostMicros, Valid: true},
+		ChatID:        chatID,
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Content:       assistantContent,
 	})
 }
 
@@ -3900,41 +3875,6 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Equal(t, enabledConfig.ID, memberConfigs[0].ID)
 	})
 
-	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
-
-		legacyOptions := json.RawMessage(`{"input_price_per_million_tokens":0.15,"output_price_per_million_tokens":0.6,"cache_read_price_per_million_tokens":0.03,"cache_write_price_per_million_tokens":0.3}`)
-		storedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:         uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
-			Model:                "gpt-4o-mini-legacy",
-			DisplayName:          "GPT-4o Mini Legacy",
-			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
-			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
-			ContextLimit:         4096,
-			CompressionThreshold: 80,
-			Options:              legacyOptions,
-		})
-
-		configs, err := client.ListChatModelConfigs(ctx)
-		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		require.Equal(t, storedConfig.ID, configs[0].ID)
-		requireChatModelPricing(t, configs[0].ModelConfig, &codersdk.ChatModelCallConfig{
-			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      decRef("0.15"),
-				OutputPricePerMillionTokens:     decRef("0.6"),
-				CacheReadPricePerMillionTokens:  decRef("0.03"),
-				CacheWritePricePerMillionTokens: decRef("0.3"),
-			},
-		})
-	})
-
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -3976,20 +3916,11 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		contextLimit := int64(4096)
 		isDefault := true
-		pricing := &codersdk.ChatModelCallConfig{
-			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      decRef("0.15"),
-				OutputPricePerMillionTokens:     decRef("0.6"),
-				CacheReadPricePerMillionTokens:  decRef("0.03"),
-				CacheWritePricePerMillionTokens: decRef("0.3"),
-			},
-		}
 		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 			IsDefault:    &isDefault,
-			ModelConfig:  pricing,
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, modelConfig.ID)
@@ -3997,12 +3928,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Equal(t, "gpt-4o-mini", modelConfig.Model)
 		require.EqualValues(t, 4096, modelConfig.ContextLimit)
 		require.True(t, modelConfig.IsDefault)
-		requireChatModelPricing(t, modelConfig.ModelConfig, pricing)
 
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
-		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
 	})
 
 	t.Run("ConcurrentCreatesElectSingleDefault", func(t *testing.T) {
@@ -4060,35 +3989,6 @@ func TestCreateChatModelConfig(t *testing.T) {
 			}
 		}
 		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
-	})
-
-	t.Run("RejectsNegativePricing", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
-
-		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			AIProviderID: &aiProvider.ID,
-			Model:        "gpt-4o-mini",
-			ContextLimit: &contextLimit,
-			ModelConfig: &codersdk.ChatModelCallConfig{
-				Cost: &codersdk.ModelCostConfig{
-					InputPricePerMillionTokens: decRef("-0.01"),
-				},
-			},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model config.", sdkErr.Message)
-		require.Equal(
-			t,
-			"cost.input_price_per_million_tokens must be greater than or equal to zero",
-			sdkErr.Detail,
-		)
 	})
 
 	t.Run("ReasoningEffortStored", func(t *testing.T) {
@@ -4380,29 +4280,18 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		contextLimit := int64(8192)
-		pricing := &codersdk.ChatModelCallConfig{
-			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      decRef("0.2"),
-				OutputPricePerMillionTokens:     decRef("0.8"),
-				CacheReadPricePerMillionTokens:  decRef("0.04"),
-				CacheWritePricePerMillionTokens: decRef("0.4"),
-			},
-		}
 		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName:  "GPT-4o Mini Updated",
 			ContextLimit: &contextLimit,
-			ModelConfig:  pricing,
 		})
 		require.NoError(t, err)
 		require.Equal(t, modelConfig.ID, updated.ID)
 		require.Equal(t, "GPT-4o Mini Updated", updated.DisplayName)
 		require.EqualValues(t, 8192, updated.ContextLimit)
-		requireChatModelPricing(t, updated.ModelConfig, pricing)
 
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
-		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
 	})
 
 	t.Run("UnchangedProviderWithoutAIProviderID", func(t *testing.T) {
@@ -4614,30 +4503,6 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			}
 		}
 		require.True(t, foundForMember)
-	})
-
-	t.Run("RejectsNegativePricing", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
-			ModelConfig: &codersdk.ChatModelCallConfig{
-				Cost: &codersdk.ModelCostConfig{
-					OutputPricePerMillionTokens: decRef("-1.0"),
-				},
-			},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model config.", sdkErr.Message)
-		require.Equal(
-			t,
-			"cost.output_price_per_million_tokens must be greater than or equal to zero",
-			sdkErr.Detail,
-		)
 	})
 
 	t.Run("UpdateAIProviderID", func(t *testing.T) {
@@ -5336,7 +5201,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -5418,7 +5282,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -5445,7 +5308,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -5640,7 +5502,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -9694,6 +9555,44 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
 	})
+
+	t.Run("UsageLimitExhausted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfigWithTitleQuotaExhausted(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "test chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		_, err = client.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t,
+			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+			sdkErr.Message)
+	})
 }
 
 func TestProposeChatTitle(t *testing.T) {
@@ -9881,6 +9780,31 @@ func TestProposeChatTitle(t *testing.T) {
 			"propose must not persist the suggested title")
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt),
 			"propose must not bump updated_at")
+	})
+
+	t.Run("UsageLimitExhausted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfigWithTitleQuotaExhausted(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "test chat"},
+			},
+		})
+		require.NoError(t, err)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		_, err = client.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t,
+			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+			sdkErr.Message)
 	})
 }
 
@@ -10458,69 +10382,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 	})
 
-	t.Run("PromotesAlreadyQueuedMessageAfterLimitReached", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-		enableDailyChatUsageLimit(ctx, t, db, 100)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued usage limit",
-			Status:            database.ChatStatusError,
-		})
-
-		const queuedText = "queued message for promote route"
-
-		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(queuedText),
-		})
-		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
-
-		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
-
-		promoteRes, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
-
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
-
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		foundPromoted := false
-		for _, msg := range messagesResult.Messages {
-			if msg.Role != codersdk.ChatMessageRoleUser {
-				continue
-			}
-			for _, part := range msg.Content {
-				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
-					foundPromoted = true
-				}
-			}
-		}
-		require.True(t, foundPromoted, "promoted message must appear in chat history")
-
-		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		for _, queued := range queuedMessages {
-			require.NotEqual(t, queuedMessage.ID, queued.ID)
-		}
-	})
-
 	t.Run("InvalidQueuedMessageID", func(t *testing.T) {
 		t.Parallel()
 
@@ -10682,7 +10543,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -10819,196 +10679,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Len(t, queuedRemaining, 1)
 		require.Equal(t, queuedMessage.ID, queuedRemaining[0].ID,
 			"queued message ID must stay stable across reorder")
-	})
-}
-
-func TestChatUsageLimitOverrideRoutes(t *testing.T) {
-	t.Parallel()
-
-	t.Run("UpsertUserOverrideRequiresPositiveSpendLimit", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodPut,
-			fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", member.ID),
-			map[string]any{},
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		err = codersdk.ReadBodyAsError(res)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid chat usage limit override.", sdkErr.Message)
-		require.Equal(t, "Spend limit must be greater than 0.", sdkErr.Detail)
-	})
-
-	t.Run("UpsertUserOverrideMissingUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.UpsertChatUsageLimitOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusNotFound)
-		require.Equal(t, "User not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteUserOverrideMissingUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		err := client.DeleteChatUsageLimitOverride(ctx, uuid.New())
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "User not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteUserOverrideMissingOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		err := client.DeleteChatUsageLimitOverride(ctx, member.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
-	})
-
-	t.Run("UpdateUserOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 5_000_000,
-		})
-		require.NoError(t, err)
-
-		override, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 10_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, member.ID, override.UserID)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-		require.Len(t, config.Overrides, 1)
-		require.Equal(t, member.ID, config.Overrides[0].UserID)
-		require.NotNil(t, config.Overrides[0].SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *config.Overrides[0].SpendLimitMicros)
-	})
-
-	t.Run("UpsertGroupOverrideIncludesMemberCount", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: database.PrebuildsSystemUserID})
-
-		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, group.ID, override.GroupID)
-		require.EqualValues(t, 1, override.MemberCount)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 7_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-
-		var listed *codersdk.ChatUsageLimitGroupOverride
-		for i := range config.GroupOverrides {
-			if config.GroupOverrides[i].GroupID == group.ID {
-				listed = &config.GroupOverrides[i]
-				break
-			}
-		}
-		require.NotNil(t, listed)
-		require.EqualValues(t, 1, listed.MemberCount)
-	})
-
-	t.Run("UpdateGroupOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
-
-		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 5_000_000,
-		})
-		require.NoError(t, err)
-
-		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 10_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, group.ID, override.GroupID)
-		require.EqualValues(t, 2, override.MemberCount)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-		require.Len(t, config.GroupOverrides, 1)
-		require.Equal(t, group.ID, config.GroupOverrides[0].GroupID)
-		require.EqualValues(t, 2, config.GroupOverrides[0].MemberCount)
-		require.NotNil(t, config.GroupOverrides[0].SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *config.GroupOverrides[0].SpendLimitMicros)
-	})
-
-	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusNotFound)
-		require.Equal(t, "Group not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteGroupOverrideMissingOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-
-		err := client.DeleteChatUsageLimitGroupOverride(ctx, group.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat usage limit group override not found.", sdkErr.Message)
 	})
 }
 
@@ -11476,194 +11146,6 @@ func TestGetChatFile(t *testing.T) {
 	})
 }
 
-type chatCostTestFixture struct {
-	Client            *codersdk.ExperimentalClient
-	DB                database.Store
-	ModelConfigID     uuid.UUID
-	ChatID            uuid.UUID
-	EarliestCreatedAt time.Time
-	LatestCreatedAt   time.Time
-}
-
-// safeOptions returns an explicit time window around the fixture messages to
-// avoid app-time/database-time boundary flakes in summary tests.
-func (f chatCostTestFixture) safeOptions() codersdk.ChatCostSummaryOptions {
-	return codersdk.ChatCostSummaryOptions{
-		StartDate: f.EarliestCreatedAt.Add(-time.Minute),
-		EndDate:   f.LatestCreatedAt.Add(time.Minute),
-	}
-}
-
-func seedChatCostFixture(t *testing.T) chatCostTestFixture {
-	t.Helper()
-
-	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "test chat",
-	})
-
-	msg1 := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-		RuntimeMs:       sql.NullInt64{Int64: 1500, Valid: true},
-	})
-	msg2 := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-		RuntimeMs:       sql.NullInt64{Int64: 2500, Valid: true},
-	})
-	results := []database.ChatMessage{msg1, msg2}
-	require.Len(t, results, 2)
-
-	earliestCreatedAt := results[0].CreatedAt
-	latestCreatedAt := results[0].CreatedAt
-	for _, msg := range results {
-		if msg.CreatedAt.Before(earliestCreatedAt) {
-			earliestCreatedAt = msg.CreatedAt
-		}
-		if msg.CreatedAt.After(latestCreatedAt) {
-			latestCreatedAt = msg.CreatedAt
-		}
-	}
-
-	return chatCostTestFixture{
-		Client:            client,
-		DB:                db,
-		ModelConfigID:     modelConfig.ID,
-		ChatID:            chat.ID,
-		EarliestCreatedAt: earliestCreatedAt,
-		LatestCreatedAt:   latestCreatedAt,
-	}
-}
-
-func assertChatCostSummary(t *testing.T, summary codersdk.ChatCostSummary, modelConfigID, chatID uuid.UUID) {
-	t.Helper()
-
-	require.Equal(t, int64(1000), summary.TotalCostMicros)
-	require.Equal(t, int64(2), summary.PricedMessageCount)
-	require.Equal(t, int64(0), summary.UnpricedMessagesHavingUsageCount)
-	require.Equal(t, int64(200), summary.TotalInputTokens)
-	require.Equal(t, int64(100), summary.TotalOutputTokens)
-	require.Equal(t, int64(4000), summary.TotalRuntimeMs)
-
-	require.Len(t, summary.ByModel, 1)
-	require.Equal(t, modelConfigID, summary.ByModel[0].ModelConfigID)
-	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
-	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
-	require.Equal(t, int64(4000), summary.ByModel[0].TotalRuntimeMs)
-
-	require.Len(t, summary.ByChat, 1)
-	require.Equal(t, chatID, summary.ByChat[0].RootChatID)
-	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
-	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
-	require.Equal(t, int64(4000), summary.ByChat[0].TotalRuntimeMs)
-}
-
-func TestChatCostSummary(t *testing.T) {
-	t.Parallel()
-
-	t.Run("BasicSummary", func(t *testing.T) {
-		t.Parallel()
-
-		f := seedChatCostFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Use a window derived from DB timestamps to avoid time boundary flakes.
-		summary, err := f.Client.GetChatCostSummary(ctx, "me", f.safeOptions())
-		require.NoError(t, err)
-		assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
-	})
-}
-
-func TestChatCostSummary_AfterModelDeletion(t *testing.T) {
-	t.Parallel()
-
-	f := seedChatCostFixture(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	options := f.safeOptions()
-
-	// Baseline: use DB-derived timestamps to avoid time boundary flakes.
-	summary, err := f.Client.GetChatCostSummary(ctx, "me", options)
-	require.NoError(t, err)
-	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
-
-	// Soft-delete the model config.
-	err = f.Client.DeleteChatModelConfig(ctx, f.ModelConfigID)
-	require.NoError(t, err)
-
-	// Costs must survive the deletion unchanged within the same safe window.
-	summary, err = f.Client.GetChatCostSummary(ctx, "me", options)
-	require.NoError(t, err)
-	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
-}
-
-func TestChatCostSummary_AdminDrilldown(t *testing.T) {
-	t.Parallel()
-
-	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-	modelConfig := createChatModelConfig(t, client)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           member.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "member chat",
-	})
-
-	message := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
-	})
-
-	options := codersdk.ChatCostSummaryOptions{
-		// Pad the DB-assigned timestamp so the query window cannot race it.
-		StartDate: message.CreatedAt.Add(-time.Minute),
-		EndDate:   message.CreatedAt.Add(time.Minute),
-	}
-
-	t.Run("AdminCanDrilldown", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, member.ID.String(), options)
-		require.NoError(t, err)
-		require.Equal(t, int64(750), summary.TotalCostMicros)
-		require.Equal(t, int64(1), summary.PricedMessageCount)
-	})
-
-	t.Run("MemberCannotDrilldownOtherUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := memberClient.GetChatCostSummary(ctx, firstUser.UserID.String(), options)
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-	})
-}
-
 // seedChatGatewayRequest records one finished Coder Agents gateway request
 // under sessionChatID, mirroring aibridged: the session ID is the spawning
 // chat, and each usage is one provider response within that one request.
@@ -12100,231 +11582,6 @@ func TestGetChatCost(t *testing.T) {
 	})
 }
 
-func TestChatCostUsers(t *testing.T) {
-	t.Parallel()
-
-	seedCtx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-	firstUserRecord, err := db.GetUserByID(dbauthz.AsSystemRestricted(seedCtx), firstUser.UserID)
-	require.NoError(t, err)
-	modelConfig := createChatModelConfig(t, client)
-
-	adminChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "admin chat",
-	})
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          adminChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
-	})
-
-	memberChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           member.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "member chat",
-	})
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          memberChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
-	})
-
-	t.Run("AdminCanListUsers", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{})
-		require.NoError(t, err)
-		require.Equal(t, int64(2), resp.Count)
-		require.Len(t, resp.Users, 2)
-		require.Equal(t, member.ID, resp.Users[0].UserID)
-		require.Equal(t, member.Username, resp.Users[0].Username)
-		require.Equal(t, int64(800), resp.Users[0].TotalCostMicros)
-		require.Equal(t, int64(1), resp.Users[0].MessageCount)
-		require.Equal(t, int64(1), resp.Users[0].ChatCount)
-		require.Equal(t, firstUser.UserID, resp.Users[1].UserID)
-		require.Equal(t, firstUserRecord.Username, resp.Users[1].Username)
-		require.Equal(t, int64(300), resp.Users[1].TotalCostMicros)
-	})
-
-	t.Run("AdminCanFilterAndPaginateUsers", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{
-			Username: member.Username,
-			Pagination: codersdk.Pagination{
-				Limit:  1,
-				Offset: 0,
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(1), resp.Count)
-		require.Len(t, resp.Users, 1)
-		require.Equal(t, member.ID, resp.Users[0].UserID)
-		require.Equal(t, member.Username, resp.Users[0].Username)
-	})
-
-	t.Run("MemberCannotListUsers", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := memberClient.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-}
-
-func TestChatCostSummary_DateRange(t *testing.T) {
-	t.Parallel()
-
-	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "date range test",
-	})
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-	})
-
-	now := time.Now()
-
-	t.Run("MessageInRange", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
-			StartDate: now.Add(-time.Hour),
-			EndDate:   now.Add(time.Hour),
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(500), summary.TotalCostMicros)
-		require.Equal(t, int64(1), summary.PricedMessageCount)
-	})
-
-	t.Run("MessageOutOfRange", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
-			StartDate: now.Add(time.Hour),
-			EndDate:   now.Add(2 * time.Hour),
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(0), summary.TotalCostMicros)
-		require.Equal(t, int64(0), summary.PricedMessageCount)
-	})
-}
-
-func TestChatCostSummary_UnpricedMessages(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "unpriced test",
-	})
-
-	pricedMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-	})
-
-	unpricedMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		InputTokens:   sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:  sql.NullInt64{Int64: 75, Valid: true},
-	})
-
-	earliestCreatedAt := pricedMessage.CreatedAt
-	latestCreatedAt := pricedMessage.CreatedAt
-	if unpricedMessage.CreatedAt.Before(earliestCreatedAt) {
-		earliestCreatedAt = unpricedMessage.CreatedAt
-	}
-	if unpricedMessage.CreatedAt.After(latestCreatedAt) {
-		latestCreatedAt = unpricedMessage.CreatedAt
-	}
-	options := codersdk.ChatCostSummaryOptions{
-		// Pad the DB-assigned timestamps to avoid time boundary flakes.
-		StartDate: earliestCreatedAt.Add(-time.Minute),
-		EndDate:   latestCreatedAt.Add(time.Minute),
-	}
-
-	summary, err := client.GetChatCostSummary(ctx, "me", options)
-	require.NoError(t, err)
-
-	require.Equal(t, int64(500), summary.TotalCostMicros)
-	require.Equal(t, int64(1), summary.PricedMessageCount)
-	require.Equal(t, int64(1), summary.UnpricedMessagesHavingUsageCount)
-	require.Equal(t, int64(300), summary.TotalInputTokens)
-	require.Equal(t, int64(125), summary.TotalOutputTokens)
-}
-
-func requireChatModelPricing(
-	t *testing.T,
-	actual *codersdk.ChatModelCallConfig,
-	expected *codersdk.ChatModelCallConfig,
-) {
-	t.Helper()
-	require.NotNil(t, actual)
-	require.NotNil(t, expected)
-
-	require.NotNil(t, actual.Cost)
-	require.NotNil(t, expected.Cost)
-	require.NotNil(t, actual.Cost.InputPricePerMillionTokens)
-	require.NotNil(t, actual.Cost.OutputPricePerMillionTokens)
-	require.NotNil(t, actual.Cost.CacheReadPricePerMillionTokens)
-	require.NotNil(t, actual.Cost.CacheWritePricePerMillionTokens)
-
-	require.True(t, expected.Cost.InputPricePerMillionTokens.Equal(*actual.Cost.InputPricePerMillionTokens))
-	require.True(t, expected.Cost.OutputPricePerMillionTokens.Equal(*actual.Cost.OutputPricePerMillionTokens))
-	require.True(t, expected.Cost.CacheReadPricePerMillionTokens.Equal(*actual.Cost.CacheReadPricePerMillionTokens))
-	require.True(t, expected.Cost.CacheWritePricePerMillionTokens.Equal(*actual.Cost.CacheWritePricePerMillionTokens))
-}
-
-func decRef(value string) *decimal.Decimal {
-	d := decimal.RequireFromString(value)
-	return &d
-}
-
 func TestWatchChatDesktop(t *testing.T) {
 	t.Parallel()
 
@@ -12600,6 +11857,24 @@ func createChatModelConfigWithTitleFailure(t testing.TB, client *codersdk.Experi
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
 		}
 		return chattest.OpenAIErrorResponse(http.StatusUnauthorized, "invalid_api_key", "test title failure")
+	})
+	return createChatModelConfigWithBaseURL(t, client, baseURL)
+}
+
+// createChatModelConfigWithTitleQuotaExhausted provisions a model whose
+// non-streaming responses return a provider insufficient_quota error, which
+// classifies as a usage limit like an exhausted AI Gateway budget.
+func createChatModelConfigWithTitleQuotaExhausted(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+	t.Helper()
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		return chattest.OpenAIErrorResponse(
+			http.StatusBadRequest,
+			"insufficient_quota",
+			"You exceeded your current quota, please check your plan and billing details.",
+		)
 	})
 	return createChatModelConfigWithBaseURL(t, client, baseURL)
 }

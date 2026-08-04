@@ -1349,13 +1349,6 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
-			r.Route("/cost", func(r chi.Router) {
-				r.Get("/users", api.chatCostUsers)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/summary", api.chatCostSummary)
-				})
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1418,19 +1411,6 @@ func New(options *Options) *API {
 				r.Route("/{modelConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatModelConfig)
 					r.Delete("/", api.deleteChatModelConfig)
-				})
-			})
-			r.Route("/usage-limits", func(r chi.Router) {
-				r.Get("/", api.getChatUsageLimitConfig)
-				r.Put("/", api.updateChatUsageLimitConfig)
-				r.Get("/status", api.getMyChatUsageLimitStatus)
-				r.Route("/overrides/{user}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitOverride)
-					r.Delete("/", api.deleteChatUsageLimitOverride)
-				})
-				r.Route("/group-overrides/{group}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitGroupOverride)
-					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {
