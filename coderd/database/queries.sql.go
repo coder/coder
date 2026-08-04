@@ -36487,147 +36487,83 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
-const acquireWorkspaceAgentSubagentExecution = `-- name: AcquireWorkspaceAgentSubagentExecution :one
-WITH requested_execution AS (
-	SELECT
-		executions.workspace_build_id,
-		executions.declaration_id,
-		executions.child_agent_id,
-		builds.workspace_id
-	FROM workspace_agent_subagent_executions AS executions
-	JOIN workspace_builds AS builds
-		ON builds.id = executions.workspace_build_id
-	JOIN workspace_agents AS parent
-		ON parent.id = executions.parent_agent_id
-	JOIN workspace_resources AS parent_resource
-		ON parent_resource.id = parent.resource_id
-	WHERE executions.workspace_build_id = $1
-		AND executions.declaration_id = $2
-		AND executions.parent_agent_id = $3
-		AND parent.parent_id IS NULL
-		AND parent.deleted = FALSE
-		AND parent_resource.job_id = builds.job_id
-), latest_build AS (
-	SELECT builds.id, builds.transition
-	FROM workspace_builds AS builds
-	JOIN requested_execution
-		ON requested_execution.workspace_id = builds.workspace_id
-	ORDER BY builds.build_number DESC
-	LIMIT 1
-), current_generation AS (
-	SELECT requested_execution.workspace_build_id, requested_execution.declaration_id, requested_execution.child_agent_id, requested_execution.workspace_id
-	FROM requested_execution
-	JOIN latest_build
-		ON latest_build.id = requested_execution.workspace_build_id
-	WHERE latest_build.transition = 'start'
-), acquirable_child AS (
-	SELECT
-		current_generation.workspace_build_id,
-		current_generation.declaration_id,
-		child.id AS child_agent_id,
-		child.auth_token
-	FROM current_generation
-	JOIN workspace_agents AS parent
-		ON parent.id = $3
-	JOIN workspace_agents AS child
-		ON child.id = current_generation.child_agent_id
-		AND child.parent_id = parent.id
-		AND child.resource_id = parent.resource_id
-		AND child.deleted = FALSE
-		AND child.execution_isolation = TRUE
-), locked_status AS MATERIALIZED (
-	SELECT
-		statuses.workspace_build_id,
-		statuses.declaration_id,
-		statuses.status,
-		statuses.status_changed_at,
-		statuses.restart_count,
-		statuses.acquisition_version
-	FROM workspace_agent_subagent_execution_statuses AS statuses
-	JOIN acquirable_child
-		USING (workspace_build_id, declaration_id)
-	WHERE statuses.status != 'stopping'
-	FOR UPDATE OF statuses
-), acquired AS (
-	UPDATE workspace_agent_subagent_execution_statuses AS statuses
-	SET
-		acquisition_version = locked_status.acquisition_version + 1,
-		status = 'starting',
-		updated_at = $4,
-		status_changed_at = CASE
-			WHEN locked_status.status = 'starting' THEN locked_status.status_changed_at
-			ELSE $4
-		END,
-		last_acquired_at = $4,
-		last_error = '',
-		restart_count = CASE
-			WHEN locked_status.acquisition_version > 0 THEN locked_status.restart_count + 1
-			ELSE locked_status.restart_count
-		END
-	FROM locked_status
-	WHERE statuses.workspace_build_id = locked_status.workspace_build_id
-		AND statuses.declaration_id = locked_status.declaration_id
-	RETURNING statuses.acquisition_version
-)
-SELECT
-	acquirable_child.child_agent_id,
-	acquirable_child.auth_token,
-	acquired.acquisition_version
-FROM acquired
-JOIN acquirable_child ON TRUE
+const acquireWorkspaceBuildPublicationLock = `-- name: AcquireWorkspaceBuildPublicationLock :exec
+SELECT acquire_workspace_build_publication_lock($1)
 `
 
-type AcquireWorkspaceAgentSubagentExecutionParams struct {
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	DeclarationID    uuid.UUID `db:"declaration_id" json:"declaration_id"`
+// AcquireWorkspaceBuildPublicationLock takes the transaction-scoped advisory
+// lock that workspace build inserts also take through the
+// serialize_workspace_build_publication trigger. Holding it means no new build
+// for this workspace can become visible while the acquisition validates the
+// workspace's latest generation and mutates the execution status.
+//
+// This must be called from within a transaction. The lock is released when the
+// transaction ends.
+func (q *sqlQuerier) AcquireWorkspaceBuildPublicationLock(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, acquireWorkspaceBuildPublicationLock, workspaceID)
+	return err
+}
+
+const getLatestWorkspaceBuildGeneration = `-- name: GetLatestWorkspaceBuildGeneration :one
+SELECT
+	builds.id,
+	builds.transition
+FROM workspace_builds AS builds
+WHERE builds.workspace_id = $1
+ORDER BY builds.build_number DESC
+LIMIT 1
+`
+
+type GetLatestWorkspaceBuildGenerationRow struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+}
+
+// GetLatestWorkspaceBuildGeneration resolves the workspace's actual latest build
+// instead of trusting a caller-supplied or middleware-cached generation. It runs
+// as its own statement after the publication lock is held, so its snapshot
+// cannot predate a build that committed while the caller was starting up.
+func (q *sqlQuerier) GetLatestWorkspaceBuildGeneration(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildGenerationRow, error) {
+	row := q.db.QueryRowContext(ctx, getLatestWorkspaceBuildGeneration, workspaceID)
+	var i GetLatestWorkspaceBuildGenerationRow
+	err := row.Scan(&i.ID, &i.Transition)
+	return i, err
+}
+
+const getWorkspaceAgentSubagentExecutionAcquisitionParent = `-- name: GetWorkspaceAgentSubagentExecutionAcquisitionParent :one
+SELECT
+	parent.id,
+	parent.resource_id
+FROM workspace_agents AS parent
+JOIN workspace_resources AS parent_resource
+	ON parent_resource.id = parent.resource_id
+JOIN workspace_builds AS builds
+	ON builds.job_id = parent_resource.job_id
+WHERE parent.id = $1
+	AND parent.parent_id IS NULL
+	AND parent.deleted = FALSE
+	AND builds.id = $2
+`
+
+type GetWorkspaceAgentSubagentExecutionAcquisitionParentParams struct {
 	ParentAgentID    uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
-	Now              time.Time `db:"now" json:"now"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 }
 
-type AcquireWorkspaceAgentSubagentExecutionRow struct {
-	ChildAgentID       uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
-	AuthToken          uuid.UUID `db:"auth_token" json:"auth_token"`
-	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+type GetWorkspaceAgentSubagentExecutionAcquisitionParentRow struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ResourceID uuid.UUID `db:"resource_id" json:"resource_id"`
 }
 
-// AcquireWorkspaceAgentSubagentExecution hands a parent agent the credentials it
-// needs to launch one declared subagent execution, and fences every previous
-// launcher of the same declaration in the same statement.
-//
-// The caller supplies the execution tuple it believes it owns. The query only
-// proceeds when all of the following hold:
-//
-//   - the exact (workspace_build_id, declaration_id, parent_agent_id) tuple
-//     exists, so a parent cannot acquire another parent's declaration;
-//   - the parent is live, top-level, and part of the requested build;
-//   - the child is exactly the persisted child_agent_id, live, a direct child of
-//     the exact parent, on the parent's resource, and execution isolated;
-//   - the workspace's actual latest build, resolved here instead of trusted from
-//     the caller or a cached middleware build, is the requested build and has
-//     transition 'start', so a stale generation cannot launch;
-//   - a status row exists and is not 'stopping', so a shutting-down execution is
-//     never restarted.
-//
-// The status row is locked FOR UPDATE before it is mutated, so concurrent
-// acquisitions serialize and each receives a distinct, monotonically increasing
-// acquisition_version. restart_count is incremented only when the declaration
-// has already been acquired at least once (acquisition_version > 0), so the
-// first launch is not counted as a restart. status_changed_at only moves when
-// the status actually changes, keeping "how long has it been starting" honest
-// across repeated acquisitions.
-//
-// Only the child identity, the child auth token, and the new acquisition version
-// are returned. The parent token and the declaration's configuration fields are
-// deliberately excluded.
-func (q *sqlQuerier) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg AcquireWorkspaceAgentSubagentExecutionParams) (AcquireWorkspaceAgentSubagentExecutionRow, error) {
-	row := q.db.QueryRowContext(ctx, acquireWorkspaceAgentSubagentExecution,
-		arg.WorkspaceBuildID,
-		arg.DeclarationID,
-		arg.ParentAgentID,
-		arg.Now,
-	)
-	var i AcquireWorkspaceAgentSubagentExecutionRow
-	err := row.Scan(&i.ChildAgentID, &i.AuthToken, &i.AcquisitionVersion)
+// GetWorkspaceAgentSubagentExecutionAcquisitionParent re-reads the requesting
+// parent under the publication lock and requires it to still be live, top-level,
+// and part of the requested build through its resource's provisioner job. The
+// parent's resource is returned so the child can be matched against the exact
+// resource rather than any resource in the workspace.
+func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentSubagentExecutionAcquisitionParent, arg.ParentAgentID, arg.WorkspaceBuildID)
+	var i GetWorkspaceAgentSubagentExecutionAcquisitionParentRow
+	err := row.Scan(&i.ID, &i.ResourceID)
 	return i, err
 }
 
@@ -36702,6 +36638,45 @@ func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgent
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWorkspaceAgentSubagentExecutionForAcquisition = `-- name: GetWorkspaceAgentSubagentExecutionForAcquisition :one
+SELECT
+	builds.workspace_id,
+	executions.child_agent_id
+FROM workspace_agent_subagent_executions AS executions
+JOIN workspace_builds AS builds
+	ON builds.id = executions.workspace_build_id
+WHERE executions.workspace_build_id = $1
+	AND executions.declaration_id = $2
+	AND executions.parent_agent_id = $3
+`
+
+type GetWorkspaceAgentSubagentExecutionForAcquisitionParams struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID    uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ParentAgentID    uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+}
+
+type GetWorkspaceAgentSubagentExecutionForAcquisitionRow struct {
+	WorkspaceID  uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ChildAgentID uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+}
+
+// GetWorkspaceAgentSubagentExecutionForAcquisition resolves the immutable
+// identity behind an acquisition request: the workspace that owns the requested
+// build, and the child agent the declaration was created with. The exact
+// (workspace_build_id, declaration_id, parent_agent_id) tuple must exist, so a
+// parent cannot acquire another parent's declaration. Both returned values are
+// immutable for the life of the rows, so reading them before the publication
+// lock is taken cannot yield a stale answer. Every mutable fact (latest build,
+// parent liveness, child liveness, status) is read by a later statement, after
+// the lock, so it observes a fresh READ COMMITTED snapshot.
+func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionForAcquisition(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionForAcquisitionParams) (GetWorkspaceAgentSubagentExecutionForAcquisitionRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentSubagentExecutionForAcquisition, arg.WorkspaceBuildID, arg.DeclarationID, arg.ParentAgentID)
+	var i GetWorkspaceAgentSubagentExecutionForAcquisitionRow
+	err := row.Scan(&i.WorkspaceID, &i.ChildAgentID)
+	return i, err
 }
 
 const getWorkspaceAgentSubagentExecutionStatus = `-- name: GetWorkspaceAgentSubagentExecutionStatus :one
@@ -36901,6 +36876,153 @@ func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, 
 		&i.StartupTimeoutSeconds,
 		&i.RestartPolicy,
 	)
+	return i, err
+}
+
+const lockWorkspaceAgentSubagentExecutionChildForAcquisition = `-- name: LockWorkspaceAgentSubagentExecutionChildForAcquisition :one
+SELECT
+	child.id,
+	child.auth_token
+FROM workspace_agents AS child
+WHERE child.id = $1
+	AND child.parent_id = $2
+	AND child.resource_id = $3
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
+FOR SHARE
+`
+
+type LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams struct {
+	ChildAgentID  uuid.UUID     `db:"child_agent_id" json:"child_agent_id"`
+	ParentAgentID uuid.NullUUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ResourceID    uuid.UUID     `db:"resource_id" json:"resource_id"`
+}
+
+type LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	AuthToken uuid.UUID `db:"auth_token" json:"auth_token"`
+}
+
+// LockWorkspaceAgentSubagentExecutionChildForAcquisition locks the exact child
+// the declaration was created with and requires it to still be a live, execution
+// isolated, direct child on the parent's resource.
+//
+// The lock is FOR SHARE rather than FOR KEY SHARE on purpose: an ordinary
+// soft-delete only touches non-key columns, so FOR KEY SHARE would not conflict
+// with it. FOR SHARE conflicts with any concurrent UPDATE of this row and forces
+// an EvalPlanQual recheck of the predicates above, so a child soft-deleted by a
+// committing rebuild cannot be handed out.
+func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceAgentSubagentExecutionChildForAcquisition, arg.ChildAgentID, arg.ParentAgentID, arg.ResourceID)
+	var i LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow
+	err := row.Scan(&i.ID, &i.AuthToken)
+	return i, err
+}
+
+const lockWorkspaceAgentSubagentExecutionStatusForAcquisition = `-- name: LockWorkspaceAgentSubagentExecutionStatusForAcquisition :one
+SELECT
+	statuses.status,
+	statuses.status_changed_at,
+	statuses.restart_count,
+	statuses.acquisition_version
+FROM workspace_agent_subagent_execution_statuses AS statuses
+WHERE statuses.workspace_build_id = $1
+	AND statuses.declaration_id = $2
+	AND statuses.status != 'stopping'
+FOR UPDATE
+`
+
+type LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID    uuid.UUID `db:"declaration_id" json:"declaration_id"`
+}
+
+type LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow struct {
+	Status             string    `db:"status" json:"status"`
+	StatusChangedAt    time.Time `db:"status_changed_at" json:"status_changed_at"`
+	RestartCount       int32     `db:"restart_count" json:"restart_count"`
+	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+}
+
+// LockWorkspaceAgentSubagentExecutionStatusForAcquisition locks the exact status
+// row that the acquisition will mutate, and rejects a declaration that is
+// already shutting down so a stopping execution is never restarted. Concurrent
+// acquisitions of the same declaration serialize here, which is what makes
+// acquisition_version strictly increasing.
+func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceAgentSubagentExecutionStatusForAcquisition, arg.WorkspaceBuildID, arg.DeclarationID)
+	var i LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow
+	err := row.Scan(
+		&i.Status,
+		&i.StatusChangedAt,
+		&i.RestartCount,
+		&i.AcquisitionVersion,
+	)
+	return i, err
+}
+
+const markWorkspaceAgentSubagentExecutionAcquired = `-- name: MarkWorkspaceAgentSubagentExecutionAcquired :one
+UPDATE workspace_agent_subagent_execution_statuses AS statuses
+SET
+	acquisition_version = statuses.acquisition_version + 1,
+	status = 'starting',
+	updated_at = $1,
+	status_changed_at = CASE
+		WHEN statuses.status = 'starting' THEN statuses.status_changed_at
+		ELSE $1
+	END,
+	last_acquired_at = $1,
+	last_error = '',
+	restart_count = CASE
+		WHEN statuses.acquisition_version > 0 THEN statuses.restart_count + 1
+		ELSE statuses.restart_count
+	END
+FROM workspace_agents AS child
+WHERE statuses.workspace_build_id = $2
+	AND statuses.declaration_id = $3
+	AND child.id = $4
+RETURNING
+	child.id AS child_agent_id,
+	child.auth_token,
+	statuses.acquisition_version
+`
+
+type MarkWorkspaceAgentSubagentExecutionAcquiredParams struct {
+	Now              time.Time `db:"now" json:"now"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID    uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ChildAgentID     uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+}
+
+type MarkWorkspaceAgentSubagentExecutionAcquiredRow struct {
+	ChildAgentID       uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	AuthToken          uuid.UUID `db:"auth_token" json:"auth_token"`
+	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+}
+
+// MarkWorkspaceAgentSubagentExecutionAcquired records the acquisition on the
+// status row that this transaction already locked FOR UPDATE, and fences every
+// previous launcher of the same declaration by bumping acquisition_version.
+//
+// restart_count is only incremented when the declaration has already been
+// acquired at least once (acquisition_version > 0), so the first launch is not
+// counted as a restart. status_changed_at only moves when the status actually
+// changes, keeping "how long has it been starting" honest across repeated
+// acquisitions.
+//
+// Only the child identity, the child auth token, and the new acquisition version
+// are returned. The parent token and the declaration's configuration fields are
+// deliberately excluded. The child row was already locked FOR SHARE by this
+// transaction, so joining it here cannot observe a newer child.
+func (q *sqlQuerier) MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Context, arg MarkWorkspaceAgentSubagentExecutionAcquiredParams) (MarkWorkspaceAgentSubagentExecutionAcquiredRow, error) {
+	row := q.db.QueryRowContext(ctx, markWorkspaceAgentSubagentExecutionAcquired,
+		arg.Now,
+		arg.WorkspaceBuildID,
+		arg.DeclarationID,
+		arg.ChildAgentID,
+	)
+	var i MarkWorkspaceAgentSubagentExecutionAcquiredRow
+	err := row.Scan(&i.ChildAgentID, &i.AuthToken, &i.AcquisitionVersion)
 	return i, err
 }
 

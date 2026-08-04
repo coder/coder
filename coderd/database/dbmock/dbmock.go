@@ -119,6 +119,20 @@ func (mr *MockStoreMockRecorder) AcquireWorkspaceAgentSubagentExecution(ctx, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireWorkspaceAgentSubagentExecution", reflect.TypeOf((*MockStore)(nil).AcquireWorkspaceAgentSubagentExecution), ctx, arg)
 }
 
+// AcquireWorkspaceBuildPublicationLock mocks base method.
+func (m *MockStore) AcquireWorkspaceBuildPublicationLock(ctx context.Context, workspaceID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireWorkspaceBuildPublicationLock", ctx, workspaceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AcquireWorkspaceBuildPublicationLock indicates an expected call of AcquireWorkspaceBuildPublicationLock.
+func (mr *MockStoreMockRecorder) AcquireWorkspaceBuildPublicationLock(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireWorkspaceBuildPublicationLock", reflect.TypeOf((*MockStore)(nil).AcquireWorkspaceBuildPublicationLock), ctx, workspaceID)
+}
+
 // ActivityBumpWorkspace mocks base method.
 func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
@@ -4391,6 +4405,21 @@ func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildByWorkspaceID(ctx, works
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildByWorkspaceID), ctx, workspaceID)
 }
 
+// GetLatestWorkspaceBuildGeneration mocks base method.
+func (m *MockStore) GetLatestWorkspaceBuildGeneration(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildGenerationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceBuildGeneration", ctx, workspaceID)
+	ret0, _ := ret[0].(database.GetLatestWorkspaceBuildGenerationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestWorkspaceBuildGeneration indicates an expected call of GetLatestWorkspaceBuildGeneration.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildGeneration(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildGeneration", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildGeneration), ctx, workspaceID)
+}
+
 // GetLatestWorkspaceBuildWithStatusByWorkspaceID mocks base method.
 func (m *MockStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
 	m.ctrl.T.Helper()
@@ -6881,6 +6910,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, createdAt 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, createdAt)
 }
 
+// GetWorkspaceAgentSubagentExecutionAcquisitionParent mocks base method.
+func (m *MockStore) GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (database.GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSubagentExecutionAcquisitionParent", ctx, arg)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentSubagentExecutionAcquisitionParentRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSubagentExecutionAcquisitionParent indicates an expected call of GetWorkspaceAgentSubagentExecutionAcquisitionParent.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionAcquisitionParent", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionAcquisitionParent), ctx, arg)
+}
+
 // GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID mocks base method.
 func (m *MockStore) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
 	m.ctrl.T.Helper()
@@ -6894,6 +6938,21 @@ func (m *MockStore) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentI
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentAgentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID), ctx, parentAgentID)
+}
+
+// GetWorkspaceAgentSubagentExecutionForAcquisition mocks base method.
+func (m *MockStore) GetWorkspaceAgentSubagentExecutionForAcquisition(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionForAcquisitionParams) (database.GetWorkspaceAgentSubagentExecutionForAcquisitionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSubagentExecutionForAcquisition", ctx, arg)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentSubagentExecutionForAcquisitionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSubagentExecutionForAcquisition indicates an expected call of GetWorkspaceAgentSubagentExecutionForAcquisition.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionForAcquisition(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionForAcquisition", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionForAcquisition), ctx, arg)
 }
 
 // GetWorkspaceAgentSubagentExecutionStatus mocks base method.
@@ -9489,6 +9548,36 @@ func (mr *MockStoreMockRecorder) LockChatAndBumpSnapshotVersion(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatAndBumpSnapshotVersion", reflect.TypeOf((*MockStore)(nil).LockChatAndBumpSnapshotVersion), ctx, id)
 }
 
+// LockWorkspaceAgentSubagentExecutionChildForAcquisition mocks base method.
+func (m *MockStore) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams) (database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockWorkspaceAgentSubagentExecutionChildForAcquisition", ctx, arg)
+	ret0, _ := ret[0].(database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockWorkspaceAgentSubagentExecutionChildForAcquisition indicates an expected call of LockWorkspaceAgentSubagentExecutionChildForAcquisition.
+func (mr *MockStoreMockRecorder) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockWorkspaceAgentSubagentExecutionChildForAcquisition", reflect.TypeOf((*MockStore)(nil).LockWorkspaceAgentSubagentExecutionChildForAcquisition), ctx, arg)
+}
+
+// LockWorkspaceAgentSubagentExecutionStatusForAcquisition mocks base method.
+func (m *MockStore) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockWorkspaceAgentSubagentExecutionStatusForAcquisition", ctx, arg)
+	ret0, _ := ret[0].(database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockWorkspaceAgentSubagentExecutionStatusForAcquisition indicates an expected call of LockWorkspaceAgentSubagentExecutionStatusForAcquisition.
+func (mr *MockStoreMockRecorder) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockWorkspaceAgentSubagentExecutionStatusForAcquisition", reflect.TypeOf((*MockStore)(nil).LockWorkspaceAgentSubagentExecutionStatusForAcquisition), ctx, arg)
+}
+
 // MarkAllInboxNotificationsAsRead mocks base method.
 func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	m.ctrl.T.Helper()
@@ -9531,6 +9620,21 @@ func (m *MockStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) MarkMCPServerUserTokenRefreshFailure(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMCPServerUserTokenRefreshFailure", reflect.TypeOf((*MockStore)(nil).MarkMCPServerUserTokenRefreshFailure), ctx, arg)
+}
+
+// MarkWorkspaceAgentSubagentExecutionAcquired mocks base method.
+func (m *MockStore) MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Context, arg database.MarkWorkspaceAgentSubagentExecutionAcquiredParams) (database.MarkWorkspaceAgentSubagentExecutionAcquiredRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkWorkspaceAgentSubagentExecutionAcquired", ctx, arg)
+	ret0, _ := ret[0].(database.MarkWorkspaceAgentSubagentExecutionAcquiredRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkWorkspaceAgentSubagentExecutionAcquired indicates an expected call of MarkWorkspaceAgentSubagentExecutionAcquired.
+func (mr *MockStoreMockRecorder) MarkWorkspaceAgentSubagentExecutionAcquired(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWorkspaceAgentSubagentExecutionAcquired", reflect.TypeOf((*MockStore)(nil).MarkWorkspaceAgentSubagentExecutionAcquired), ctx, arg)
 }
 
 // OIDCClaimFieldValues mocks base method.

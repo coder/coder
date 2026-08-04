@@ -105,6 +105,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireWorkspaceAgentSubagentExecution").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireWorkspaceAgentSubagentExecution").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	r0 := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -137,12 +145,12 @@ func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, lim
 	return r0, r1
 }
 
-func (m queryMetricsStore) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+func (m queryMetricsStore) AcquireWorkspaceBuildPublicationLock(ctx context.Context, workspaceID uuid.UUID) error {
 	start := time.Now()
-	r0, r1 := m.s.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
-	m.queryLatencies.WithLabelValues("AcquireWorkspaceAgentSubagentExecution").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireWorkspaceAgentSubagentExecution").Inc()
-	return r0, r1
+	r0 := m.s.AcquireWorkspaceBuildPublicationLock(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("AcquireWorkspaceBuildPublicationLock").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireWorkspaceBuildPublicationLock").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
@@ -2361,6 +2369,14 @@ func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestWorkspaceBuildGeneration(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildGenerationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceBuildGeneration(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuildGeneration").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceBuildGeneration").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx, workspaceID)
@@ -3673,11 +3689,27 @@ func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (database.GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionAcquisitionParent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionAcquisitionParent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentAgentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionForAcquisition(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionForAcquisitionParams) (database.GetWorkspaceAgentSubagentExecutionForAcquisitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionForAcquisition(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionForAcquisition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionForAcquisition").Inc()
 	return r0, r1
 }
 
@@ -5033,6 +5065,22 @@ func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams) (database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockWorkspaceAgentSubagentExecutionChildForAcquisition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockWorkspaceAgentSubagentExecutionChildForAcquisition").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockWorkspaceAgentSubagentExecutionStatusForAcquisition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockWorkspaceAgentSubagentExecutionStatusForAcquisition").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	start := time.Now()
 	r0 := m.s.MarkAllInboxNotificationsAsRead(ctx, arg)
@@ -5054,6 +5102,14 @@ func (m queryMetricsStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Cont
 	r0, r1 := m.s.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
 	m.queryLatencies.WithLabelValues("MarkMCPServerUserTokenRefreshFailure").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkMCPServerUserTokenRefreshFailure").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Context, arg database.MarkWorkspaceAgentSubagentExecutionAcquiredParams) (database.MarkWorkspaceAgentSubagentExecutionAcquiredRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkWorkspaceAgentSubagentExecutionAcquired(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkWorkspaceAgentSubagentExecutionAcquired").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkWorkspaceAgentSubagentExecutionAcquired").Inc()
 	return r0, r1
 }
 

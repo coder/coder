@@ -723,6 +723,19 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE FUNCTION acquire_workspace_build_publication_lock(workspace_id uuid) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	PERFORM pg_advisory_xact_lock(
+		hashtext('workspace_build_publication'),
+		hashtext(workspace_id::text)
+	);
+END;
+$$;
+
+COMMENT ON FUNCTION acquire_workspace_build_publication_lock(workspace_id uuid) IS 'Takes the transaction-scoped advisory lock that serializes workspace build publication against readers that must observe the workspace''s latest build.';
+
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1380,6 +1393,17 @@ BEGIN
 	RETURN OLD;
 END;
 $$;
+
+CREATE FUNCTION serialize_workspace_build_publication() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	PERFORM acquire_workspace_build_publication_lock(NEW.workspace_id);
+	RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION serialize_workspace_build_publication() IS 'Trigger wrapper that takes the workspace build publication lock before a new workspace build row is inserted.';
 
 CREATE FUNCTION set_chat_message_revision_before() RETURNS trigger
     LANGUAGE plpgsql
@@ -5109,6 +5133,8 @@ COMMENT ON TRIGGER remove_chat_mcp_server_config_id ON mcp_server_configs IS 'Wh
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
+
+CREATE TRIGGER serialize_workspace_build_publication BEFORE INSERT ON workspace_builds FOR EACH ROW EXECUTE FUNCTION serialize_workspace_build_publication();
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 

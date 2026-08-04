@@ -235,6 +235,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 }
 
 type workspaceQuerier interface {
+	AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg AcquireWorkspaceAgentSubagentExecutionParams) (AcquireWorkspaceAgentSubagentExecutionRow, error)
 	DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error)
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
 	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)

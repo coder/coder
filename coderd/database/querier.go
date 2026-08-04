@@ -38,36 +38,15 @@ type sqlcQuerier interface {
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error)
-	// AcquireWorkspaceAgentSubagentExecution hands a parent agent the credentials it
-	// needs to launch one declared subagent execution, and fences every previous
-	// launcher of the same declaration in the same statement.
+	// AcquireWorkspaceBuildPublicationLock takes the transaction-scoped advisory
+	// lock that workspace build inserts also take through the
+	// serialize_workspace_build_publication trigger. Holding it means no new build
+	// for this workspace can become visible while the acquisition validates the
+	// workspace's latest generation and mutates the execution status.
 	//
-	// The caller supplies the execution tuple it believes it owns. The query only
-	// proceeds when all of the following hold:
-	//
-	//   - the exact (workspace_build_id, declaration_id, parent_agent_id) tuple
-	//     exists, so a parent cannot acquire another parent's declaration;
-	//   - the parent is live, top-level, and part of the requested build;
-	//   - the child is exactly the persisted child_agent_id, live, a direct child of
-	//     the exact parent, on the parent's resource, and execution isolated;
-	//   - the workspace's actual latest build, resolved here instead of trusted from
-	//     the caller or a cached middleware build, is the requested build and has
-	//     transition 'start', so a stale generation cannot launch;
-	//   - a status row exists and is not 'stopping', so a shutting-down execution is
-	//     never restarted.
-	//
-	// The status row is locked FOR UPDATE before it is mutated, so concurrent
-	// acquisitions serialize and each receives a distinct, monotonically increasing
-	// acquisition_version. restart_count is incremented only when the declaration
-	// has already been acquired at least once (acquisition_version > 0), so the
-	// first launch is not counted as a restart. status_changed_at only moves when
-	// the status actually changes, keeping "how long has it been starting" honest
-	// across repeated acquisitions.
-	//
-	// Only the child identity, the child auth token, and the new acquisition version
-	// are returned. The parent token and the declaration's configuration fields are
-	// deliberately excluded.
-	AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg AcquireWorkspaceAgentSubagentExecutionParams) (AcquireWorkspaceAgentSubagentExecutionRow, error)
+	// This must be called from within a transaction. The lock is released when the
+	// transaction ends.
+	AcquireWorkspaceBuildPublicationLock(ctx context.Context, workspaceID uuid.UUID) error
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
@@ -710,6 +689,11 @@ type sqlcQuerier interface {
 	// later row. Callers must not depend on sub-microsecond recency here.
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
+	// GetLatestWorkspaceBuildGeneration resolves the workspace's actual latest build
+	// instead of trusting a caller-supplied or middleware-cached generation. It runs
+	// as its own statement after the publication lock is held, so its snapshot
+	// cannot predate a build that committed while the caller was starting up.
+	GetLatestWorkspaceBuildGeneration(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildGenerationRow, error)
 	GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
@@ -1051,6 +1035,12 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
+	// GetWorkspaceAgentSubagentExecutionAcquisitionParent re-reads the requesting
+	// parent under the publication lock and requires it to still be live, top-level,
+	// and part of the requested build through its resource's provisioner job. The
+	// parent's resource is returned so the child can be matched against the exact
+	// resource rather than any resource in the workspace.
+	GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error)
 	// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID returns the
 	// non-secret declaration fields a parent agent needs to render its execution
 	// manifest. The child auth token is deliberately excluded. The child agent is
@@ -1059,6 +1049,16 @@ type sqlcQuerier interface {
 	// yields an empty child name instead of being silently omitted or retargeted.
 	// Callers must treat an empty name as a corrupted manifest and fail closed.
 	GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error)
+	// GetWorkspaceAgentSubagentExecutionForAcquisition resolves the immutable
+	// identity behind an acquisition request: the workspace that owns the requested
+	// build, and the child agent the declaration was created with. The exact
+	// (workspace_build_id, declaration_id, parent_agent_id) tuple must exist, so a
+	// parent cannot acquire another parent's declaration. Both returned values are
+	// immutable for the life of the rows, so reading them before the publication
+	// lock is taken cannot yield a stale answer. Every mutable fact (latest build,
+	// parent liveness, child liveness, status) is read by a later statement, after
+	// the lock, so it observes a fresh READ COMMITTED snapshot.
+	GetWorkspaceAgentSubagentExecutionForAcquisition(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionForAcquisitionParams) (GetWorkspaceAgentSubagentExecutionForAcquisitionRow, error)
 	GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionStatusParams) (WorkspaceAgentSubagentExecutionStatus, error)
 	GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]WorkspaceAgentSubagentExecution, error)
 	// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
@@ -1372,6 +1372,22 @@ type sqlcQuerier interface {
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
+	// LockWorkspaceAgentSubagentExecutionChildForAcquisition locks the exact child
+	// the declaration was created with and requires it to still be a live, execution
+	// isolated, direct child on the parent's resource.
+	//
+	// The lock is FOR SHARE rather than FOR KEY SHARE on purpose: an ordinary
+	// soft-delete only touches non-key columns, so FOR KEY SHARE would not conflict
+	// with it. FOR SHARE conflicts with any concurrent UPDATE of this row and forces
+	// an EvalPlanQual recheck of the predicates above, so a child soft-deleted by a
+	// committing rebuild cannot be handed out.
+	LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow, error)
+	// LockWorkspaceAgentSubagentExecutionStatusForAcquisition locks the exact status
+	// row that the acquisition will mutate, and rejects a declaration that is
+	// already shutting down so a stopping execution is never restarted. Concurrent
+	// acquisitions of the same declaration serialize here, which is what makes
+	// acquisition_version strictly increasing.
+	LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1385,6 +1401,21 @@ type sqlcQuerier interface {
 	// request refreshed or replaced the token since it was read, this
 	// update matches zero rows and returns sql.ErrNoRows.
 	MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error)
+	// MarkWorkspaceAgentSubagentExecutionAcquired records the acquisition on the
+	// status row that this transaction already locked FOR UPDATE, and fences every
+	// previous launcher of the same declaration by bumping acquisition_version.
+	//
+	// restart_count is only incremented when the declaration has already been
+	// acquired at least once (acquisition_version > 0), so the first launch is not
+	// counted as a restart. status_changed_at only moves when the status actually
+	// changes, keeping "how long has it been starting" honest across repeated
+	// acquisitions.
+	//
+	// Only the child identity, the child auth token, and the new acquisition version
+	// are returned. The parent token and the declaration's configuration fields are
+	// deliberately excluded. The child row was already locked FOR SHARE by this
+	// transaction, so joining it here cannot observe a newer child.
+	MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Context, arg MarkWorkspaceAgentSubagentExecutionAcquiredParams) (MarkWorkspaceAgentSubagentExecutionAcquiredRow, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.

@@ -5349,6 +5349,51 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().AcquireWorkspaceAgentSubagentExecution(gomock.Any(), arg).Return(acquired, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(acquired)
 	}))
+	// The statements below are internal steps of
+	// AcquireWorkspaceAgentSubagentExecution. The public method authorizes the
+	// exact parent agent before opening its transaction, so the internal
+	// statements only accept a system-restricted context.
+	s.Run("GetWorkspaceAgentSubagentExecutionForAcquisition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentSubagentExecutionForAcquisitionParams{})
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentSubagentExecutionForAcquisitionRow{})
+		dbm.EXPECT().GetWorkspaceAgentSubagentExecutionForAcquisition(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(row)
+	}))
+	s.Run("AcquireWorkspaceBuildPublicationLock", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		workspaceID := uuid.New()
+		dbm.EXPECT().AcquireWorkspaceBuildPublicationLock(gomock.Any(), workspaceID).Return(nil).AnyTimes()
+		check.Args(workspaceID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
+	s.Run("LockWorkspaceAgentSubagentExecutionStatusForAcquisition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams{})
+		row := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow{})
+		dbm.EXPECT().LockWorkspaceAgentSubagentExecutionStatusForAcquisition(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("GetLatestWorkspaceBuildGeneration", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		workspaceID := uuid.New()
+		row := testutil.Fake(s.T(), faker, database.GetLatestWorkspaceBuildGenerationRow{})
+		dbm.EXPECT().GetLatestWorkspaceBuildGeneration(gomock.Any(), workspaceID).Return(row, nil).AnyTimes()
+		check.Args(workspaceID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(row)
+	}))
+	s.Run("GetWorkspaceAgentSubagentExecutionAcquisitionParent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentSubagentExecutionAcquisitionParentParams{})
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentSubagentExecutionAcquisitionParentRow{})
+		dbm.EXPECT().GetWorkspaceAgentSubagentExecutionAcquisitionParent(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(row)
+	}))
+	s.Run("LockWorkspaceAgentSubagentExecutionChildForAcquisition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams{})
+		row := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow{})
+		dbm.EXPECT().LockWorkspaceAgentSubagentExecutionChildForAcquisition(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("MarkWorkspaceAgentSubagentExecutionAcquired", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.MarkWorkspaceAgentSubagentExecutionAcquiredParams{})
+		row := testutil.Fake(s.T(), faker, database.MarkWorkspaceAgentSubagentExecutionAcquiredRow{})
+		dbm.EXPECT().MarkWorkspaceAgentSubagentExecutionAcquired(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
 	s.Run("InsertWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
