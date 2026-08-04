@@ -46,7 +46,7 @@ This template provisions:
 - **Docker container** (ephemeral) running Ubuntu with the Coder agent
 - **Docker volume** (persistent) mounted at `/home/coder`
 
-Files in your home directory (`/home/coder`) persist across workspace restarts. The selected languages are reinstalled on every start by a script that blocks login until it finishes: most language tools install into the workspace container rather than your home directory, so they do not persist and are fetched from the network each time the workspace starts.
+Files in your home directory (`/home/coder`) persist across workspace restarts. The language install script runs on every start and blocks login until it finishes. Most toolchains install into the ephemeral workspace container rather than your home directory, so they are reinstalled from the network on each start; the exception is Rust, whose toolchain lives under `~/.cargo` in your home directory and is detected and reused.
 
 ## Presets
 
