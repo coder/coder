@@ -12,7 +12,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	VerticalForm,
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
@@ -76,7 +76,7 @@ export const OrganizationInfoForm: FC<OrganizationInfoFormProps> = ({
 				</div>
 			)}
 
-			<HorizontalForm
+			<VerticalForm
 				onSubmit={form.handleSubmit}
 				aria-label="Organization settings form"
 			>
@@ -154,7 +154,7 @@ export const OrganizationInfoForm: FC<OrganizationInfoFormProps> = ({
 						Save
 					</Button>
 				</FormFooter>
-			</HorizontalForm>
+			</VerticalForm>
 		</>
 	);
 };
