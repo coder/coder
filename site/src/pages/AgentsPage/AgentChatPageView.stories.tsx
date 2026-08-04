@@ -317,25 +317,84 @@ export const ArchivedOtherUserChat: Story = {
 	},
 };
 
-export const QueuedForCapacity: Story = {
+export const QueuedForCapacityCommunityAdmin: Story = {
+	parameters: {
+		permissions: { viewAllLicenses: true },
+	},
 	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
-			"Your organization has reached its limit for agents running at once. Your prompt has been saved and this agent will start automatically when one finishes. To upgrade to unlimited concurrent agents, contact your account team.",
+			/reached the Community license limit for active agents/,
 		);
 		expect(message).toBeVisible();
-		const banner = canvas
-			.getAllByRole("status")
-			.find((element) => element.contains(message));
-		expect(banner).toBeTruthy();
-		const salesLink = canvas.getByRole("link", {
-			name: /contact sales/i,
-		});
-		expect(salesLink).toHaveAttribute(
-			"href",
-			"https://coder.com/contact/sales",
+		expect(message).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
 		);
+		const trialLink = canvas.getByRole("link", {
+			name: /start an unlimited trial/i,
+		});
+		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
+	},
+};
+
+export const QueuedForCapacityCommunityMember: Story = {
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached the Community license limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /start an unlimited trial/i }),
+		).not.toBeInTheDocument();
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
+	},
+};
+
+export const QueuedForCapacityPremiumAdmin: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached your license’s limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(message).toHaveTextContent(
+			"Contact your Coder account team or sales@coder.com to upgrade to unlimited concurrent agents.",
+		);
+		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
+		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
+		expect(
+			canvas.queryByRole("link", { name: /learn more/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const QueuedForCapacityPremiumMember: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached your license’s limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /sales@coder\.com/ }),
+		).not.toBeInTheDocument();
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
 	},
 };
 
@@ -344,7 +403,7 @@ export const NotQueuedForCapacity: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/reached its limit for agents running at once/),
+			canvas.queryByText(/limit for active agents/),
 		).not.toBeInTheDocument();
 	},
 };

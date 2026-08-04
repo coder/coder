@@ -20,9 +20,11 @@ import type {
 } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -396,6 +398,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
+	const { entitlements } = useDashboard();
+	const { permissions } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
@@ -814,6 +818,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		: undefined;
 
 	const isQueuedForCapacity = queuedForCapacityAt !== undefined;
+	const hasLicense = entitlements.has_license;
+	const canManageLicenses = permissions.viewAllLicenses;
 
 	const titleElement = (
 		<title>
@@ -896,22 +902,61 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3 text-sm text-content-primary"
 								>
 									<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-warning" />
-									<div className="flex flex-col items-start gap-1">
-										<p className="m-0">
-											Your organization has reached its limit for agents running
-											at once. Your prompt has been saved and this agent will
-											start automatically when one finishes. To upgrade to
-											unlimited concurrent agents, contact your account team.
-										</p>
-										<Link
-											href="https://coder.com/contact/sales"
-											target="_blank"
-											rel="noreferrer"
-											size="sm"
-										>
-											Contact sales
-										</Link>
-									</div>
+									<p className="m-0">
+										{hasLicense
+											? "Your team has reached your license’s limit for active agents."
+											: "Your team has reached the Community license limit for active agents."}{" "}
+										This agent is queued and will start automatically when
+										capacity is available.{" "}
+										{canManageLicenses ? (
+											hasLicense ? (
+												<>
+													Contact your Coder account team or{" "}
+													<Link
+														href="mailto:sales@coder.com"
+														size="sm"
+														showExternalIcon={false}
+													>
+														sales@coder.com
+													</Link>{" "}
+													to upgrade to unlimited concurrent agents.
+												</>
+											) : (
+												<>
+													<Link
+														href="https://coder.com/trial"
+														target="_blank"
+														rel="noreferrer"
+														size="sm"
+													>
+														Start an unlimited trial
+													</Link>{" "}
+													or{" "}
+													<Link
+														href="https://coder.com/pricing"
+														target="_blank"
+														rel="noreferrer"
+														size="sm"
+													>
+														learn more
+													</Link>
+													.
+												</>
+											)
+										) : (
+											<>
+												<Link
+													href="https://coder.com/pricing"
+													target="_blank"
+													rel="noreferrer"
+													size="sm"
+												>
+													Learn more
+												</Link>
+												.
+											</>
+										)}
+									</p>
 								</div>
 							)}
 							{isArchived && (
