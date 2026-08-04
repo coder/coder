@@ -8346,6 +8346,26 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		testutil.TryReceive(fixture.ctx, t, started)
 		return done
 	}
+	type reportOutcome struct {
+		row database.ReportWorkspaceAgentSubagentExecutionStatusRow
+		err error
+	}
+	// startReport runs a status report on its own connection so the caller can
+	// observe it contending for a lock another transaction holds. The returned
+	// channel carries the report result once it finishes.
+	startReport := func(t *testing.T, fixture fixture, arg database.ReportWorkspaceAgentSubagentExecutionStatusParams) <-chan reportOutcome {
+		t.Helper()
+
+		started := make(chan struct{})
+		done := make(chan reportOutcome, 1)
+		go func() {
+			close(started)
+			row, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+			done <- reportOutcome{row: row, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, started)
+		return done
+	}
 	// holdOpenTx runs op inside a transaction that keeps holding op's locks
 	// until the returned release func is called, so a concurrent statement is
 	// forced to contend with them. The returned channel carries the transaction
@@ -10396,6 +10416,454 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			require.EqualValues(t, 2, acquired.AcquisitionVersion)
 
 			requireReportRejected(t, fixture, params, reportParams(params, tt.version(acquired.AcquisitionVersion), database.SubagentExecutionStatusRunning, dbtime.Now()))
+		})
+	}
+
+	t.Run("ReportReturnsNoCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		// The report path may only hand back the execution's own status. Any
+		// additional field would risk leaking the child auth token to a caller
+		// that has no reason to re-read it.
+		rowType := reflect.TypeOf(database.ReportWorkspaceAgentSubagentExecutionStatusRow{})
+		fields := make([]string, 0, rowType.NumField())
+		for i := 0; i < rowType.NumField(); i++ {
+			fields = append(fields, rowType.Field(i).Name)
+		}
+		require.Equal(t, []string{
+			"WorkspaceBuildID",
+			"DeclarationID",
+			"Status",
+			"CreatedAt",
+			"UpdatedAt",
+			"StatusChangedAt",
+			"LastAcquiredAt",
+			"LastReportedAt",
+			"RestartCount",
+			"LastError",
+			"AcquisitionVersion",
+		}, fields)
+	})
+
+	for _, tt := range []struct {
+		name string
+		// invalidate corrupts fixture state, adjusts the report arguments, or
+		// both, so the report must be refused without mutating any state.
+		invalidate func(t *testing.T, fixture fixture, build executionBuild, arg *database.ReportWorkspaceAgentSubagentExecutionStatusParams)
+	}{
+		{
+			name: "UnknownBuild",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				arg.WorkspaceBuildID = uuid.New()
+			},
+		},
+		{
+			name: "UnknownDeclaration",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				arg.DeclarationID = uuid.New()
+			},
+		},
+		{
+			name: "UnknownParent",
+			invalidate: func(_ *testing.T, _ fixture, _ executionBuild, arg *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				arg.ParentAgentID = uuid.New()
+			},
+		},
+		{
+			name: "OtherParentInSameBuild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, arg *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				arg.ParentAgentID = otherParent.ID
+			},
+		},
+		{
+			name: "NewerStartGeneration",
+			invalidate: func(t *testing.T, fixture fixture, _ executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				fixture.newBuild(t, 2)
+			},
+		},
+		{
+			name: "LatestBuildStopped",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				// The reported build is still the latest, but it is no longer a
+				// start, so there is nothing legitimate left to run on it.
+				setBuildTransition(t, fixture, build.build.ID, database.WorkspaceTransitionStop)
+			},
+		},
+		{
+			name: "NonTopLevelParent",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				grandparent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET parent_id = $1
+					WHERE id = $2
+				`, grandparent.ID, build.parent.ID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "DeletedParent",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				markWorkspaceAgentDeleted(fixture.ctx, t, fixture.sqlDB, build.parent.ID)
+			},
+		},
+		{
+			name: "DeletedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				require.NoError(t, fixture.db.DeleteWorkspaceSubAgentByID(fixture.ctx, build.child.ID))
+			},
+		},
+		{
+			name: "NonIsolatedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET execution_isolation = FALSE
+					WHERE id = $1
+				`, build.child.ID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ReparentedChild",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild, _ *database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+					UPDATE workspace_agents
+					SET parent_id = $1
+					WHERE id = $2
+				`, otherParent.ID, build.child.ID)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run("ReportRefuses"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture, build, params, version := acquiredDeclaration(t)
+			arg := reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now())
+			tt.invalidate(t, fixture, build, &arg)
+			requireReportRejected(t, fixture, params, arg)
+		})
+	}
+
+	// A stop build tears the launcher down, so the generation it replaced stays
+	// reportable for shutdown statuses only.
+	for _, status := range []database.SubagentExecutionStatus{
+		database.SubagentExecutionStatusStopping,
+		database.SubagentExecutionStatusStopped,
+		database.SubagentExecutionStatusFailed,
+	} {
+		t.Run(fmt.Sprintf("ReportOnStoppedWorkspace/%s", status), func(t *testing.T) {
+			t.Parallel()
+
+			fixture, _, params, version := acquiredDeclaration(t)
+			setStatusColumn(t, fixture, params, "status", string(database.SubagentExecutionStatusRunning))
+			stop := fixture.newBuild(t, 2)
+			setBuildTransition(t, fixture, stop.build.ID, database.WorkspaceTransitionStop)
+
+			now := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+			reported, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, reportParams(params, version, status, now))
+			require.NoError(t, err)
+			require.Equal(t, string(status), reported.Status)
+			require.True(t, reported.StatusChangedAt.Equal(now))
+			require.True(t, reported.LastReportedAt.Time.Equal(now))
+		})
+	}
+
+	t.Run("ReportOnStoppedWorkspaceRefusesRunning", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		setStatusColumn(t, fixture, params, "status", string(database.SubagentExecutionStatusRunning))
+		stop := fixture.newBuild(t, 2)
+		setBuildTransition(t, fixture, stop.build.ID, database.WorkspaceTransitionStop)
+
+		// The stop exception exists so a launcher can record that it is going
+		// away, never so it can claim the child is up on a replaced generation.
+		requireReportRejected(t, fixture, params, reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now()))
+	})
+
+	t.Run("ReportOnStoppedWorkspaceRefusesOlderGeneration", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		setStatusColumn(t, fixture, params, "status", string(database.SubagentExecutionStatusRunning))
+		// A newer start replaced the reported generation before the stop, so the
+		// reported generation is not the one the stop tore down.
+		fixture.newBuild(t, 2)
+		stop := fixture.newBuild(t, 3)
+		setBuildTransition(t, fixture, stop.build.ID, database.WorkspaceTransitionStop)
+
+		requireReportRejected(t, fixture, params, reportParams(params, version, database.SubagentExecutionStatusStopped, dbtime.Now()))
+	})
+
+	t.Run("ReportOnStoppedWorkspaceSkipsNonStartBuilds", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		setStatusColumn(t, fixture, params, "status", string(database.SubagentExecutionStatusRunning))
+		// The preceding start is resolved by build ordering, so a non-start build
+		// between the reported generation and the latest one does not hide it.
+		for _, buildNumber := range []int32{2, 3} {
+			build := fixture.newBuild(t, buildNumber)
+			setBuildTransition(t, fixture, build.build.ID, database.WorkspaceTransitionStop)
+		}
+
+		now := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		reported, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, reportParams(params, version, database.SubagentExecutionStatusStopped, now))
+		require.NoError(t, err)
+		require.Equal(t, string(database.SubagentExecutionStatusStopped), reported.Status)
+	})
+
+	t.Run("ReportMaximumLastError", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		now := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		arg := reportParams(params, version, database.SubagentExecutionStatusFailed, now)
+		arg.LastError = strings.Repeat("x", 4096)
+		reported, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+		require.NoError(t, err)
+		require.Equal(t, arg.LastError, reported.LastError)
+	})
+
+	// The column limit is 4096 octets, not 4096 characters, so a multibyte error
+	// overflows well before it looks too long. The primitive stays atomic: the
+	// check violation rolls the whole transaction back.
+	for _, tt := range []struct {
+		name      string
+		lastError string
+	}{
+		{name: "ASCII", lastError: strings.Repeat("x", 4097)},
+		{name: "Multibyte", lastError: strings.Repeat("\u00e9", 2049)},
+		{name: "Emoji", lastError: strings.Repeat("\U0001f600", 1025)},
+	} {
+		t.Run("ReportRefusesOverlongLastError/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture, _, params, version := acquiredDeclaration(t)
+			require.Greater(t, len(tt.lastError), 4096)
+			before := statusOf(t, fixture, params)
+
+			arg := reportParams(params, version, database.SubagentExecutionStatusFailed, dbtime.Now())
+			arg.LastError = tt.lastError
+			row, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionStatusesLastErrorCheck), "unexpected error: %v", err)
+			require.Equal(t, database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, row)
+			require.Equal(t, before, statusOf(t, fixture, params))
+		})
+	}
+
+	t.Run("BuildPublicationWinsReportRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		before := statusOf(t, fixture, params)
+		buildParams := fixture.newBuildParams(t, 2, database.WorkspaceTransitionStart)
+
+		release, buildDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			return tx.InsertWorkspaceBuild(fixture.ctx, buildParams)
+		})
+		reportDone := startReport(t, fixture, reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now()))
+		// The report must wait for the guard instead of validating a generation
+		// the build transaction is about to replace.
+		requireQueryBlocked(t, fixture, "AcquireWorkspaceBuildPublicationLock")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, buildDone))
+		outcome := testutil.TryReceive(fixture.ctx, t, reportDone)
+		require.ErrorIs(t, outcome.err, sql.ErrNoRows)
+		require.Equal(t, database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, outcome.row)
+		require.Equal(t, before, statusOf(t, fixture, params))
+	})
+
+	t.Run("StopPublicationWinsReportRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		setStatusColumn(t, fixture, params, "status", string(database.SubagentExecutionStatusRunning))
+		buildParams := fixture.newBuildParams(t, 2, database.WorkspaceTransitionStop)
+		reportedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+
+		release, buildDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			return tx.InsertWorkspaceBuild(fixture.ctx, buildParams)
+		})
+		reportDone := startReport(t, fixture, reportParams(params, version, database.SubagentExecutionStatusStopped, reportedAt))
+		requireQueryBlocked(t, fixture, "AcquireWorkspaceBuildPublicationLock")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, buildDone))
+		// The report observes the committed stop on a fresh snapshot and takes
+		// the shutdown exception rather than failing on a stale generation.
+		outcome := testutil.TryReceive(fixture.ctx, t, reportDone)
+		require.NoError(t, outcome.err)
+		require.Equal(t, string(database.SubagentExecutionStatusStopped), outcome.row.Status)
+		require.True(t, outcome.row.LastReportedAt.Time.Equal(reportedAt))
+	})
+
+	t.Run("ReportWinsBuildPublicationRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		reportedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		buildParams := fixture.newBuildParams(t, 2, database.WorkspaceTransitionStart)
+
+		var reported database.ReportWorkspaceAgentSubagentExecutionStatusRow
+		release, reportDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			var err error
+			reported, err = tx.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, reportParams(params, version, database.SubagentExecutionStatusRunning, reportedAt))
+			return err
+		})
+
+		buildStarted := make(chan struct{})
+		buildDone := make(chan error, 1)
+		go func() {
+			close(buildStarted)
+			buildDone <- fixture.db.InsertWorkspaceBuild(fixture.ctx, buildParams)
+		}()
+		testutil.TryReceive(fixture.ctx, t, buildStarted)
+		// The insert takes the same guard through the
+		// serialize_workspace_build_publication trigger, so the new generation
+		// cannot become visible until the report commits.
+		requireQueryBlocked(t, fixture, "InsertWorkspaceBuild")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, reportDone))
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, buildDone))
+
+		require.Equal(t, string(database.SubagentExecutionStatusRunning), reported.Status)
+		require.True(t, reported.UpdatedAt.Equal(reportedAt))
+		// The published build is now the workspace's latest generation, so the
+		// declaration's build can no longer be reported on.
+		requireReportRejected(t, fixture, params, reportParams(params, version, database.SubagentExecutionStatusRunning, reportedAt.Add(time.Minute)))
+	})
+
+	t.Run("AcquisitionWinsReportRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+
+		// A concurrent acquisition fences this launcher by bumping the version.
+		// Production has no query that bumps it without also taking the
+		// publication guard, which the report would block on first, so the bump
+		// is applied with raw SQL to force contention on the status lock itself.
+		commit := holdOpenRawTx(t, fixture, `
+			UPDATE workspace_agent_subagent_execution_statuses
+			SET acquisition_version = acquisition_version + 1
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID)
+		reportDone := startReport(t, fixture, reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now()))
+		// The status lock is FOR UPDATE, so it waits for the uncommitted bump.
+		requireQueryBlocked(t, fixture, "LockWorkspaceAgentSubagentExecutionStatusForReport")
+
+		commit()
+		// The EvalPlanQual recheck applies the acquisition_version predicate to
+		// the committed row, so the fenced launcher's report is refused.
+		outcome := testutil.TryReceive(fixture.ctx, t, reportDone)
+		require.ErrorIs(t, outcome.err, sql.ErrNoRows)
+		require.Equal(t, database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, outcome.row)
+		status := statusOf(t, fixture, params)
+		require.Equal(t, version+1, status.AcquisitionVersion)
+		require.False(t, status.LastReportedAt.Valid)
+	})
+
+	t.Run("ReportWinsAcquireRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		reportedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+
+		release, reportDone := holdOpenTx(t, fixture, func(tx database.Store) error {
+			_, err := tx.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, reportParams(params, version, database.SubagentExecutionStatusRunning, reportedAt))
+			return err
+		})
+		acquireDone := startAcquire(t, fixture, acquireParams(params, reportedAt.Add(time.Minute)))
+		// Both paths take the publication guard first, which is what keeps their
+		// lock order identical and makes them mutually exclusive.
+		requireQueryBlocked(t, fixture, "AcquireWorkspaceBuildPublicationLock")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, reportDone))
+		acquired := testutil.TryReceive(fixture.ctx, t, acquireDone)
+		require.NoError(t, acquired.err)
+		require.Equal(t, version+1, acquired.row.AcquisitionVersion)
+
+		status := statusOf(t, fixture, params)
+		require.Equal(t, "starting", status.Status)
+		// The report happened, and the acquisition then fenced its launcher.
+		require.True(t, status.LastReportedAt.Valid)
+		require.True(t, status.LastReportedAt.Time.Equal(reportedAt))
+		requireReportRejected(t, fixture, params, reportParams(params, version, database.SubagentExecutionStatusRunning, reportedAt.Add(2*time.Minute)))
+	})
+
+	// A rebuild can invalidate the declared child without deleting it, and
+	// production has no query that reparents an agent or revokes its execution
+	// isolation, so the mutation is applied with raw SQL.
+	for _, tt := range []struct {
+		name string
+		// invalidate leaves the child mutated but uncommitted, and returns the
+		// func that commits it.
+		invalidate func(t *testing.T, fixture fixture, build executionBuild) func()
+	}{
+		{
+			name: "Deleted",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild) func() {
+				return holdOpenRawTx(t, fixture, `
+					UPDATE workspace_agents
+					SET deleted = TRUE
+					WHERE id = $1
+				`, build.child.ID)
+			},
+		},
+		{
+			name: "Reparented",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild) func() {
+				otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+					ResourceID: build.resource.ID,
+				})
+				return holdOpenRawTx(t, fixture, `
+					UPDATE workspace_agents
+					SET parent_id = $2
+					WHERE id = $1
+				`, build.child.ID, otherParent.ID)
+			},
+		},
+		{
+			name: "IsolationRevoked",
+			invalidate: func(t *testing.T, fixture fixture, build executionBuild) func() {
+				return holdOpenRawTx(t, fixture, `
+					UPDATE workspace_agents
+					SET execution_isolation = FALSE
+					WHERE id = $1
+				`, build.child.ID)
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("ChildInvalidationWinsReportRace/%s", tt.name), func(t *testing.T) {
+			t.Parallel()
+
+			fixture, build, params, version := acquiredDeclaration(t)
+			before := statusOf(t, fixture, params)
+
+			commit := tt.invalidate(t, fixture, build)
+			reportDone := startReport(t, fixture, reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now()))
+			requireQueryBlocked(t, fixture, "LockWorkspaceAgentSubagentExecutionChildForReport")
+
+			commit()
+			// The EvalPlanQual recheck re-evaluates the child predicates against
+			// the committed row, which no longer matches.
+			outcome := testutil.TryReceive(fixture.ctx, t, reportDone)
+			require.ErrorIs(t, outcome.err, sql.ErrNoRows)
+			require.Equal(t, database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, outcome.row)
+			require.Equal(t, before, statusOf(t, fixture, params))
 		})
 	}
 
