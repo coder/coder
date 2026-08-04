@@ -11,11 +11,11 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	type ChatListInput,
-	cancelChatListRefetches,
 	chatACL,
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatCache,
 	chatCost,
 	chatCostTreeKey,
 	chatDebugRunsKey,
@@ -32,7 +32,6 @@ import {
 	editChatMessage,
 	infiniteChats,
 	interruptChat,
-	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	pinChat,
@@ -193,7 +192,7 @@ describe("advisor config query factories", () => {
 	});
 });
 
-describe("invalidateChatListQueries", () => {
+describe("chatCache.invalidateLists", () => {
 	it("invalidates flat and infinite chat list queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -214,7 +213,7 @@ describe("invalidateChatListQueries", () => {
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
 
-		await invalidateChatListQueries(queryClient);
+		await chatCache.invalidateLists(queryClient);
 
 		expect(
 			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
@@ -250,7 +249,7 @@ describe("invalidateChatListQueries", () => {
 			pageParams: [0],
 		});
 
-		await invalidateChatListQueries(queryClient);
+		await chatCache.invalidateLists(queryClient);
 
 		expect(
 			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
@@ -269,7 +268,7 @@ describe("invalidateChatListQueries", () => {
 		queryClient.setQueryData(chatEntityKey(otherChatId), makeChat(otherChatId));
 		queryClient.setQueryData(chatMessagesKey(otherChatId), []);
 
-		await invalidateChatListQueries(queryClient);
+		await chatCache.invalidateLists(queryClient);
 
 		expect(
 			queryClient.getQueryState(chatEntityKey(otherChatId))?.isInvalidated,
@@ -1789,7 +1788,7 @@ describe("sidebar title race condition", () => {
 			makeChat(chatId, { title: "fallback title" }),
 		]);
 
-		// Simulate invalidateChatListQueries triggering a refetch that
+		// Simulate chatCache.invalidateLists triggering a refetch that
 		// returns stale data (the server hadn't generated the title yet
 		// when it processed this request).
 		const fetchDone = queryClient.prefetchQuery({
@@ -1823,7 +1822,7 @@ describe("sidebar title race condition", () => {
 		expect(readTitle(queryClient, chatId)).toBe("fallback title");
 	});
 
-	it("cancelChatListRefetches before the update prevents the overwrite (the fix)", async () => {
+	it("chatCache.cancelListRefetches before the update prevents the overwrite (the fix)", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
@@ -1847,7 +1846,7 @@ describe("sidebar title race condition", () => {
 		});
 
 		// Cancel, then write. Matches the new WebSocket handler code.
-		await cancelChatListRefetches(queryClient);
+		await chatCache.cancelListRefetches(queryClient);
 
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((c) =>
@@ -1862,7 +1861,7 @@ describe("sidebar title race condition", () => {
 	});
 });
 
-describe("cancelChatListRefetches", () => {
+describe("chatCache.cancelListRefetches", () => {
 	it("cancels a regular refetch", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -1886,7 +1885,7 @@ describe("cancelChatListRefetches", () => {
 				}),
 		});
 
-		await cancelChatListRefetches(queryClient);
+		await chatCache.cancelListRefetches(queryClient);
 		await fetchDone;
 
 		// The refetch was cancelled and reverted, so the original
@@ -1929,7 +1928,7 @@ describe("cancelChatListRefetches", () => {
 		expect(query).toBeDefined();
 		query!.setState({ fetchMeta: { fetchMore: { direction: "forward" } } });
 
-		await cancelChatListRefetches(queryClient);
+		await chatCache.cancelListRefetches(queryClient);
 		await fetchDone;
 
 		// The fetch was NOT cancelled, the new data landed.
@@ -1966,7 +1965,7 @@ describe("cancelChatListRefetches", () => {
 		expect(query).toBeDefined();
 		query!.setState({ fetchMeta: { fetchMore: { direction: "backward" } } });
 
-		await cancelChatListRefetches(queryClient);
+		await chatCache.cancelListRefetches(queryClient);
 		await fetchDone;
 
 		const title = readInfiniteChats(queryClient)?.find(
@@ -1999,7 +1998,7 @@ describe("cancelChatListRefetches", () => {
 		// A WebSocket event arrives while the initial fetch is
 		// in-flight. Without the data guard, this would cancel
 		// the fetch and leave the query stuck in pending/idle.
-		await cancelChatListRefetches(queryClient);
+		await chatCache.cancelListRefetches(queryClient);
 		await fetchDone;
 
 		const title = readInfiniteChats(queryClient)?.find(
@@ -2019,7 +2018,7 @@ describe("mutation onMutate cancels pagination fetches", () => {
 		// Start a fetch and mark it as a fetchNextPage via
 		// fetchMeta so we can verify the broad predicate in
 		// mutation onMutate still cancels it (unlike the
-		// narrow cancelChatListRefetches used by the WS
+		// narrow chatCache.cancelListRefetches used by the WS
 		// handler).
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
