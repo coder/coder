@@ -10964,6 +10964,8 @@ WITH updated_chat AS (
         concurrency_state = $1::chat_concurrency_state,
         concurrency_queued_at = $2::timestamptz
     WHERE id = $3::uuid
+      AND NOT archived
+      AND status IN ('running', 'interrupting')
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, concurrency_state, concurrency_queued_at
 ),
 chats_expanded AS (
@@ -11033,7 +11035,9 @@ type SetChatConcurrencyStateParams struct {
 
 // Sets the concurrent-agent capacity markers. Deliberately does not
 // bump updated_at: queue admission is internal bookkeeping and must
-// not reorder chat lists.
+// not reorder chat lists. The status guard refuses to mark a chat
+// that already left the counted statuses, where the marker would go
+// stale (returns no row).
 func (q *sqlQuerier) SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, setChatConcurrencyState, arg.ConcurrencyState, arg.ConcurrencyQueuedAt, arg.ID)
 	var i Chat

@@ -265,6 +265,10 @@ type Options struct {
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
+	// ChatAgentConcurrencyGateFactory constructs the concurrent-agent
+	// gate for the chat worker. Set by enterprise, where the gate is
+	// implemented. Nil leaves chatd agentic loops uncapped.
+	ChatAgentConcurrencyGateFactory chatd.AgentConcurrencyGateFactory
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -927,6 +931,7 @@ func New(options *Options) *API {
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				AgentConcurrencyGateFactory:    options.ChatAgentConcurrencyGateFactory,
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,

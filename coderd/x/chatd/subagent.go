@@ -1455,7 +1455,7 @@ func (p *Server) awaitSubagentCompletion(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	timeout time.Duration,
-) (database.Chat, string, error) {
+) (_ database.Chat, _ string, err error) {
 	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
 		return database.Chat{}, "", err
@@ -1471,6 +1471,17 @@ func (p *Server) awaitSubagentCompletion(
 	}
 	if done {
 		return handleSubagentDone(targetChat, report)
+	}
+
+	// Yield the parent's capacity slot while blocked so subagent
+	// children can run under the concurrency cap.
+	if lease, ok := agentSlotLeaseFromContext(ctx); ok {
+		lease.Pause(ctx)
+		defer func() {
+			if resumeErr := lease.Resume(ctx); resumeErr != nil && err == nil {
+				err = resumeErr
+			}
+		}()
 	}
 
 	if timeout <= 0 {

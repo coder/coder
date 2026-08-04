@@ -1343,7 +1343,9 @@ type sqlcQuerier interface {
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
 	// Sets the concurrent-agent capacity markers. Deliberately does not
 	// bump updated_at: queue admission is internal bookkeeping and must
-	// not reorder chat lists.
+	// not reorder chat lists. The status guard refuses to mark a chat
+	// that already left the counted statuses, where the marker would go
+	// stale (returns no row).
 	SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error)
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the

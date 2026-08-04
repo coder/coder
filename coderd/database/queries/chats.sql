@@ -2878,13 +2878,17 @@ LIMIT @limit_count::bigint;
 -- name: SetChatConcurrencyState :one
 -- Sets the concurrent-agent capacity markers. Deliberately does not
 -- bump updated_at: queue admission is internal bookkeeping and must
--- not reorder chat lists.
+-- not reorder chat lists. The status guard refuses to mark a chat
+-- that already left the counted statuses, where the marker would go
+-- stale (returns no row).
 WITH updated_chat AS (
     UPDATE chats
     SET
         concurrency_state = sqlc.narg('concurrency_state')::chat_concurrency_state,
         concurrency_queued_at = sqlc.narg('concurrency_queued_at')::timestamptz
     WHERE id = @id::uuid
+      AND NOT archived
+      AND status IN ('running', 'interrupting')
     RETURNING *
 ),
 chats_expanded AS (

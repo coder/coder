@@ -59,6 +59,10 @@ type runner struct {
 	debugTurn     *runnerDebugTurn
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
+	// lease brokers this chat's hold on a concurrent-agent capacity
+	// slot. Generation tasks acquire it; release is implicit in chat
+	// status transitions.
+	lease *agentSlotLease
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -71,6 +75,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
+		lease:        newAgentSlotLease(opts.AgentGate, rec.key.ChatID, opts.Logger),
 	}
 }
 
@@ -248,6 +253,19 @@ func (r *runner) runTask(
 		WorkerID: input.WorkerID,
 		RunnerID: input.RunnerID,
 	}
+	if kind == taskKindGeneration {
+		// Acquire the capacity slot outside the retry wrapper so a
+		// long queue wait cannot churn 15-minute task attempts. The
+		// wait still honors task cancellation: a state change or
+		// shutdown cancels ctx and unblocks it. Mid-turn tasks
+		// already hold the slot, so this is usually a no-op.
+		if err := r.lease.EnsureHeld(ctx); err != nil {
+			if ctx.Err() == nil {
+				r.opts.Logger.Warn(ctx, "chatworker task failed to acquire agent capacity slot", slogError(err))
+			}
+			return
+		}
+	}
 	err := runTaskWithRetry(ctx, r.opts.retryOptions(), kind, taskInfo, func(ctx context.Context) error {
 		unlock, ok := r.localLocks.acquire(ctx, key)
 		if !ok {
@@ -260,7 +278,12 @@ func (r *runner) runTask(
 
 		switch kind {
 		case taskKindGeneration:
-			return r.opts.TaskStarter.StartGeneration(ctx, input)
+			// Re-acquire when a canceled Resume after wait_agent left
+			// the slot unheld; a no-op while the slot is held.
+			if err := r.lease.EnsureHeld(ctx); err != nil {
+				return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask reacquire agent capacity slot: %w", err))
+			}
+			return r.opts.TaskStarter.StartGeneration(r.lease.AttachToContext(ctx), input)
 		case taskKindInterrupt:
 			return r.opts.TaskStarter.StartInterrupt(ctx, input)
 		case taskKindRequiresActionTimeout:
