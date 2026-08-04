@@ -10,6 +10,8 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatListSources } from "#/api/typesGenerated";
+import { aiProvidersKey } from "./aiProviderKeys";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -98,9 +100,16 @@ export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	return {
 		queryKey: chatsByWorkspaceKey(sorted),
 		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		enabled: sorted.length > 0,
 	};
 };
 
+/**
+ * Writes an updater across every cached chat list entry by targeting the
+ * list family prefix. Each filter combination is a separate query whose
+ * key starts with that prefix, so setQueriesData hits them all at once;
+ * setQueryData on a single key would silently miss the sibling variants.
+ */
 export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
@@ -248,6 +257,11 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+// Inverse of chatListKey, which builds keys as [...chatListFamilyKey, params].
+// The params object lives in the slot immediately after the list family
+// prefix, so derive both the expected length and the params index from
+// chatListFamilyKey. If chatListKey's shape changes, this must change with
+// it; the "chatListKey shape" test in chats.test.ts guards that contract.
 const archivedFilterForChatListKey = (
 	queryKey: readonly unknown[],
 ): boolean | undefined => {
@@ -662,10 +676,9 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
-const CHAT_SOURCE_ORDER: readonly TypesGen.ChatListSource[] = [
-	"created_by_me",
-	"shared_with_me",
-];
+export const CHAT_SOURCE_ORDER = [
+	...ChatListSources,
+] as const satisfies readonly TypesGen.ChatListSource[];
 
 const chatSourceSet = new Set<TypesGen.ChatListSource>(CHAT_SOURCE_ORDER);
 
@@ -1806,11 +1819,7 @@ export const updateChatTemplateAllowlist = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatUserCustomPromptKey = [
-	...chatConfigKey,
-	"user-prompt",
-	"me",
-] as const;
+const chatUserCustomPromptKey = [...chatConfigKey, "prompt", "me"] as const;
 
 export const chatUserCustomPrompt = () => ({
 	queryKey: chatUserCustomPromptKey,
@@ -1857,7 +1866,7 @@ export const updateUserChatPersonalModelOverride = (
 
 const userCompactionThresholdsKey = [
 	...chatConfigKey,
-	"user-compaction-thresholds",
+	"compaction-thresholds",
 	"me",
 ] as const;
 
@@ -1899,8 +1908,6 @@ export const chatModels = () => ({
 	queryFn: (): Promise<TypesGen.ChatModelsResponse> =>
 		API.experimental.getChatModels(),
 });
-
-const aiProvidersKey = ["ai", "providers"] as const;
 
 const selectChatProviderConfigs = (
 	providers: readonly TypesGen.AIProvider[],

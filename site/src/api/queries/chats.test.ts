@@ -25,6 +25,7 @@ import {
 	chatListKey,
 	chatMessagesKey,
 	chatSearch,
+	chatsByWorkspace,
 	createChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -60,6 +61,7 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
+			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
@@ -1537,9 +1539,36 @@ describe("chatListKey shape", () => {
 	it("places the params object one slot after the list family prefix", () => {
 		const key = chatListKey(toChatListParams({ archived: true }));
 		expect(key.length).toBe(chatListFamilyKey.length + 1);
-		expect(key[chatListFamilyKey.length]).toEqual(
-			toChatListParams({ archived: true }),
-		);
+		expect(key[chatListFamilyKey.length]).toEqual({
+			archived: true,
+			prStatuses: [],
+			status: "all",
+			sources: [],
+		});
+	});
+});
+
+describe("chatsByWorkspace", () => {
+	it("disables the query when no workspace IDs are given", () => {
+		expect(chatsByWorkspace([]).enabled).toBe(false);
+		expect(chatsByWorkspace(["ws-1"]).enabled).toBe(true);
+	});
+
+	it("canonicalizes the key with sorted, deduplicated workspace IDs", () => {
+		const options = chatsByWorkspace(["ws-b", "ws-a", "ws-b"]);
+		expect(options.queryKey).toEqual([
+			"chats",
+			"collections",
+			"by-workspace",
+			["ws-a", "ws-b"],
+		]);
+	});
+
+	it("fetches with the sorted, deduplicated workspace IDs", async () => {
+		const getChatsByWorkspace = vi.mocked(API.experimental.getChatsByWorkspace);
+		getChatsByWorkspace.mockResolvedValue({});
+		await chatsByWorkspace(["ws-b", "ws-a", "ws-b"]).queryFn();
+		expect(getChatsByWorkspace).toHaveBeenCalledWith(["ws-a", "ws-b"]);
 	});
 });
 

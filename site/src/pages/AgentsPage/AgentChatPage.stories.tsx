@@ -285,7 +285,10 @@ const buildQueries = (
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatListKey(toChatListParams()), data: [chatWithDiffStatus] },
+		{
+			key: chatListKey(toChatListParams()),
+			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
 			data: {
