@@ -5,5 +5,4 @@ export const appName = "Coder Docs";
 export const gitConfig = {
 	user: "coder",
 	repo: "coder",
-	branch: "main",
 };

@@ -26,8 +26,6 @@ const config = {
 	// Canonical URLs end in a slash and every route is emitted as
 	// <route>/index.html, which is what a plain static file server expects.
 	trailingSlash: true,
-	// Server source maps are large and unnecessary for a shipped static bundle.
-	productionBrowserSourceMaps: false,
 	// Doc images are copied into the bundle (see scripts/sync-docs.mjs) and
 	// served as-is; next/image optimization needs a running server, which a
 	// static export does not have.

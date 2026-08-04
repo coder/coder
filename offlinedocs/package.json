@@ -7,7 +7,6 @@
 		"dev": "pnpm sync && next dev -p 26337",
 		"build": "next build",
 		"export": "pnpm sync && next build",
-		"start": "next start",
 		"postinstall": "fumadocs-mdx",
 		"lint": "pnpm run lint:types",
 		"lint:types": "pnpm sync && fumadocs-mdx && next typegen && tsc --noEmit",
@@ -23,8 +22,7 @@
 		"next": "16.2.9",
 		"react": "19.2.7",
 		"react-dom": "19.2.7",
-		"rehype-raw": "7.0.0",
-		"tailwind-merge": "3.6.0"
+		"rehype-raw": "7.0.0"
 	},
 	"devDependencies": {
 		"@tailwindcss/postcss": "4.3.1",
@@ -42,11 +40,6 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"brace-expansion": "1.1.12",
-			"lodash": "4.18.1",
-			"minimatch@<4": "3.1.3",
-			"minimatch@>=9": "9.0.7",
-			"glob@>=10": "10.5.0",
 			"picomatch": "2.3.2",
 			"js-yaml": "4.1.1"
 		}
