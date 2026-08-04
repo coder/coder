@@ -5,18 +5,22 @@ import { Link } from "#/components/Link/Link";
 interface QueuedForCapacityCalloutProps {
 	hasLicense: boolean;
 	canManageLicenses: boolean;
+	exhaustedRuntimeHours?: number;
 }
 
 export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 	hasLicense,
 	canManageLicenses,
+	exhaustedRuntimeHours,
 }) => {
 	return (
 		<Alert severity="warning" className="mt-2">
 			<AlertDescription>
-				{hasLicense
-					? "Your team has reached your license’s limit for active agents."
-					: "Your team has reached the Community license limit for active agents."}{" "}
+				{hasLicense && exhaustedRuntimeHours !== undefined
+					? `Your team has used all ${exhaustedRuntimeHours} agent runtime hours included in your license.`
+					: hasLicense
+						? "Your team has reached your license’s limit for active agents."
+						: "Your team has reached the Community license limit for active agents."}{" "}
 				This agent is queued and will start automatically when capacity is
 				available.{" "}
 				{canManageLicenses ? (

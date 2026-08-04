@@ -401,6 +401,29 @@ export const QueuedForCapacityPremiumMember: Story = {
 	},
 };
 
+export const QueuedForCapacityPremiumExhaustedHours: Story = {
+	parameters: {
+		features: [
+			"multiple_organizations",
+			{ name: "agent_runtime_hours", limit: 4000, actual: 4000 },
+		],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/used all 4000 agent runtime hours included in your license/,
+		);
+		expect(message).toBeVisible();
+		expect(message).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
+		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
 export const NotQueuedForCapacity: Story = {
 	render: () => <StoryAgentChatPageView />,
 	play: async ({ canvasElement }) => {

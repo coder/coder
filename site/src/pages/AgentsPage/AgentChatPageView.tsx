@@ -819,6 +819,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isQueuedForCapacity = queuedForCapacityAt !== undefined;
 	const hasLicense = entitlements.has_license;
 	const canManageLicenses = permissions.viewAllLicenses;
+	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const exhaustedRuntimeHours =
+		runtimeHours.enabled &&
+		runtimeHours.limit !== undefined &&
+		runtimeHours.actual !== undefined &&
+		runtimeHours.actual >= runtimeHours.limit
+			? runtimeHours.limit
+			: undefined;
 
 	const titleElement = (
 		<title>
@@ -942,7 +950,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									}
 									queuedForCapacity={
 										isQueuedForCapacity
-											? { hasLicense, canManageLicenses }
+											? {
+													hasLicense,
+													canManageLicenses,
+													exhaustedRuntimeHours,
+												}
 											: undefined
 									}
 								/>

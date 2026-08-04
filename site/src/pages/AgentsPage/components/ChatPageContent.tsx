@@ -92,6 +92,7 @@ interface ChatPageTimelineProps {
 	queuedForCapacity?: {
 		hasLicense: boolean;
 		canManageLicenses: boolean;
+		exhaustedRuntimeHours?: number;
 	};
 }
 
@@ -180,6 +181,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					<QueuedForCapacityCallout
 						hasLicense={queuedForCapacity.hasLicense}
 						canManageLicenses={queuedForCapacity.canManageLicenses}
+						exhaustedRuntimeHours={queuedForCapacity.exhaustedRuntimeHours}
 					/>
 				)}
 			</div>
