@@ -4237,7 +4237,8 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		_, _, err = server.awaitSubagentCompletion(
 			shortCtx, parent.ID, child.ID, 5*time.Second,
 		)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorIs(t, shortCtx.Err(), context.DeadlineExceeded)
+		require.True(t, database.IsQueryCanceledError(err))
 	})
 
 	t.Run("ZeroTimeoutUsesDefault", func(t *testing.T) {
