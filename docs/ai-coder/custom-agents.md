@@ -61,14 +61,6 @@ Your template also needs persistent storage and a sufficient graceful
 shutdown timeout. See [Task lifecycle](./tasks-lifecycle.md) for the full
 requirements.
 
-## Watch the agent's browser
-
-If your custom agent automates a browser with the
-[agent-browser](https://github.com/vercel-labs/agent-browser) CLI, you can
-embed a live view of its browser sessions in the workspace UI. See
-[Watch the agent's browser](./tasks.md#watch-the-agents-browser) for the
-template configuration.
-
 ## Contributing
 
 We welcome contributions for various agents via the [Coder registry](https://registry.coder.com/modules?tag=agent)! See our [contributing guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for more information.

@@ -148,55 +148,6 @@ If a workspace app has the special `"preview"` slug, a navbar will appear above 
 
 We plan to introduce more customization options in future releases.
 
-### Watch the agent's browser
-
-If your agent uses the [agent-browser](https://github.com/vercel-labs/agent-browser) CLI for browser automation, you can embed its dashboard in the Task UI to watch the agent's browser sessions live.
-
-Install the CLI and start the dashboard from a `coder_script`, then declare a workspace app that points at it:
-
-```tf
-resource "coder_script" "agent_browser" {
-  agent_id     = coder_agent.main.id
-  display_name = "Agent Browser"
-  run_on_start = true
-  script       = <<-EOT
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Pin the version. Before bumping it, verify that the dashboard
-    # still sends no X-Frame-Options or CSP headers, otherwise it
-    # cannot be embedded.
-    npm install -g agent-browser@0.33.2
-    agent-browser install --with-deps
-
-    agent-browser dashboard start
-  EOT
-}
-
-resource "coder_app" "agent_browser" {
-  agent_id     = coder_agent.main.id
-  slug         = "agent-browser" # must not be "preview"
-  display_name = "Agent Browser"
-  url          = "http://localhost:4848"
-  share        = "owner"
-  subdomain    = true
-  open_in      = "tab"
-  healthcheck {
-    url       = "http://localhost:4848/"
-    interval  = 5
-    threshold = 6
-  }
-}
-```
-
-Keep the following in mind:
-
-- The dashboard has no authentication of its own. `share = "owner"` limits access to the workspace owner.
-- Subdomain apps require a [wildcard access URL](../admin/networking/wildcard-access-url.md). Without one, remove `subdomain = true` to fall back to a path-based app and review the [security implications of path-based apps](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
-- Sessions only appear when the agent actually uses agent-browser. Install the skill bundled with the npm package (copy `$(npm root -g)/agent-browser/skills/agent-browser` into your agent's skills directory, such as `~/.claude/skills/`) or point your system prompt at the agent-browser CLI.
-
-See the [tasks-docker example template](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) for a complete working configuration.
-
 ## Automatically name your tasks
 
 Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API_KEY` environment variable on the Coder server. Otherwise, tasks will be given randomly generated names.
