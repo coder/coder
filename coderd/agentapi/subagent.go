@@ -98,7 +98,6 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		}
 
 		subAgent, err := a.Database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
-			CreatedAt:   createdAt,
 			DisplayApps: displayApps,
 			Directory:   req.Directory,
 			UpdatedAt:   createdAt,

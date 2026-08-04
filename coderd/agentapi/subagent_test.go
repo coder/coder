@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1420,6 +1421,7 @@ func TestSubAgentAPI(t *testing.T) {
 		t.Parallel()
 
 		baseChildAgent := database.WorkspaceAgent{
+			CreatedAt:       time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
 			Name:            "existing-child-agent",
 			Directory:       "/workspaces/test",
 			Architecture:    "amd64",
@@ -1442,6 +1444,7 @@ func TestSubAgentAPI(t *testing.T) {
 					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 						ResourceID:      agent.ResourceID,
+						CreatedAt:       baseChildAgent.CreatedAt,
 						Name:            baseChildAgent.Name,
 						Directory:       baseChildAgent.Directory,
 						Architecture:    baseChildAgent.Architecture,
@@ -1474,6 +1477,7 @@ func TestSubAgentAPI(t *testing.T) {
 					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
 					require.Equal(t, updatedAgent.AuthToken[:], resp.Agent.AuthToken)
+					require.True(t, updatedAgent.CreatedAt.Equal(baseChildAgent.CreatedAt))
 					require.Equal(t, baseChildAgent.Directory, updatedAgent.Directory)
 					require.EqualValues(t, 1, updatedAgent.SubagentStateVersion)
 					require.Len(t, updatedAgent.DisplayApps, 2)
@@ -1488,6 +1492,7 @@ func TestSubAgentAPI(t *testing.T) {
 					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 						ResourceID:      agent.ResourceID,
+						CreatedAt:       baseChildAgent.CreatedAt,
 						Name:            baseChildAgent.Name,
 						Directory:       baseChildAgent.Directory,
 						Architecture:    baseChildAgent.Architecture,
@@ -1536,6 +1541,7 @@ func TestSubAgentAPI(t *testing.T) {
 					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 						ResourceID:      agent.ResourceID,
+						CreatedAt:       baseChildAgent.CreatedAt,
 						Name:            baseChildAgent.Name,
 						Directory:       "/home/coder/project",
 						Architecture:    baseChildAgent.Architecture,

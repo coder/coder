@@ -8659,6 +8659,176 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Len(t, declarations, 1)
 	})
 
+	t.Run("DeclarationWinsGuardedUpdateRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		before, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+
+		declarationInserted := make(chan struct{})
+		releaseDeclaration := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseDeclaration:
+			default:
+				close(releaseDeclaration)
+			}
+		}
+		t.Cleanup(release)
+		declarationDone := make(chan error, 1)
+		go func() {
+			declarationDone <- fixture.db.InTx(func(tx database.Store) error {
+				_, err := tx.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+				if err != nil {
+					return err
+				}
+				close(declarationInserted)
+				select {
+				case <-releaseDeclaration:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+		}()
+		testutil.TryReceive(fixture.ctx, t, declarationInserted)
+
+		updateStarted := make(chan struct{})
+		updateDone := make(chan error, 1)
+		go func() {
+			close(updateStarted)
+			_, err := fixture.db.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+				DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
+				Directory:   "/workspaces/updated",
+				UpdatedAt:   dbtime.Now().Add(time.Minute),
+				ID:          build.child.ID,
+				ParentID:    build.parent.ID,
+			})
+			updateDone <- err
+		}()
+		testutil.TryReceive(fixture.ctx, t, updateStarted)
+		requireQueryBlocked(t, fixture, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
+
+		release()
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, declarationDone))
+		require.ErrorIs(t, testutil.TryReceive(fixture.ctx, t, updateDone), sql.ErrNoRows)
+
+		after, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		expected := before
+		expected.SubagentStateVersion++
+		require.Equal(t, expected, after)
+		require.False(t, after.Deleted)
+		require.Equal(t, before.AuthToken, after.AuthToken)
+
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Len(t, declarations, 1)
+		require.Equal(t, params.DeclarationID, declarations[0].DeclarationID)
+		_, err = fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("GuardedUpdateWinsDeclarationRace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		before, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		updatedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		updateParams := database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
+			Directory:   "/workspaces/updated",
+			UpdatedAt:   updatedAt,
+			ID:          build.child.ID,
+			ParentID:    build.parent.ID,
+		}
+
+		updateApplied := make(chan struct{})
+		releaseUpdate := make(chan struct{})
+		release := func() {
+			select {
+			case <-releaseUpdate:
+			default:
+				close(releaseUpdate)
+			}
+		}
+		t.Cleanup(release)
+		type updateResult struct {
+			agent database.WorkspaceAgent
+			err   error
+		}
+		updateDone := make(chan updateResult, 1)
+		go func() {
+			var updated database.WorkspaceAgent
+			err := fixture.db.InTx(func(tx database.Store) error {
+				var err error
+				updated, err = tx.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, updateParams)
+				if err != nil {
+					return err
+				}
+				close(updateApplied)
+				select {
+				case <-releaseUpdate:
+					return nil
+				case <-fixture.ctx.Done():
+					return fixture.ctx.Err()
+				}
+			}, nil)
+			updateDone <- updateResult{agent: updated, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, updateApplied)
+
+		declarationStarted := make(chan struct{})
+		declarationDone := make(chan error, 1)
+		go func() {
+			close(declarationStarted)
+			_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+			declarationDone <- err
+		}()
+		testutil.TryReceive(fixture.ctx, t, declarationStarted)
+		requireQueryBlocked(t, fixture, "INSERT INTO workspace_agent_subagent_executions")
+
+		release()
+		updated := testutil.TryReceive(fixture.ctx, t, updateDone)
+		require.NoError(t, updated.err)
+		require.Equal(t, before.CreatedAt, updated.agent.CreatedAt)
+		require.Equal(t, before.AuthToken, updated.agent.AuthToken)
+		require.Equal(t, before.SubagentStateVersion+1, updated.agent.SubagentStateVersion)
+		require.NoError(t, testutil.TryReceive(fixture.ctx, t, declarationDone))
+
+		after, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.False(t, after.Deleted)
+		require.Equal(t, before.CreatedAt, after.CreatedAt)
+		require.Equal(t, before.AuthToken, after.AuthToken)
+		require.Equal(t, updateParams.Directory, after.Directory)
+		require.Equal(t, updateParams.DisplayApps, after.DisplayApps)
+		require.True(t, after.UpdatedAt.Equal(updatedAt))
+		require.Equal(t, before.SubagentStateVersion+2, after.SubagentStateVersion)
+
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Len(t, declarations, 1)
+		require.Equal(t, params.DeclarationID, declarations[0].DeclarationID)
+		status, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "pending", status.Status)
+	})
+
 	t.Run("StaleSubagentStateVersionPreventsLegacyDelete", func(t *testing.T) {
 		t.Parallel()
 
@@ -9406,15 +9576,16 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	require.Equal(t, wrongParentTarget, wrongParentTargetAfter)
 
 	t.Run("GuardedUpdateWinsLegacyDeleteRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
 			Name:        "update-wins-delete-race",
 			Directory:   "/workspaces/original",
 			DisplayApps: []database.DisplayApp{database.DisplayAppVscode},
 		})
-		createdAt := dbtime.Now().Add(-time.Minute).Truncate(time.Microsecond)
 		updatedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
 		updateParams := database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
-			CreatedAt:   createdAt,
 			DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
 			Directory:   "/workspaces/updated",
 			UpdatedAt:   updatedAt,
@@ -9472,7 +9643,7 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 			deleteDone <- deleteResult{count: count, err: err}
 		}()
 		testutil.TryReceive(ctx, t, deleteStarted)
-		requireWorkspaceAgentQueryBlocked(t, ctx, sqlDB, "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
+		requireWorkspaceAgentQueryBlocked(ctx, t, sqlDB, "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
 
 		release()
 		updatedResult := testutil.TryReceive(ctx, t, updateDone)
@@ -9487,7 +9658,7 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 		require.False(t, after.Deleted)
 		require.Equal(t, child.Name, after.Name)
 		require.Equal(t, child.AuthToken, after.AuthToken)
-		require.True(t, after.CreatedAt.Equal(createdAt))
+		require.Equal(t, child.CreatedAt, after.CreatedAt)
 		require.True(t, after.UpdatedAt.Equal(updatedAt))
 		require.Equal(t, "/workspaces/updated", after.Directory)
 		require.Equal(t, []database.DisplayApp{database.DisplayAppWebTerminal}, after.DisplayApps)
@@ -9495,6 +9666,9 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	})
 
 	t.Run("LegacyDeleteWinsGuardedUpdateRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
 			Name:        "delete-wins-update-race",
 			Directory:   "/workspaces/original",
@@ -9551,7 +9725,6 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 		go func() {
 			close(updateStarted)
 			_, err := db.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
-				CreatedAt:   dbtime.Now(),
 				DisplayApps: []database.DisplayApp{database.DisplayAppWebTerminal},
 				Directory:   "/workspaces/updated",
 				UpdatedAt:   dbtime.Now(),
@@ -9561,7 +9734,7 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 			updateDone <- err
 		}()
 		testutil.TryReceive(ctx, t, updateStarted)
-		requireWorkspaceAgentQueryBlocked(t, ctx, sqlDB, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
+		requireWorkspaceAgentQueryBlocked(ctx, t, sqlDB, "UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned")
 
 		release()
 		deleted := testutil.TryReceive(ctx, t, deleteDone)
@@ -9589,17 +9762,17 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 		wrongParentTarget.ID,
 	}))
 	require.NoError(t, err)
-	defer rows.Close()
 	for rows.Next() {
 		var id uuid.UUID
 		require.NoError(t, rows.Scan(&id))
 		deletedIDs = append(deletedIDs, id)
 	}
 	require.NoError(t, rows.Err())
+	require.NoError(t, rows.Close())
 	require.ElementsMatch(t, []uuid.UUID{dynamicChild.ID, devcontainerChild.ID}, deletedIDs)
 }
 
-func requireWorkspaceAgentQueryBlocked(t *testing.T, ctx context.Context, sqlDB *sql.DB, queryFragment string) {
+func requireWorkspaceAgentQueryBlocked(ctx context.Context, t *testing.T, sqlDB *sql.DB, queryFragment string) {
 	t.Helper()
 
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {

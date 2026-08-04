@@ -566,9 +566,22 @@ WHERE workspace_agents.id = @id
 -- name: UpdateWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
 -- Updates one exact live child while participating in the optimistic
 -- serialization protocol used by declaration creation and legacy deletion.
+WITH candidate_child AS MATERIALIZED (
+	SELECT
+		workspace_agents.id,
+		workspace_agents.subagent_state_version AS candidate_state_version
+	FROM workspace_agents
+	WHERE workspace_agents.id = @id
+		AND workspace_agents.parent_id = @parent_id::uuid
+		AND workspace_agents.deleted = FALSE
+		AND NOT EXISTS (
+			SELECT 1
+			FROM workspace_agent_subagent_executions
+			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+		)
+)
 UPDATE workspace_agents
 SET
-	created_at = @created_at,
 	display_apps = @display_apps,
 	directory = CASE
 		WHEN @directory::text = '' THEN workspace_agents.directory
@@ -576,14 +589,11 @@ SET
 	END,
 	updated_at = @updated_at,
 	subagent_state_version = workspace_agents.subagent_state_version + 1
-WHERE workspace_agents.id = @id
+FROM candidate_child
+WHERE workspace_agents.id = candidate_child.id
 	AND workspace_agents.parent_id = @parent_id::uuid
 	AND workspace_agents.deleted = FALSE
-	AND NOT EXISTS (
-		SELECT 1
-		FROM workspace_agent_subagent_executions
-		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
-	)
+	AND workspace_agents.subagent_state_version = candidate_child.candidate_state_version
 RETURNING workspace_agents.*;
 
 -- name: SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
