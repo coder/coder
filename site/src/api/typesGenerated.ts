@@ -1944,6 +1944,11 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	/**
+	 * QueuedForCapacityAt is when the chat began waiting for a
+	 * concurrent-agent capacity slot. Nil unless the chat is queued.
+	 */
+	readonly queued_for_capacity_at?: string;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -3547,6 +3552,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "capacity_change"
 	| "chat_summary_change"
 	| "context_dirty"
 	| "created"
@@ -3558,6 +3564,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"capacity_change",
 	"chat_summary_change",
 	"context_dirty",
 	"created",

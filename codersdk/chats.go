@@ -141,9 +141,12 @@ type Chat struct {
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
-	Context    *ChatContext   `json:"context,omitempty"`
-	Warnings   []string       `json:"warnings,omitempty"`
-	ClientType ChatClientType `json:"client_type"`
+	Context *ChatContext `json:"context,omitempty"`
+	// QueuedForCapacityAt is when the chat began waiting for a
+	// concurrent-agent capacity slot. Nil unless the chat is queued.
+	QueuedForCapacityAt *time.Time     `json:"queued_for_capacity_at,omitempty" format:"date-time"`
+	Warnings            []string       `json:"warnings,omitempty"`
+	ClientType          ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -1867,6 +1870,10 @@ const (
 	// stays usable; a refresh re-pins a drifted chat to the latest
 	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
+	// ChatWatchEventKindCapacityChange signals that the chat entered or
+	// left the queue for a concurrent-agent capacity slot; the embedded
+	// chat's QueuedForCapacityAt carries the current state.
+	ChatWatchEventKindCapacityChange ChatWatchEventKind = "capacity_change"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.

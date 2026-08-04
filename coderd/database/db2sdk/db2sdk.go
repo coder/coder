@@ -1822,6 +1822,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
+	// Only a queued chat exposes the capacity wait to clients; active
+	// and yielded are internal accounting states.
+	if c.ConcurrencyState.Valid && c.ConcurrencyState.ChatConcurrencyState == database.ChatConcurrencyStateQueued && c.ConcurrencyQueuedAt.Valid {
+		queuedForCapacityAt := c.ConcurrencyQueuedAt.Time
+		chat.QueuedForCapacityAt = &queuedForCapacityAt
+	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
