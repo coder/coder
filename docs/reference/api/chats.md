@@ -1298,6 +1298,16 @@ curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/cost \
 
 Experimental: this endpoint is subject to change.
 
+Cost covers the whole chat tree: the root chat plus every
+subagent chat beneath it. Requesting cost for a subagent chat
+returns that same total.
+
+Cost is derived from AI Gateway data, which is subject to its
+own retention period, 60 days by default, configured
+independently of chat retention. Spend for requests older than
+that period is no longer reported, so a chat whose requests
+have all been purged reports zero cost.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -1311,9 +1321,9 @@ Experimental: this endpoint is subject to change.
 ```json
 {
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "priced_message_count": 0,
+  "request_count": 0,
   "total_cost_micros": 0,
-  "unpriced_messages_having_usage_count": 0
+  "unpriced_request_count": 0
 }
 ```
 
@@ -1664,6 +1674,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1746,6 +1757,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1881,6 +1893,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -1962,6 +1975,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2044,6 +2058,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2180,6 +2195,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2261,6 +2277,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2685,6 +2702,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2765,6 +2783,7 @@ Experimental: this endpoint is subject to change.
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2833,6 +2852,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {

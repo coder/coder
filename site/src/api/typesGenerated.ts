@@ -141,7 +141,7 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
-	 * NetworkCalls summarizes the Agent Firewall network calls made during the
+	 * NetworkCalls summarizes the Agent Firewall network requests made during the
 	 * session. A nil value means the session did not pass through Agent
 	 * Firewall, so network call monitoring was not active, which the UI
 	 * surfaces as "Disabled".
@@ -164,6 +164,16 @@ export interface AIBridgeSessionNetworkCallSummary {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionNetworkDomain is one destination host contacted during a
+ * session, with the number of network calls made to it.
+ */
+export interface AIBridgeSessionNetworkDomain {
+	readonly domain: string;
+	readonly count: number;
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionThreadsResponse is the response for GET
  * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
@@ -181,6 +191,28 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * NetworkCalls summarizes the Agent Firewall network calls made during the
+	 * session. A nil value means the session did not pass through Agent
+	 * Firewall, so network call monitoring was not active, which the UI
+	 * surfaces as "Disabled".
+	 */
+	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
+	/**
+	 * NetworkTopDomains lists the most contacted destination hosts, ordered by
+	 * call count descending. NetworkDomainCount is the total number of distinct
+	 * domains, used to render a "+N more" overflow beyond the listed domains.
+	 */
+	readonly network_top_domains?: readonly AIBridgeSessionNetworkDomain[];
+	readonly network_domain_count?: number;
+	/**
+	 * NetworkCallLogs is the chronological list of individual network calls made
+	 * during the session, holding the earliest calls up to a server-side cap.
+	 * NetworkCalls remains authoritative for whole-session totals, so a shorter
+	 * list than NetworkCalls.Total means the list was truncated. Empty when the
+	 * session did not pass through Agent Firewall.
+	 */
+	readonly network_call_logs?: readonly AgentFirewallLog[];
 	readonly threads: readonly AIBridgeThread[];
 }
 
@@ -2155,16 +2187,19 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
- * ChatCost is the cumulative cost for a selected chat's subtree: the
- * chat itself plus every descendant (subagent) chat it spawned. A root
- * chat therefore reports its whole tree, while a subagent reports only
- * its own spend plus any nested subagents.
+ * ChatCost is the AI Gateway cost for the requested chat's whole tree.
+ * Root and subagent chats report the same total.
+ * RequestCount counts every finished request in the tree, including ones that
+ * recorded no billable usage at all, such as a request that failed upstream.
+ * UnpricedRequestCount counts requests with at least one usage record whose
+ * model had no recorded price; RequestCount includes them and
+ * TotalCostMicros omits only their unpriced usage.
  */
 export interface ChatCost {
 	readonly chat_id: string;
 	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
+	readonly request_count: number;
+	readonly unpriced_request_count: number;
 }
 
 // From codersdk/chats.go
@@ -3529,6 +3564,10 @@ export interface ChatToolCallPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
+	 */
+	readonly hook_rewritten?: boolean;
 	/**
 	 * CreatedAt is the timestamp this part carries. The semantics
 	 * depend on the part type: for tool-call and tool-result parts
@@ -5104,7 +5143,6 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
-	| "minimum-implicit-member"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -5120,7 +5158,6 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
-	"minimum-implicit-member",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",

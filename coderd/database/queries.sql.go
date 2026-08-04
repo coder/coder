@@ -1156,6 +1156,59 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 	return total_deleted, err
 }
 
+const getAIBridgeChatCost = `-- name: GetAIBridgeChatCost :one
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
+			c.root_chat_id = $1::uuid
+			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
+		)
+		-- Restrict to aibridge.ClientCoderAgents so another client's session
+		-- reference cannot match a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request
+`
+
+type GetAIBridgeChatCostRow struct {
+	TotalCostMicros      int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	RequestCount         int64 `db:"request_count" json:"request_count"`
+	UnpricedRequestCount int64 `db:"unpriced_request_count" json:"unpriced_request_count"`
+}
+
+// AI Gateway cost for one chat tree: the root chat plus every subagent
+// beneath it. The spawning chat's ID is recorded as the interception session
+// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+// to its parent rather than the root, and only whole trees can be summed. The
+// owner check guards against session-id collisions. Usage without an
+// effective group never reaches ai_user_daily_spend.
+func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (GetAIBridgeChatCostRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeChatCost, rootChatID)
+	var i GetAIBridgeChatCostRow
+	err := row.Scan(&i.TotalCostMicros, &i.RequestCount, &i.UnpricedRequestCount)
+	return i, err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
@@ -1259,6 +1312,101 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ErrorType,
 			&i.ErrorMessage,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeSessionTopDomains = `-- name: GetAIBridgeSessionTopDomains :many
+WITH session_boundary_logs AS (
+	SELECT bl.detail
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND bl.sequence_number < w.next_seq
+	WHERE afi.session_id = $2::text
+		AND afi.ended_at IS NOT NULL
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+		AND bl.proto = 'http'
+),
+extracted AS (
+	-- Strip an optional scheme, then keep the host up to the first port, path,
+	-- query, or fragment delimiter. This assumes HTTP egress detail is a plain
+	-- scheme+host(+port) URL: it does not handle userinfo (user@host, which
+	-- would be captured into the host) or IPv6 literal hosts ([::1], where the
+	-- leading '[' is captured and the ':' terminates early). Boundary HTTP logs
+	-- do not currently emit those forms; revisit this extraction if they do.
+	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
+	FROM session_boundary_logs
+),
+domains AS (
+	SELECT domain, COUNT(*)::bigint AS count
+	FROM extracted
+	WHERE domain IS NOT NULL AND domain != ''
+	GROUP BY domain
+)
+SELECT
+	-- COALESCE keeps sqlc from typing the grouped column as nullable; the
+	-- domains CTE already filters out NULL/empty hosts.
+	COALESCE(domain, '')::text AS domain,
+	count,
+	COUNT(*) OVER ()::bigint AS total_domains
+FROM domains
+ORDER BY count DESC, domain ASC
+LIMIT COALESCE(NULLIF($1::integer, 0), 5)
+`
+
+type GetAIBridgeSessionTopDomainsParams struct {
+	Limit     int32  `db:"limit_" json:"limit_"`
+	SessionID string `db:"session_id" json:"session_id"`
+}
+
+type GetAIBridgeSessionTopDomainsRow struct {
+	Domain       string `db:"domain" json:"domain"`
+	Count        int64  `db:"count" json:"count"`
+	TotalDomains int64  `db:"total_domains" json:"total_domains"`
+}
+
+// Returns the most contacted destination hosts for an AI session, ordered by
+// call count descending and limited to the top @limit_ rows. total_domains is
+// the number of distinct domains across the whole session, used to render a
+// "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+// dns/git/fs boundary logs do not carry a domain in the same shape.
+//
+// Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+// each interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session, and falls back to the maximum
+// sequence_number for the last interception so the window stays an
+// index-satisfiable range.
+func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAIBridgeSessionTopDomainsParams) ([]GetAIBridgeSessionTopDomainsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeSessionTopDomains, arg.Limit, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIBridgeSessionTopDomainsRow
+	for rows.Next() {
+		var i GetAIBridgeSessionTopDomainsRow
+		if err := rows.Scan(&i.Domain, &i.Count, &i.TotalDomains); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1876,6 +2024,85 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 	return items, nil
 }
 
+const listAIBridgeSessionNetworkCalls = `-- name: ListAIBridgeSessionNetworkCalls :many
+SELECT bl.id, bl.session_id, bl.sequence_number, bl.captured_at, bl.created_at, bl.proto, bl.method, bl.detail, bl.matched_rule, bl.owner_id
+FROM aibridge_interceptions afi
+LEFT JOIN LATERAL (
+	SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+	FROM aibridge_interceptions nxt
+	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+) w ON true
+JOIN boundary_logs bl
+	ON bl.session_id = afi.agent_firewall_session_id
+	AND bl.sequence_number > afi.agent_firewall_sequence_number
+	AND bl.sequence_number < w.next_seq
+WHERE afi.session_id = $1::text
+	AND afi.ended_at IS NOT NULL
+	AND afi.agent_firewall_session_id IS NOT NULL
+	AND afi.agent_firewall_sequence_number IS NOT NULL
+ORDER BY bl.created_at ASC, bl.sequence_number ASC, bl.id ASC
+LIMIT COALESCE(NULLIF($2::integer, 0), 1000)
+`
+
+type ListAIBridgeSessionNetworkCallsParams struct {
+	SessionID string `db:"session_id" json:"session_id"`
+	Limit     int32  `db:"limit_" json:"limit_"`
+}
+
+// Returns the individual Agent Firewall network calls made during an AI
+// session, ordered chronologically. All protocols are included, unlike
+// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+// covers the same events the network_calls summary in ListAIBridgeSessions
+// counts. The list is capped at @limit_ rows, so its length equals the summary
+// total only for sessions at or below the cap. The summary stays authoritative
+// for whole-session totals.
+//
+// Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+// interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session, and falls back to the maximum
+// sequence_number for the last interception so the window stays an
+// index-satisfiable range.
+// created_at leads because a session can span several firewall sessions, whose
+// sequence numbers are independent streams. id breaks remaining ties so the row
+// that lands on the limit boundary is stable across identical requests.
+func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionNetworkCalls, arg.SessionID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH paginated_threads AS (
 	SELECT
@@ -2164,12 +2391,13 @@ LEFT JOIN LATERAL (
 	-- (logged at exactly its sequence number), leaving the agent's other
 	-- egress. next_seq considers all interceptions in the firewall session so
 	-- windows never bleed across AI sessions that share one firewall session.
+	--
 	SELECT
 		COUNT(*)::bigint AS total,
 		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
 	FROM aibridge_interceptions afi
 	LEFT JOIN LATERAL (
-		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
 		FROM aibridge_interceptions nxt
 		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
 			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
@@ -2177,7 +2405,7 @@ LEFT JOIN LATERAL (
 	JOIN boundary_logs bl
 		ON bl.session_id = afi.agent_firewall_session_id
 		AND bl.sequence_number > afi.agent_firewall_sequence_number
-		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+		AND bl.sequence_number < w.next_seq
 	WHERE afi.id = ANY(sr.interception_ids)
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
@@ -2232,6 +2460,12 @@ type ListAIBridgeSessionsRow struct {
 // Pagination-first strategy: identify the page of sessions cheaply via a
 // single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 // first-interception metadata) only for the ~page-size result set.
+// The last interception in a session has no next row, so next_seq uses
+// the largest sequence_number instead of NULL. The lookup stays a plain
+// range, so the (session_id, sequence_number) index answers it alone.
+// With NULL and an OR check, the index cannot bound the range: each
+// interception reads every log to the end of the session and throws
+// most of them away.
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,

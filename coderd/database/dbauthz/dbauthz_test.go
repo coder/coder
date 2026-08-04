@@ -1069,6 +1069,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesByChatID(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetAIBridgeChatCost", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		row := database.GetAIBridgeChatCostRow{TotalCostMicros: 1000, RequestCount: 2}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatModelUsageCostByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		row := database.GetChatModelUsageCostByChatIDRow{ChatID: chat.ID, TotalCostMicros: 1000, PricedMessageCount: 2}
@@ -6960,6 +6967,18 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().CountAuthorizedAIBridgeSessions(gomock.Any(), params, gomock.Any()).Return(int64(0), nil).AnyTimes()
 		// No asserts here because SQLFilter.
 		check.Args(params, emptyPreparedAuthorized{}).Asserts()
+	}))
+
+	s.Run("GetAIBridgeSessionTopDomains", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetAIBridgeSessionTopDomainsParams{SessionID: "sess", Limit: 5}
+		db.EXPECT().GetAIBridgeSessionTopDomains(gomock.Any(), params).Return([]database.GetAIBridgeSessionTopDomainsRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.GetAIBridgeSessionTopDomainsRow{})
+	}))
+
+	s.Run("ListAIBridgeSessionNetworkCalls", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeSessionNetworkCallsParams{SessionID: "sess", Limit: 1000}
+		db.EXPECT().ListAIBridgeSessionNetworkCalls(gomock.Any(), params).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.BoundaryLog{})
 	}))
 
 	s.Run("ListAIBridgeTokenUsagesByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

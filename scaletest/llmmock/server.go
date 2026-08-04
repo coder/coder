@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
+	"math/rand/v2"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,15 +27,34 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
+const (
+	openAIDefaultResponseText          = "This is a mock response from OpenAI."
+	openAIStopFinishReason             = "stop"
+	openAIToolCallFinishReason         = "tool_calls"
+	openAIResponsesDefaultResponseText = "This is a mock response from OpenAI Responses."
+	anthropicDefaultResponseText       = "This is a mock response from Anthropic."
+	mockInputTokens                    = 10
+	mockOutputTokens                   = 5
+	// streamFixedWindowSize is the number of bytes per delta for fixed-size
+	// payload streams (when responsePayloadSize is set).
+	streamFixedWindowSize = 1024
+)
+
 // Server wraps the LLM mock server and provides an HTTP API to retrieve requests.
 type Server struct {
 	httpServer   *http.Server
 	httpListener net.Listener
+	httpCancel   context.CancelFunc
 	logger       slog.Logger
 
 	address             string
 	artificialLatency   time.Duration
+	minStreamDuration   time.Duration
+	maxStreamDuration   time.Duration
 	responsePayloadSize int
+	responsePayload     string
+	toolCallsPerTurn    int
+	toolCallCommand     string
 
 	tracerProvider trace.TracerProvider
 	closeTracing   func(context.Context) error
@@ -42,35 +64,68 @@ type Config struct {
 	Address             string
 	Logger              slog.Logger
 	ArtificialLatency   time.Duration
+	MinStreamDuration   time.Duration
+	MaxStreamDuration   time.Duration
 	ResponsePayloadSize int
-
-	PprofEnable  bool
-	PprofAddress string
+	ToolCallsPerTurn    int
+	ToolCallCommand     string
 
 	TraceEnable bool
 }
 
 type llmRequest struct {
-	Model  string `json:"model"`
-	Stream bool   `json:"stream,omitempty"`
+	Model    string              `json:"model"`
+	Messages []llmRequestMessage `json:"messages,omitempty"`
+	Tools    []openAITool        `json:"tools,omitempty"`
+	Stream   bool                `json:"stream,omitempty"`
+}
+
+// llmRequestMessage decodes only the request message fields the mock
+// inspects. Content is intentionally omitted: providers send it as either a
+// string or an array of content blocks, and the mock never reads it.
+type llmRequestMessage struct {
+	Role string `json:"role"`
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content,omitempty"`
+	ToolCalls []openAIToolCall `json:"tool_calls,omitempty"`
+}
+
+type openAITool struct {
+	Type     string             `json:"type"`
+	Function openAIToolFunction `json:"function"`
+}
+
+type openAIToolFunction struct {
+	Name string `json:"name"`
+}
+
+type openAIToolCall struct {
+	ID       string                 `json:"id"`
+	Type     string                 `json:"type"`
+	Function openAIToolCallFunction `json:"function"`
+}
+
+type openAIToolCallFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+type openAIResponseChoice struct {
+	Index        int           `json:"index"`
+	Message      openAIMessage `json:"message"`
+	FinishReason string        `json:"finish_reason"`
 }
 
 type openAIResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index        int           `json:"index"`
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
+	ID      string                 `json:"id"`
+	Object  string                 `json:"object"`
+	Created int64                  `json:"created"`
+	Model   string                 `json:"model"`
+	Choices []openAIResponseChoice `json:"choices"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
@@ -119,7 +174,15 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 	s.address = cfg.Address
 	s.logger = cfg.Logger
 	s.artificialLatency = cfg.ArtificialLatency
+	s.minStreamDuration = cfg.MinStreamDuration
+	s.maxStreamDuration = cfg.MaxStreamDuration
 	s.responsePayloadSize = cfg.ResponsePayloadSize
+	s.responsePayload = ""
+	if s.responsePayloadSize > 0 {
+		s.responsePayload = strings.Repeat("x", s.responsePayloadSize)
+	}
+	s.toolCallsPerTurn = cfg.ToolCallsPerTurn
+	s.toolCallCommand = cfg.ToolCallCommand
 
 	if cfg.TraceEnable {
 		otel.SetTextMapPropagator(
@@ -148,6 +211,9 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 }
 
 func (s *Server) Stop() error {
+	if s.httpCancel != nil {
+		s.httpCancel()
+	}
 	if s.httpServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -169,6 +235,98 @@ func (s *Server) APIAddress() string {
 	return fmt.Sprintf("http://%s", s.httpListener.Addr().String())
 }
 
+func (s *Server) responseText(fallback string) string {
+	if s.responsePayloadSize > 0 {
+		return s.responsePayload
+	}
+	return fallback
+}
+
+func (s *Server) randomStreamDuration() time.Duration {
+	if s.minStreamDuration <= 0 || s.maxStreamDuration <= 0 {
+		return 0
+	}
+	if s.minStreamDuration >= s.maxStreamDuration {
+		return s.minStreamDuration
+	}
+
+	delta := s.maxStreamDuration - s.minStreamDuration
+	//nolint:gosec // This is a scaletest mock, not security-sensitive.
+	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta)))
+}
+
+// streamContentChunks paces content across totalDuration. The fixed-size path
+// slices content by byte offset, which is rune-safe only because that payload
+// is ASCII (see responseText).
+func (s *Server) streamContentChunks(ctx context.Context, totalDuration time.Duration, content string) iter.Seq[string] {
+	if totalDuration <= 0 || content == "" {
+		return func(yield func(string) bool) {
+			yield(content)
+		}
+	}
+	if s.responsePayloadSize > 0 {
+		n := (len(content) + streamFixedWindowSize - 1) / streamFixedWindowSize
+		return streamPacedChunks(ctx, totalDuration, n, func(yield func(string) bool) {
+			for i := range n {
+				start := i * streamFixedWindowSize
+				end := min(start+streamFixedWindowSize, len(content))
+				if !yield(content[start:end]) {
+					return
+				}
+			}
+		})
+	}
+
+	chunks := streamWordChunks(content)
+	return streamPacedChunks(ctx, totalDuration, len(chunks), slices.Values(chunks))
+}
+
+func streamWordChunks(content string) []string {
+	chunks := strings.SplitAfter(content, " ")
+	if chunks[len(chunks)-1] == "" {
+		chunks = chunks[:len(chunks)-1]
+	}
+	return chunks
+}
+
+// sleepContext blocks until d elapses or ctx is canceled. It reports whether
+// the duration elapsed so callers can stop work when the context is done.
+func sleepContext(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, chunks iter.Seq[string]) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if n == 0 {
+			yield("")
+			return
+		}
+
+		// Delay after every chunk, including the last, so the stream stays open
+		// for roughly totalDuration even when there is a single chunk (small
+		// --response-payload-size or single-word text).
+		delay := totalDuration / time.Duration(n)
+		for chunk := range chunks {
+			if !yield(chunk) {
+				return
+			}
+			if !sleepContext(ctx, delay) {
+				return
+			}
+		}
+	}
+}
+
 func (s *Server) startAPIServer(ctx context.Context) error {
 	mux := http.NewServeMux()
 
@@ -181,9 +339,14 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 		handler = s.tracingMiddleware(handler)
 	}
 
+	baseCtx, httpCancel := context.WithCancel(ctx)
+	s.httpCancel = httpCancel
 	s.httpServer = &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext: func(net.Listener) context.Context {
+			return baseCtx
+		},
 	}
 
 	listener, err := net.Listen("tcp", s.address)
@@ -222,59 +385,43 @@ func (s *Server) handleOpenAIWithLabels(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
-	var resp openAIResponse
-	resp.ID = fmt.Sprintf("chatcmpl-%s", requestID.String()[:8])
-	resp.Object = "chat.completion"
-	resp.Created = now.Unix()
-	resp.Model = req.Model
+	choice := s.buildOpenAIChoice(req)
 
-	var responseContent string
-	if s.responsePayloadSize > 0 {
-		pattern := "x"
-		repeated := strings.Repeat(pattern, s.responsePayloadSize)
-		responseContent = repeated[:s.responsePayloadSize]
-	} else {
-		responseContent = "This is a mock response from OpenAI."
+	resp := openAIResponse{
+		ID:      fmt.Sprintf("chatcmpl-%s", requestID.String()[:8]),
+		Object:  "chat.completion",
+		Created: now.Unix(),
+		Model:   req.Model,
+		Choices: []openAIResponseChoice{choice},
 	}
-
-	resp.Choices = []struct {
-		Index        int           `json:"index"`
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	}{
-		{
-			Index: 0,
-			Message: openAIMessage{
-				Role:    "assistant",
-				Content: responseContent,
-			},
-			FinishReason: "stop",
-		},
-	}
-
-	resp.Usage.PromptTokens = 10
-	resp.Usage.CompletionTokens = 5
-	resp.Usage.TotalTokens = 15
-
-	responseBody, _ := json.Marshal(resp)
+	resp.Usage.PromptTokens = mockInputTokens
+	resp.Usage.CompletionTokens = mockOutputTokens
+	resp.Usage.TotalTokens = mockInputTokens + mockOutputTokens
 
 	if req.Stream {
 		s.sendOpenAIStream(ctx, w, resp)
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(responseBody); err != nil {
-			s.logger.Error(ctx, "failed to write OpenAI response",
-				slog.F("request_id", requestID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-		}
+		return
+	}
+
+	responseBody, err := json.Marshal(resp)
+	if err != nil {
+		s.logger.Error(ctx, "failed to marshal OpenAI response", slog.Error(err))
+		http.Error(w, "failed to marshal response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(responseBody); err != nil {
+		s.logger.Error(ctx, "failed to write OpenAI response",
+			slog.F("request_id", requestID),
+			slog.Error(err),
+			slog.F("error_type", "write_error"),
+			slog.F("likely_cause", "network_error"),
+		)
 	}
 }
 
@@ -305,8 +452,8 @@ func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
 	var resp responsesResponse
@@ -315,14 +462,7 @@ func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Reques
 	resp.Created = now.Unix()
 	resp.Model = req.Model
 
-	var responseContent string
-	if s.responsePayloadSize > 0 {
-		pattern := "x"
-		repeated := strings.Repeat(pattern, s.responsePayloadSize)
-		responseContent = repeated[:s.responsePayloadSize]
-	} else {
-		responseContent = "This is a mock response from OpenAI Responses."
-	}
+	assistantText := s.responseText(openAIResponsesDefaultResponseText)
 
 	resp.Output = []struct {
 		ID      string `json:"id,omitempty"`
@@ -343,31 +483,36 @@ func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Reques
 			}{
 				{
 					Type: "output_text",
-					Text: responseContent,
+					Text: assistantText,
 				},
 			},
 		},
 	}
 
-	resp.Usage.InputTokens = 10
-	resp.Usage.OutputTokens = 5
-	resp.Usage.TotalTokens = 15
-
-	responseBody, _ := json.Marshal(resp)
+	resp.Usage.InputTokens = mockInputTokens
+	resp.Usage.OutputTokens = mockOutputTokens
+	resp.Usage.TotalTokens = mockInputTokens + mockOutputTokens
 
 	if req.Stream {
 		s.sendResponsesStream(ctx, w, resp)
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(responseBody); err != nil {
-			s.logger.Error(ctx, "failed to write OpenAI responses response",
-				slog.F("request_id", requestID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-		}
+		return
+	}
+
+	responseBody, err := json.Marshal(resp)
+	if err != nil {
+		s.logger.Error(ctx, "failed to marshal OpenAI responses response", slog.Error(err))
+		http.Error(w, "failed to marshal response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(responseBody); err != nil {
+		s.logger.Error(ctx, "failed to write OpenAI responses response",
+			slog.F("request_id", requestID),
+			slog.Error(err),
+			slog.F("error_type", "write_error"),
+			slog.F("likely_cause", "network_error"),
+		)
 	}
 }
 
@@ -383,8 +528,8 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
 	var resp anthropicResponse
@@ -392,14 +537,7 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 	resp.Type = "message"
 	resp.Role = "assistant"
 
-	var responseText string
-	if s.responsePayloadSize > 0 {
-		pattern := "x"
-		repeated := strings.Repeat(pattern, s.responsePayloadSize)
-		responseText = repeated[:s.responsePayloadSize]
-	} else {
-		responseText = "This is a mock response from Anthropic."
-	}
+	assistantText := s.responseText(anthropicDefaultResponseText)
 
 	resp.Content = []struct {
 		Type string `json:"type"`
@@ -407,110 +545,39 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 	}{
 		{
 			Type: "text",
-			Text: responseText,
+			Text: assistantText,
 		},
 	}
 	resp.Model = req.Model
 	resp.StopReason = "end_turn"
-	resp.Usage.InputTokens = 10
-	resp.Usage.OutputTokens = 5
-
-	responseBody, _ := json.Marshal(resp)
+	resp.Usage.InputTokens = mockInputTokens
+	resp.Usage.OutputTokens = mockOutputTokens
 
 	if req.Stream {
 		s.sendAnthropicStream(ctx, w, resp)
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("anthropic-version", "2023-06-01")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(responseBody); err != nil {
-			s.logger.Error(ctx, "failed to write Anthropic response",
-				slog.F("request_id", requestID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-		}
+		return
 	}
-}
 
-func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, resp openAIResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
+	responseBody, err := json.Marshal(resp)
+	if err != nil {
+		s.logger.Error(ctx, "failed to marshal Anthropic response", slog.Error(err))
+		http.Error(w, "failed to marshal response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("anthropic-version", "2023-06-01")
 	w.WriteHeader(http.StatusOK)
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		s.logger.Error(ctx, "responseWriter does not support flushing",
-			slog.F("response_id", resp.ID),
+	if _, err := w.Write(responseBody); err != nil {
+		s.logger.Error(ctx, "failed to write Anthropic response",
+			slog.F("request_id", requestID),
+			slog.Error(err),
+			slog.F("error_type", "write_error"),
+			slog.F("likely_cause", "network_error"),
 		)
-		return
 	}
-
-	writeChunk := func(data string) bool {
-		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
-			s.logger.Error(ctx, "failed to write OpenAI stream chunk",
-				slog.F("response_id", resp.ID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-			return false
-		}
-		flusher.Flush()
-		return true
-	}
-
-	// Send initial chunk
-	chunk := map[string]interface{}{
-		"id":      resp.ID,
-		"object":  "chat.completion.chunk",
-		"created": resp.Created,
-		"model":   resp.Model,
-		"choices": []map[string]interface{}{
-			{
-				"index": 0,
-				"delta": map[string]interface{}{
-					"role":    "assistant",
-					"content": resp.Choices[0].Message.Content,
-				},
-				"finish_reason": nil,
-			},
-		},
-	}
-	chunkBytes, _ := json.Marshal(chunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", chunkBytes)) {
-		return
-	}
-
-	// Send final chunk
-	finalChunk := map[string]interface{}{
-		"id":      resp.ID,
-		"object":  "chat.completion.chunk",
-		"created": resp.Created,
-		"model":   resp.Model,
-		"choices": []map[string]interface{}{
-			{
-				"index":         0,
-				"delta":         map[string]interface{}{},
-				"finish_reason": resp.Choices[0].FinishReason,
-			},
-		},
-	}
-	finalChunkBytes, _ := json.Marshal(finalChunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalChunkBytes)) {
-		return
-	}
-	writeChunk("data: [DONE]\n\n")
 }
 
 func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		s.logger.Error(ctx, "responseWriter does not support flushing",
@@ -518,6 +585,11 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
 
 	writeChunk := func(data string) bool {
 		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
@@ -533,26 +605,32 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
-	deltaChunk := map[string]interface{}{
-		"id":            resp.ID,
-		"object":        "response.output_text.delta",
-		"created":       resp.Created,
-		"model":         resp.Model,
-		"output_index":  0,
-		"content_index": 0,
-		"delta":         resp.Output[0].Content[0].Text,
+	text := resp.Output[0].Content[0].Text
+	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), text) {
+		deltaChunk := map[string]any{
+			"id":            resp.ID,
+			"object":        "response.output_text.delta",
+			"created":       resp.Created,
+			"model":         resp.Model,
+			"output_index":  0,
+			"content_index": 0,
+			"delta":         chunk,
+		}
+		deltaBytes, _ := json.Marshal(deltaChunk)
+		if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
+			return
+		}
 	}
-	deltaBytes, _ := json.Marshal(deltaChunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
+	if ctx.Err() != nil {
 		return
 	}
 
-	finalChunk := map[string]interface{}{
+	finalChunk := map[string]any{
 		"id":      resp.ID,
 		"object":  "response.completed",
 		"created": resp.Created,
 		"model":   resp.Model,
-		"response": map[string]interface{}{
+		"response": map[string]any{
 			"id":      resp.ID,
 			"object":  resp.Object,
 			"created": resp.Created,
@@ -565,16 +643,10 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalBytes)) {
 		return
 	}
-	writeChunk("data: [DONE]\n\n")
+	_ = writeChunk("data: [DONE]\n\n")
 }
 
 func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter, resp anthropicResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("anthropic-version", "2023-06-01")
-	w.WriteHeader(http.StatusOK)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		s.logger.Error(ctx, "responseWriter does not support flushing",
@@ -582,6 +654,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("anthropic-version", "2023-06-01")
+	w.WriteHeader(http.StatusOK)
 
 	writeChunk := func(eventType string, data []byte) bool {
 		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
@@ -598,9 +676,9 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 	}
 
 	startEventType := "message_start"
-	startEvent := map[string]interface{}{
+	startEvent := map[string]any{
 		"type": startEventType,
-		"message": map[string]interface{}{
+		"message": map[string]any{
 			"id":    resp.ID,
 			"type":  resp.Type,
 			"role":  resp.Role,
@@ -612,14 +690,13 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send content_block_start event
 	contentStartEventType := "content_block_start"
-	contentStartEvent := map[string]interface{}{
+	contentStartEvent := map[string]any{
 		"type":  contentStartEventType,
 		"index": 0,
-		"content_block": map[string]interface{}{
+		"content_block": map[string]any{
 			"type": "text",
-			"text": resp.Content[0].Text,
+			"text": "",
 		},
 	}
 	contentStartBytes, _ := json.Marshal(contentStartEvent)
@@ -627,24 +704,27 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send content_block_delta event
 	deltaEventType := "content_block_delta"
-	deltaEvent := map[string]interface{}{
-		"type":  deltaEventType,
-		"index": 0,
-		"delta": map[string]interface{}{
-			"type": "text_delta",
-			"text": resp.Content[0].Text,
-		},
+	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), resp.Content[0].Text) {
+		deltaEvent := map[string]any{
+			"type":  deltaEventType,
+			"index": 0,
+			"delta": map[string]any{
+				"type": "text_delta",
+				"text": chunk,
+			},
+		}
+		deltaBytes, _ := json.Marshal(deltaEvent)
+		if !writeChunk(deltaEventType, deltaBytes) {
+			return
+		}
 	}
-	deltaBytes, _ := json.Marshal(deltaEvent)
-	if !writeChunk(deltaEventType, deltaBytes) {
+	if ctx.Err() != nil {
 		return
 	}
 
-	// Send content_block_stop event
 	contentStopEventType := "content_block_stop"
-	contentStopEvent := map[string]interface{}{
+	contentStopEvent := map[string]any{
 		"type":  contentStopEventType,
 		"index": 0,
 	}
@@ -653,11 +733,10 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send message_delta event
 	deltaMsgEventType := "message_delta"
-	deltaMsgEvent := map[string]interface{}{
+	deltaMsgEvent := map[string]any{
 		"type": deltaMsgEventType,
-		"delta": map[string]interface{}{
+		"delta": map[string]any{
 			"stop_reason":   resp.StopReason,
 			"stop_sequence": resp.StopSequence,
 		},
@@ -668,13 +747,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send message_stop event
 	stopEventType := "message_stop"
-	stopEvent := map[string]interface{}{
+	stopEvent := map[string]any{
 		"type": stopEventType,
 	}
 	stopBytes, _ := json.Marshal(stopEvent)
-	writeChunk(stopEventType, stopBytes)
+	_ = writeChunk(stopEventType, stopBytes)
 }
 
 func (s *Server) tracingMiddleware(next http.Handler) http.Handler {

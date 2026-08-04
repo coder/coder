@@ -295,9 +295,9 @@ const (
 	// and stripped from every client-facing conversion; the server rejects
 	// it in client-submitted content.
 	ChatMessagePartTypeHookContext ChatMessagePartType = "hook-context"
-	// ChatMessagePartTypeHookNotice is a user-facing notice attached to a
-	// user prompt by a lifecycle hook. It is excluded from model prompt
-	// assembly; the server rejects it in client-submitted content.
+	// ChatMessagePartTypeHookNotice is a user-facing lifecycle hook notice,
+	// either attached to a prompt or in its own row. It is excluded from model
+	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
 )
 
@@ -380,6 +380,8 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
+	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
+	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was
@@ -1990,15 +1992,18 @@ type ChatCostChatBreakdown struct {
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
-// ChatCost is the cumulative cost for a selected chat's subtree: the
-// chat itself plus every descendant (subagent) chat it spawned. A root
-// chat therefore reports its whole tree, while a subagent reports only
-// its own spend plus any nested subagents.
+// ChatCost is the AI Gateway cost for the requested chat's whole tree.
+// Root and subagent chats report the same total.
+// RequestCount counts every finished request in the tree, including ones that
+// recorded no billable usage at all, such as a request that failed upstream.
+// UnpricedRequestCount counts requests with at least one usage record whose
+// model had no recorded price; RequestCount includes them and
+// TotalCostMicros omits only their unpriced usage.
 type ChatCost struct {
-	ChatID                           uuid.UUID `json:"chat_id" format:"uuid"`
-	TotalCostMicros                  int64     `json:"total_cost_micros"`
-	PricedMessageCount               int64     `json:"priced_message_count"`
-	UnpricedMessagesHavingUsageCount int64     `json:"unpriced_messages_having_usage_count"`
+	ChatID               uuid.UUID `json:"chat_id" format:"uuid"`
+	TotalCostMicros      int64     `json:"total_cost_micros"`
+	RequestCount         int64     `json:"request_count"`
+	UnpricedRequestCount int64     `json:"unpriced_request_count"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
@@ -2592,7 +2597,8 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 
-// GetChatCost returns the cumulative cost for a single chat.
+// GetChatCost returns the AI Gateway cost for the whole chat tree that
+// contains chatID.
 func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
 	if err != nil {

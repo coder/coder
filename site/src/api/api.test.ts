@@ -610,4 +610,53 @@ describe("api.ts", () => {
 			);
 		});
 	});
+
+	describe("oauth2 provider settings", () => {
+		const settings: TypesGen.OAuth2ProviderSettings = {
+			dynamic_client_registration_enabled: true,
+		};
+
+		it("gets oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.getOAuth2ProviderSettings();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when getting oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
+
+			await expect(API.getOAuth2ProviderSettings()).rejects.toBe(expectedError);
+		});
+
+		it("updates oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "put").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.putOAuth2ProviderSettings(settings);
+
+			expect(axiosInstance.put).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+				settings,
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when updating oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "put").mockRejectedValueOnce(expectedError);
+
+			await expect(API.putOAuth2ProviderSettings(settings)).rejects.toBe(
+				expectedError,
+			);
+		});
+	});
 });

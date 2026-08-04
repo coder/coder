@@ -16,7 +16,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockNoPermissions,

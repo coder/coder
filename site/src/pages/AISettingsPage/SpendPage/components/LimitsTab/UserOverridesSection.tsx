@@ -3,7 +3,7 @@ import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { paginateItems } from "#/utils/paginateItems";
 import { SpendSectionHeader } from "../SpendSectionHeader";
@@ -154,15 +154,18 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 				/>
 			</div>
 			{pendingDeleteUserId && (
-				<ConfirmDeleteDialog
-					entity="user override"
+				<ConfirmDialog
+					type="delete"
+					title="Delete user override"
+					confirmText="Delete user override"
+					description="Are you sure you want to delete this user override? This action is irreversible."
 					onConfirm={() => {
 						void onDeleteOverride(pendingDeleteUserId);
 						setPendingDeleteUserId(null);
 					}}
-					isPending={deletePending}
+					confirmLoading={deletePending}
 					open
-					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
+					onClose={() => setPendingDeleteUserId(null)}
 				/>
 			)}
 		</section>

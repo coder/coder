@@ -2793,6 +2793,16 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
+	// The aggregate covers one chat tree, so it is authorized through the
+	// root chat. Members cannot read interception rows back, but they can
+	// read their own chats.
+	if _, err := q.GetChatByID(ctx, rootChatID); err != nil {
+		return database.GetAIBridgeChatCostRow{}, err
+	}
+	return q.db.GetAIBridgeChatCost(ctx, rootChatID)
+}
+
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }
@@ -2809,6 +2819,13 @@ func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBr
 		return q.db.GetAIBridgeInterceptions(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetAIBridgeSessionTopDomains(ctx context.Context, arg database.GetAIBridgeSessionTopDomainsParams) ([]database.GetAIBridgeSessionTopDomainsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeSessionTopDomains(ctx, arg)
 }
 
 func (q *querier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
@@ -6817,6 +6834,13 @@ func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBri
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeSessionNetworkCalls(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {

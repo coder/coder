@@ -327,13 +327,13 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm helm actionlint aqua:crate-ci/typos"
+          install-args: "go node pnpm helm aqua:crate-ci/typos"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -367,8 +367,12 @@ jobs:
       - name: Verify helm version
         run: helm version --short
 
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
       - name: make lint
-        run: make --output-sync=line -j lint
+        # Bound concurrent lint targets to keep peak memory below the runner limit.
+        run: make --output-sync=line -j"$(nproc)" lint
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -410,7 +414,10 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "actionlint zizmor"
+          install-args: "go zizmor"
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
@@ -978,6 +985,9 @@ jobs:
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder

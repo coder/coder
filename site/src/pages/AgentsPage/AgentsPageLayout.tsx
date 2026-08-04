@@ -48,8 +48,8 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
@@ -59,6 +59,7 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
@@ -126,32 +127,25 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// Chat IDs whose cost queries must refetch after a watch event, or an
-// empty array when the event cannot change any cost. Cost accrues while
-// a chat generates, so refetch when a status change lands in a
-// non-active status. The cost endpoint sums the requested chat's
-// subtree (GetChatModelUsageCostByChatID walks parent_chat_id), so a
-// subagent going idle must also refresh its ancestors' rolled-up
-// totals. The watch payload only carries the immediate parent and the
-// root, which covers every ancestor for nesting up to two levels deep;
-// deeper intermediate ancestors are refreshed by the query staleTime.
-export const chatCostIdsToInvalidate = (
+// Summary and title generation can bill after the turn reports a non-active
+// status, so invalidate the root-keyed cost query when those events arrive.
+const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"summary_change",
+	"title_change",
+]);
+
+export const chatCostIdToInvalidate = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
-): readonly string[] => {
+): string | undefined => {
+	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
+		return getChatCostTreeID(chat);
+	}
 	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
-		return [];
+		return undefined;
 	}
-	// root_chat_id is self-referential on root chats and parent_chat_id
-	// equals root_chat_id at depth one; the set dedupes both cases.
-	const ids = new Set([chat.id]);
-	if (chat.parent_chat_id) {
-		ids.add(chat.parent_chat_id);
-	}
-	if (chat.root_chat_id) {
-		ids.add(chat.root_chat_id);
-	}
-	return [...ids];
+	return getChatCostTreeID(chat);
 };
 
 const AgentsPageLayout: FC = () => {
@@ -683,10 +677,11 @@ const AgentsPageLayout: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
-						for (const costChatId of chatCostIdsToInvalidate(
+						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
 							chatEvent.kind,
-						)) {
+						);
+						if (costChatId) {
 							void queryClient.invalidateQueries({
 								queryKey: chatCostKey(costChatId),
 								exact: true,

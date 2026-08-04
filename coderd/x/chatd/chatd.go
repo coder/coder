@@ -1334,7 +1334,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			OwnerID:     opts.OwnerID,
 			WorkspaceID: opts.WorkspaceID,
 			TurnID:      &turnID,
-		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
@@ -1487,7 +1487,7 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, err
 		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
@@ -1791,7 +1791,7 @@ func (p *Server) EditMessage(
 		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
-		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart)
+		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
@@ -1799,7 +1799,7 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, err
 		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
@@ -2170,7 +2170,7 @@ func (p *Server) SubmitToolResults(
 			return err
 		}
 		for _, result := range opts.Results {
-			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse)
+			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse, dispatch.CapacityClassGeneration)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
 				return chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)

@@ -1081,6 +1081,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeChatCost").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeChatCost").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeInterceptionByID(ctx, id)
@@ -1102,6 +1110,14 @@ func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]data
 	r0, r1 := m.s.GetAIBridgeInterceptions(ctx)
 	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeInterceptions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeSessionTopDomains(ctx context.Context, arg database.GetAIBridgeSessionTopDomainsParams) ([]database.GetAIBridgeSessionTopDomainsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeSessionTopDomains(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIBridgeSessionTopDomains").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeSessionTopDomains").Inc()
 	return r0, r1
 }
 
@@ -4758,6 +4774,14 @@ func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.
 	r0, r1 := m.s.ListAIBridgeModels(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeModels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeModels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSessionNetworkCalls(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionNetworkCalls").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionNetworkCalls").Inc()
 	return r0, r1
 }
 
