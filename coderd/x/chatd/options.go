@@ -187,9 +187,7 @@ type chatWorkerOptions struct {
 	Clock             quartz.Clock
 	TaskStarter       chatWorkerTaskStarter
 	MessagePartBuffer *messagepartbuffer.Buffer
-	// AgentGate caps concurrently executing agentic loops. Nil leaves
-	// them uncapped.
-	AgentGate AgentConcurrencyGate
+	AgentGate         AgentConcurrencyGate
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]

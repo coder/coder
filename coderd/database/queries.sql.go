@@ -6995,9 +6995,8 @@ WHERE concurrency_state = 'active'
   AND status IN ('running', 'interrupting')
 `
 
-// Counts chats holding a concurrent-agent capacity slot. Callers
-// serialize claims with LockIDChatConcurrency; this query is the
-// mechanical count only.
+// Claims serialize with LockIDChatConcurrency; this query only counts
+// current active markers.
 func (q *sqlQuerier) CountActiveConcurrencyChats(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countActiveConcurrencyChats)
 	var count int64
@@ -9758,8 +9757,6 @@ ORDER BY concurrency_queued_at ASC, id ASC
 LIMIT $1::bigint
 `
 
-// Returns the chats first in line for a concurrent-agent capacity
-// slot, oldest queued first.
 func (q *sqlQuerier) GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getOldestQueuedConcurrencyChats, limitCount)
 	if err != nil {
@@ -11033,11 +11030,8 @@ type SetChatConcurrencyStateParams struct {
 	ID                  uuid.UUID                `db:"id" json:"id"`
 }
 
-// Sets the concurrent-agent capacity markers. Deliberately does not
-// bump updated_at: queue admission is internal bookkeeping and must
-// not reorder chat lists. The status guard refuses to mark a chat
-// that already left the counted statuses, where the marker would go
-// stale (returns no row).
+// Queue admission is internal bookkeeping, so this does not update
+// updated_at. The guard returns no row when a marker would be stale.
 func (q *sqlQuerier) SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, setChatConcurrencyState, arg.ConcurrencyState, arg.ConcurrencyQueuedAt, arg.ID)
 	var i Chat
@@ -11669,8 +11663,8 @@ WITH updated_chat AS (
         requires_action_deadline_at = $6::timestamptz,
         compaction_requested_at = $7::timestamptz,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
-        -- Concurrency capacity markers are only meaningful while the chat
-        -- executes; leaving the counted statuses releases the slot.
+        -- Capacity markers are valid only for running or interrupting chats.
+        -- Clearing them on other transitions releases the slot.
         concurrency_state = CASE WHEN $1::chat_status IN ('running', 'interrupting') AND NOT $2::boolean THEN concurrency_state ELSE NULL END,
         concurrency_queued_at = CASE WHEN $1::chat_status IN ('running', 'interrupting') AND NOT $2::boolean THEN concurrency_queued_at ELSE NULL END,
         updated_at = NOW()
@@ -12658,8 +12652,8 @@ SET
     started_at = $3::timestamptz,
     heartbeat_at = $4::timestamptz,
     last_error = $5::jsonb,
-    -- Concurrency capacity markers are only meaningful while the chat
-    -- executes; leaving the counted statuses releases the slot.
+    -- Capacity markers are valid only for running or interrupting chats.
+    -- Clearing them on other transitions releases the slot.
     concurrency_state = CASE WHEN $1::chat_status IN ('running', 'interrupting') THEN concurrency_state ELSE NULL END,
     concurrency_queued_at = CASE WHEN $1::chat_status IN ('running', 'interrupting') THEN concurrency_queued_at ELSE NULL END,
     updated_at = NOW()

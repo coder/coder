@@ -251,8 +251,7 @@ func (r *runner) runTask(
 		RunnerID: input.RunnerID,
 	}
 	if kind == taskKindGeneration {
-		// Acquire outside runTaskWithRetry so queue waits do not
-		// consume 15-minute task attempts.
+		// Acquire before retry accounting so queue waits do not consume attempts.
 		if err := r.lease.EnsureHeld(ctx); err != nil {
 			if ctx.Err() == nil {
 				r.opts.Logger.Warn(ctx, "chatworker task failed to acquire agent capacity slot", slogError(err))
@@ -272,8 +271,7 @@ func (r *runner) runTask(
 
 		switch kind {
 		case taskKindGeneration:
-			// Re-acquire when a canceled Resume after wait_agent left
-			// the slot unheld; a no-op while the slot is held.
+			// Re-acquire in case a canceled wait_agent resume left the slot unheld.
 			if err := r.lease.EnsureHeld(ctx); err != nil {
 				return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask reacquire agent capacity slot: %w", err))
 			}

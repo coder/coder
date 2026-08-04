@@ -22,21 +22,19 @@ import (
 	"github.com/coder/quartz"
 )
 
-// MaxConcurrentAgents caps chatd agentic loops when the deployment lacks
-// codersdk.FeatureAgentRuntimeHours. These are chatd loops, not workspace
+// MaxConcurrentAgents is the default cap for chatd generation loops when
+// codersdk.FeatureAgentRuntimeHours is disabled. It does not cap workspace
 // agents.
 const MaxConcurrentAgents = 5
 
-// defaultCapacityPollInterval retries after missed delivery, entitlement
-// changes, or release paths that do not publish.
+// Fallback polling covers missed nudges, entitlement changes, and release
+// paths without a publisher.
 const defaultCapacityPollInterval = 15 * time.Second
 
-// defaultMetricsInterval is how often the deployment-wide capacity
-// gauges are refreshed from the database.
 const defaultMetricsInterval = 30 * time.Second
 
-// NewAgentConcurrencyGateFactory evaluates the live entitlement on every
-// claim.
+// NewAgentConcurrencyGateFactory returns a gate that checks the current
+// entitlement before each claim.
 func NewAgentConcurrencyGateFactory(set *entitlements.Set) osschatd.AgentConcurrencyGateFactory {
 	return func(opts osschatd.AgentConcurrencyGateOptions) osschatd.AgentConcurrencyGate {
 		return newGate(gateOptions{
@@ -59,22 +57,19 @@ type gateOptions struct {
 	Pubsub       pubsub.Pubsub
 	Clock        quartz.Clock
 	Logger       slog.Logger
-	// Registerer registers the gate metrics when non-nil.
-	Registerer prometheus.Registerer
+	Registerer   prometheus.Registerer
 	// OnQueued and OnAdmitted observe a chat entering the capacity
 	// queue and leaving it. The chat row reflects the committed state.
-	OnQueued   func(chat database.Chat)
-	OnAdmitted func(chat database.Chat)
-	// LifetimeCtx bounds the background metrics refresher. Nil
-	// disables it.
+	OnQueued    func(chat database.Chat)
+	OnAdmitted  func(chat database.Chat)
 	LifetimeCtx context.Context
 
 	Capacity     int64
 	PollInterval time.Duration
 }
 
-// gate serializes cross-replica claims with an advisory lock. Status
-// transitions release claims implicitly.
+// gate serializes cross-replica claims with an advisory lock. Claims are
+// cleared when a chat leaves the counted states.
 type gate struct {
 	entitlements *entitlements.Set
 	store        database.Store
@@ -154,8 +149,6 @@ func (g *gate) entitled() bool {
 	return g.entitlements.Enabled(codersdk.FeatureAgentRuntimeHours)
 }
 
-// Acquire waits until the chat holds a slot. It is idempotent, retries
-// transient errors, and returns ctx.Err() when canceled.
 func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
@@ -203,9 +196,7 @@ func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 	}
 }
 
-// claimOnce runs one claim attempt, records queue metrics, and
-// invokes the queue/admission observers. Errors are logged and
-// treated as a failed attempt so the caller's wait loop retries.
+// Claim failures are logged so Acquire can retry.
 func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID) bool {
 	res, err := g.tryClaim(ctx, chatID)
 	if err != nil {
@@ -225,9 +216,7 @@ func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID) bool {
 	return false
 }
 
-// Yield releases the chat's capacity slot while its runner blocks on
-// external completion (wait_agent), so subagent children can run.
-// Resuming is a plain Acquire.
+// Yield releases the slot while wait_agent blocks so subagent chats can run.
 func (g *gate) Yield(ctx context.Context, chatID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
@@ -242,7 +231,8 @@ func (g *gate) Yield(ctx context.Context, chatID uuid.UUID) error {
 		},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// The chat already left the counted statuses; nothing to free.
+		// The chat is no longer eligible for a capacity marker, so there is
+		// nothing to free.
 		return nil
 	}
 	if err != nil {
@@ -256,18 +246,14 @@ func (g *gate) Yield(ctx context.Context, chatID uuid.UUID) error {
 
 type claimResult struct {
 	admitted bool
-	// justQueued is true when this attempt newly wrote the queued
-	// marker (as opposed to finding it already set).
-	justQueued bool
-	// queuedSince carries the queue entry time for wait metrics when
-	// an admitted chat had been queued.
+	// justQueued marks a transition into the queued state.
+	justQueued  bool
 	queuedSince time.Time
 	wasQueued   bool
 	chat        database.Chat
 }
 
-// tryClaim runs one serialized claim attempt. All replicas' claims
-// serialize on the advisory lock, so the count-then-write sequence
+// tryClaim serializes count and write with the advisory lock so replicas
 // cannot over-admit.
 func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, error) {
 	var res claimResult
@@ -279,16 +265,15 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 		chat, err := tx.GetChatByID(ctx, chatID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// Deleted chat: admit without a claim; the task is
-				// exiting anyway and nothing is counted.
+				// Deleted chats cannot hold counted slots, so admit without a claim.
 				res.admitted = true
 				return nil
 			}
 			return err
 		}
 		if chat.Archived || (chat.Status != database.ChatStatusRunning && chat.Status != database.ChatStatusInterrupting) {
-			// The chat left the counted statuses; a marker written now
-			// would go stale. Admit without a claim.
+			// The chat is no longer eligible for a capacity marker, so admit
+			// without a claim.
 			res.admitted = true
 			return nil
 		}
@@ -311,8 +296,7 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 			if err != nil {
 				return err
 			}
-			// Queued IDs get free slots oldest-first, before a new
-			// claimant.
+			// Queued chats are admitted oldest first before new claims.
 			admit := slices.Contains(oldestQueued, chatID) ||
 				(!res.wasQueued && int64(len(oldestQueued)) < free)
 			if admit {
@@ -324,9 +308,8 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 					},
 				})
 				if errors.Is(err, sql.ErrNoRows) {
-					// A concurrent transition moved the chat out of the
-					// counted statuses after our read; admit without a
-					// claim, matching the status check above.
+					// The chat is no longer eligible for a capacity marker, so
+					// admit without a claim.
 					res = claimResult{admitted: true}
 					return nil
 				}
@@ -419,8 +402,7 @@ func (g *gate) refreshGauges(ctx context.Context) {
 	}
 }
 
-// jitter spreads poll wakeups across waiters by up to 20 percent so
-// queued chats do not stampede the advisory lock in lockstep.
+// jitter spreads poll wakeups across waiters to reduce lock contention.
 func jitter(d time.Duration) time.Duration {
 	return d + time.Duration(rand.Int64N(int64(d/5))) //nolint:gosec // Non-cryptographic wakeup spread.
 }

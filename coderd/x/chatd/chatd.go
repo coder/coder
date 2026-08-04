@@ -3027,9 +3027,8 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
-	// AgentConcurrencyGateFactory constructs the concurrent-agent
-	// gate for the chat worker. Set by enterprise, where the gate is
-	// implemented. Nil leaves chatd agentic loops uncapped.
+	// AgentConcurrencyGateFactory builds the chat worker capacity gate.
+	// Nil leaves capacity uncapped.
 	AgentConcurrencyGateFactory AgentConcurrencyGateFactory
 
 	// OIDCTokenSource resolves the calling user's OIDC access

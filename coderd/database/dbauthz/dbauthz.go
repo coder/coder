@@ -1958,8 +1958,7 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 }
 
 func (q *querier) CountActiveConcurrencyChats(ctx context.Context) (int64, error) {
-	// Deployment-wide capacity accounting is a system-level read
-	// enforced by the AsChatd context, not per-row authorization.
+	// Capacity reads use chatd system authorization, not per-row filters.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return 0, err
 	}
@@ -2024,8 +2023,7 @@ func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]databas
 }
 
 func (q *querier) CountQueuedConcurrencyChats(ctx context.Context) (int64, error) {
-	// Deployment-wide capacity accounting is a system-level read
-	// enforced by the AsChatd context, not per-row authorization.
+	// Capacity reads use chatd system authorization, not per-row filters.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return 0, err
 	}
@@ -4224,8 +4222,7 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 }
 
 func (q *querier) GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error) {
-	// Deployment-wide capacity accounting is a system-level read
-	// enforced by the AsChatd context, not per-row authorization.
+	// Capacity reads use chatd system authorization, not per-row filters.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err
 	}

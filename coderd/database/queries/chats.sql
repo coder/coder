@@ -1734,8 +1734,8 @@ SET
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::jsonb,
-    -- Concurrency capacity markers are only meaningful while the chat
-    -- executes; leaving the counted statuses releases the slot.
+    -- Capacity markers are valid only for running or interrupting chats.
+    -- Clearing them on other transitions releases the slot.
     concurrency_state = CASE WHEN @status::chat_status IN ('running', 'interrupting') THEN concurrency_state ELSE NULL END,
     concurrency_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') THEN concurrency_queued_at ELSE NULL END,
     updated_at = NOW()
@@ -2526,8 +2526,8 @@ WITH updated_chat AS (
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
-        -- Concurrency capacity markers are only meaningful while the chat
-        -- executes; leaving the counted statuses releases the slot.
+        -- Capacity markers are valid only for running or interrupting chats.
+        -- Clearing them on other transitions releases the slot.
         concurrency_state = CASE WHEN @status::chat_status IN ('running', 'interrupting') AND NOT @archived::boolean THEN concurrency_state ELSE NULL END,
         concurrency_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') AND NOT @archived::boolean THEN concurrency_queued_at ELSE NULL END,
         updated_at = NOW()
@@ -2848,9 +2848,8 @@ LEFT JOIN to_archive t ON t.id = a.id
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
 
 -- name: CountActiveConcurrencyChats :one
--- Counts chats holding a concurrent-agent capacity slot. Callers
--- serialize claims with LockIDChatConcurrency; this query is the
--- mechanical count only.
+-- Claims serialize with LockIDChatConcurrency; this query only counts
+-- current active markers.
 SELECT COUNT(*)
 FROM chats
 WHERE concurrency_state = 'active'
@@ -2865,8 +2864,6 @@ WHERE concurrency_state = 'queued'
   AND status IN ('running', 'interrupting');
 
 -- name: GetOldestQueuedConcurrencyChats :many
--- Returns the chats first in line for a concurrent-agent capacity
--- slot, oldest queued first.
 SELECT id
 FROM chats
 WHERE concurrency_state = 'queued'
@@ -2876,11 +2873,8 @@ ORDER BY concurrency_queued_at ASC, id ASC
 LIMIT @limit_count::bigint;
 
 -- name: SetChatConcurrencyState :one
--- Sets the concurrent-agent capacity markers. Deliberately does not
--- bump updated_at: queue admission is internal bookkeeping and must
--- not reorder chat lists. The status guard refuses to mark a chat
--- that already left the counted statuses, where the marker would go
--- stale (returns no row).
+-- Queue admission is internal bookkeeping, so this does not update
+-- updated_at. The guard returns no row when a marker would be stale.
 WITH updated_chat AS (
     UPDATE chats
     SET

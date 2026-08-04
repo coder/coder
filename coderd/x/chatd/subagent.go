@@ -1473,8 +1473,7 @@ func (p *Server) awaitSubagentCompletion(
 		return handleSubagentDone(targetChat, report)
 	}
 
-	// Yield the parent's capacity slot while blocked so subagent
-	// children can run under the concurrency cap.
+	// Yield the parent slot while wait_agent blocks so subagent chats can run.
 	if lease, ok := agentSlotLeaseFromContext(ctx); ok {
 		lease.Pause(ctx)
 		defer func() {

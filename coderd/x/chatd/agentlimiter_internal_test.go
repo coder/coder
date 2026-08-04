@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// fakeAgentGate blocks admission without implementing capacity accounting.
 type fakeAgentGate struct {
 	mu    sync.Mutex
 	chats map[uuid.UUID]*fakeGateChat
@@ -191,7 +190,6 @@ func TestWorker_AgentGateWaitAgentPauseResume(t *testing.T) {
 
 	events := gate.chat(chat.ID).snapshot()
 	require.Equal(t, 1, countEvents(events, "yield"))
-	// Initial admission plus the resume's re-acquire.
 	require.GreaterOrEqual(t, countEvents(events, "acquire"), 2)
 }
 

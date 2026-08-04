@@ -265,9 +265,8 @@ type Options struct {
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
-	// ChatAgentConcurrencyGateFactory constructs the concurrent-agent
-	// gate for the chat worker. Set by enterprise, where the gate is
-	// implemented. Nil leaves chatd agentic loops uncapped.
+	// ChatAgentConcurrencyGateFactory builds the chat worker capacity gate.
+	// Nil leaves capacity uncapped.
 	ChatAgentConcurrencyGateFactory chatd.AgentConcurrencyGateFactory
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.

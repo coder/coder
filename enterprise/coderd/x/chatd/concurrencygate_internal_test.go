@@ -87,7 +87,6 @@ func TestGateCapAcrossInstances(t *testing.T) {
 	f := newGateFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Two gate instances sharing one database model two replicas.
 	gate1 := newGate(gateOptions{Store: f.db, Pubsub: f.ps, Capacity: 2, Logger: testutil.Logger(t)})
 	gate2 := newGate(gateOptions{Store: f.db, Pubsub: f.ps, Capacity: 2, Logger: testutil.Logger(t)})
 
@@ -157,8 +156,7 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 	f := newGateFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// A mock clock that is never advanced proves admission arrives
-	// through the pubsub nudge, not the fallback poll.
+	// The mock clock never advances, so admission must come from pubsub.
 	clock := quartz.NewMock(t)
 	g := newGate(gateOptions{Store: f.db, Pubsub: f.ps, Capacity: 1, Clock: clock, Logger: testutil.Logger(t)})
 
@@ -176,8 +174,7 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// The state machine publishes the capacity nudge after the completion
-	// transition commits.
+	// ChatMachine.Update publishes the nudge after FinishTurn commits.
 	machine := chatstate.NewChatMachine(f.db, f.ps, active.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
@@ -225,7 +222,7 @@ func TestGateFallbackPollAdmits(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Release capacity without any pubsub delivery.
+	// Free the slot without publishing a capacity nudge.
 	_, err := f.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     active.ID,
 		Status: database.ChatStatusWaiting,
@@ -257,8 +254,7 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Advance the mock clock (within the pending poll timer) so the
-	// second chat queues strictly later.
+	// Advance the clock so the second chat gets a later queue timestamp.
 	clock.Advance(time.Second).MustWait(ctx)
 	newerAdmitted := make(chan error, 1)
 	go func() {
@@ -269,8 +265,7 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Free the slot; the nudge wakes both waiters but only the oldest
-	// queued chat may claim it.
+	// The nudge wakes both waiters, but only the oldest may claim the slot.
 	machine := chatstate.NewChatMachine(f.db, f.ps, active.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
@@ -373,21 +368,18 @@ func TestGateYieldFreesCapacity(t *testing.T) {
 	child := f.chat(t)
 	require.NoError(t, g.Acquire(ctx, parent.ID))
 
-	// The child cannot run while the parent holds the only slot.
 	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 	err := g.Acquire(blockedCtx, child.ID)
 	cancel()
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
-	// Yielding the parent's slot (wait_agent) admits the child via the
-	// yield-time nudge.
+	// Yield publishes a nudge so the child can claim the freed slot.
 	require.NoError(t, g.Yield(ctx, parent.ID))
 	state := concurrencyStateOf(ctx, t, f.db, parent.ID)
 	require.True(t, state.Valid)
 	require.Equal(t, database.ChatConcurrencyStateYielded, state.ChatConcurrencyState)
 	require.NoError(t, g.Acquire(ctx, child.ID))
 
-	// The parent's resume re-queues behind the child.
 	resumed := make(chan error, 1)
 	go func() {
 		resumed <- g.Acquire(ctx, parent.ID)
@@ -504,8 +496,6 @@ func TestGateIdempotentAcquire(t *testing.T) {
 
 	chat := f.chat(t)
 	require.NoError(t, g.Acquire(ctx, chat.ID))
-	// Step boundaries and task retries re-acquire; the held slot is
-	// re-admitted without waiting even at full capacity.
 	require.NoError(t, g.Acquire(ctx, chat.ID))
 
 	count, err := f.db.CountActiveConcurrencyChats(ctx)
@@ -515,7 +505,6 @@ func TestGateIdempotentAcquire(t *testing.T) {
 
 func TestMaxConcurrentAgents(t *testing.T) {
 	t.Parallel()
-	// The product cap is part of the licensing contract; a change must
-	// be deliberate.
+	// This value is part of license enforcement.
 	require.Equal(t, int64(5), int64(MaxConcurrentAgents))
 }

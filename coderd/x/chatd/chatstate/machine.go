@@ -187,8 +187,8 @@ func (m *ChatMachine) Update(
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		// Only clearing an active claim publishes a capacity nudge.
-		// The gate owns admission.
+		// Publish a nudge when a status transition clears an active claim.
+		// The gate owns capacity admission.
 		if before.ConcurrencyState.Valid &&
 			before.ConcurrencyState.ChatConcurrencyState == database.ChatConcurrencyStateActive &&
 			!chat.ConcurrencyState.Valid {

@@ -14,16 +14,12 @@ import (
 	"github.com/coder/quartz"
 )
 
-// AgentConcurrencyGate is invoked at generation boundaries to enforce
-// deployment-wide chatd agent capacity. The enterprise gate implements
-// this contract.
+// AgentConcurrencyGate controls deployment-wide capacity for chat generation.
 type AgentConcurrencyGate interface {
-	// Acquire blocks until the chat holds a capacity slot or ctx is
-	// canceled. It is idempotent; status transitions release the slot
-	// implicitly.
+	// Acquire blocks until the chat holds a slot or ctx is canceled. Calls are
+	// idempotent; leaving a counted status releases the claim.
 	Acquire(ctx context.Context, chatID uuid.UUID) error
-	// Yield releases the chat's slot while its generation blocks on
-	// external completion (wait_agent). Resuming is a plain Acquire.
+	// Yield releases the slot while wait_agent blocks. Resume by calling Acquire.
 	Yield(ctx context.Context, chatID uuid.UUID) error
 }
 
@@ -34,21 +30,18 @@ type AgentConcurrencyGateOptions struct {
 	Clock      quartz.Clock
 	Logger     slog.Logger
 	Registerer prometheus.Registerer
-	// OnQueued and OnAdmitted observe committed queue transitions used for
-	// capacity_change watch events.
+	// OnQueued and OnAdmitted receive committed queue transitions.
 	OnQueued   func(chat database.Chat)
 	OnAdmitted func(chat database.Chat)
-	// LifetimeCtx bounds gate background work; canceled when the
-	// chatd server closes.
+	// LifetimeCtx bounds background work and is canceled when chatd closes.
 	LifetimeCtx context.Context
 }
 
-// AgentConcurrencyGateFactory constructs the chat worker's gate. Nil leaves
-// agentic loops uncapped.
+// AgentConcurrencyGateFactory builds a chat worker capacity gate. A nil
+// factory leaves capacity uncapped.
 type AgentConcurrencyGateFactory func(AgentConcurrencyGateOptions) AgentConcurrencyGate
 
-// agentSlotLease binds one runner to the gate and reference-counts
-// concurrent wait_agent pauses.
+// agentSlotLease shares one gate claim across concurrent wait_agent pauses.
 type agentSlotLease struct {
 	gate   AgentConcurrencyGate
 	chatID uuid.UUID
@@ -63,9 +56,8 @@ func newAgentSlotLease(gate AgentConcurrencyGate, chatID uuid.UUID, logger slog.
 	return &agentSlotLease{gate: gate, chatID: chatID, logger: logger}
 }
 
-// EnsureHeld acquires the chat's capacity slot, blocking until one
-// frees or ctx is canceled. Idempotent at step boundaries and across
-// task retries.
+// EnsureHeld acquires the slot or waits until ctx is canceled. Calls are
+// idempotent.
 func (l *agentSlotLease) EnsureHeld(ctx context.Context) error {
 	if l.gate == nil {
 		return nil
@@ -75,8 +67,8 @@ func (l *agentSlotLease) EnsureHeld(ctx context.Context) error {
 	return l.gate.Acquire(ctx, l.chatID)
 }
 
-// Pause yields the slot while wait_agent blocks. Only the first concurrent
-// pause yields; a failed yield leaves the claim held.
+// Pause yields on the first concurrent wait_agent pause. A failed yield
+// leaves the claim held.
 func (l *agentSlotLease) Pause(ctx context.Context) {
 	if l.gate == nil {
 		return
@@ -92,9 +84,8 @@ func (l *agentSlotLease) Pause(ctx context.Context) {
 	}
 }
 
-// Resume undoes one Pause; the last Resume re-acquires the slot,
-// blocking until one frees. A canceled Resume returns the context
-// error; the next generation attempt re-acquires through EnsureHeld.
+// Resume re-acquires on the final matching pause. If canceled, the next
+// generation attempt retries through EnsureHeld.
 func (l *agentSlotLease) Resume(ctx context.Context) error {
 	if l.gate == nil {
 		return nil
@@ -110,8 +101,8 @@ func (l *agentSlotLease) Resume(ctx context.Context) error {
 	return l.gate.Acquire(ctx, l.chatID)
 }
 
-// AttachToContext injects the lease into a generation task context so
-// wait_agent can pause it. Returns ctx unchanged for the no-op lease.
+// AttachToContext makes the lease available to wait_agent. It leaves ctx
+// unchanged when no gate is configured.
 func (l *agentSlotLease) AttachToContext(ctx context.Context) context.Context {
 	if l.gate == nil {
 		return ctx
@@ -121,9 +112,6 @@ func (l *agentSlotLease) AttachToContext(ctx context.Context) context.Context {
 
 type agentSlotLeaseCtxKey struct{}
 
-// agentSlotLeaseFromContext returns the lease injected by the runner
-// into generation task contexts. Absent on uncapped deployments and
-// for non-generation callers; callers treat absence as a no-op.
 func agentSlotLeaseFromContext(ctx context.Context) (*agentSlotLease, bool) {
 	lease, ok := ctx.Value(agentSlotLeaseCtxKey{}).(*agentSlotLease)
 	return lease, ok
