@@ -390,11 +390,11 @@ func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
 func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.T) {
 	t.Parallel()
 
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(nil, &codersdk.ChatModelProviderOptions{
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(chatprovider.Model{}, &codersdk.ChatModelProviderOptions{
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
 			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
 		},
-	}, nil)
+	})
 
 	require.NotNil(t, providerOptions)
 	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)

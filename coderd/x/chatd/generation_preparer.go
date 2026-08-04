@@ -134,10 +134,6 @@ func (server *Server) prepareGeneration(
 		debugEnabled = cuDebugEnabled
 		resolvedProvider = cuResolvedProvider
 		debugModel = cuResolvedModel
-		// The computer-use client is built without ConfigOptions, so the
-		// chat model's transport override must not follow the substituted
-		// model into provider option preparation.
-		callConfig.OpenAIConfig = nil
 	}
 
 	currentPlanMode := chat.PlanMode
@@ -297,14 +293,7 @@ func (server *Server) prepareGeneration(
 		// aibridge routing rewrites the provider (e.g. Bedrock to the
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
-		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(
-				model.Provider(),
-				model.ModelID(),
-				mediaType,
-				chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig),
-			)
-		}
+		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
@@ -557,17 +546,14 @@ func (server *Server) prepareGeneration(
 		requestedEffort,
 		callConfig.ReasoningEffort,
 	)
-	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model.LanguageModel(),
+		model,
 		callConfig.ProviderOptions,
-		responsesOverride,
 	)
 	providerOptions = chatprovider.ApplyReasoningEffort(
-		model.LanguageModel(),
+		model,
 		providerOptions,
 		reasoningEffort,
-		responsesOverride,
 	)
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)

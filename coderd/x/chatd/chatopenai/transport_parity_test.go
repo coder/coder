@@ -90,24 +90,23 @@ func TestProviderOptionsTransportParity(t *testing.T) {
 		reflect.ValueOf(options).Elem().Field(i).Set(sample)
 
 		require.Equalf(t, want.responses,
-			optionChangesConvertedOutput(t, ptr(true), options),
+			optionChangesConvertedOutput(t, chatopenai.TransportResponses, options),
 			"field %s on the Responses transport", name)
 		require.Equalf(t, want.chatCompletions,
-			optionChangesConvertedOutput(t, ptr(false), options),
+			optionChangesConvertedOutput(t, chatopenai.TransportChatCompletions, options),
 			"field %s on the Chat Completions transport", name)
 	}
 }
 
 func optionChangesConvertedOutput(
 	t *testing.T,
-	responsesOverride *bool,
+	transport chatopenai.Transport,
 	options *codersdk.ChatModelOpenAIProviderOptions,
 ) bool {
 	t.Helper()
-	model := fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"}
 	baseline := chatopenai.ProviderOptionsFromChatConfig(
-		model, &codersdk.ChatModelOpenAIProviderOptions{}, responsesOverride,
+		transport, &codersdk.ChatModelOpenAIProviderOptions{},
 	)
-	converted := chatopenai.ProviderOptionsFromChatConfig(model, options, responsesOverride)
+	converted := chatopenai.ProviderOptionsFromChatConfig(transport, options)
 	return !reflect.DeepEqual(baseline, converted)
 }

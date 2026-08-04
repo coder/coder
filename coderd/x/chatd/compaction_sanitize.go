@@ -30,20 +30,12 @@ func sanitizeCompactionPrompt(
 	compactionModel chatprovider.Model,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
-	openAIResponsesOverride *bool,
 ) []fantasy.Message {
 	messages := prompt
 	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
-	messages = replaceUnsupportedFileParts(ctx, logger, messages, func(mediaType string) bool {
-		return chatprovider.AcceptsFilePartMediaType(
-			compactionModel.Provider(),
-			compactionModel.ModelID(),
-			mediaType,
-			openAIResponsesOverride,
-		)
-	})
+	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,

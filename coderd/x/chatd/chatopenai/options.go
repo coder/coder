@@ -14,11 +14,10 @@ import (
 // ProviderOptionsFromChatConfig converts chat model OpenAI options to fantasy
 // provider options used for inference calls.
 func ProviderOptionsFromChatConfig(
-	model fantasy.LanguageModel,
+	transport Transport,
 	options *codersdk.ChatModelOpenAIProviderOptions,
-	openAIResponsesOverride *bool,
 ) fantasy.ProviderOptionsData {
-	if UsesResponsesOptions(model, openAIResponsesOverride) {
+	if transport.UsesResponses() {
 		include := EnsureResponseIncludes(IncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
 			Include:           include,
@@ -114,21 +113,6 @@ func EnsureResponseIncludes(
 		return values
 	}
 	return append(values, required)
-}
-
-// UsesResponsesAPI reports whether a model uses the OpenAI Responses API.
-// Callers must pass the same override the client was built with.
-func UsesResponsesAPI(provider, modelID string, override *bool) bool {
-	return TransportFor(provider, modelID, override).UsesResponses()
-}
-
-// UsesResponsesOptions reports whether the model should use OpenAI Responses
-// API provider options.
-func UsesResponsesOptions(model fantasy.LanguageModel, override *bool) bool {
-	if model == nil {
-		return false
-	}
-	return UsesResponsesAPI(model.Provider(), model.Model(), override)
 }
 
 // ServiceTierFromChat normalizes chat-config service tier values for the

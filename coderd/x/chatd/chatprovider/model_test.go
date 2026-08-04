@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestModelResolvesTransportFromClient(t *testing.T) {
@@ -16,14 +17,29 @@ func TestModelResolvesTransportFromClient(t *testing.T) {
 
 	forceResponses := true
 
-	model := chatprovider.NewModel(
-		&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "babbage-002"},
-		&forceResponses,
-	)
-	require.Equal(t, chatopenai.TransportResponses, model.Transport())
-	require.Equal(t, fantasyopenai.Name, model.Provider())
-	require.Equal(t, "babbage-002", model.ModelID())
-	require.True(t, model.Valid())
+	// babbage-002 is absent from the provider SDK's known Responses model list.
+	client := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "babbage-002"}
+
+	tests := []struct {
+		name   string
+		config *codersdk.ChatModelOpenAIConfig
+		want   chatopenai.Transport
+	}{
+		{"NoConfig", nil, chatopenai.TransportChatCompletions},
+		{"ConfigWithoutOverride", &codersdk.ChatModelOpenAIConfig{}, chatopenai.TransportChatCompletions},
+		{"Forced", &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: &forceResponses}, chatopenai.TransportResponses},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			model := chatprovider.NewModel(client, tt.config)
+			require.Equal(t, tt.want, model.Transport())
+			require.Equal(t, fantasyopenai.Name, model.Provider())
+			require.Equal(t, "babbage-002", model.ModelID())
+			require.True(t, model.Valid())
+		})
+	}
 }
 
 func TestModelZeroValueFailsClosed(t *testing.T) {
@@ -54,7 +70,7 @@ func TestModelWithLanguageModelPreservesTransport(t *testing.T) {
 	forceResponses := true
 	model := chatprovider.NewModel(
 		&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "babbage-002"},
-		&forceResponses,
+		&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: &forceResponses},
 	)
 
 	replacement := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "babbage-002"}

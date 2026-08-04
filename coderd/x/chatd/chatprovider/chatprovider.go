@@ -122,10 +122,11 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// AcceptsFilePartMediaType reports whether a provider transport accepts
-// mediaType as a native file part. Unknown providers return false so callers
-// can avoid silently dropping unsupported text-family content.
-func AcceptsFilePartMediaType(provider, modelID, mediaType string, openAIResponsesOverride *bool) bool {
+// AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
+// file content part rather than silently dropping it. Callers replace rejected
+// parts with text, so a false negative costs fidelity while a false positive
+// loses the attachment entirely. Unknown providers therefore return false.
+func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed
@@ -138,8 +139,7 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string, openAIRespons
 	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
 	isPDF := baseType == "application/pdf"
 
-	normalized := NormalizeProvider(provider)
-	switch normalized {
+	switch NormalizeProvider(m.Provider()) {
 	case fantasygoogle.Name:
 		// Google passes any file part through unfiltered.
 		return true
@@ -149,7 +149,7 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string, openAIRespons
 		return isImage || isText || isPDF
 	case fantasyopenai.Name, fantasyazure.Name:
 		// Chat Completions accepts text and audio as native file parts.
-		if chatopenai.UsesResponsesAPI(normalized, modelID, openAIResponsesOverride) {
+		if m.transport.UsesResponses() {
 			return isImage || isPDF
 		}
 		return isImage || isText || isAudio || isPDF
@@ -894,10 +894,11 @@ func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCa
 	}
 }
 
-// OpenAIResponsesAPIOverride returns the configured OpenAI Responses API
+// openAIResponsesAPIOverride returns the configured OpenAI Responses API
 // override, or nil when the model config leaves the choice to the provider
-// SDK's known-model list.
-func OpenAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
+// SDK's known-model list. It stays unexported so the decision is reachable
+// only from client construction.
+func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 	if config == nil {
 		return nil
 	}
@@ -909,9 +910,8 @@ func OpenAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
 // HTTP headers on every request. httpClient, when non-nil, is used for
-// all provider HTTP requests. openAIResponsesOverride, when non-nil,
-// forces the OpenAI client onto the Responses API or Chat Completions
-// instead of deciding from the provider SDK's known-model list.
+// all provider HTTP requests. openAIConfig carries the model's OpenAI client
+// settings, including the transport override applied here.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -919,7 +919,7 @@ func ModelFromConfig(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIResponsesOverride *bool,
+	openAIConfig *codersdk.ChatModelOpenAIConfig,
 ) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -1008,8 +1008,8 @@ func ModelFromConfig(
 			fantasyopenai.WithUseResponsesAPI(),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
-		if openAIResponsesOverride != nil {
-			forced := *openAIResponsesOverride
+		if override := openAIResponsesAPIOverride(openAIConfig); override != nil {
+			forced := *override
 			options = append(options, fantasyopenai.WithResponsesAPIFunc(func(string) bool {
 				return forced
 			}))
@@ -1078,7 +1078,7 @@ func ModelFromConfig(
 	if err != nil {
 		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
-	return NewModel(model, openAIResponsesOverride), nil
+	return NewModel(model, openAIConfig), nil
 }
 
 func providerCreationError(provider string, err error) error {
@@ -1112,9 +1112,8 @@ func missingProviderAPIKeyError(provider string) error {
 // ProviderOptionsFromChatModelConfig converts chat model provider options to
 // fantasy provider options used for inference calls.
 func ProviderOptionsFromChatModelConfig(
-	model fantasy.LanguageModel,
+	model Model,
 	options *codersdk.ChatModelProviderOptions,
-	openAIResponsesOverride *bool,
 ) fantasy.ProviderOptions {
 	if options == nil {
 		return nil
@@ -1124,9 +1123,8 @@ func ProviderOptionsFromChatModelConfig(
 
 	if options.OpenAI != nil {
 		result[fantasyopenai.Name] = chatopenai.ProviderOptionsFromChatConfig(
-			model,
+			model.transport,
 			options.OpenAI,
-			openAIResponsesOverride,
 		)
 	}
 	if options.Anthropic != nil {
