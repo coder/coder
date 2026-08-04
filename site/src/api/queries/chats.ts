@@ -629,128 +629,150 @@ const isChatListRefetch = (query: {
 	return true;
 };
 
-export const chatCache = {
-	invalidateDetail: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatEntityKey(chatId),
-			exact: true,
-		}),
+export const invalidateChatEntity = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
 
-	invalidateEntityFamily: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatEntityKey(chatId),
-		}),
+export const invalidateChatEntityFamily = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatEntityKey(chatId),
+	});
 
-	invalidateLists: (queryClient: QueryClient) =>
-		queryClient.invalidateQueries({
-			queryKey: chatListFamilyKey,
-		}),
+export const invalidateChatListQueries = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: chatListFamilyKey,
+	});
 
-	invalidateSearches: (queryClient: QueryClient) =>
-		queryClient.invalidateQueries({
-			queryKey: chatSearchFamilyKey,
-		}),
+export const invalidateChatSearches = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: chatSearchFamilyKey,
+	});
 
-	invalidateByWorkspace: (queryClient: QueryClient) =>
-		queryClient.invalidateQueries({
-			queryKey: chatsByWorkspaceFamilyKey,
-		}),
+export const invalidateChatsByWorkspace = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: chatsByWorkspaceFamilyKey,
+	});
 
-	invalidateDebugRuns: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatDebugRunsKey(chatId),
-		}),
+export const invalidateChatDebugRuns = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatDebugRunsKey(chatId),
+	});
 
-	invalidateDiffContents: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatDiffContentsKey(chatId),
-			exact: true,
-		}),
+export const invalidateChatDiffContents = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatDiffContentsKey(chatId),
+		exact: true,
+	});
 
-	invalidatePrompts: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatPromptsKey(chatId),
-			exact: true,
-		}),
+export const invalidateChatPrompts = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatPromptsKey(chatId),
+		exact: true,
+	});
 
-	invalidateMessages: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatMessagesKey(chatId),
-			exact: true,
-		}),
+export const invalidateChatMessages = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatMessagesKey(chatId),
+		exact: true,
+	});
 
-	invalidateACL: (queryClient: QueryClient, chatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatACLKey(chatId),
-			exact: true,
-		}),
+export const invalidateChatACL = (queryClient: QueryClient, chatId: string) =>
+	queryClient.invalidateQueries({
+		queryKey: chatACLKey(chatId),
+		exact: true,
+	});
 
-	invalidateCostTree: (queryClient: QueryClient, rootChatId: string) =>
-		queryClient.invalidateQueries({
-			queryKey: chatCostTreeKey(rootChatId),
-			exact: true,
-		}),
+export const invalidateChatCostTree = (
+	queryClient: QueryClient,
+	rootChatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatCostTreeKey(rootChatId),
+		exact: true,
+	});
 
-	cancelLists: (queryClient: QueryClient) =>
-		queryClient.cancelQueries({
-			queryKey: chatListFamilyKey,
-		}),
+export const cancelChatListQueries = (queryClient: QueryClient) =>
+	queryClient.cancelQueries({
+		queryKey: chatListFamilyKey,
+	});
 
-	cancelListRefetches: (queryClient: QueryClient) =>
-		queryClient.cancelQueries({
-			queryKey: chatListFamilyKey,
-			predicate: isChatListRefetch,
-		}),
+export const cancelChatListRefetches = (queryClient: QueryClient) =>
+	queryClient.cancelQueries({
+		queryKey: chatListFamilyKey,
+		predicate: isChatListRefetch,
+	});
 
-	cancelDetail: (queryClient: QueryClient, chatId: string) =>
-		queryClient.cancelQueries({
-			queryKey: chatEntityKey(chatId),
-			exact: true,
-		}),
+export const cancelChatEntity = (queryClient: QueryClient, chatId: string) =>
+	queryClient.cancelQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
 
-	cancelLoadedDetailRefetch: (queryClient: QueryClient, chatId: string) => {
-		if (queryClient.getQueryData(chatEntityKey(chatId)) === undefined) {
-			return;
-		}
-		return queryClient.cancelQueries({
-			queryKey: chatEntityKey(chatId),
-			exact: true,
-		});
-	},
-
-	cancelMessages: (queryClient: QueryClient, chatId: string) =>
-		queryClient.cancelQueries({
-			queryKey: chatMessagesKey(chatId),
-			exact: true,
-		}),
-
-	removeDetail: (queryClient: QueryClient, chatId: string) =>
-		queryClient.removeQueries({
-			queryKey: chatEntityKey(chatId),
-			exact: true,
-		}),
-
-	patchDetail: (
-		queryClient: QueryClient,
-		chatId: string,
-		updater: (chat: TypesGen.Chat | undefined) => TypesGen.Chat | undefined,
-	) =>
-		queryClient.setQueryData<TypesGen.Chat | undefined>(
-			chatEntityKey(chatId),
-			updater,
-		),
-
-	patchMessages: (
-		queryClient: QueryClient,
-		chatId: string,
-		updater: (
-			data: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-		) => InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	) =>
-		queryClient.setQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-		>(chatMessagesKey(chatId), updater),
+export const cancelLoadedChatEntityRefetch = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	if (queryClient.getQueryData(chatEntityKey(chatId)) === undefined) {
+		return;
+	}
+	return queryClient.cancelQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
 };
+
+export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
+	queryClient.cancelQueries({
+		queryKey: chatMessagesKey(chatId),
+		exact: true,
+	});
+
+export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
+	queryClient.removeQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
+
+export const patchChatEntity = (
+	queryClient: QueryClient,
+	chatId: string,
+	updater: (chat: TypesGen.Chat | undefined) => TypesGen.Chat | undefined,
+) =>
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatEntityKey(chatId),
+		updater,
+	);
+
+export const patchChatMessages = (
+	queryClient: QueryClient,
+	chatId: string,
+	updater: (
+		data: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+	) => InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+) =>
+	queryClient.setQueryData<
+		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+	>(chatMessagesKey(chatId), updater);
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
@@ -931,8 +953,8 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -965,18 +987,18 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
-			chatCache.patchDetail(queryClient, chatId, () => context.previousChat);
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
 	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
-		void chatCache.invalidateLists(queryClient);
-		void chatCache.invalidateDetail(queryClient, chatId);
-		void chatCache.invalidateByWorkspace(queryClient);
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatsByWorkspace(queryClient);
 	},
 });
 
@@ -984,8 +1006,8 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -1014,18 +1036,18 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
-			chatCache.patchDetail(queryClient, chatId, () => context.previousChat);
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
 	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, false);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
-		void chatCache.invalidateLists(queryClient);
-		void chatCache.invalidateDetail(queryClient, chatId);
-		void chatCache.invalidateByWorkspace(queryClient);
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatsByWorkspace(queryClient);
 	},
 });
 
@@ -1035,8 +1057,8 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			plan_mode: toChatPlanModePayload(planMode),
 		}),
 	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -1062,7 +1084,7 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			  }
 			| undefined,
 	) => {
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
 		if (!previousChat) {
 			return;
@@ -1077,7 +1099,7 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 					: chat,
 			),
 		);
-		chatCache.patchDetail(queryClient, chatId, () => previousChat);
+		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
 
@@ -1090,8 +1112,8 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 				"00000000-0000-0000-0000-000000000000",
 		}),
 	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -1119,7 +1141,7 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 			  }
 			| undefined,
 	) => {
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
 		if (previousChat) {
 			updateInfiniteChatsCache(queryClient, (chats) =>
@@ -1132,7 +1154,7 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 						: chat,
 				),
 			);
-			chatCache.patchDetail(queryClient, chatId, () => previousChat);
+			patchChatEntity(queryClient, chatId, () => previousChat);
 		}
 	},
 	onSettled: async (
@@ -1140,9 +1162,9 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 		_error: unknown,
 		{ chatId }: UpdateChatWorkspaceVariables,
 	) => {
-		await chatCache.invalidateLists(queryClient);
-		await chatCache.invalidateDetail(queryClient, chatId);
-		await chatCache.invalidateByWorkspace(queryClient);
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+		await invalidateChatsByWorkspace(queryClient);
 	},
 });
 
@@ -1150,8 +1172,8 @@ export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
 	onMutate: async (chatId: string) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -1179,14 +1201,14 @@ export const pinChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
-			chatCache.patchDetail(queryClient, chatId, () => context.previousChat);
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await chatCache.invalidateLists(queryClient);
-		await chatCache.invalidateDetail(queryClient, chatId);
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
 	},
 });
 
@@ -1194,8 +1216,8 @@ export const unpinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 0 }),
 	onMutate: async (chatId: string) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
@@ -1222,14 +1244,14 @@ export const unpinChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
-			chatCache.patchDetail(queryClient, chatId, () => context.previousChat);
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await chatCache.invalidateLists(queryClient);
-		await chatCache.invalidateDetail(queryClient, chatId);
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
 	},
 });
 
@@ -1243,8 +1265,8 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 		chatId: string;
 		pinOrder: number;
 	}) => {
-		await chatCache.cancelLists(queryClient);
-		await chatCache.cancelDetail(queryClient, chatId);
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
 
 		// Optimistically reorder pinned chats in the cache so the
 		// sidebar reflects the new order immediately without waiting
@@ -1271,8 +1293,8 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 		_error: unknown,
 		{ chatId }: { chatId: string; pinOrder: number },
 	) => {
-		await chatCache.invalidateLists(queryClient);
-		await chatCache.invalidateDetail(queryClient, chatId);
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
 	},
 });
 
@@ -1284,7 +1306,7 @@ export const proposeChatTitle = (queryClient: QueryClient) => ({
 		_error: unknown,
 		chatId: string,
 	) => {
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -1298,7 +1320,7 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		API.experimental.updateChat(chatId, { title }),
 
 	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
-		chatCache.patchDetail(queryClient, chatId, (chat) =>
+		patchChatEntity(queryClient, chatId, (chat) =>
 			chat ? { ...chat, title } : chat,
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
@@ -1311,8 +1333,8 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		_error: unknown,
 		{ chatId }: UpdateChatTitleVariables,
 	) => {
-		void chatCache.invalidateLists(queryClient);
-		void chatCache.invalidateDetail(queryClient, chatId);
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
 	},
 });
 
@@ -1391,8 +1413,8 @@ export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
 	onSuccess: () => {
-		void chatCache.invalidateLists(queryClient);
-		void chatCache.invalidateByWorkspace(queryClient);
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatsByWorkspace(queryClient);
 	},
 });
 
@@ -1403,9 +1425,9 @@ export const createChatMessage = (
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
-		void chatCache.invalidateDetail(queryClient, chatId);
-		void chatCache.invalidatePrompts(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatPrompts(queryClient, chatId);
 	},
 });
 
@@ -1428,13 +1450,13 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
 		// Cancel in-flight refetches so they don't overwrite the
 		// optimistic update before the mutation completes.
-		await chatCache.cancelMessages(queryClient, chatId);
+		await cancelChatMessages(queryClient, chatId);
 
 		const previousData = queryClient.getQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse>
 		>(chatMessagesKey(chatId));
 
-		chatCache.patchMessages(queryClient, chatId, (current) =>
+		patchChatMessages(queryClient, chatId, (current) =>
 			projectEditedConversationIntoCache({
 				currentData: current,
 				editedMessageId: messageId,
@@ -1453,18 +1475,18 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		// Restore the cache on failure so the user sees the
 		// original messages again.
 		if (context?.previousData) {
-			chatCache.patchMessages(queryClient, chatId, () => context.previousData);
+			patchChatMessages(queryClient, chatId, () => context.previousData);
 		}
 		// Invalidate messages as a safety net: the restored snapshot
 		// may be missing WebSocket-delivered messages that arrived
 		// during the mutation's flight time.
-		void chatCache.invalidateMessages(queryClient, chatId);
+		void invalidateChatMessages(queryClient, chatId);
 	},
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
 	) => {
-		chatCache.patchMessages(queryClient, chatId, (current) =>
+		patchChatMessages(queryClient, chatId, (current) =>
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
@@ -1482,16 +1504,16 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		// refetch that causes extra store mutations while the
 		// sticky user message is settling after the optimistic
 		// truncation.
-		void chatCache.invalidateDetail(queryClient, chatId);
-		void chatCache.invalidatePrompts(queryClient, chatId);
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatPrompts(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
 	onSuccess: () => {
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -1500,8 +1522,8 @@ export const compactChat = (queryClient: QueryClient, chatId: string) => ({
 	onSuccess: () => {
 		// The compaction transitions the chat to running; the summary
 		// rows stream in over the websocket like any other turn.
-		void chatCache.invalidateDetail(queryClient, chatId);
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -1518,7 +1540,7 @@ export const refreshChatContext = (
 ) => ({
 	mutationFn: () => API.experimental.refreshChatContext(chatId),
 	onSuccess: (updatedChat: TypesGen.Chat) => {
-		chatCache.patchDetail(queryClient, chatId, (cached) =>
+		patchChatEntity(queryClient, chatId, (cached) =>
 			cached ? { ...cached, context: updatedChat.context } : updatedChat,
 		);
 		const applyContext = (chat: TypesGen.Chat): TypesGen.Chat =>
@@ -1545,8 +1567,8 @@ export const deleteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
-		await chatCache.invalidateDetail(queryClient, chatId);
-		await chatCache.invalidateMessages(queryClient, chatId);
+		await invalidateChatEntity(queryClient, chatId);
+		await invalidateChatMessages(queryClient, chatId);
 	},
 });
 
@@ -1557,7 +1579,7 @@ export const promoteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: () => {
-		void chatCache.invalidateDebugRuns(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -2104,7 +2126,7 @@ export const setChatUserRole = (queryClient: QueryClient) => ({
 			user_roles: { [userId]: role },
 		}),
 	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
-		await chatCache.invalidateACL(queryClient, chatId);
+		await invalidateChatACL(queryClient, chatId);
 	},
 });
 
@@ -2114,6 +2136,6 @@ export const setChatGroupRole = (queryClient: QueryClient) => ({
 			group_roles: { [groupId]: role },
 		}),
 	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
-		await chatCache.invalidateACL(queryClient, chatId);
+		await invalidateChatACL(queryClient, chatId);
 	},
 });

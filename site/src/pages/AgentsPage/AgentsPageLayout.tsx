@@ -19,16 +19,23 @@ import {
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
 	archiveChat,
-	chatCache,
+	cancelChatListRefetches,
+	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
 	chatModelConfigs,
 	chatModels,
 	infiniteChats,
+	invalidateChatCostTree,
+	invalidateChatDiffContents,
+	invalidateChatEntity,
+	invalidateChatListQueries,
+	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
+	removeChatEntity,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
@@ -298,9 +305,9 @@ const AgentsPageLayout: FC = () => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
-			void chatCache.invalidateLists(queryClient);
-			void chatCache.invalidateDetail(queryClient, chatId);
-			void chatCache.invalidateByWorkspace(queryClient);
+			void invalidateChatListQueries(queryClient);
+			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatsByWorkspace(queryClient);
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
@@ -568,7 +575,7 @@ const AgentsPageLayout: FC = () => {
 			});
 			return changed ? next : chats;
 		});
-		void chatCache.invalidateLists(queryClient);
+		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -607,14 +614,14 @@ const AgentsPageLayout: FC = () => {
 							),
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
-						chatCache.removeDetail(queryClient, updatedChat.id);
+						removeChatEntity(queryClient, updatedChat.id);
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
-						void chatCache.invalidateDiffContents(queryClient, updatedChat.id);
+						void invalidateChatDiffContents(queryClient, updatedChat.id);
 					}
 					// Merge watch payloads by event kind so stale field
 					// snapshots do not clobber fresher cached metadata.
@@ -627,8 +634,8 @@ const AgentsPageLayout: FC = () => {
 					// the refetch may have been issued before the async
 					// title generation finished, so its response carries
 					// the fallback title.
-					void chatCache.cancelListRefetches(queryClient);
-					void chatCache.cancelLoadedDetailRefetch(queryClient, updatedChat.id);
+					void cancelChatListRefetches(queryClient);
+					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
@@ -642,7 +649,7 @@ const AgentsPageLayout: FC = () => {
 							);
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
-							void chatCache.invalidateLists(queryClient);
+							void invalidateChatListQueries(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -650,14 +657,14 @@ const AgentsPageLayout: FC = () => {
 							activeChatId: activeChatIDRef.current,
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
-							void chatCache.invalidateLists(queryClient);
+							void invalidateChatListQueries(queryClient);
 						}
 						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
 							chatEvent.kind,
 						);
 						if (costChatId) {
-							void chatCache.invalidateCostTree(queryClient, costChatId);
+							void invalidateChatCostTree(queryClient, costChatId);
 						}
 						if (chatEvent.kind === "context_dirty") {
 							// The watch payload carries only the lightweight
@@ -666,14 +673,14 @@ const AgentsPageLayout: FC = () => {
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
 							// merely marked stale.
-							void chatCache.invalidateDetail(queryClient, updatedChat.id);
+							void invalidateChatEntity(queryClient, updatedChat.id);
 						}
 					}
 				});
 				return ws;
 			},
 			onOpen() {
-				void chatCache.invalidateLists(queryClient);
+				void invalidateChatListQueries(queryClient);
 			},
 		});
 	}, [queryClient]);

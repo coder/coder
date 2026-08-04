@@ -28,7 +28,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatCache,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -38,7 +37,9 @@ import {
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
+	invalidateChatEntity,
 	mcpServerConfigs,
+	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
@@ -1182,7 +1183,7 @@ const AgentChatPage: FC = () => {
 				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
-		chatCache.patchDetail(queryClient, chatId, (previousChat) =>
+		patchChatEntity(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
 	};
@@ -1692,7 +1693,7 @@ const AgentChatPage: FC = () => {
 					handleRequestError(error);
 					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
-					void chatCache.invalidateDetail(queryClient, agentId);
+					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
 			if (editSelectedModelConfigID) {
@@ -1740,7 +1741,7 @@ const AgentChatPage: FC = () => {
 			handleRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
-			void chatCache.invalidateDetail(queryClient, agentId);
+			void invalidateChatEntity(queryClient, agentId);
 			throw error;
 		}
 		const isActiveChat = store.getActiveChatID() === agentId;

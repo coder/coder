@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
-import { chatCache } from "#/api/queries/chats";
+import { invalidateChatEntity } from "#/api/queries/chats";
 import { invalidateWorkspaceMutationQueries } from "#/api/queries/workspaces";
 import { type ChatStore, useChatSelector } from "./chatStore";
 import type { StreamState } from "./types";
@@ -87,7 +87,7 @@ export function useChatToolInvalidations({
 		}
 
 		if (shouldInvalidateChat) {
-			void chatCache.invalidateDetail(queryClient, chatID);
+			void invalidateChatEntity(queryClient, chatID);
 		}
 
 		if (shouldInvalidateWorkspace) {
