@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -46,7 +45,8 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-) (fantasy.LanguageModel, error) {
+	openAIResponsesOverride *bool,
+) (chatprovider.Model, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
 		modelName,
@@ -54,16 +54,17 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
+		openAIResponsesOverride,
 	)
 	if err != nil {
-		return nil, err
+		return chatprovider.Model{}, err
 	}
-	if model == nil {
+	if !model.Valid() {
 		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
 		if resolveErr != nil {
-			return nil, resolveErr
+			return chatprovider.Model{}, resolveErr
 		}
-		return nil, xerrors.Errorf(
+		return chatprovider.Model{}, xerrors.Errorf(
 			"create model for %s/%s returned nil",
 			provider,
 			resolvedModel,

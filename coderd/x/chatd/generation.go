@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -39,7 +40,7 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             fantasy.LanguageModel
+	Model             chatprovider.Model
 	Prompt            []fantasy.Message
 	Tools             []fantasy.AgentTool
 	ActiveTools       []string
@@ -723,7 +724,7 @@ func (s *taskStarter) generateAssistant(
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
-		Model:                prepared.Model,
+		Model:                prepared.Model.LanguageModel(),
 		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
@@ -816,9 +817,9 @@ func (s *taskStarter) executeLocalTools(
 	defer attempt.closeEpisode()
 	provider := ""
 	modelName := ""
-	if prepared.Model != nil {
+	if prepared.Model.Valid() {
 		provider = prepared.Model.Provider()
-		modelName = prepared.Model.Model()
+		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
@@ -927,7 +928,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
-		compactionOpts.Model = overrideModel.model
+		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
@@ -939,6 +940,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.model,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.modelConfig,
+			overrideModel.openAIResponsesOverride,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)

@@ -85,7 +85,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 	t.Run("CreatesOpenAIResponsesEntry", func(t *testing.T) {
 		t.Parallel()
 
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, nil, new(codersdk.ChatModelReasoningEffortHigh))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, nil, new(codersdk.ChatModelReasoningEffortHigh), nil)
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.NotNil(t, providerOptions.ReasoningEffort)
@@ -101,7 +101,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 				Store:        ptr.Ref(true),
 			},
 		}
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, options, new(codersdk.ChatModelReasoningEffortHigh))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, options, new(codersdk.ChatModelReasoningEffortHigh), nil)
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.Same(t, options[fantasyopenai.Name], providerOptions)
@@ -119,7 +119,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 				ParallelToolCalls: ptr.Ref(true),
 			},
 		}
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}, options, new(codersdk.ChatModelReasoningEffortHigh))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}, options, new(codersdk.ChatModelReasoningEffortHigh), nil)
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.Same(t, options[fantasyopenai.Name], providerOptions)
@@ -225,7 +225,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: tt.provider}, tt.options, new(codersdk.ChatModelReasoningEffortHigh))
+			got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: tt.provider}, tt.options, new(codersdk.ChatModelReasoningEffortHigh), nil)
 			tt.assert(t, got)
 		})
 	}

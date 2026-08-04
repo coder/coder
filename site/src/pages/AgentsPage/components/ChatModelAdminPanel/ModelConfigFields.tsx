@@ -623,11 +623,12 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
  * InputGroup for a compact, readable layout.
  */
 export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
-	const fields = getVisibleGeneralFields().filter(({ json_name }) =>
+	const fields = getVisibleGeneralFields(provider).filter(({ json_name }) =>
 		pricingFieldNames.has(json_name),
 	);
 
@@ -680,12 +681,13 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 /** Reasoning effort selects, outside Advanced. */
 export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields()
+	const fields = getVisibleGeneralFields(provider)
 		.filter(({ json_name }) => isReasoningEffortField(json_name))
 		.reverse();
 
@@ -717,12 +719,13 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 
 /** See ReasoningEffortConfigFields for reasoning effort fields. */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields().filter(
+	const fields = getVisibleGeneralFields(provider).filter(
 		({ json_name }) =>
 			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
 	);
@@ -737,22 +740,19 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.map(snakeToCamel)
 					.join(".");
 				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
 
 				return (
-					<InputField
+					<div
 						key={fieldKey}
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={camelName}
-						label={label}
-						description={field.description}
-						placeholder={
-							placeholderOverrides[field.json_name] ??
-							placeholderForField(field)
-						}
-						suffix={fieldSuffix[field.json_name]}
-					/>
+						className={cn("min-w-0", colSpanClass[colSpan(field)])}
+					>
+						<SchemaField
+							{...ctx}
+							field={field}
+							fieldKey={fieldKey}
+							errorKey={camelName}
+						/>
+					</div>
 				);
 			})}
 		</>

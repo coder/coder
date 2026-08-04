@@ -313,7 +313,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -335,7 +335,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "claude-haiku-4-5"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -354,7 +354,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -363,6 +363,78 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.Empty(t, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 	})
+}
+
+func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
+	t.Parallel()
+
+	newServer := func(t *testing.T, paths chan string) *Server {
+		t.Helper()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			paths <- req.URL.Path
+			body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+			if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+				body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    req,
+			}, nil
+		})}
+		return &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	}
+
+	configOptions := func(t *testing.T, useResponsesAPI *bool) json.RawMessage {
+		t.Helper()
+		raw, err := json.Marshal(codersdk.ChatModelCallConfig{
+			OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: useResponsesAPI},
+		})
+		require.NoError(t, err)
+		return raw
+	}
+
+	forceResponses := true
+	forceCompletions := false
+
+	tests := []struct {
+		name     string
+		model    string
+		override *bool
+		wantPath string
+	}{
+		{name: "ForceResponsesOnUnknownModel", model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
+		{name: "ForceCompletionsOnKnownModel", model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
+		{name: "UnsetKeepsKnownModelList", model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			paths := make(chan string, 1)
+			server := newServer(t, paths)
+			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
+			req.ConfigOptions = configOptions(t, tt.override)
+
+			model, err := server.newModel(
+				t.Context(),
+				req,
+				aibridgeTestRoute(provider),
+				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			)
+			require.NoError(t, err)
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantPath, <-paths)
+		})
+	}
 }
 
 func TestAIBridgeRoutingFailClosed(t *testing.T) {
@@ -535,7 +607,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			)
 			require.NoError(t, err)
-			_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 				Role:    fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 			}}})
@@ -578,7 +650,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 		modelBuildOptions{ActiveAPIKeyID: apiKeyID},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 	require.False(t, debugEnabled)
 	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolvedProvider)
 	require.Equal(t, modelName, resolvedModel)
@@ -612,7 +684,7 @@ func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
 		modelBuildOptions{}, // no ActiveAPIKeyID
 	)
 	require.Error(t, err)
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
 	require.Empty(t, resolvedModel)
@@ -654,7 +726,7 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
 	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 	require.NoError(t, err)
-	_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 		Role:    fantasy.MessageRoleUser,
 		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 	}}})

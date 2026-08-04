@@ -854,6 +854,53 @@ Subagent spawning is a second source of both values. `spawn_agent` accepts optio
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options with `chatprovider.ApplyReasoningEffort` after provider option conversion. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
+##### OpenAI transport selection
+
+OpenAI models speak either the Responses API or Chat Completions. The provider SDK picks per model from a static known-model list, so a newly released model absent from that list falls back to Chat Completions. Model configs may override the choice with `openai_config.use_responses_api` inside `chat_model_configs.options`: unset keeps the known-model list, true forces Responses, false forces Chat Completions. It sits in `openai_config` rather than `provider_options.openai` because it is applied once when the client is built, while `provider_options` holds per-request parameters.
+
+The transport is decided in more than one place, and those decisions must agree with the client that was built. `chatopenai.UsesResponsesAPI` is the single predicate, and every path that builds an OpenAI client must pass the same override to both the client and the code that prepares its requests:
+
+- Client construction (`ModelFromConfig`) installs the override as the SDK's per-model transport hook. The hook only selects among transports the client enables, so it cannot turn on Responses for a provider whose client was not built to allow it.
+- Provider option conversion (`UsesResponsesOptions`) chooses between the Responses and Chat Completions option structs. The SDK type-asserts the concrete struct, so a mismatch silently discards every OpenAI provider option rather than failing.
+- File part conversion (`AcceptsFilePartMediaType`) gates attachments, because the Responses API natively accepts only images and PDFs. A mismatch here silently drops text attachments.
+
+Paths that build their own clients must thread the override too, including the compaction override, quick generation (used by turn status labels and debug models), and the advisor runtime.
+
+Client construction returns a `chatprovider.Model`, which pairs the fantasy client with the transport resolved from that client's own identity as a `chatopenai.Transport`. Its fields are unexported and only the constructor sets the transport, so no caller can pair a client with a transport it does not speak; a nil client yields the invalid zero value, which fails closed. Decorators such as debug recording replace the wrapped client through `Model.WithLanguageModel`, which preserves the resolved transport, because wrapping does not change what the client speaks. Request preparation does not read the carried transport yet; it still recomputes the decision from the override, and the wrapper is the authoritative value those recomputations must agree with.
+
+Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so `UsesResponsesAPI` keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions.
+
+Both transports read the same `provider_options.openai` config, but not every field applies to both wire formats. The table below records, per field, which transport honors it; `TestProviderOptionsTransportParity` fails when a field is honored on one transport and silently ignored on the other without being recorded there as intentional.
+
+| `provider_options.openai` field | Responses | Chat Completions |
+| --- | --- | --- |
+| `include` | yes | no |
+| `instructions` | yes | no |
+| `logit_bias` | no | yes |
+| `log_probs` | yes | yes |
+| `top_log_probs` | yes | yes |
+| `max_tool_calls` | yes | no |
+| `parallel_tool_calls` | yes | yes |
+| `user` | yes | yes |
+| `reasoning_summary` | yes | no |
+| `max_completion_tokens` | no | yes |
+| `text_verbosity` | yes | yes |
+| `prediction` | no | yes |
+| `store` | yes | yes |
+| `metadata` | yes | yes |
+| `prompt_cache_key` | yes | yes |
+| `safety_identifier` | yes | yes |
+| `service_tier` | yes | yes |
+| `structured_outputs` | no | yes |
+| `strict_json_schema` | yes | no |
+| `web_search_enabled` | no | no |
+| `search_context_size` | no | no |
+| `allowed_domains` | no | no |
+
+Three asymmetries are deliberate near-equivalents rather than gaps. `max_completion_tokens` is the Chat Completions cap; on Responses the transport-neutral `max_output_tokens` config bounds output instead. `structured_outputs` and `strict_json_schema` are the per-API strictness switches, each honored only by its own API. On Responses, `top_log_probs` wins over `log_probs` because that API takes a single logprobs value. The trailing web search fields configure tool wiring rather than per-request provider options, so neither transport reads them during option conversion.
+
+The model editor scopes the field to openai-typed providers with a `providers` struct tag, which the option schema generator emits as `visible_for_providers`. Gating on the raw provider type rather than the alias table keeps the control out of editors for provider types that cannot honor it.
+
 #### Compaction model selection
 
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.

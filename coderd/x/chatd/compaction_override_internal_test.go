@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -21,11 +22,11 @@ import (
 func TestCompactionOverrideProviderOptions(t *testing.T) {
 	t.Parallel()
 
-	model := &chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-3-5-haiku"}
+	model := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-3-5-haiku"}, nil)
 
 	t.Run("NoOptions", func(t *testing.T) {
 		t.Parallel()
-		opts, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{})
+		opts, _, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{})
 		require.NoError(t, err)
 		require.Nil(t, opts)
 	})
@@ -40,7 +41,7 @@ func TestCompactionOverrideProviderOptions(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		opts, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: options})
+		opts, _, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: options})
 		require.NoError(t, err)
 		anthropicOpts, ok := opts[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
 		require.True(t, ok)
@@ -50,7 +51,7 @@ func TestCompactionOverrideProviderOptions(t *testing.T) {
 
 	t.Run("MalformedOptions", func(t *testing.T) {
 		t.Parallel()
-		_, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: []byte("{")})
+		_, _, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: []byte("{")})
 		require.ErrorContains(t, err, "parse compaction model override call config")
 	})
 }

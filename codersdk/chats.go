@@ -1511,7 +1511,14 @@ type ChatModelCallConfig struct {
 	FrequencyPenalty *float64                        `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
 	Cost             *ModelCostConfig                `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
 	ReasoningEffort  *ChatModelReasoningEffortConfig `json:"reasoning_effort,omitempty" description:"Default and max reasoning effort for the model"`
+	OpenAIConfig     *ChatModelOpenAIConfig          `json:"openai_config,omitempty" description:"OpenAI client construction settings" providers:"openai"`
 	ProviderOptions  *ChatModelProviderOptions       `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+}
+
+// ChatModelOpenAIConfig holds settings applied once when the OpenAI client
+// is built, not per request.
+type ChatModelOpenAIConfig struct {
+	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
 }
 
 // UnmarshalJSON accepts both the current nested cost object and the previous
