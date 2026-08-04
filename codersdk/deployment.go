@@ -579,7 +579,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 		return Entitlements{}, ReadBodyAsError(res)
 	}
 	var ent Entitlements
-	return ent, json.NewDecoder(res.Body).Decode(&ent)
+	return ent, ReadBodyAsJSON(res, &ent)
 }
 
 type PostgresAuth string
@@ -5213,7 +5213,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Values:  conf,
 		Options: conf.Options(),
 	}
-	return resp, json.NewDecoder(res.Body).Decode(resp)
+	return resp, ReadBodyAsJSON(res, resp)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
@@ -5228,7 +5228,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 	}
 
 	var df DeploymentStats
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	return df, ReadBodyAsJSON(res, &df)
 }
 
 type AppearanceConfig struct {
@@ -5270,7 +5270,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 		return AppearanceConfig{}, ReadBodyAsError(res)
 	}
 	var cfg AppearanceConfig
-	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+	return cfg, ReadBodyAsJSON(res, &cfg)
 }
 
 func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
@@ -5347,7 +5347,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 
 	var buildInfo BuildInfoResponse
-	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+	return buildInfo, ReadBodyAsJSON(res, &buildInfo)
 }
 
 type Experiment string
@@ -5452,7 +5452,7 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 // AvailableExperiments is an expandable type that returns all safe experiments
@@ -5471,7 +5471,7 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
 	var exp AvailableExperiments
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 type DAUsResponse struct {
@@ -5536,7 +5536,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 type AppHostResponse struct {
@@ -5562,7 +5562,7 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	}
 
 	var host AppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	return host, ReadBodyAsJSON(res, &host)
 }
 
 type WorkspaceConnectionLatencyMS struct {
@@ -5644,7 +5644,7 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 	}
 
 	var sshConfig SSHConfigResponse
-	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+	return sshConfig, ReadBodyAsJSON(res, &sshConfig)
 }
 
 type CryptoKeyFeature string

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -31,7 +30,7 @@ func (c *Client) AgentFirewallSessionByID(ctx context.Context, id uuid.UUID) (Ag
 		return AgentFirewallSession{}, ReadBodyAsError(res)
 	}
 	var session AgentFirewallSession
-	return session, json.NewDecoder(res.Body).Decode(&session)
+	return session, ReadBodyAsJSON(res, &session)
 }
 
 // AgentFirewallLog represents a single audit event from an agent firewall proxy.
@@ -101,5 +100,5 @@ func (c *Client) AgentFirewallSessionLogs(ctx context.Context, sessionID uuid.UU
 	}
 
 	var resp AgentFirewallSessionLogsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
