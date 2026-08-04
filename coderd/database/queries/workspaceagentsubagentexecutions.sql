@@ -65,10 +65,10 @@ JOIN inserted_status USING (workspace_build_id, declaration_id);
 
 -- name: GetWorkspaceAgentSubagentExecutionForAcquisition :one
 -- GetWorkspaceAgentSubagentExecutionForAcquisition resolves the immutable
--- identity behind an acquisition request: the workspace that owns the requested
--- build, and the child agent the declaration was created with. The exact
--- (workspace_build_id, declaration_id, parent_agent_id) tuple must exist, so a
--- parent cannot acquire another parent's declaration. Both returned values are
+-- identity behind an acquisition or report request: the workspace that owns the
+-- requested build, and the child agent the declaration was created with. The
+-- exact (workspace_build_id, declaration_id, parent_agent_id) tuple must exist,
+-- so a parent cannot touch another parent's declaration. Both returned values are
 -- immutable for the life of the rows, so reading them before the publication
 -- lock is taken cannot yield a stale answer. Every mutable fact (latest build,
 -- parent liveness, child liveness, status) is read by a later statement, after
@@ -130,6 +130,10 @@ LIMIT 1;
 -- and part of the requested build through its resource's provisioner job. The
 -- parent's resource is returned so the child can be matched against the exact
 -- resource rather than any resource in the workspace.
+--
+-- The acquisition and the status report both revalidate the parent with this
+-- statement, at the same point in their transactions, so the two paths cannot
+-- drift apart on what makes a parent eligible.
 SELECT
 	parent.id,
 	parent.resource_id
@@ -202,6 +206,98 @@ RETURNING
 	child.id AS child_agent_id,
 	child.auth_token,
 	statuses.acquisition_version;
+
+-- name: LockWorkspaceAgentSubagentExecutionStatusForReport :one
+-- LockWorkspaceAgentSubagentExecutionStatusForReport locks the exact status row a
+-- launcher is reporting on, and fences every launcher except the one holding the
+-- current acquisition. The caller must present the acquisition_version it was
+-- handed, and version 0 is never accepted, so a declaration that no launcher has
+-- ever acquired cannot be reported on and a launcher superseded by a newer
+-- acquisition cannot resurrect its state.
+--
+-- The lock is FOR UPDATE, so it serializes reports against acquisitions of the
+-- same declaration and against each other. It is taken at the same point in the
+-- transaction as the acquisition's status lock, so both paths share one global
+-- lock order: publication guard, execution status, child.
+SELECT
+	statuses.status,
+	statuses.status_changed_at,
+	statuses.acquisition_version
+FROM workspace_agent_subagent_execution_statuses AS statuses
+WHERE statuses.workspace_build_id = @workspace_build_id
+	AND statuses.declaration_id = @declaration_id
+	AND statuses.acquisition_version = @acquisition_version
+	AND statuses.acquisition_version > 0
+FOR UPDATE;
+
+-- name: GetPrecedingStartWorkspaceBuildGeneration :one
+-- GetPrecedingStartWorkspaceBuildGeneration resolves the newest 'start' build
+-- that precedes the given build in the same workspace. The answer comes from
+-- build ordering rather than from assuming the two build numbers are adjacent, so
+-- an intervening build of any transition cannot make an older start look current.
+--
+-- A report names this build when the workspace's latest generation is a 'stop':
+-- the launcher torn down by that stop still has to be able to record that it is
+-- shutting down or gone. Only the newest preceding start is returned, so a
+-- generation already superseded by a newer start is never reportable.
+SELECT preceding.id
+FROM workspace_builds AS latest
+JOIN workspace_builds AS preceding
+	ON preceding.workspace_id = latest.workspace_id
+	AND preceding.build_number < latest.build_number
+	AND preceding.transition = 'start'::workspace_transition
+WHERE latest.id = @latest_workspace_build_id
+ORDER BY preceding.build_number DESC
+LIMIT 1;
+
+-- name: LockWorkspaceAgentSubagentExecutionChildForReport :one
+-- LockWorkspaceAgentSubagentExecutionChildForReport re-validates the exact child
+-- the declaration was created with and requires it to still be a live, execution
+-- isolated, direct child on the parent's resource. Only the child identity is
+-- returned: a status report must never be able to read the child auth token.
+--
+-- Like the acquisition's child lock this is FOR SHARE rather than FOR KEY SHARE,
+-- because an ordinary soft-delete only touches non-key columns. FOR SHARE
+-- conflicts with any concurrent UPDATE of this row and forces an EvalPlanQual
+-- recheck of the predicates above, so a child invalidated by a committing rebuild
+-- cannot be reported on.
+SELECT child.id
+FROM workspace_agents AS child
+WHERE child.id = @child_agent_id
+	AND child.parent_id = @parent_agent_id
+	AND child.resource_id = @resource_id
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
+FOR SHARE;
+
+-- name: MarkWorkspaceAgentSubagentExecutionReported :one
+-- MarkWorkspaceAgentSubagentExecutionReported records a launcher's status report
+-- on the row this transaction already locked FOR UPDATE. The acquisition_version
+-- predicate is repeated here so the mutation is fenced by the same token the lock
+-- required, even if the two statements ever drift apart.
+--
+-- status_changed_at only moves when the status actually changes, so a repeated
+-- report of the same state stays idempotent for "how long has it been in this
+-- state" while last_reported_at still advances as a liveness signal. The
+-- acquisition-owned columns acquisition_version, restart_count, and
+-- last_acquired_at are never written by a report.
+--
+-- last_error is always overwritten with the reported value, so a launcher that
+-- recovers clears the error it previously recorded by reporting an empty one.
+UPDATE workspace_agent_subagent_execution_statuses AS statuses
+SET
+	status = @status,
+	updated_at = @now,
+	last_reported_at = @now,
+	status_changed_at = CASE
+		WHEN statuses.status = @status THEN statuses.status_changed_at
+		ELSE @now
+	END,
+	last_error = @last_error
+WHERE statuses.workspace_build_id = @workspace_build_id
+	AND statuses.declaration_id = @declaration_id
+	AND statuses.acquisition_version = @acquisition_version
+RETURNING *;
 
 -- name: GetWorkspaceAgentSubagentExecutionsByParentAgentID :many
 SELECT *

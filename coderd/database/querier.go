@@ -754,6 +754,16 @@ type sqlcQuerier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
+	// GetPrecedingStartWorkspaceBuildGeneration resolves the newest 'start' build
+	// that precedes the given build in the same workspace. The answer comes from
+	// build ordering rather than from assuming the two build numbers are adjacent, so
+	// an intervening build of any transition cannot make an older start look current.
+	//
+	// A report names this build when the workspace's latest generation is a 'stop':
+	// the launcher torn down by that stop still has to be able to record that it is
+	// shutting down or gone. Only the newest preceding start is returned, so a
+	// generation already superseded by a newer start is never reportable.
+	GetPrecedingStartWorkspaceBuildGeneration(ctx context.Context, latestWorkspaceBuildID uuid.UUID) (uuid.UUID, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error)
@@ -1040,6 +1050,10 @@ type sqlcQuerier interface {
 	// and part of the requested build through its resource's provisioner job. The
 	// parent's resource is returned so the child can be matched against the exact
 	// resource rather than any resource in the workspace.
+	//
+	// The acquisition and the status report both revalidate the parent with this
+	// statement, at the same point in their transactions, so the two paths cannot
+	// drift apart on what makes a parent eligible.
 	GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error)
 	// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID returns the
 	// non-secret declaration fields a parent agent needs to render its execution
@@ -1050,10 +1064,10 @@ type sqlcQuerier interface {
 	// Callers must treat an empty name as a corrupted manifest and fail closed.
 	GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error)
 	// GetWorkspaceAgentSubagentExecutionForAcquisition resolves the immutable
-	// identity behind an acquisition request: the workspace that owns the requested
-	// build, and the child agent the declaration was created with. The exact
-	// (workspace_build_id, declaration_id, parent_agent_id) tuple must exist, so a
-	// parent cannot acquire another parent's declaration. Both returned values are
+	// identity behind an acquisition or report request: the workspace that owns the
+	// requested build, and the child agent the declaration was created with. The
+	// exact (workspace_build_id, declaration_id, parent_agent_id) tuple must exist,
+	// so a parent cannot touch another parent's declaration. Both returned values are
 	// immutable for the life of the rows, so reading them before the publication
 	// lock is taken cannot yield a stale answer. Every mutable fact (latest build,
 	// parent liveness, child liveness, status) is read by a later statement, after
@@ -1382,12 +1396,35 @@ type sqlcQuerier interface {
 	// an EvalPlanQual recheck of the predicates above, so a child soft-deleted by a
 	// committing rebuild cannot be handed out.
 	LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionChildForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionChildForAcquisitionRow, error)
+	// LockWorkspaceAgentSubagentExecutionChildForReport re-validates the exact child
+	// the declaration was created with and requires it to still be a live, execution
+	// isolated, direct child on the parent's resource. Only the child identity is
+	// returned: a status report must never be able to read the child auth token.
+	//
+	// Like the acquisition's child lock this is FOR SHARE rather than FOR KEY SHARE,
+	// because an ordinary soft-delete only touches non-key columns. FOR SHARE
+	// conflicts with any concurrent UPDATE of this row and forces an EvalPlanQual
+	// recheck of the predicates above, so a child invalidated by a committing rebuild
+	// cannot be reported on.
+	LockWorkspaceAgentSubagentExecutionChildForReport(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionChildForReportParams) (uuid.UUID, error)
 	// LockWorkspaceAgentSubagentExecutionStatusForAcquisition locks the exact status
 	// row that the acquisition will mutate, and rejects a declaration that is
 	// already shutting down so a stopping execution is never restarted. Concurrent
 	// acquisitions of the same declaration serialize here, which is what makes
 	// acquisition_version strictly increasing.
 	LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error)
+	// LockWorkspaceAgentSubagentExecutionStatusForReport locks the exact status row a
+	// launcher is reporting on, and fences every launcher except the one holding the
+	// current acquisition. The caller must present the acquisition_version it was
+	// handed, and version 0 is never accepted, so a declaration that no launcher has
+	// ever acquired cannot be reported on and a launcher superseded by a newer
+	// acquisition cannot resurrect its state.
+	//
+	// The lock is FOR UPDATE, so it serializes reports against acquisitions of the
+	// same declaration and against each other. It is taken at the same point in the
+	// transaction as the acquisition's status lock, so both paths share one global
+	// lock order: publication guard, execution status, child.
+	LockWorkspaceAgentSubagentExecutionStatusForReport(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionStatusForReportParams) (LockWorkspaceAgentSubagentExecutionStatusForReportRow, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1416,6 +1453,20 @@ type sqlcQuerier interface {
 	// deliberately excluded. The child row was already locked FOR SHARE by this
 	// transaction, so joining it here cannot observe a newer child.
 	MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Context, arg MarkWorkspaceAgentSubagentExecutionAcquiredParams) (MarkWorkspaceAgentSubagentExecutionAcquiredRow, error)
+	// MarkWorkspaceAgentSubagentExecutionReported records a launcher's status report
+	// on the row this transaction already locked FOR UPDATE. The acquisition_version
+	// predicate is repeated here so the mutation is fenced by the same token the lock
+	// required, even if the two statements ever drift apart.
+	//
+	// status_changed_at only moves when the status actually changes, so a repeated
+	// report of the same state stays idempotent for "how long has it been in this
+	// state" while last_reported_at still advances as a liveness signal. The
+	// acquisition-owned columns acquisition_version, restart_count, and
+	// last_acquired_at are never written by a report.
+	//
+	// last_error is always overwritten with the reported value, so a launcher that
+	// recovers clears the error it previously recorded by reporting an empty one.
+	MarkWorkspaceAgentSubagentExecutionReported(ctx context.Context, arg MarkWorkspaceAgentSubagentExecutionReportedParams) (WorkspaceAgentSubagentExecutionStatus, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.

@@ -5394,6 +5394,51 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().MarkWorkspaceAgentSubagentExecutionAcquired(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
 	}))
+	s.Run("ReportWorkspaceAgentSubagentExecutionStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.ReportWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID:   uuid.New(),
+			DeclarationID:      uuid.New(),
+			ParentAgentID:      uuid.New(),
+			AcquisitionVersion: 3,
+			Status:             database.SubagentExecutionStatusRunning,
+			Now:                dbtime.Now(),
+		}
+		reported := testutil.Fake(s.T(), faker, database.ReportWorkspaceAgentSubagentExecutionStatusRow{})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), arg.ParentAgentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().ReportWorkspaceAgentSubagentExecutionStatus(gomock.Any(), arg).Return(reported, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(reported)
+	}))
+	// The statements below are internal steps of
+	// ReportWorkspaceAgentSubagentExecutionStatus. The public method authorizes
+	// the exact parent agent before opening its transaction, so the internal
+	// statements only accept a system-restricted context. The report shares the
+	// identity read, the publication guard, the latest build read, and the parent
+	// revalidation with the acquisition, which are covered above.
+	s.Run("LockWorkspaceAgentSubagentExecutionStatusForReport", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionStatusForReportParams{})
+		row := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionStatusForReportRow{})
+		dbm.EXPECT().LockWorkspaceAgentSubagentExecutionStatusForReport(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("GetPrecedingStartWorkspaceBuildGeneration", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		latestBuildID := uuid.New()
+		precedingBuildID := uuid.New()
+		dbm.EXPECT().GetPrecedingStartWorkspaceBuildGeneration(gomock.Any(), latestBuildID).Return(precedingBuildID, nil).AnyTimes()
+		check.Args(latestBuildID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(precedingBuildID)
+	}))
+	s.Run("LockWorkspaceAgentSubagentExecutionChildForReport", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.LockWorkspaceAgentSubagentExecutionChildForReportParams{})
+		childAgentID := uuid.New()
+		dbm.EXPECT().LockWorkspaceAgentSubagentExecutionChildForReport(gomock.Any(), arg).Return(childAgentID, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(childAgentID)
+	}))
+	s.Run("MarkWorkspaceAgentSubagentExecutionReported", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.MarkWorkspaceAgentSubagentExecutionReportedParams{})
+		row := testutil.Fake(s.T(), faker, database.WorkspaceAgentSubagentExecutionStatus{})
+		dbm.EXPECT().MarkWorkspaceAgentSubagentExecutionReported(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
 	s.Run("InsertWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})

@@ -1741,13 +1741,6 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
-func (q *querier) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
-	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
-		return database.AcquireWorkspaceAgentSubagentExecutionRow{}, err
-	}
-	return q.db.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -4445,6 +4438,17 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 
 func (q *querier) GetPrebuildsSettings(ctx context.Context) (string, error) {
 	return q.db.GetPrebuildsSettings(ctx)
+}
+
+func (q *querier) GetPrecedingStartWorkspaceBuildGeneration(ctx context.Context, latestWorkspaceBuildID uuid.UUID) (uuid.UUID, error) {
+	// Internal statement of
+	// database.ReportWorkspaceAgentSubagentExecutionStatus, which authorizes the
+	// exact parent agent before opening its transaction. Callers pass a
+	// system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetPrecedingStartWorkspaceBuildGeneration(ctx, latestWorkspaceBuildID)
 }
 
 func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
@@ -7147,6 +7151,17 @@ func (q *querier) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx con
 	return q.db.LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx, arg)
 }
 
+func (q *querier) LockWorkspaceAgentSubagentExecutionChildForReport(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionChildForReportParams) (uuid.UUID, error) {
+	// Internal statement of
+	// database.ReportWorkspaceAgentSubagentExecutionStatus, which authorizes the
+	// exact parent agent before opening its transaction. It takes a row lock, so
+	// callers pass a system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockWorkspaceAgentSubagentExecutionChildForReport(ctx, arg)
+}
+
 func (q *querier) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionParams) (database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow, error) {
 	// Internal statement of database.AcquireWorkspaceAgentSubagentExecution,
 	// which authorizes the exact parent agent before opening its transaction.
@@ -7155,6 +7170,17 @@ func (q *querier) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx co
 		return database.LockWorkspaceAgentSubagentExecutionStatusForAcquisitionRow{}, err
 	}
 	return q.db.LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx, arg)
+}
+
+func (q *querier) LockWorkspaceAgentSubagentExecutionStatusForReport(ctx context.Context, arg database.LockWorkspaceAgentSubagentExecutionStatusForReportParams) (database.LockWorkspaceAgentSubagentExecutionStatusForReportRow, error) {
+	// Internal statement of
+	// database.ReportWorkspaceAgentSubagentExecutionStatus, which authorizes the
+	// exact parent agent before opening its transaction. Callers pass a
+	// system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.LockWorkspaceAgentSubagentExecutionStatusForReportRow{}, err
+	}
+	return q.db.LockWorkspaceAgentSubagentExecutionStatusForReport(ctx, arg)
 }
 
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
@@ -7192,6 +7218,17 @@ func (q *querier) MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Contex
 		return database.MarkWorkspaceAgentSubagentExecutionAcquiredRow{}, err
 	}
 	return q.db.MarkWorkspaceAgentSubagentExecutionAcquired(ctx, arg)
+}
+
+func (q *querier) MarkWorkspaceAgentSubagentExecutionReported(ctx context.Context, arg database.MarkWorkspaceAgentSubagentExecutionReportedParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
+	// Internal statement of
+	// database.ReportWorkspaceAgentSubagentExecutionStatus, which authorizes the
+	// exact parent agent before opening its transaction. Callers pass a
+	// system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentSubagentExecutionStatus{}, err
+	}
+	return q.db.MarkWorkspaceAgentSubagentExecutionReported(ctx, arg)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
@@ -9564,6 +9601,13 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 	return q.db.GetTemplateUserRoles(ctx, id)
 }
 
+func (q *querier) AcquireWorkspaceAgentSubagentExecution(ctx context.Context, arg database.AcquireWorkspaceAgentSubagentExecutionParams) (database.AcquireWorkspaceAgentSubagentExecutionRow, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
+		return database.AcquireWorkspaceAgentSubagentExecutionRow{}, err
+	}
+	return q.db.AcquireWorkspaceAgentSubagentExecution(ctx, arg)
+}
+
 func (q *querier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
 	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
 		return 0, err
@@ -9578,6 +9622,13 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 
 func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
+}
+
+func (q *querier) ReportWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.ReportWorkspaceAgentSubagentExecutionStatusParams) (database.ReportWorkspaceAgentSubagentExecutionStatusRow, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
+		return database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, err
+	}
+	return q.db.ReportWorkspaceAgentSubagentExecutionStatus(ctx, arg)
 }
 
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already

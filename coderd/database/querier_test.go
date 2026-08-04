@@ -8274,6 +8274,39 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Equal(t, before, statusOf(t, fixture, params))
 	}
 
+	// acquiredDeclaration returns a declaration that has been acquired once,
+	// which is the only state a launcher can report from, along with the
+	// acquisition version it was fenced with.
+	acquiredDeclaration := func(t *testing.T) (fixture, executionBuild, database.InsertWorkspaceAgentSubagentExecutionParams, int64) {
+		t.Helper()
+
+		fixture, build, params := acquirableDeclaration(t)
+		acquired, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, dbtime.Now()))
+		require.NoError(t, err)
+		return fixture, build, params, acquired.AcquisitionVersion
+	}
+	reportParams := func(params database.InsertWorkspaceAgentSubagentExecutionParams, acquisitionVersion int64, status database.SubagentExecutionStatus, now time.Time) database.ReportWorkspaceAgentSubagentExecutionStatusParams {
+		return database.ReportWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID:   params.WorkspaceBuildID,
+			DeclarationID:      params.DeclarationID,
+			ParentAgentID:      params.ParentAgentID,
+			AcquisitionVersion: acquisitionVersion,
+			Status:             status,
+			LastError:          "driver log tail",
+			Now:                now,
+		}
+	}
+	requireReportRejected := func(t *testing.T, fixture fixture, params database.InsertWorkspaceAgentSubagentExecutionParams, arg database.ReportWorkspaceAgentSubagentExecutionStatusParams) {
+		t.Helper()
+
+		before := statusOf(t, fixture, params)
+		row, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.Equal(t, database.ReportWorkspaceAgentSubagentExecutionStatusRow{}, row)
+		// A rejected report leaves every field of the status untouched.
+		require.Equal(t, before, statusOf(t, fixture, params))
+	}
+
 	requireQueryBlocked := func(t *testing.T, fixture fixture, queryFragment string) {
 		t.Helper()
 
@@ -10207,6 +10240,164 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		expected.Status = "stopping"
 		require.Equal(t, expected, statusOf(t, fixture, params))
 	})
+
+	// The report transition matrix, restated independently of the production
+	// map. Every status pair not listed here must be refused.
+	//
+	// A status is its own successor wherever repeating it has to be idempotent,
+	// which is what lets a launcher resend its state after a reconnect. Two
+	// statuses are never accepted as a report: 'pending' is the pre-acquisition
+	// state, and 'starting' is owned by the acquisition, which is the only thing
+	// allowed to bump the fencing acquisition_version.
+	acceptedReportTransitions := map[database.SubagentExecutionStatus][]database.SubagentExecutionStatus{
+		database.SubagentExecutionStatusPending: nil,
+		database.SubagentExecutionStatusStarting: {
+			database.SubagentExecutionStatusRunning,
+			database.SubagentExecutionStatusStopping,
+			database.SubagentExecutionStatusFailed,
+		},
+		database.SubagentExecutionStatusRunning: {
+			database.SubagentExecutionStatusRunning,
+			database.SubagentExecutionStatusStopping,
+			database.SubagentExecutionStatusStopped,
+			database.SubagentExecutionStatusFailed,
+		},
+		database.SubagentExecutionStatusStopping: {
+			database.SubagentExecutionStatusStopping,
+			database.SubagentExecutionStatusStopped,
+			database.SubagentExecutionStatusFailed,
+		},
+		database.SubagentExecutionStatusStopped: {database.SubagentExecutionStatusStopped},
+		database.SubagentExecutionStatusFailed:  {database.SubagentExecutionStatusFailed},
+	}
+	allExecutionStatuses := []database.SubagentExecutionStatus{
+		database.SubagentExecutionStatusPending,
+		database.SubagentExecutionStatusStarting,
+		database.SubagentExecutionStatusRunning,
+		database.SubagentExecutionStatusStopping,
+		database.SubagentExecutionStatusStopped,
+		database.SubagentExecutionStatusFailed,
+	}
+	for _, from := range allExecutionStatuses {
+		for _, to := range allExecutionStatuses {
+			accepted := slices.Contains(acceptedReportTransitions[from], to)
+			t.Run(fmt.Sprintf("ReportTransition/%s/%s", from, to), func(t *testing.T) {
+				t.Parallel()
+
+				fixture, _, params, version := acquiredDeclaration(t)
+				// The acquisition already left the declaration 'starting'. Any
+				// other origin state is written directly, because production has
+				// no other way to reach it yet.
+				if from != database.SubagentExecutionStatusStarting {
+					setStatusColumn(t, fixture, params, "status", string(from))
+				}
+				before := statusOf(t, fixture, params)
+				now := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+				arg := reportParams(params, version, to, now)
+
+				if !accepted {
+					requireReportRejected(t, fixture, params, arg)
+					return
+				}
+
+				reported, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+				require.NoError(t, err)
+				require.Equal(t, string(to), reported.Status)
+				require.Equal(t, arg.LastError, reported.LastError)
+				require.True(t, reported.UpdatedAt.Equal(now))
+				require.True(t, reported.LastReportedAt.Valid)
+				require.True(t, reported.LastReportedAt.Time.Equal(now))
+				if from == to {
+					// Repeating a status must not restart the clock that says
+					// how long the execution has been in it.
+					require.True(t, reported.StatusChangedAt.Equal(before.StatusChangedAt))
+				} else {
+					require.True(t, reported.StatusChangedAt.Equal(now))
+				}
+				// The acquisition owns these fields, so a report never writes
+				// them.
+				require.Equal(t, before.AcquisitionVersion, reported.AcquisitionVersion)
+				require.Equal(t, before.RestartCount, reported.RestartCount)
+				require.Equal(t, before.LastAcquiredAt, reported.LastAcquiredAt)
+				require.Equal(t, before.CreatedAt, reported.CreatedAt)
+				// The returned row is exactly what was persisted.
+				require.Equal(t, reported, statusOf(t, fixture, params))
+			})
+		}
+	}
+
+	t.Run("ReportClearsLastError", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params, version := acquiredDeclaration(t)
+		failed := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		arg := reportParams(params, version, database.SubagentExecutionStatusRunning, failed)
+		arg.LastError = "driver restarted after a crash"
+		reported, err := fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+		require.NoError(t, err)
+		require.Equal(t, arg.LastError, reported.LastError)
+
+		// last_error always carries the reported value, so a recovered launcher
+		// clears it by reporting an empty one.
+		recovered := arg
+		recovered.LastError = ""
+		recovered.Now = failed.Add(time.Minute)
+		reported, err = fixture.db.ReportWorkspaceAgentSubagentExecutionStatus(fixture.ctx, recovered)
+		require.NoError(t, err)
+		require.Empty(t, reported.LastError)
+		require.True(t, reported.UpdatedAt.Equal(recovered.Now))
+		// The status did not change, so only the liveness timestamps moved.
+		require.True(t, reported.StatusChangedAt.Equal(failed))
+		require.True(t, reported.LastReportedAt.Time.Equal(recovered.Now))
+	})
+
+	t.Run("ReportRefusesNeverAcquiredDeclaration", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, params := acquirableDeclaration(t)
+		before := statusOf(t, fixture, params)
+		require.Equal(t, "pending", before.Status)
+		require.Zero(t, before.AcquisitionVersion)
+
+		// A declaration nobody has acquired has no launcher to report on it, and
+		// version 0 is not a token any launcher can have been handed.
+		for _, version := range []int64{0, 1} {
+			requireReportRejected(t, fixture, params, reportParams(params, version, database.SubagentExecutionStatusRunning, dbtime.Now()))
+		}
+	})
+
+	for _, tt := range []struct {
+		name string
+		// version returns the acquisition version to report with, given the
+		// version the declaration was actually acquired at.
+		version func(acquired int64) int64
+	}{
+		{
+			name:    "Zero",
+			version: func(int64) int64 { return 0 },
+		},
+		{
+			name:    "Stale",
+			version: func(acquired int64) int64 { return acquired - 1 },
+		},
+		{
+			name:    "Future",
+			version: func(acquired int64) int64 { return acquired + 1 },
+		},
+	} {
+		t.Run("ReportRefusesAcquisitionVersion"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture, _, params, _ := acquiredDeclaration(t)
+			// Acquire again so a stale version is a version that really was
+			// handed out, exactly as a fenced launcher would still hold it.
+			acquired, err := fixture.db.AcquireWorkspaceAgentSubagentExecution(fixture.ctx, acquireParams(params, dbtime.Now()))
+			require.NoError(t, err)
+			require.EqualValues(t, 2, acquired.AcquisitionVersion)
+
+			requireReportRejected(t, fixture, params, reportParams(params, tt.version(acquired.AcquisitionVersion), database.SubagentExecutionStatusRunning, dbtime.Now()))
+		})
+	}
 
 	for _, timeout := range []int32{0, -1} {
 		t.Run(fmt.Sprintf("InvalidStartupTimeout/%d", timeout), func(t *testing.T) {

@@ -36530,6 +36530,34 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildGeneration(ctx context.Context, work
 	return i, err
 }
 
+const getPrecedingStartWorkspaceBuildGeneration = `-- name: GetPrecedingStartWorkspaceBuildGeneration :one
+SELECT preceding.id
+FROM workspace_builds AS latest
+JOIN workspace_builds AS preceding
+	ON preceding.workspace_id = latest.workspace_id
+	AND preceding.build_number < latest.build_number
+	AND preceding.transition = 'start'::workspace_transition
+WHERE latest.id = $1
+ORDER BY preceding.build_number DESC
+LIMIT 1
+`
+
+// GetPrecedingStartWorkspaceBuildGeneration resolves the newest 'start' build
+// that precedes the given build in the same workspace. The answer comes from
+// build ordering rather than from assuming the two build numbers are adjacent, so
+// an intervening build of any transition cannot make an older start look current.
+//
+// A report names this build when the workspace's latest generation is a 'stop':
+// the launcher torn down by that stop still has to be able to record that it is
+// shutting down or gone. Only the newest preceding start is returned, so a
+// generation already superseded by a newer start is never reportable.
+func (q *sqlQuerier) GetPrecedingStartWorkspaceBuildGeneration(ctx context.Context, latestWorkspaceBuildID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getPrecedingStartWorkspaceBuildGeneration, latestWorkspaceBuildID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getWorkspaceAgentSubagentExecutionAcquisitionParent = `-- name: GetWorkspaceAgentSubagentExecutionAcquisitionParent :one
 SELECT
 	parent.id,
@@ -36560,6 +36588,10 @@ type GetWorkspaceAgentSubagentExecutionAcquisitionParentRow struct {
 // and part of the requested build through its resource's provisioner job. The
 // parent's resource is returned so the child can be matched against the exact
 // resource rather than any resource in the workspace.
+//
+// The acquisition and the status report both revalidate the parent with this
+// statement, at the same point in their transactions, so the two paths cannot
+// drift apart on what makes a parent eligible.
 func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionAcquisitionParent(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionAcquisitionParentParams) (GetWorkspaceAgentSubagentExecutionAcquisitionParentRow, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentSubagentExecutionAcquisitionParent, arg.ParentAgentID, arg.WorkspaceBuildID)
 	var i GetWorkspaceAgentSubagentExecutionAcquisitionParentRow
@@ -36664,10 +36696,10 @@ type GetWorkspaceAgentSubagentExecutionForAcquisitionRow struct {
 }
 
 // GetWorkspaceAgentSubagentExecutionForAcquisition resolves the immutable
-// identity behind an acquisition request: the workspace that owns the requested
-// build, and the child agent the declaration was created with. The exact
-// (workspace_build_id, declaration_id, parent_agent_id) tuple must exist, so a
-// parent cannot acquire another parent's declaration. Both returned values are
+// identity behind an acquisition or report request: the workspace that owns the
+// requested build, and the child agent the declaration was created with. The
+// exact (workspace_build_id, declaration_id, parent_agent_id) tuple must exist,
+// so a parent cannot touch another parent's declaration. Both returned values are
 // immutable for the life of the rows, so reading them before the publication
 // lock is taken cannot yield a stale answer. Every mutable fact (latest build,
 // parent liveness, child liveness, status) is read by a later statement, after
@@ -36919,6 +36951,40 @@ func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionChildForAcquisition(ctx 
 	return i, err
 }
 
+const lockWorkspaceAgentSubagentExecutionChildForReport = `-- name: LockWorkspaceAgentSubagentExecutionChildForReport :one
+SELECT child.id
+FROM workspace_agents AS child
+WHERE child.id = $1
+	AND child.parent_id = $2
+	AND child.resource_id = $3
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
+FOR SHARE
+`
+
+type LockWorkspaceAgentSubagentExecutionChildForReportParams struct {
+	ChildAgentID  uuid.UUID     `db:"child_agent_id" json:"child_agent_id"`
+	ParentAgentID uuid.NullUUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ResourceID    uuid.UUID     `db:"resource_id" json:"resource_id"`
+}
+
+// LockWorkspaceAgentSubagentExecutionChildForReport re-validates the exact child
+// the declaration was created with and requires it to still be a live, execution
+// isolated, direct child on the parent's resource. Only the child identity is
+// returned: a status report must never be able to read the child auth token.
+//
+// Like the acquisition's child lock this is FOR SHARE rather than FOR KEY SHARE,
+// because an ordinary soft-delete only touches non-key columns. FOR SHARE
+// conflicts with any concurrent UPDATE of this row and forces an EvalPlanQual
+// recheck of the predicates above, so a child invalidated by a committing rebuild
+// cannot be reported on.
+func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionChildForReport(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionChildForReportParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceAgentSubagentExecutionChildForReport, arg.ChildAgentID, arg.ParentAgentID, arg.ResourceID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockWorkspaceAgentSubagentExecutionStatusForAcquisition = `-- name: LockWorkspaceAgentSubagentExecutionStatusForAcquisition :one
 SELECT
 	statuses.status,
@@ -36958,6 +37024,49 @@ func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionStatusForAcquisition(ctx
 		&i.RestartCount,
 		&i.AcquisitionVersion,
 	)
+	return i, err
+}
+
+const lockWorkspaceAgentSubagentExecutionStatusForReport = `-- name: LockWorkspaceAgentSubagentExecutionStatusForReport :one
+SELECT
+	statuses.status,
+	statuses.status_changed_at,
+	statuses.acquisition_version
+FROM workspace_agent_subagent_execution_statuses AS statuses
+WHERE statuses.workspace_build_id = $1
+	AND statuses.declaration_id = $2
+	AND statuses.acquisition_version = $3
+	AND statuses.acquisition_version > 0
+FOR UPDATE
+`
+
+type LockWorkspaceAgentSubagentExecutionStatusForReportParams struct {
+	WorkspaceBuildID   uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID      uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+}
+
+type LockWorkspaceAgentSubagentExecutionStatusForReportRow struct {
+	Status             string    `db:"status" json:"status"`
+	StatusChangedAt    time.Time `db:"status_changed_at" json:"status_changed_at"`
+	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+}
+
+// LockWorkspaceAgentSubagentExecutionStatusForReport locks the exact status row a
+// launcher is reporting on, and fences every launcher except the one holding the
+// current acquisition. The caller must present the acquisition_version it was
+// handed, and version 0 is never accepted, so a declaration that no launcher has
+// ever acquired cannot be reported on and a launcher superseded by a newer
+// acquisition cannot resurrect its state.
+//
+// The lock is FOR UPDATE, so it serializes reports against acquisitions of the
+// same declaration and against each other. It is taken at the same point in the
+// transaction as the acquisition's status lock, so both paths share one global
+// lock order: publication guard, execution status, child.
+func (q *sqlQuerier) LockWorkspaceAgentSubagentExecutionStatusForReport(ctx context.Context, arg LockWorkspaceAgentSubagentExecutionStatusForReportParams) (LockWorkspaceAgentSubagentExecutionStatusForReportRow, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceAgentSubagentExecutionStatusForReport, arg.WorkspaceBuildID, arg.DeclarationID, arg.AcquisitionVersion)
+	var i LockWorkspaceAgentSubagentExecutionStatusForReportRow
+	err := row.Scan(&i.Status, &i.StatusChangedAt, &i.AcquisitionVersion)
 	return i, err
 }
 
@@ -37023,6 +37132,71 @@ func (q *sqlQuerier) MarkWorkspaceAgentSubagentExecutionAcquired(ctx context.Con
 	)
 	var i MarkWorkspaceAgentSubagentExecutionAcquiredRow
 	err := row.Scan(&i.ChildAgentID, &i.AuthToken, &i.AcquisitionVersion)
+	return i, err
+}
+
+const markWorkspaceAgentSubagentExecutionReported = `-- name: MarkWorkspaceAgentSubagentExecutionReported :one
+UPDATE workspace_agent_subagent_execution_statuses AS statuses
+SET
+	status = $1,
+	updated_at = $2,
+	last_reported_at = $2,
+	status_changed_at = CASE
+		WHEN statuses.status = $1 THEN statuses.status_changed_at
+		ELSE $2
+	END,
+	last_error = $3
+WHERE statuses.workspace_build_id = $4
+	AND statuses.declaration_id = $5
+	AND statuses.acquisition_version = $6
+RETURNING workspace_build_id, declaration_id, status, created_at, updated_at, status_changed_at, last_acquired_at, last_reported_at, restart_count, last_error, acquisition_version
+`
+
+type MarkWorkspaceAgentSubagentExecutionReportedParams struct {
+	Status             string    `db:"status" json:"status"`
+	Now                time.Time `db:"now" json:"now"`
+	LastError          string    `db:"last_error" json:"last_error"`
+	WorkspaceBuildID   uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID      uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	AcquisitionVersion int64     `db:"acquisition_version" json:"acquisition_version"`
+}
+
+// MarkWorkspaceAgentSubagentExecutionReported records a launcher's status report
+// on the row this transaction already locked FOR UPDATE. The acquisition_version
+// predicate is repeated here so the mutation is fenced by the same token the lock
+// required, even if the two statements ever drift apart.
+//
+// status_changed_at only moves when the status actually changes, so a repeated
+// report of the same state stays idempotent for "how long has it been in this
+// state" while last_reported_at still advances as a liveness signal. The
+// acquisition-owned columns acquisition_version, restart_count, and
+// last_acquired_at are never written by a report.
+//
+// last_error is always overwritten with the reported value, so a launcher that
+// recovers clears the error it previously recorded by reporting an empty one.
+func (q *sqlQuerier) MarkWorkspaceAgentSubagentExecutionReported(ctx context.Context, arg MarkWorkspaceAgentSubagentExecutionReportedParams) (WorkspaceAgentSubagentExecutionStatus, error) {
+	row := q.db.QueryRowContext(ctx, markWorkspaceAgentSubagentExecutionReported,
+		arg.Status,
+		arg.Now,
+		arg.LastError,
+		arg.WorkspaceBuildID,
+		arg.DeclarationID,
+		arg.AcquisitionVersion,
+	)
+	var i WorkspaceAgentSubagentExecutionStatus
+	err := row.Scan(
+		&i.WorkspaceBuildID,
+		&i.DeclarationID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StatusChangedAt,
+		&i.LastAcquiredAt,
+		&i.LastReportedAt,
+		&i.RestartCount,
+		&i.LastError,
+		&i.AcquisitionVersion,
+	)
 	return i, err
 }
 
