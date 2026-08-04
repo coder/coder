@@ -425,6 +425,7 @@ export const mergeWatchedChatSummary = (
 	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
+	const isCapacityEvent = eventKind === "capacity_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -449,6 +450,14 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
+	// Capacity queueing is tracked outside chats.updated_at (the marker
+	// writes deliberately do not bump it), so apply capacity_change
+	// payloads regardless of the summary timestamp. Status changes also
+	// carry the field: leaving the running state clears it server-side.
+	const nextQueuedForCapacityAt =
+		isCapacityEvent || (isFreshEnough && isStatusEvent)
+			? watchedChat.queued_for_capacity_at
+			: cachedChat.queued_for_capacity_at;
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -491,7 +500,8 @@ export const mergeWatchedChatSummary = (
 		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
-		nextContext === cachedChat.context
+		nextContext === cachedChat.context &&
+		nextQueuedForCapacityAt === cachedChat.queued_for_capacity_at
 	) {
 		return cachedChat;
 	}
@@ -509,6 +519,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
+		queued_for_capacity_at: nextQueuedForCapacityAt,
 	};
 };
 

@@ -317,6 +317,46 @@ export const ArchivedOtherUserChat: Story = {
 	},
 };
 
+/** Queued for capacity on an unlicensed deployment shows the Community banner. */
+export const QueuedForCapacityCommunity: Story = {
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"Your team has reached the Community license limit for active agents. This agent will start automatically when capacity is available.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+/** Queued for capacity on a licensed deployment names the Premium tier. */
+export const QueuedForCapacityPremium: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"Your team has reached the Premium license limit for active agents. This agent will start automatically when capacity is available.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+/** No capacity banner when the chat is not queued. */
+export const NotQueuedForCapacity: Story = {
+	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/license limit for active agents/),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
 	render: () => (

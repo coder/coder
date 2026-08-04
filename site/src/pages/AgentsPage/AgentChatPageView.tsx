@@ -1,4 +1,4 @@
-import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
+import { ArchiveIcon, HourglassIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -22,6 +22,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -121,6 +122,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
+	queuedForCapacityAt?: string;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -322,6 +324,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	isSharedChat,
 	chatOwner,
+	queuedForCapacityAt,
 	canShareChat,
 	workspaceAgent,
 	workspace,
@@ -393,6 +396,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
+	const { entitlements } = useDashboard();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
@@ -810,6 +814,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
+	const licenseTier = entitlements.has_license ? "Premium" : "Community";
+	const queuedForCapacityWarning =
+		queuedForCapacityAt !== undefined
+			? `Your team has reached the ${licenseTier} license limit for active agents. This agent will start automatically when capacity is available.`
+			: undefined;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -882,6 +892,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								>
 									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
 									{chatOwnerWarning}
+								</div>
+							)}
+							{queuedForCapacityWarning && (
+								<div
+									role="status"
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<HourglassIcon className="size-4 shrink-0 text-content-warning" />
+									{queuedForCapacityWarning}
 								</div>
 							)}
 							{isArchived && (
