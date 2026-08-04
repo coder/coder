@@ -179,6 +179,24 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{}
+	}
+	groupACLRaw, err := json.Marshal(groupACL)
+	require.NoError(t, err, "marshal group ACL")
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+	userACLRaw, err := json.Marshal(userACL)
+	require.NoError(t, err, "marshal user ACL")
 	params := database.InsertChatModelConfigParams{
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -190,6 +208,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		GroupACL:             groupACLRaw,
+		UserACL:              userACLRaw,
 	}
 	for _, fn := range munge {
 		fn(&params)
