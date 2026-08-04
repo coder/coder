@@ -450,10 +450,9 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Capacity queueing is tracked outside chats.updated_at (the marker
-	// writes deliberately do not bump it), so apply capacity_change
-	// payloads regardless of the summary timestamp. Status changes also
-	// carry the field: leaving the running state clears it server-side.
+	// Concurrency marker writes do not bump chats.updated_at, so capacity
+	// events bypass timestamp rejection. Fresh status events also carry the
+	// marker.
 	const nextQueuedForCapacityAt =
 		isCapacityEvent || (isFreshEnough && isStatusEvent)
 			? watchedChat.queued_for_capacity_at

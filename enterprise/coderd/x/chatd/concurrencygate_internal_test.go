@@ -35,8 +35,6 @@ func entitledSet(t *testing.T) *entitlements.Set {
 	return set
 }
 
-// licensedWithoutHours simulates a Premium license without a purchased
-// agent runtime hours allocation.
 func licensedWithoutHours(t *testing.T) *entitlements.Set {
 	t.Helper()
 	set := entitlements.New()
@@ -100,7 +98,6 @@ func TestGateCapAcrossInstances(t *testing.T) {
 	require.NoError(t, gate1.Acquire(ctx, chat1.ID))
 	require.NoError(t, gate2.Acquire(ctx, chat2.ID))
 
-	// The third claim must block on either replica.
 	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 	defer cancel()
 	err := gate2.Acquire(blockedCtx, chat3.ID)
@@ -143,8 +140,6 @@ func TestGateParallelClaimsNeverOverAdmit(t *testing.T) {
 		}()
 	}
 
-	// Wait until every slot is taken, then verify the count cannot
-	// exceed the cap even with claims racing on both sides.
 	require.Eventually(t, func() bool {
 		return admitted.Load() == capacity
 	}, testutil.WaitLong, testutil.IntervalFast)
@@ -181,9 +176,8 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Finish the active chat's turn through the state machine: the
-	// status transition clears its claim and publishes the capacity
-	// nudge post-commit.
+	// The state machine publishes the capacity nudge after the completion
+	// transition commits.
 	machine := chatstate.NewChatMachine(f.db, f.ps, active.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
@@ -196,8 +190,6 @@ func TestGateAdmitsOnCapacityNudge(t *testing.T) {
 	require.Equal(t, database.ChatConcurrencyStateActive, state.ChatConcurrencyState)
 }
 
-// brokenSubscribePubsub simulates a pubsub whose subscriptions fail so
-// the gate must fall back to polling.
 type brokenSubscribePubsub struct {
 	pubsub.Pubsub
 }
@@ -306,8 +298,6 @@ func TestGateEntitledBypass(t *testing.T) {
 
 	g := newGate(gateOptions{Entitlements: entitledSet(t), Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
 
-	// Far more chats than capacity are all admitted without touching
-	// the database state.
 	for range 3 {
 		chat := f.chat(t)
 		require.NoError(t, g.Acquire(ctx, chat.ID))
@@ -360,8 +350,6 @@ func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
 		return state.Valid && state.ChatConcurrencyState == database.ChatConcurrencyStateQueued
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// Installing the entitlement admits the waiter on the next poll
-	// and clears its queued marker.
 	set.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,

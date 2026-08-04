@@ -317,7 +317,6 @@ export const ArchivedOtherUserChat: Story = {
 	},
 };
 
-/** Queued for capacity on an unlicensed deployment shows the Community banner. */
 export const QueuedForCapacityCommunity: Story = {
 	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
 	play: async ({ canvasElement }) => {
@@ -330,7 +329,6 @@ export const QueuedForCapacityCommunity: Story = {
 	},
 };
 
-/** Queued for capacity on a licensed deployment names the Premium tier. */
 export const QueuedForCapacityPremium: Story = {
 	parameters: {
 		features: ["multiple_organizations"],
@@ -346,7 +344,6 @@ export const QueuedForCapacityPremium: Story = {
 	},
 };
 
-/** No capacity banner when the chat is not queued. */
 export const NotQueuedForCapacity: Story = {
 	render: () => <StoryAgentChatPageView />,
 	play: async ({ canvasElement }) => {

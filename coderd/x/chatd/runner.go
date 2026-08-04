@@ -59,10 +59,7 @@ type runner struct {
 	debugTurn     *runnerDebugTurn
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
-	// lease brokers this chat's hold on a concurrent-agent capacity
-	// slot. Generation tasks acquire it; release is implicit in chat
-	// status transitions.
-	lease *agentSlotLease
+	lease         *agentSlotLease
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -254,11 +251,8 @@ func (r *runner) runTask(
 		RunnerID: input.RunnerID,
 	}
 	if kind == taskKindGeneration {
-		// Acquire the capacity slot outside the retry wrapper so a
-		// long queue wait cannot churn 15-minute task attempts. The
-		// wait still honors task cancellation: a state change or
-		// shutdown cancels ctx and unblocks it. Mid-turn tasks
-		// already hold the slot, so this is usually a no-op.
+		// Acquire outside runTaskWithRetry so queue waits do not
+		// consume 15-minute task attempts.
 		if err := r.lease.EnsureHeld(ctx); err != nil {
 			if ctx.Err() == nil {
 				r.opts.Logger.Warn(ctx, "chatworker task failed to acquire agent capacity slot", slogError(err))

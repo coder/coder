@@ -14,34 +14,28 @@ import (
 	"github.com/coder/quartz"
 )
 
-// AgentConcurrencyGate admits chatd agentic loops against a
-// deployment-wide capacity cap. This package only defines the
-// contract and invokes it at generation boundaries; the enforcing
-// implementation lives in the enterprise-licensed
-// enterprise/coderd/x/chatd package, where the license forbids
-// modification.
+// AgentConcurrencyGate is invoked at generation boundaries to enforce
+// deployment-wide chatd agent capacity. The enterprise gate implements
+// this contract.
 type AgentConcurrencyGate interface {
 	// Acquire blocks until the chat holds a capacity slot or ctx is
-	// canceled. Idempotent: a chat already holding a slot is
-	// re-admitted immediately. Capacity release is implicit in chat
-	// status transitions, so there is no matching release call.
+	// canceled. It is idempotent; status transitions release the slot
+	// implicitly.
 	Acquire(ctx context.Context, chatID uuid.UUID) error
 	// Yield releases the chat's slot while its generation blocks on
 	// external completion (wait_agent). Resuming is a plain Acquire.
 	Yield(ctx context.Context, chatID uuid.UUID) error
 }
 
-// AgentConcurrencyGateOptions carries chatd-owned infrastructure into
-// an AgentConcurrencyGateFactory.
+// AgentConcurrencyGateOptions configures an AgentConcurrencyGateFactory.
 type AgentConcurrencyGateOptions struct {
 	Store      database.Store
 	Pubsub     pubsub.Pubsub
 	Clock      quartz.Clock
 	Logger     slog.Logger
 	Registerer prometheus.Registerer
-	// OnQueued and OnAdmitted observe a chat entering the capacity
-	// queue and leaving it; chatd publishes the capacity_change watch
-	// event from them.
+	// OnQueued and OnAdmitted observe committed queue transitions used for
+	// capacity_change watch events.
 	OnQueued   func(chat database.Chat)
 	OnAdmitted func(chat database.Chat)
 	// LifetimeCtx bounds gate background work; canceled when the
@@ -49,23 +43,18 @@ type AgentConcurrencyGateOptions struct {
 	LifetimeCtx context.Context
 }
 
-// AgentConcurrencyGateFactory constructs the chat worker's
-// concurrent-agent gate. Nil leaves agentic loops uncapped.
+// AgentConcurrencyGateFactory constructs the chat worker's gate. Nil leaves
+// agentic loops uncapped.
 type AgentConcurrencyGateFactory func(AgentConcurrencyGateOptions) AgentConcurrencyGate
 
-// agentSlotLease brokers one runner's participation in the gate. It
-// binds the chat ID and reference-counts wait_agent pauses so
-// parallel wait_agent tool calls share the chat's single slot. A nil
-// gate makes every method a no-op (AGPL builds).
+// agentSlotLease binds one runner to the gate and reference-counts
+// concurrent wait_agent pauses.
 type agentSlotLease struct {
 	gate   AgentConcurrencyGate
 	chatID uuid.UUID
 	logger slog.Logger
 
-	// mu serializes gate transitions. Holding it across a blocking
-	// Acquire is safe: within a runner, a resume that re-acquires
-	// only happens while its generation step waits on that tool, so
-	// no other lease operation can run concurrently.
+	// mu protects pauseRefs and serializes Yield with re-acquisition.
 	mu        sync.Mutex
 	pauseRefs int
 }
@@ -86,11 +75,8 @@ func (l *agentSlotLease) EnsureHeld(ctx context.Context) error {
 	return l.gate.Acquire(ctx, l.chatID)
 }
 
-// Pause yields the slot while the holder blocks on external
-// completion (wait_agent), freeing capacity for subagent children.
-// Reference counted: parallel wait_agent calls share the chat's slot.
-// Best effort: a failed yield leaves the slot held, which only delays
-// children behind the cap.
+// Pause yields the slot while wait_agent blocks. Only the first concurrent
+// pause yields; a failed yield leaves the claim held.
 func (l *agentSlotLease) Pause(ctx context.Context) {
 	if l.gate == nil {
 		return

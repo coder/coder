@@ -187,10 +187,8 @@ func (m *ChatMachine) Update(
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		// A transition that cleared an active capacity claim freed a
-		// concurrent-agent slot; nudge queued waiters. Mechanical
-		// notification only; admission decisions stay in the
-		// enterprise gate.
+		// Only clearing an active claim publishes a capacity nudge.
+		// The gate owns admission.
 		if before.ConcurrencyState.Valid &&
 			before.ConcurrencyState.ChatConcurrencyState == database.ChatConcurrencyStateActive &&
 			!chat.ConcurrencyState.Valid {

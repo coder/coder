@@ -22,30 +22,21 @@ import (
 	"github.com/coder/quartz"
 )
 
-// MaxConcurrentAgents is the deployment-wide cap on concurrently
-// executing chatd agentic loops when the deployment is not entitled to
-// codersdk.FeatureAgentRuntimeHours. A chat holds one slot while its
-// status is running or interrupting; chats over the limit queue until
-// a slot frees. Subagents are ordinary chats and count against the
-// cap; a parent yields its slot while blocked in wait_agent so
-// children can run. "Agents" here means chatd agentic loops, not
-// workspace agents.
+// MaxConcurrentAgents caps chatd agentic loops when the deployment lacks
+// codersdk.FeatureAgentRuntimeHours. These are chatd loops, not workspace
+// agents.
 const MaxConcurrentAgents = 5
 
-// defaultCapacityPollInterval bounds how long a queued chat waits
-// before re-running its claim without a pubsub nudge. It covers
-// missed at-most-once pubsub deliveries, entitlement changes, and
-// capacity freed by paths that do not publish (archival, deletion).
+// defaultCapacityPollInterval retries after missed delivery, entitlement
+// changes, or release paths that do not publish.
 const defaultCapacityPollInterval = 15 * time.Second
 
 // defaultMetricsInterval is how often the deployment-wide capacity
 // gauges are refreshed from the database.
 const defaultMetricsInterval = 30 * time.Second
 
-// NewAgentConcurrencyGateFactory returns the factory the chat worker
-// uses to construct its concurrent-agent gate. The set is consulted at
-// every claim attempt, so entitlement changes apply without
-// reconstruction.
+// NewAgentConcurrencyGateFactory evaluates the live entitlement on every
+// claim.
 func NewAgentConcurrencyGateFactory(set *entitlements.Set) osschatd.AgentConcurrencyGateFactory {
 	return func(opts osschatd.AgentConcurrencyGateOptions) osschatd.AgentConcurrencyGate {
 		return newGate(gateOptions{
@@ -63,8 +54,6 @@ func NewAgentConcurrencyGateFactory(set *entitlements.Set) osschatd.AgentConcurr
 }
 
 type gateOptions struct {
-	// Entitlements is consulted at every claim attempt; nil defaults
-	// to an unlicensed set, so the cap applies.
 	Entitlements *entitlements.Set
 	Store        database.Store
 	Pubsub       pubsub.Pubsub
@@ -80,19 +69,12 @@ type gateOptions struct {
 	// disables it.
 	LifetimeCtx context.Context
 
-	// Capacity overrides MaxConcurrentAgents; used by tests.
-	Capacity int64
-	// PollInterval overrides the queued-chat fallback poll cadence;
-	// used by tests.
+	Capacity     int64
 	PollInterval time.Duration
 }
 
-// gate admits chatd agentic loops against a deployment-wide capacity
-// count stored on the chats table. Claims from every replica
-// serialize on a transaction-scoped advisory lock, so the cap holds
-// across replicas. Capacity release is implicit: the status-update
-// SQL clears a chat's claim whenever it leaves running/interrupting,
-// so the gate has no release bookkeeping and cannot leak slots.
+// gate serializes cross-replica claims with an advisory lock. Status
+// transitions release claims implicitly.
 type gate struct {
 	entitlements *entitlements.Set
 	store        database.Store
@@ -174,11 +156,8 @@ func (g *gate) entitled() bool {
 	return g.entitlements.Enabled(codersdk.FeatureAgentRuntimeHours)
 }
 
-// Acquire blocks until the chat holds a capacity slot or ctx is
-// canceled. It is idempotent: a chat already holding a slot is
-// re-admitted immediately. Transient database errors are retried on
-// the poll cadence rather than surfaced, so the only error returned
-// is ctx.Err().
+// Acquire waits until the chat holds a slot. It is idempotent, retries
+// transient errors, and returns ctx.Err() when canceled.
 func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
@@ -334,10 +313,8 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 			if err != nil {
 				return err
 			}
-			// Oldest-first fairness: a queued chat is admitted when it
-			// is within the free slots' head of the queue; a chat that
-			// never queued only claims a slot the queue head leaves
-			// over.
+			// Queued IDs get free slots oldest-first, before a new
+			// claimant.
 			admit := slices.Contains(oldestQueued, chatID) ||
 				(!res.wasQueued && int64(len(oldestQueued)) < free)
 			if admit {
@@ -390,8 +367,6 @@ func (g *gate) tryClaim(ctx context.Context, chatID uuid.UUID) (claimResult, err
 	return res, nil
 }
 
-// finishAdmission records wait metrics and notifies observers when an
-// admitted chat had been queued.
 func (g *gate) finishAdmission(res claimResult) {
 	if !res.wasQueued {
 		return
@@ -404,10 +379,7 @@ func (g *gate) finishAdmission(res claimResult) {
 	}
 }
 
-// releaseQueuedMarker clears a queued marker after an entitlement
-// bypass admits the chat mid-wait, so the queued state does not stay
-// visible for the rest of the turn. Best effort: enforcement must not
-// block an entitled deployment.
+// Entitlement-bypass cleanup is best effort and does not block admission.
 func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID) {
 	updated, err := g.store.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{
 		ID: chatID,
@@ -423,7 +395,6 @@ func (g *gate) releaseQueuedMarker(ctx context.Context, chatID uuid.UUID) {
 	}
 }
 
-// refreshGauges keeps the deployment-wide capacity gauges current.
 func (g *gate) refreshGauges(ctx context.Context) {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)

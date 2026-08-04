@@ -222,9 +222,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
-	// Cap concurrent chatd agents on deployments without the agent
-	// runtime hours entitlement. The gate implementation lives in the
-	// enterprise-licensed package.
 	options.Options.ChatAgentConcurrencyGateFactory = entchatd.NewAgentConcurrencyGateFactory(options.Entitlements)
 
 	api.AGPL = coderd.New(options.Options)

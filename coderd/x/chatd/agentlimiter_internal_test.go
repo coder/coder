@@ -18,11 +18,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// fakeAgentGate records gate calls per chat and blocks Acquire until
-// the test admits the chat. It has no capacity logic on purpose: these
-// tests pin the worker's side of the AgentConcurrencyGate contract,
-// while enforcement semantics are tested against the real gate in
-// enterprise/coderd/x/chatd.
+// fakeAgentGate blocks admission without implementing capacity accounting.
 type fakeAgentGate struct {
 	mu    sync.Mutex
 	chats map[uuid.UUID]*fakeGateChat
@@ -51,7 +47,6 @@ func (f *fakeAgentGate) chat(chatID uuid.UUID) *fakeGateChat {
 	return c
 }
 
-// admit unblocks all current and future Acquire calls for chatID.
 func (f *fakeAgentGate) admit(chatID uuid.UUID) {
 	c := f.chat(chatID)
 	c.mu.Lock()
@@ -116,10 +111,6 @@ func testFakeGateOptions(t *testing.T, f *workerTestFixture, starter chatWorkerT
 	return opts, gate
 }
 
-// TestWorker_AgentGateGatesGeneration pins the admission contract:
-// every generation task acquires the gate before StartGeneration runs,
-// and a blocked Acquire keeps that chat queued without affecting other
-// chats.
 func TestWorker_AgentGateGatesGeneration(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -130,12 +121,10 @@ func TestWorker_AgentGateGatesGeneration(t *testing.T) {
 	chatB := f.createRunningChat(t)
 	startWorker(t, opts)
 
-	// Both runners request a slot; neither generation starts.
 	gate.chat(chatA.ID).waitForEvent(t, "acquire")
 	gate.chat(chatB.ID).waitForEvent(t, "acquire")
 	starter.assertNoCall(t)
 
-	// Admission is per chat.
 	gate.admit(chatA.ID)
 	call := starter.waitCall(t, taskKindGeneration, uuid.Nil)
 	require.Equal(t, chatA.ID, call.input.ChatID)
@@ -146,8 +135,6 @@ func TestWorker_AgentGateGatesGeneration(t *testing.T) {
 	require.Equal(t, chatB.ID, call.input.ChatID)
 }
 
-// TestWorker_AgentGateInterruptDoesNotWaitForSlot pins that
-// non-generation tasks bypass the gate.
 func TestWorker_AgentGateInterruptDoesNotWaitForSlot(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -158,15 +145,11 @@ func TestWorker_AgentGateInterruptDoesNotWaitForSlot(t *testing.T) {
 	startWorker(t, opts)
 	gate.chat(chat.ID).waitForEvent(t, "acquire")
 
-	// The interrupt task starts while the generation is still blocked
-	// waiting for admission.
 	interruptChat(t, f, chat.ID)
 	call := starter.waitCall(t, taskKindInterrupt, chat.ID)
 	require.Equal(t, chat.ID, call.input.ChatID)
 }
 
-// waitAgentStarter simulates a wait_agent tool call: its generation
-// pulls the lease from the task context, pauses, and resumes.
 type waitAgentStarter struct {
 	*recordingTaskStarter
 	leaseOK   chan bool
@@ -192,9 +175,6 @@ func (s *waitAgentStarter) StartGeneration(ctx context.Context, input chatWorker
 	return s.recordingTaskStarter.StartGeneration(ctx, input)
 }
 
-// TestWorker_AgentGateWaitAgentPauseResume pins that the runner injects
-// the lease into generation task contexts and that Pause yields the
-// gate while Resume re-acquires it.
 func TestWorker_AgentGateWaitAgentPauseResume(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -215,8 +195,6 @@ func TestWorker_AgentGateWaitAgentPauseResume(t *testing.T) {
 	require.GreaterOrEqual(t, countEvents(events, "acquire"), 2)
 }
 
-// TestWorker_NoGateLeavesGenerationUncapped pins the AGPL default: a
-// nil gate never blocks and injects no lease.
 func TestWorker_NoGateLeavesGenerationUncapped(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -231,9 +209,6 @@ func TestWorker_NoGateLeavesGenerationUncapped(t *testing.T) {
 	require.False(t, ok)
 }
 
-// TestAgentSlotLease_PauseRefCounting pins that parallel wait_agent
-// calls share the chat's slot: only the first Pause yields and only
-// the last Resume re-acquires.
 func TestAgentSlotLease_PauseRefCounting(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -252,10 +227,6 @@ func TestAgentSlotLease_PauseRefCounting(t *testing.T) {
 	require.Equal(t, 1, countEvents(events, "acquire"))
 }
 
-// TestChatMachine_CapacityNudgeOnRelease pins the mechanical
-// notification: a transition that clears an active concurrency claim
-// publishes one capacity nudge post-commit, and transitions that do
-// not free capacity publish none.
 func TestChatMachine_CapacityNudgeOnRelease(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
