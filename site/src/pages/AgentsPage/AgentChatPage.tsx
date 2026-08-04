@@ -75,7 +75,12 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
+import {
+	type ChatDetailError,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
+	normalizeChatErrorPayload,
+} from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -114,13 +119,6 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
-import {
-	type ChatDetailError,
-	formatUsageLimitMessage,
-	isChatHookDeniedResponse,
-	isChatHookDispatchFailedResponse,
-	isChatUsageLimitExceededResponse,
-} from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -203,7 +201,7 @@ export const runPromoteQueuedMessage = async (params: {
 	promoteQueuedMessage: (id: number) => Promise<void>;
 	agentId: string | undefined;
 	clearChatErrorReason: (chatID: string) => void;
-	handleUsageLimitError: (error: unknown) => void;
+	onError: (error: unknown) => void;
 }): Promise<void> => {
 	const {
 		id,
@@ -211,7 +209,7 @@ export const runPromoteQueuedMessage = async (params: {
 		promoteQueuedMessage,
 		agentId,
 		clearChatErrorReason,
-		handleUsageLimitError,
+		onError,
 	} = params;
 	const previousSnapshot = store.getSnapshot();
 	store.batch(() => {
@@ -231,7 +229,7 @@ export const runPromoteQueuedMessage = async (params: {
 	} catch (error) {
 		store.unsuppressQueuedMessageID(id);
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
-		handleUsageLimitError(error);
+		onError(error);
 		throw error;
 	}
 };
@@ -740,9 +738,6 @@ const getPersistedDetailError = ({
 	chatRecord: TypesGen.Chat | undefined;
 	cachedError: ChatDetailError | undefined;
 }): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage_limit") {
-		return cachedError;
-	}
 	if (chatStatus !== "error") {
 		return undefined;
 	}
@@ -1350,36 +1345,23 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
-	const handleUsageLimitError = (error: unknown): void => {
-		if (!agentId) {
+	const handleRequestError = (error: unknown): void => {
+		if (!agentId || !isApiError(error)) {
 			return;
 		}
-		if (
-			isApiError(error) &&
-			error.response?.status === 409 &&
-			isChatUsageLimitExceededResponse(error.response.data)
-		) {
-			const reason: ChatDetailError = {
-				kind: "usage_limit",
-				message: formatUsageLimitMessage(error.response.data),
-			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
-		} else if (isApiError(error)) {
-			const detail = error.response?.data?.detail?.trim() || undefined;
-			const kind = isChatHookDeniedResponse(error.response?.data)
-				? "hook_denied"
-				: isChatHookDispatchFailedResponse(error.response?.data)
-					? "hook_dispatch_failed"
-					: "generic";
-			const reason: ChatDetailError = {
-				kind,
-				message: getErrorMessage(error, "An unexpected error occurred."),
-				...(detail ? { detail } : {}),
-			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
-		}
+		const detail = error.response?.data?.detail?.trim() || undefined;
+		const kind = isChatHookDeniedResponse(error.response?.data)
+			? "hook_denied"
+			: isChatHookDispatchFailedResponse(error.response?.data)
+				? "hook_dispatch_failed"
+				: "generic";
+		const reason: ChatDetailError = {
+			kind,
+			message: getErrorMessage(error, "An unexpected error occurred."),
+			...(detail ? { detail } : {}),
+		};
+		store.setStreamError(reason);
+		setChatErrorReason(agentId, reason);
 	};
 
 	const handleInterrupt = () => {
@@ -1422,7 +1404,7 @@ const AgentChatPage: FC = () => {
 			promoteQueuedMessage,
 			agentId,
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError: handleRequestError,
 		});
 
 	const editing = useConversationEditingState({
@@ -1648,15 +1630,7 @@ const AgentChatPage: FC = () => {
 				await compact();
 			} catch (error) {
 				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				if (
-					isApiError(error) &&
-					error.response?.status === 409 &&
-					isChatUsageLimitExceededResponse(error.response.data)
-				) {
-					handleUsageLimitError(error);
-				} else {
-					toast.error(getErrorMessage(error, "Failed to compact chat."));
-				}
+				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
 			return;
@@ -1714,7 +1688,7 @@ const AgentChatPage: FC = () => {
 				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
-					handleUsageLimitError(error);
+					handleRequestError(error);
 					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
 					void queryClient.invalidateQueries({
@@ -1765,7 +1739,7 @@ const AgentChatPage: FC = () => {
 		try {
 			response = await sendMessage(request);
 		} catch (error) {
-			handleUsageLimitError(error);
+			handleRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
 			void queryClient.invalidateQueries({

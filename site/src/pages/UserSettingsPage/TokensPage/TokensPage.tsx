@@ -39,7 +39,7 @@ const TokensPage: FC = () => {
 					<Button asChild variant="outline">
 						<RouterLink to="new">
 							<PlusIcon />
-							Add token
+							Create token
 						</RouterLink>
 					</Button>
 				}

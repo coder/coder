@@ -52,6 +52,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
@@ -112,7 +113,7 @@ const GroupMembersPage: FC = () => {
 		}),
 	);
 	const aiBudgetNote = [
-		"Monthly AI spend for this user.",
+		"Estimated monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.
 		aiSpend &&
 			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
@@ -173,7 +174,13 @@ const GroupMembersPage: FC = () => {
 													message="AI spend couldn't be loaded, so budgets aren't shown."
 												/>
 											) : (
-												<StatusIconTooltip message={aiBudgetNote} />
+												<StatusIconTooltip
+													message={
+														<>
+															{aiBudgetNote} <SpendEstimateDocsLink />
+														</>
+													}
+												/>
 											)}
 										</div>
 									</TableHead>

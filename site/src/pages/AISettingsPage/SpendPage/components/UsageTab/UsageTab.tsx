@@ -1,4 +1,3 @@
-import { EllipsisVerticalIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -8,12 +7,6 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -38,14 +31,6 @@ import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 import { SpendSectionHeader } from "../SpendSectionHeader";
 
-type UsageUserOverride = {
-	user_id: string;
-	name: string;
-	username: string;
-	avatar_url: string;
-	spend_limit_micros: number | null;
-};
-
 interface UsageTabProps {
 	displayDateRange: DateRangeValue;
 	onDateRangeChange: (value: DateRangeValue) => void;
@@ -58,9 +43,7 @@ interface UsageTabProps {
 		error: unknown;
 		refetch: () => unknown;
 	};
-	overrides: readonly UsageUserOverride[];
 	onSelectUser: (user: TypesGen.ChatCostUserRollup) => void;
-	onEditBudget: (override: UsageUserOverride) => void;
 }
 
 export const UsageTab: FC<UsageTabProps> = ({
@@ -69,9 +52,7 @@ export const UsageTab: FC<UsageTabProps> = ({
 	searchFilter,
 	onSearchFilterChange,
 	usersQuery,
-	overrides,
 	onSelectUser,
-	onEditBudget,
 }) => {
 	return (
 		<section className="space-y-6">
@@ -146,7 +127,6 @@ export const UsageTab: FC<UsageTabProps> = ({
 											<TableHead className="text-right">Output</TableHead>
 											<TableHead className="text-right">Cache Read</TableHead>
 											<TableHead className="text-right">Cache Write</TableHead>
-											<TableHead className="w-1">Actions</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -155,18 +135,6 @@ export const UsageTab: FC<UsageTabProps> = ({
 												key={user.user_id}
 												user={user}
 												onSelect={onSelectUser}
-												onEditBudget={(selectedUser) => {
-													const override = overrides.find(
-														(o) => o.user_id === selectedUser.user_id,
-													) ?? {
-														user_id: selectedUser.user_id,
-														name: selectedUser.name,
-														username: selectedUser.username,
-														avatar_url: selectedUser.avatar_url,
-														spend_limit_micros: null,
-													};
-													onEditBudget(override);
-												}}
 											/>
 										))}
 									</TableBody>
@@ -183,8 +151,7 @@ export const UsageTab: FC<UsageTabProps> = ({
 const UserRow: FC<{
 	user: TypesGen.ChatCostUserRollup;
 	onSelect: (user: TypesGen.ChatCostUserRollup) => void;
-	onEditBudget: (user: TypesGen.ChatCostUserRollup) => void;
-}> = ({ user, onSelect, onEditBudget }) => {
+}> = ({ user, onSelect }) => {
 	const clickableRowProps = useClickableTableRow({
 		onClick: () => onSelect(user),
 	});
@@ -236,28 +203,6 @@ const UserRow: FC<{
 			</TableCell>
 			<TableCell className="text-right tabular-nums">
 				{formatTokenCount(user.total_cache_creation_tokens)}
-			</TableCell>
-			<TableCell className="w-1" onClick={(event) => event.stopPropagation()}>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							type="button"
-							size="icon"
-							variant="subtle"
-							aria-label={`Open spend actions for ${user.name || user.username}`}
-						>
-							<EllipsisVerticalIcon aria-hidden="true" className="size-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => onEditBudget(user)}>
-							Update budget
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => onSelect(user)}>
-							View spend details
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
 			</TableCell>
 		</TableRow>
 	);

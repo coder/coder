@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -138,6 +139,14 @@ func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	return codersdk.NewExperimentalClient(client), api.Database, api
+}
+
+func newChatClientWithoutAIBridge(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
+	t.Helper()
+
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
 	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
@@ -253,28 +262,6 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
-}
-
-func enableDailyChatUsageLimit(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	limitMicros int64,
-) time.Time {
-	t.Helper()
-
-	_, err := db.UpsertChatUsageLimitConfig(
-		dbauthz.AsSystemRestricted(ctx),
-		database.UpsertChatUsageLimitConfigParams{
-			Enabled:            true,
-			DefaultLimitMicros: limitMicros,
-			Period:             string(codersdk.ChatUsageLimitPeriodDay),
-		},
-	)
-	require.NoError(t, err)
-
-	_, periodEnd := chatd.ComputeUsagePeriodBounds(time.Now(), codersdk.ChatUsageLimitPeriodDay)
-	return periodEnd
 }
 
 func insertAssistantCostMessage(
@@ -9540,9 +9527,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9560,13 +9548,45 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.Equal(t, "Test Chat", updated.Title)
 	})
 
+	t.Run("NoPubsubDelivery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithoutAIBridge(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createTitleGenerationModelConfig(t, client)
+
+		// Wire the daemon's reload subscription to a pubsub coderd never
+		// publishes to: gateway routes can then only come from the
+		// synchronous initial load. This guards the invariant the
+		// create-config-before-daemon pattern above relies on; if the
+		// initial load is removed or made asynchronous, this fails
+		// deterministically instead of reintroducing the startup race.
+		isolated := dbpubsub.NewInMemory()
+		t.Cleanup(func() { _ = isolated.Close() })
+		aibridgedtest.StartTestAIBridgeDaemonWithPubsub(t.Context(), t, api, nil, isolated)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "New Chat",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+
+		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", updated.Title)
+	})
+
 	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9614,9 +9634,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfigWithTitleFailure(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -9650,6 +9671,44 @@ func TestRegenerateChatTitle(t *testing.T) {
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
+	})
+
+	t.Run("UsageLimitExhausted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfigWithTitleQuotaExhausted(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "test chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		_, err = client.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t,
+			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+			sdkErr.Message)
 	})
 }
 
@@ -9726,9 +9785,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9774,9 +9834,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -9809,9 +9870,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfigWithTitleFailure(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -9835,6 +9897,31 @@ func TestProposeChatTitle(t *testing.T) {
 			"propose must not persist the suggested title")
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt),
 			"propose must not bump updated_at")
+	})
+
+	t.Run("UsageLimitExhausted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfigWithTitleQuotaExhausted(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "test chat"},
+			},
+		})
+		require.NoError(t, err)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		_, err = client.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t,
+			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+			sdkErr.Message)
 	})
 }
 
@@ -10412,69 +10499,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 	})
 
-	t.Run("PromotesAlreadyQueuedMessageAfterLimitReached", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-		enableDailyChatUsageLimit(ctx, t, db, 100)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued usage limit",
-			Status:            database.ChatStatusError,
-		})
-
-		const queuedText = "queued message for promote route"
-
-		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(queuedText),
-		})
-		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
-
-		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
-
-		promoteRes, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
-
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
-
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		foundPromoted := false
-		for _, msg := range messagesResult.Messages {
-			if msg.Role != codersdk.ChatMessageRoleUser {
-				continue
-			}
-			for _, part := range msg.Content {
-				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
-					foundPromoted = true
-				}
-			}
-		}
-		require.True(t, foundPromoted, "promoted message must appear in chat history")
-
-		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		for _, queued := range queuedMessages {
-			require.NotEqual(t, queuedMessage.ID, queued.ID)
-		}
-	})
-
 	t.Run("InvalidQueuedMessageID", func(t *testing.T) {
 		t.Parallel()
 
@@ -10773,196 +10797,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Len(t, queuedRemaining, 1)
 		require.Equal(t, queuedMessage.ID, queuedRemaining[0].ID,
 			"queued message ID must stay stable across reorder")
-	})
-}
-
-func TestChatUsageLimitOverrideRoutes(t *testing.T) {
-	t.Parallel()
-
-	t.Run("UpsertUserOverrideRequiresPositiveSpendLimit", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodPut,
-			fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", member.ID),
-			map[string]any{},
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		err = codersdk.ReadBodyAsError(res)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid chat usage limit override.", sdkErr.Message)
-		require.Equal(t, "Spend limit must be greater than 0.", sdkErr.Detail)
-	})
-
-	t.Run("UpsertUserOverrideMissingUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.UpsertChatUsageLimitOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusNotFound)
-		require.Equal(t, "User not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteUserOverrideMissingUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		err := client.DeleteChatUsageLimitOverride(ctx, uuid.New())
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "User not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteUserOverrideMissingOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		err := client.DeleteChatUsageLimitOverride(ctx, member.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
-	})
-
-	t.Run("UpdateUserOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 5_000_000,
-		})
-		require.NoError(t, err)
-
-		override, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
-			SpendLimitMicros: 10_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, member.ID, override.UserID)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-		require.Len(t, config.Overrides, 1)
-		require.Equal(t, member.ID, config.Overrides[0].UserID)
-		require.NotNil(t, config.Overrides[0].SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *config.Overrides[0].SpendLimitMicros)
-	})
-
-	t.Run("UpsertGroupOverrideIncludesMemberCount", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: database.PrebuildsSystemUserID})
-
-		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, group.ID, override.GroupID)
-		require.EqualValues(t, 1, override.MemberCount)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 7_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-
-		var listed *codersdk.ChatUsageLimitGroupOverride
-		for i := range config.GroupOverrides {
-			if config.GroupOverrides[i].GroupID == group.ID {
-				listed = &config.GroupOverrides[i]
-				break
-			}
-		}
-		require.NotNil(t, listed)
-		require.EqualValues(t, 1, listed.MemberCount)
-	})
-
-	t.Run("UpdateGroupOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
-
-		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 5_000_000,
-		})
-		require.NoError(t, err)
-
-		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 10_000_000,
-		})
-		require.NoError(t, err)
-		require.Equal(t, group.ID, override.GroupID)
-		require.EqualValues(t, 2, override.MemberCount)
-		require.NotNil(t, override.SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
-
-		config, err := client.GetChatUsageLimitConfig(ctx)
-		require.NoError(t, err)
-		require.Len(t, config.GroupOverrides, 1)
-		require.Equal(t, group.ID, config.GroupOverrides[0].GroupID)
-		require.EqualValues(t, 2, config.GroupOverrides[0].MemberCount)
-		require.NotNil(t, config.GroupOverrides[0].SpendLimitMicros)
-		require.EqualValues(t, 10_000_000, *config.GroupOverrides[0].SpendLimitMicros)
-	})
-
-	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitGroupOverrideRequest{
-			SpendLimitMicros: 7_000_000,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusNotFound)
-		require.Equal(t, "Group not found.", sdkErr.Message)
-	})
-
-	t.Run("DeleteGroupOverrideMissingOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-
-		err := client.DeleteChatUsageLimitGroupOverride(ctx, group.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat usage limit group override not found.", sdkErr.Message)
 	})
 }
 
@@ -12554,6 +12388,24 @@ func createChatModelConfigWithTitleFailure(t testing.TB, client *codersdk.Experi
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
 		}
 		return chattest.OpenAIErrorResponse(http.StatusUnauthorized, "invalid_api_key", "test title failure")
+	})
+	return createChatModelConfigWithBaseURL(t, client, baseURL)
+}
+
+// createChatModelConfigWithTitleQuotaExhausted provisions a model whose
+// non-streaming responses return a provider insufficient_quota error, which
+// classifies as a usage limit like an exhausted AI Gateway budget.
+func createChatModelConfigWithTitleQuotaExhausted(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+	t.Helper()
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		return chattest.OpenAIErrorResponse(
+			http.StatusBadRequest,
+			"insufficient_quota",
+			"You exceeded your current quota, please check your plan and billing details.",
+		)
 	})
 	return createChatModelConfigWithBaseURL(t, client, baseURL)
 }

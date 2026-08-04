@@ -410,13 +410,13 @@ export const CrossSideAdditionsToDeletions: Story = {
 // 3. File names truncate with ellipsis
 // biome-ignore format: raw diff string must preserve exact whitespace
 const renameDiff = [
-"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
 "similarity index 95%",
 "rename from site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
-"rename to site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"rename to site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
 "index abc1234..def5678 100644",
 "--- a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
-"+++ b/site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"+++ b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
 "@@ -1,3 +1,3 @@",
 " export function DefaultLimitSection() {",
 "-  return null;",

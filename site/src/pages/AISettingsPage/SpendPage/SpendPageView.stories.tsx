@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
@@ -100,68 +99,6 @@ const mockCostSummary = {
 	],
 } as TypesGen.ChatCostSummary;
 
-const mockConfigData = {
-	spend_limit_micros: 50_000_000,
-	period: "month",
-	updated_at: "2026-03-01T00:00:00Z",
-	unpriced_model_count: 0,
-	overrides: [
-		{
-			user_id: "user-3",
-			username: "dave",
-			name: "Dave Grohl",
-			avatar_url: "",
-			spend_limit_micros: 100_000_000,
-		},
-		{
-			user_id: "user-4",
-			username: "charlie",
-			name: "Charlie Chaplin",
-			avatar_url: "",
-			spend_limit_micros: 25_000_000,
-		},
-	],
-	group_overrides: [
-		{
-			group_id: "group-1",
-			group_name: "engineering",
-			group_display_name: "Engineering",
-			group_avatar_url: "",
-			member_count: 12,
-			spend_limit_micros: 75_000_000,
-		},
-	],
-} as TypesGen.ChatUsageLimitConfigResponse;
-
-const mockGroups = [
-	{
-		id: "group-1",
-		name: "engineering",
-		display_name: "Engineering",
-		organization_id: "org-1",
-		members: [],
-		total_member_count: 12,
-		avatar_url: "",
-		quota_allowance: 0,
-		source: "user",
-		organization_name: "default",
-		organization_display_name: "Default",
-	},
-	{
-		id: "group-2",
-		name: "design",
-		display_name: "Design",
-		organization_id: "org-1",
-		members: [],
-		total_member_count: 5,
-		avatar_url: "",
-		quota_allowance: 0,
-		source: "user",
-		organization_name: "default",
-		organization_display_name: "Default",
-	},
-] as TypesGen.Group[];
-
 const defaultDateRange = {
 	startDate: new Date("2026-02-10T00:00:00Z"),
 	endDate: new Date("2026-03-12T00:00:00Z"),
@@ -219,22 +156,6 @@ function mockUsersQuery(
 }
 
 const baseProps = {
-	configData: undefined as TypesGen.ChatUsageLimitConfigResponse | undefined,
-	isLoadingConfig: false,
-	configError: null as Error | null,
-	groupsData: undefined as TypesGen.Group[] | undefined,
-	isLoadingGroups: false,
-	groupsError: null as Error | null,
-	isUpdatingConfig: false,
-	updateConfigError: null as Error | null,
-	isUpsertingOverride: false,
-	upsertOverrideError: null as Error | null,
-	isDeletingOverride: false,
-	deleteOverrideError: null as Error | null,
-	isUpsertingGroupOverride: false,
-	upsertGroupOverrideError: null as Error | null,
-	isDeletingGroupOverride: false,
-	deleteGroupOverrideError: null as Error | null,
 	dateRange: defaultDateRange,
 	endDateIsExclusive: false,
 	searchFilter: "",
@@ -254,84 +175,22 @@ const meta = {
 	component: SpendPageView,
 	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },
-	render: (args) => {
-		const [activeTab, setActiveTab] = useState(args.activeTab);
-		return (
-			<SpendPageView
-				{...args}
-				activeTab={activeTab}
-				onActiveTabChange={(tab) => {
-					setActiveTab(tab);
-					args.onActiveTabChange(tab);
-				}}
-			/>
-		);
-	},
 	args: {
 		...baseProps,
-		refetchConfig: fn(),
-		onUpdateConfig: fn(),
-		resetUpdateConfig: fn(),
-		onUpsertOverride: fn(),
-		onDeleteOverride: fn(),
-		onUpsertGroupOverride: fn(),
-		onDeleteGroupOverride: fn(),
 		onDateRangeChange: fn(),
 		onSearchFilterChange: fn(),
 		onDrillInUserRetry: fn(),
 		onClearSelectedUser: fn(),
 		onSelectUser: fn(),
 		onSummaryRetry: fn(),
-		activeTab: "limits",
-		onActiveTabChange: fn(),
 	},
 } satisfies Meta<typeof SpendPageView>;
 
 export default meta;
 type Story = StoryObj<typeof SpendPageView>;
 
-export const SpendWithLimitsAndUsers: Story = {
-	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
-		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Spend limits and usage");
-		await expect(
-			canvas.getByText(
-				/Cost controls features will move to AI Governance in v2\.36\./,
-			),
-		).toBeInTheDocument();
-		await expect(
-			canvas.getByRole("link", { name: /Read more here/ }),
-		).toHaveAttribute(
-			"href",
-			expect.stringContaining("/ai-coder/ai-gateway/cost-controls"),
-		);
-		await expect(
-			canvas.getByRole("switch", { name: "Spend limit" }),
-		).toBeInTheDocument();
-		await expect(canvas.getByText("Group limits")).toBeInTheDocument();
-		await expect(canvas.getByText("Usage")).toBeInTheDocument();
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
-
-		await expect(await canvas.findByText("Alice Liddell")).toBeInTheDocument();
-		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
-
-		await expect(
-			canvas.getByPlaceholderText("Search by name or username"),
-		).toBeInTheDocument();
-	},
-};
-
 export const SpendUsersEmpty: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		usersQuery: mockUsersQuery({
 			data: {
 				start_date: "2026-02-10T00:00:00Z",
@@ -344,8 +203,16 @@ export const SpendUsersEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Spend limits and usage");
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+		await canvas.findByText("AI spend usage");
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"As of v2.36, AI Governance Cost Control replaces Coder Agents Cost Control.",
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Read more here/ }),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining("/ai-coder/ai-gateway/cost-controls"),
+		);
 		await expect(
 			await canvas.findByText("No usage data for this period."),
 		).toBeInTheDocument();
@@ -354,8 +221,6 @@ export const SpendUsersEmpty: Story = {
 
 export const SpendUserDrillIn: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		drillInUserId: "user-1",
 		drillInUser: mockUserProfile,
 		summaryData: mockCostSummary,
@@ -373,8 +238,6 @@ export const SpendUserDrillIn: Story = {
 
 export const SpendUserDrillInAndBack: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		drillInUserId: "user-1",
 		drillInUser: mockUserProfile,
 		summaryData: mockCostSummary,
@@ -392,8 +255,6 @@ export const SpendUserDrillInAndBack: Story = {
 
 export const SpendDrillInLoading: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		drillInUserId: "user-1",
 		drillInUser: null,
 		isDrillInUserLoading: true,
@@ -408,8 +269,6 @@ export const SpendDrillInLoading: Story = {
 
 export const SpendDrillInError: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		drillInUserId: "user-1",
 		drillInUser: null,
 		isDrillInUserError: true,
@@ -424,8 +283,6 @@ export const SpendDrillInError: Story = {
 
 export const SpendRefetchOverlay: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		usersQuery: mockUsersQuery({
 			data: mockUsersResponse,
 			isFetching: true,
@@ -433,8 +290,6 @@ export const SpendRefetchOverlay: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
 		await canvas.findByText("Alice Liddell");
 
@@ -444,42 +299,12 @@ export const SpendRefetchOverlay: Story = {
 	},
 };
 
-export const SpendConfigLoading: Story = {
-	args: {
-		isLoadingConfig: true,
-	},
-};
-
-export const SpendConfigError: Story = {
-	args: {
-		configError: new Error("Network error: failed to fetch config"),
-		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Network error: failed to fetch config");
-		await expect(canvas.getByText("Retry")).toBeInTheDocument();
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
-
-		await expect(canvas.getByText("Alice Liddell")).toBeInTheDocument();
-		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
-	},
-};
-
 export const SpendUsersLoading: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		usersQuery: mockUsersQuery({ isLoading: true }),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		await canvas.findByRole("switch", { name: "Spend limit" });
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
 		await expect(
 			await canvas.findByRole("status", { name: "Loading usage" }),
@@ -489,18 +314,12 @@ export const SpendUsersLoading: Story = {
 
 export const SpendUsersError: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		usersQuery: mockUsersQuery({
 			error: new Error("Failed to load usage data"),
 		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		await canvas.findByRole("switch", { name: "Spend limit" });
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
 		await expect(
 			canvas.getByText("Failed to load usage data"),
@@ -511,14 +330,10 @@ export const SpendUsersError: Story = {
 
 export const SpendUserClickToDrillIn: Story = {
 	args: {
-		configData: mockConfigData,
-		groupsData: mockGroups,
 		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-
-		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
 		const row = await canvas.findByRole("button", {
 			name: /^View details for Alice Liddell/,

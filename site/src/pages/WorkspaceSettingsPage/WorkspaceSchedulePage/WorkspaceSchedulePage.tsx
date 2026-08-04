@@ -140,9 +140,19 @@ const WorkspaceSchedulePage: FC = () => {
 
 							await submitScheduleMutation.mutateAsync(data);
 
+							// A running build's autostop deadline is calculated when the
+							// build starts, so updating the TTL does not retroactively
+							// change it. Prompt the user to restart so the new value takes
+							// effect immediately, but only when all of the following hold:
+							//   - autostop actually changed (toggled or new TTL value),
+							//   - autostop is enabled after the change; disabling clears the
+							//     running build's deadline server-side, so no restart is
+							//     needed, and
+							//   - the workspace is running; a stopped workspace picks up the
+							//     new value on its next start.
 							if (
 								data.autostopChanged &&
-								getAutostop(workspace).autostopEnabled &&
+								values.autostopEnabled &&
 								workspace.latest_build.status === "running"
 							) {
 								setIsConfirmingApply(true);
@@ -163,7 +173,9 @@ const WorkspaceSchedulePage: FC = () => {
 					navigate(`/@${username}/${workspaceName}`);
 				}}
 				onClose={() => {
-					navigate(`/@${username}/${workspaceName}`);
+					// Keep the user on the schedule page; the saved value still
+					// applies on the next workspace start.
+					setIsConfirmingApply(false);
 				}}
 			/>
 		</div>

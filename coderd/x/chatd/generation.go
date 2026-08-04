@@ -14,11 +14,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -38,7 +40,7 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             fantasy.LanguageModel
+	Model             chatprovider.Model
 	Prompt            []fantasy.Message
 	Tools             []fantasy.AgentTool
 	ActiveTools       []string
@@ -399,7 +401,7 @@ func (s *taskStarter) startGenerationSession(
 	// Re-arm the claim until its response is applied so a replacement task
 	// can replay session_start effects.
 	defer func() { complete(completed) }()
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return sessionStartResult{}, true, chathooks.GenerationDispatchError(agenthooks.EventSessionStart, err)
 	}
@@ -722,7 +724,7 @@ func (s *taskStarter) generateAssistant(
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
-		Model:                prepared.Model,
+		Model:                prepared.Model.LanguageModel(),
 		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
@@ -748,12 +750,13 @@ func (s *taskStarter) generateAssistant(
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(outcome.Step),
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:          prepared.ModelConfigID,
+		modelCallConfig:        prepared.ModelConfig,
+		step:                   stepDataFromPersisted(outcome.Step),
+		toolNameToConfigID:     prepared.ToolNameToConfigID,
+		logger:                 s.opts.Logger,
+		contentVersion:         chatprompt.CurrentContentVersion,
+		hookRewrittenToolCalls: preflight.Overrides,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -814,9 +817,9 @@ func (s *taskStarter) executeLocalTools(
 	defer attempt.closeEpisode()
 	provider := ""
 	modelName := ""
-	if prepared.Model != nil {
+	if prepared.Model.Valid() {
 		provider = prepared.Model.Provider()
-		modelName = prepared.Model.Model()
+		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
@@ -925,7 +928,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
-		compactionOpts.Model = overrideModel.model
+		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
@@ -939,7 +942,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
-	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact)
+	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return chathooks.GenerationDispatchError(agenthooks.EventPreCompact, err)
 	}
@@ -986,7 +989,7 @@ func (s *taskStarter) generateCompaction(
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
 	// on crash.
-	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact)
+	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact, dispatch.CapacityClassGeneration)
 	var postCommitErr error
 	if postDispatchErr != nil {
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostCompact, postDispatchErr)
@@ -1348,7 +1351,7 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "load stop hook state")
 	}
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventStop, err), fence)
 	}

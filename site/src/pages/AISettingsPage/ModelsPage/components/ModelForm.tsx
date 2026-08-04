@@ -171,7 +171,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
 					}),
-					model_config: builtModelConfig,
+					// An omitted model_config preserves the stored options
+					// server-side, so clearing the last field must send an
+					// explicit empty config to replace them.
+					model_config: builtModelConfig ?? {},
 				};
 
 				await onUpdateModel(editingModel.id, req);

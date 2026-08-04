@@ -2213,20 +2213,6 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
-func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeleteChatUsageLimitGroupOverride(ctx, groupID)
-}
-
-func (q *querier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeleteChatUsageLimitUserOverride(ctx, userID)
-}
-
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3634,27 +3620,6 @@ func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (stri
 		return "", err
 	}
 	return q.db.GetChatTitleGenerationModelOverride(ctx)
-}
-
-func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitConfig{}, err
-	}
-	return q.db.GetChatUsageLimitConfig(ctx)
-}
-
-func (q *querier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetChatUsageLimitGroupOverrideRow{}, err
-	}
-	return q.db.GetChatUsageLimitGroupOverride(ctx, groupID)
-}
-
-func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetChatUsageLimitUserOverrideRow{}, err
-	}
-	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
 
 func (q *querier) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
@@ -5179,13 +5144,6 @@ func (q *querier) GetUserChatPersonalModelOverride(ctx context.Context, arg data
 	return q.db.GetUserChatPersonalModelOverride(ctx, arg)
 }
 
-func (q *querier) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
-		return 0, err
-	}
-	return q.db.GetUserChatSpendInPeriod(ctx, arg)
-}
-
 func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	user, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -5214,13 +5172,6 @@ func (q *querier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.
 
 func (q *querier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetUserForChatSyntheticAPIKeyByID)(ctx, id)
-}
-
-func (q *querier) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
-		return 0, err
-	}
-	return q.db.GetUserGroupSpendLimit(ctx, arg)
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
@@ -6836,6 +6787,13 @@ func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBri
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
+func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeSessionNetworkCalls(ctx, arg)
+}
+
 func (q *querier) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -6899,20 +6857,6 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 		return nil, err
 	}
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
-}
-
-func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.ListChatUsageLimitGroupOverrides(ctx)
-}
-
-func (q *querier) ListChatUsageLimitOverrides(ctx context.Context) ([]database.ListChatUsageLimitOverridesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.ListChatUsageLimitOverrides(ctx)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
@@ -7148,13 +7092,6 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
-}
-
-func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
-		return database.ResolveUserChatSpendLimitRow{}, err
-	}
-	return q.db.ResolveUserChatSpendLimit(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -9038,27 +8975,6 @@ func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, va
 		return err
 	}
 	return q.db.UpsertChatTitleGenerationModelOverride(ctx, value)
-}
-
-func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitConfig{}, err
-	}
-	return q.db.UpsertChatUsageLimitConfig(ctx, arg)
-}
-
-func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.UpsertChatUsageLimitGroupOverrideRow{}, err
-	}
-	return q.db.UpsertChatUsageLimitGroupOverride(ctx, arg)
-}
-
-func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.UpsertChatUsageLimitUserOverrideRow{}, err
-	}
-	return q.db.UpsertChatUsageLimitUserOverride(ctx, arg)
 }
 
 //nolint:revive // Parameter name matches the generated querier interface.
