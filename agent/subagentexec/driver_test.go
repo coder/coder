@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -30,7 +31,7 @@ const testDeclaredName = "declared-name-must-not-appear"
 
 // testStopGrace is short enough that the SIGKILL escalation test does not
 // have to wait for the production grace period.
-const testStopGrace = 250 * time.Millisecond
+const testStopGrace = testutil.IntervalMedium
 
 // newTestDriver returns a driver rooted in a fresh temporary state root.
 func newTestDriver(t *testing.T, mutate func(*ScriptDriverConfig)) *ScriptDriver {
@@ -442,7 +443,7 @@ func TestScriptDriver_StopTerminatesGracefully(t *testing.T) {
 	outDir := t.TempDir()
 	// A generous grace period keeps the assertion below about the driver
 	// honoring SIGTERM, not about scheduling latency.
-	gracePeriod := 5 * time.Second
+	gracePeriod := testutil.WaitShort
 	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) { cfg.StopGracePeriod = gracePeriod })
 	launch := testDriverLaunch(fmt.Sprintf(`#!/bin/sh
 if [ "$1" = cleanup ]; then
@@ -586,6 +587,7 @@ func TestNewScriptDriver_Validation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, defaultAgentScope, driver.agentScope)
 		require.Equal(t, DefaultPath, driver.path)
+		require.Equal(t, agentexec.DefaultExecer, driver.execer)
 		require.Equal(t, defaultStopGracePeriod, driver.stopGrace)
 		require.Equal(t, defaultCleanupTimeout, driver.cleanupTimeout)
 	})

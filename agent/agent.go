@@ -608,6 +608,9 @@ func (a *agent) subagentExecutionDriver() subagentexec.Driver {
 	}
 	cfg := a.subagentExecDriverConfig
 	cfg.Logger = a.logger.Named("subagentexec.driver")
+	if cfg.Execer == nil {
+		cfg.Execer = a.execer
+	}
 	driver, err := subagentexec.NewScriptDriver(cfg)
 	if err != nil {
 		a.logger.Warn(a.hardCtx, "subagent execution driver is unavailable", slog.Error(err))

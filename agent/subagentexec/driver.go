@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
@@ -161,6 +162,10 @@ type ScriptDriverConfig struct {
 	// Path is the controlled PATH the driver runs with. Empty uses
 	// DefaultPath.
 	Path string
+	// Execer creates the driver command. Nil uses
+	// agentexec.DefaultExecer. It exists so the launcher honors the same
+	// process priority management as the rest of the agent.
+	Execer agentexec.Execer
 	// StopGracePeriod bounds how long Stop waits after SIGTERM before
 	// killing the driver's process group. Zero uses
 	// defaultStopGracePeriod.
@@ -184,6 +189,7 @@ type ScriptDriver struct {
 	coderURL        string
 	coderBinaryPath string
 	path            string
+	execer          agentexec.Execer
 	stopGrace       time.Duration
 	cleanupTimeout  time.Duration
 }
@@ -223,11 +229,15 @@ func NewScriptDriver(cfg ScriptDriverConfig) (*ScriptDriver, error) {
 		coderURL:        cfg.CoderURL,
 		coderBinaryPath: cfg.CoderBinaryPath,
 		path:            cfg.Path,
+		execer:          cfg.Execer,
 		stopGrace:       cfg.StopGracePeriod,
 		cleanupTimeout:  cfg.CleanupTimeout,
 	}
 	if d.path == "" {
 		d.path = DefaultPath
+	}
+	if d.execer == nil {
+		d.execer = agentexec.DefaultExecer
 	}
 	if d.stopGrace <= 0 {
 		d.stopGrace = defaultStopGracePeriod
@@ -389,10 +399,12 @@ func (d *ScriptDriver) run(logger slog.Logger, paths executionPaths, launch Laun
 		logger.Info(context.Background(), "subagent execution driver output", slog.F("output", line))
 	})
 
-	//nolint:gosec // The driver script is vetted template content, written
-	// to a private 0700 file by prepare, and executed with an explicit
-	// argument list rather than through a shell.
-	cmd := exec.Command(paths.driver, string(OperationRun), paths.runInput)
+	// The run operation must outlive the reconciliation that started it, so
+	// it is not bound to a caller's context: the manager ends it through
+	// Stop instead. The script is vetted template content, written to a
+	// private 0700 file by prepare, and executed with an explicit argument
+	// list rather than through a shell.
+	cmd := d.execer.CommandContext(context.Background(), paths.driver, string(OperationRun), paths.runInput)
 	cmd.Env = env
 	cmd.Dir = paths.dir
 	cmd.Stdout = output
@@ -405,6 +417,7 @@ func (d *ScriptDriver) run(logger slog.Logger, paths executionPaths, launch Laun
 
 	proc := &driverProcess{
 		logger:         logger,
+		execer:         d.execer,
 		cmd:            cmd,
 		paths:          paths,
 		env:            env,
@@ -422,6 +435,7 @@ func (d *ScriptDriver) run(logger slog.Logger, paths executionPaths, launch Laun
 // process, the cleanup operation, and the removal of the private state.
 type driverProcess struct {
 	logger         slog.Logger
+	execer         agentexec.Execer
 	cmd            *exec.Cmd
 	paths          executionPaths
 	env            []string
@@ -522,8 +536,9 @@ func (p *driverProcess) cleanup() {
 	ctx, cancel := context.WithTimeout(context.Background(), p.cleanupTimeout)
 	defer cancel()
 
-	//nolint:gosec // Same vetted, private, shell-free invocation as run.
-	cmd := exec.CommandContext(ctx, p.paths.driver, string(OperationCleanup), p.paths.cleanupInput)
+	// Same vetted, private, shell-free invocation as run, bounded by the
+	// cleanup timeout.
+	cmd := p.execer.CommandContext(ctx, p.paths.driver, string(OperationCleanup), p.paths.cleanupInput)
 	cmd.Env = p.env
 	cmd.Dir = p.paths.dir
 	cmd.Stdout = p.output
