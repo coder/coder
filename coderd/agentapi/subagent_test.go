@@ -38,7 +38,14 @@ func TestSubAgentAPI(t *testing.T) {
 		return db, org
 	}
 
-	newUserWithWorkspaceAgent := func(t *testing.T, db database.Store, org database.Organization) (database.User, database.WorkspaceAgent) {
+	type workspaceAgentFixture struct {
+		user     database.User
+		build    database.WorkspaceBuild
+		resource database.WorkspaceResource
+		agent    database.WorkspaceAgent
+	}
+
+	newWorkspaceAgentFixture := func(t *testing.T, db database.Store, org database.Organization) workspaceAgentFixture {
 		user := dbgen.User(t, db, database.User{})
 		template := dbgen.Template(t, db, database.Template{
 			OrganizationID: org.ID,
@@ -70,7 +77,17 @@ func TestSubAgentAPI(t *testing.T) {
 			ResourceID: resource.ID,
 		})
 
-		return user, agent
+		return workspaceAgentFixture{
+			user:     user,
+			build:    build,
+			resource: resource,
+			agent:    agent,
+		}
+	}
+
+	newUserWithWorkspaceAgent := func(t *testing.T, db database.Store, org database.Organization) (database.User, database.WorkspaceAgent) {
+		fixture := newWorkspaceAgentFixture(t, db, org)
+		return fixture.user, fixture.agent
 	}
 
 	newAgentAPI := func(t *testing.T, logger slog.Logger, db database.Store, clock quartz.Clock, user database.User, org database.Organization, agent database.WorkspaceAgent) *agentapi.SubAgentAPI {
@@ -87,6 +104,29 @@ func TestSubAgentAPI(t *testing.T) {
 			Clock:          clock,
 			Database:       dbauthz.New(db, auth, logger, accessControlStore),
 		}
+	}
+
+	newExecutionOwnedChild := func(t *testing.T, ctx context.Context, db database.Store, fixture workspaceAgentFixture, parent database.WorkspaceAgent) database.WorkspaceAgent {
+		t.Helper()
+
+		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+			Name:               "execution-child",
+			ExecutionIsolation: true,
+		})
+		_, err := db.InsertWorkspaceAgentSubagentExecution(ctx, database.InsertWorkspaceAgentSubagentExecutionParams{
+			WorkspaceBuildID:      fixture.build.ID,
+			DeclarationID:         uuid.New(),
+			ParentAgentID:         parent.ID,
+			ChildAgentID:          child.ID,
+			Driver:                "docker",
+			DriverProtocol:        1,
+			SharedHostPath:        "/home/coder/project",
+			SharedChildPath:       "/workspace/project",
+			StartupTimeoutSeconds: 30,
+			RestartPolicy:         "on-failure",
+		})
+		require.NoError(t, err)
+		return child
 	}
 
 	t.Run("CreateSubAgent", func(t *testing.T) {
@@ -905,6 +945,11 @@ func TestSubAgentAPI(t *testing.T) {
 				OperatingSystem: "linux",
 			})
 
+			_ = dbgen.WorkspaceAgentDevcontainer(t, db, database.WorkspaceAgentDevcontainer{
+				WorkspaceAgentID: agent.ID,
+				SubagentID:       uuid.NullUUID{UUID: childAgent.ID, Valid: true},
+			})
+
 			// When: We delete the sub agent.
 			_, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
 				Id: childAgent.ID[:],
@@ -960,42 +1005,72 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 		})
 
+		t.Run("ExecutionOwnedUnavailable", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			db, org := newDatabaseWithOrg(t)
+			fixture := newWorkspaceAgentFixture(t, db, org)
+			api := newAgentAPI(t, log, db, clock, fixture.user, org, fixture.agent)
+			executionChild := newExecutionOwnedChild(t, ctx, db, fixture, fixture.agent)
+
+			resp, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{Id: executionChild.ID[:]})
+			require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+			require.Nil(t, resp)
+
+			liveChild, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), executionChild.ID)
+			require.NoError(t, err)
+			require.Equal(t, executionChild.AuthToken, liveChild.AuthToken)
+			require.True(t, liveChild.ExecutionIsolation)
+		})
+
+		missingID := uuid.New()
+		for _, tc := range []struct {
+			name string
+			id   []byte
+		}{
+			{name: "MissingUnavailable", id: missingID[:]},
+			{name: "MalformedUnavailable", id: []byte("short")},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				clock := quartz.NewMock(t)
+				db, org := newDatabaseWithOrg(t)
+				user, parent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, parent)
+
+				resp, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{Id: tc.id})
+				require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+				require.Nil(t, resp)
+			})
+		}
+
 		t.Run("CannotDeleteOtherAgentsChild", func(t *testing.T) {
 			t.Parallel()
 
 			log := testutil.Logger(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
 			clock := quartz.NewMock(t)
-
 			db, org := newDatabaseWithOrg(t)
-
-			userOne, agentOne := newUserWithWorkspaceAgent(t, db, org)
-			_ = newAgentAPI(t, log, db, clock, userOne, org, agentOne)
-
-			userTwo, agentTwo := newUserWithWorkspaceAgent(t, db, org)
-			apiTwo := newAgentAPI(t, log, db, clock, userTwo, org, agentTwo)
-
-			// Given: Both workspaces have child agents
-			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ParentID:        uuid.NullUUID{Valid: true, UUID: agentOne.ID},
-				ResourceID:      agentOne.ResourceID,
-				Name:            "child-agent-one",
-				Directory:       "/workspaces/wibble",
-				Architecture:    "amd64",
-				OperatingSystem: "linux",
+			fixture := newWorkspaceAgentFixture(t, db, org)
+			otherParent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: fixture.resource.ID,
 			})
+			api := newAgentAPI(t, log, db, clock, fixture.user, org, fixture.agent)
+			otherParentChild := dbgen.WorkspaceSubAgent(t, db, otherParent, database.WorkspaceAgent{Name: "other-parent-child"})
 
-			// When: An agent API attempts to delete an agent it doesn't own
-			_, err := apiTwo.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
-				Id: childAgentOne.ID[:],
-			})
+			resp, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{Id: otherParentChild.ID[:]})
+			require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+			require.Nil(t, resp)
 
-			// Then: We expect it to fail and for the agent to still exist.
-			var notAuthorizedError dbauthz.NotAuthorizedError
-			require.ErrorAs(t, err, &notAuthorizedError)
-
-			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID)
+			liveChild, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), otherParentChild.ID)
 			require.NoError(t, err)
+			require.Equal(t, otherParentChild, liveChild)
 		})
 
 		t.Run("DeleteRetainsWorkspaceApps", func(t *testing.T) {
@@ -1287,6 +1362,10 @@ func TestSubAgentAPI(t *testing.T) {
 						OperatingSystem: baseChildAgent.OperatingSystem,
 						DisplayApps:     baseChildAgent.DisplayApps,
 					})
+					_ = dbgen.WorkspaceAgentDevcontainer(t, db, database.WorkspaceAgentDevcontainer{
+						WorkspaceAgentID: agent.ID,
+						SubagentID:       uuid.NullUUID{UUID: childAgent.ID, Valid: true},
+					})
 
 					// When: We call CreateSubAgent with the existing agent's ID and new display apps.
 					return &proto.CreateSubAgentRequest{
@@ -1305,9 +1384,10 @@ func TestSubAgentAPI(t *testing.T) {
 					agentID, err := uuid.FromBytes(resp.Agent.Id)
 					require.NoError(t, err)
 
-					// And: The database agent's display apps are updated.
+					// And: The database agent's token and display apps are returned unchanged.
 					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
+					require.Equal(t, updatedAgent.AuthToken[:], resp.Agent.AuthToken)
 					require.Len(t, updatedAgent.DisplayApps, 2)
 					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppWebTerminal)
 					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppSSHHelper)
@@ -1405,7 +1485,7 @@ func TestSubAgentAPI(t *testing.T) {
 						Id: []byte("short"),
 					}
 				},
-				wantErr: "parse agent id",
+				wantErr: "subagent is unavailable or does not belong to this parent agent",
 			},
 			{
 				name: "Error/AgentNotFound",
@@ -1416,7 +1496,7 @@ func TestSubAgentAPI(t *testing.T) {
 						Id: nonExistentID[:],
 					}
 				},
-				wantErr: "get workspace agent by id",
+				wantErr: "subagent is unavailable or does not belong to this parent agent",
 			},
 			{
 				name: "Error/ParentMismatch",
@@ -1450,7 +1530,7 @@ func TestSubAgentAPI(t *testing.T) {
 						},
 					}
 				},
-				wantErr: "subagent does not belong to this parent agent",
+				wantErr: "subagent is unavailable or does not belong to this parent agent",
 			},
 
 			{
@@ -1474,7 +1554,7 @@ func TestSubAgentAPI(t *testing.T) {
 						},
 					}
 				},
-				wantErr: "subagent does not belong to this parent agent",
+				wantErr: "subagent is unavailable or does not belong to this parent agent",
 			},
 		}
 
@@ -1498,6 +1578,7 @@ func TestSubAgentAPI(t *testing.T) {
 				if tc.wantErr != "" {
 					require.Error(t, err)
 					require.Contains(t, err.Error(), tc.wantErr)
+					require.Nil(t, resp)
 					return
 				}
 
@@ -1507,6 +1588,71 @@ func TestSubAgentAPI(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("CreateSubAgentRejectsExecutionOwned", func(t *testing.T) {
+		t.Parallel()
+
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		db, org := newDatabaseWithOrg(t)
+		fixture := newWorkspaceAgentFixture(t, db, org)
+		api := newAgentAPI(t, log, db, clock, fixture.user, org, fixture.agent)
+		executionChild := newExecutionOwnedChild(t, ctx, db, fixture, fixture.agent)
+
+		resp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{Id: executionChild.ID[:]})
+		require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+		require.Nil(t, resp)
+
+		liveChild, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), executionChild.ID)
+		require.NoError(t, err)
+		require.Equal(t, executionChild.AuthToken, liveChild.AuthToken)
+	})
+
+	t.Run("CreateSubAgentRejectsDeletedChild", func(t *testing.T) {
+		t.Parallel()
+
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		db, org := newDatabaseWithOrg(t)
+		user, parent := newUserWithWorkspaceAgent(t, db, org)
+		api := newAgentAPI(t, log, db, clock, user, org, parent)
+		deletedChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{Name: "deleted-child"})
+		require.NoError(t, db.DeleteWorkspaceSubAgentByID(ctx, deletedChild.ID))
+
+		resp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{Id: deletedChild.ID[:]})
+		require.EqualError(t, err, "subagent is unavailable or does not belong to this parent agent")
+		require.Nil(t, resp)
+	})
+
+	t.Run("ChildAgentCannotManageNestedChildren", func(t *testing.T) {
+		t.Parallel()
+
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		db, org := newDatabaseWithOrg(t)
+		user, parent := newUserWithWorkspaceAgent(t, db, org)
+		child := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{Name: "child"})
+		grandchild := dbgen.WorkspaceSubAgent(t, db, child, database.WorkspaceAgent{Name: "grandchild"})
+		api := newAgentAPI(t, log, db, clock, user, org, child)
+
+		listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
+		require.EqualError(t, err, "child agents cannot manage subagents")
+		require.Nil(t, listResp)
+
+		createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{Name: "nested-child"})
+		require.EqualError(t, err, "child agents cannot manage subagents")
+		require.Nil(t, createResp)
+
+		deleteResp, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{Id: grandchild.ID[:]})
+		require.EqualError(t, err, "child agents cannot manage subagents")
+		require.Nil(t, deleteResp)
+
+		_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), grandchild.ID)
+		require.NoError(t, err)
 	})
 
 	t.Run("ListSubAgents", func(t *testing.T) {
@@ -1539,47 +1685,36 @@ func TestSubAgentAPI(t *testing.T) {
 			clock := quartz.NewMock(t)
 
 			db, org := newDatabaseWithOrg(t)
-			user, agent := newUserWithWorkspaceAgent(t, db, org)
-			api := newAgentAPI(t, log, db, clock, user, org, agent)
+			fixture := newWorkspaceAgentFixture(t, db, org)
+			api := newAgentAPI(t, log, db, clock, fixture.user, org, fixture.agent)
 
-			// Given: Multiple sub agents.
-			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
-				ResourceID:      agent.ResourceID,
-				Name:            "child-agent-one",
-				Directory:       "/workspaces/wibble",
-				Architecture:    "amd64",
-				OperatingSystem: "linux",
+			dynamicChild := dbgen.WorkspaceSubAgent(t, db, fixture.agent, database.WorkspaceAgent{Name: "dynamic-child"})
+			devcontainerChild := dbgen.WorkspaceSubAgent(t, db, fixture.agent, database.WorkspaceAgent{Name: "devcontainer-child"})
+			_ = dbgen.WorkspaceAgentDevcontainer(t, db, database.WorkspaceAgentDevcontainer{
+				WorkspaceAgentID: fixture.agent.ID,
+				SubagentID:       uuid.NullUUID{UUID: devcontainerChild.ID, Valid: true},
 			})
+			executionChild := newExecutionOwnedChild(t, ctx, db, fixture, fixture.agent)
 
-			childAgentTwo := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
-				ResourceID:      agent.ResourceID,
-				Name:            "child-agent-two",
-				Directory:       "/workspaces/wobble",
-				Architecture:    "amd64",
-				OperatingSystem: "linux",
-			})
-
-			childAgents := []database.WorkspaceAgent{childAgentOne, childAgentTwo}
-			slices.SortFunc(childAgents, func(a, b database.WorkspaceAgent) int {
+			expectedChildren := []database.WorkspaceAgent{dynamicChild, devcontainerChild}
+			slices.SortFunc(expectedChildren, func(a, b database.WorkspaceAgent) int {
 				return cmp.Compare(a.ID.String(), b.ID.String())
 			})
 
-			// When: We list the sub agents.
 			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
 			require.NoError(t, err)
 
-			listedChildAgents := listResp.Agents
-			slices.SortFunc(listedChildAgents, func(a, b *proto.SubAgent) int {
+			listedChildren := listResp.Agents
+			slices.SortFunc(listedChildren, func(a, b *proto.SubAgent) int {
 				return cmp.Compare(string(a.Id), string(b.Id))
 			})
 
-			// Then: We expect to see all the agents listed.
-			require.Len(t, listedChildAgents, len(childAgents))
-			for i, listedAgent := range listedChildAgents {
-				require.Equal(t, childAgents[i].ID[:], listedAgent.Id)
-				require.Equal(t, childAgents[i].Name, listedAgent.Name)
+			require.Len(t, listedChildren, len(expectedChildren))
+			for i, listedChild := range listedChildren {
+				require.Equal(t, expectedChildren[i].ID[:], listedChild.Id)
+				require.Equal(t, expectedChildren[i].Name, listedChild.Name)
+				require.Equal(t, expectedChildren[i].AuthToken[:], listedChild.AuthToken)
+				require.NotEqual(t, executionChild.ID[:], listedChild.Id)
 			}
 		})
 

@@ -35,9 +35,30 @@ type SubAgentAPI struct {
 	PortSharer *atomic.Pointer[portsharing.PortSharer]
 }
 
+var (
+	errSubAgentUnavailable        = xerrors.New("subagent is unavailable or does not belong to this parent agent")
+	errNestedSubAgentsUnsupported = xerrors.New("child agents cannot manage subagents")
+)
+
+func (a *SubAgentAPI) authenticatedParentAgent(ctx context.Context) (database.WorkspaceAgent, error) {
+	parentAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return database.WorkspaceAgent{}, xerrors.Errorf("get parent agent: %w", err)
+	}
+	if parentAgent.ParentID.Valid {
+		return database.WorkspaceAgent{}, errNestedSubAgentsUnsupported
+	}
+	return parentAgent, nil
+}
+
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
+
+	parentAgent, err := a.authenticatedParentAgent(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	createdAt := a.Clock.Now()
 
@@ -66,11 +87,6 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		displayApps = append(displayApps, app)
 	}
 
-	parentAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get parent agent: %w", err)
-	}
-
 	// An ID is only given in the request when it is a terraform-defined devcontainer
 	// that has attached resources. These subagents are pre-provisioned by terraform
 	// (the agent record already exists), so we update configurable fields like
@@ -78,18 +94,18 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	if req.Id != nil {
 		id, err := uuid.FromBytes(req.Id)
 		if err != nil {
-			return nil, xerrors.Errorf("parse agent id: %w", err)
+			return nil, errSubAgentUnavailable
 		}
 
-		subAgent, err := a.Database.GetWorkspaceAgentByID(ctx, id)
+		subAgent, err := a.Database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:       id,
+			ParentID: parentAgent.ID,
+		})
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace agent by id: %w", err)
-		}
-
-		// Validate that the subagent belongs to the current parent agent to
-		// prevent updating subagents from other agents within the same workspace.
-		if !subAgent.ParentID.Valid || subAgent.ParentID.UUID != parentAgent.ID {
-			return nil, xerrors.Errorf("subagent does not belong to this parent agent")
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, errSubAgentUnavailable
+			}
+			return nil, xerrors.Errorf("get workspace agent child: %w", err)
 		}
 
 		if err := a.Database.UpdateWorkspaceAgentDisplayAppsByID(ctx, database.UpdateWorkspaceAgentDisplayAppsByIDParams{
@@ -334,13 +350,25 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	subAgentID, err := uuid.FromBytes(req.Id)
+	parentAgent, err := a.authenticatedParentAgent(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := a.Database.DeleteWorkspaceSubAgentByID(ctx, subAgentID); err != nil {
-		return nil, err
+	subAgentID, err := uuid.FromBytes(req.Id)
+	if err != nil {
+		return nil, errSubAgentUnavailable
+	}
+
+	deleted, err := a.Database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       subAgentID,
+		ParentID: parentAgent.ID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("delete workspace agent child: %w", err)
+	}
+	if deleted == 0 {
+		return nil, errSubAgentUnavailable
 	}
 
 	return &agentproto.DeleteSubAgentResponse{}, nil
@@ -350,12 +378,12 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	parentAgent, err := a.AgentFn(ctx)
+	parentAgent, err := a.authenticatedParentAgent(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("get parent agent: %w", err)
+		return nil, err
 	}
 
-	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, parentAgent.ID)
+	workspaceAgents, err := a.Database.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentAgent.ID)
 	if err != nil {
 		return nil, err
 	}
