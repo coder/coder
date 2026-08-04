@@ -92,9 +92,12 @@ import "github.com/coder/coder/v2/apiversion"
 //     `coder_secret` Terraform integration is being removed; user secrets are
 //     still delivered to running workspaces via the agent manifest path, which
 //     is independent of this proto.
+//
+// API v1.19:
+//   - Added `subagent_executions` to `provisioner.Agent`.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 18
+	CurrentMinor = 19
 )
 
 // CurrentVersion is the current provisionerd API version.

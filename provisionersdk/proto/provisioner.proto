@@ -190,6 +190,7 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
+  repeated SubagentExecution subagent_executions = 27;
 }
 
 enum AppSharingLevel {
@@ -253,6 +254,21 @@ message Devcontainer {
   repeated App apps = 6;
   repeated Script scripts = 7;
   repeated Env envs = 8;
+}
+
+message SubagentExecution {
+  string id = 1; // Terraform declaration ID.
+  string subagent_id = 2; // Terraform association ID. Coderd will replace this with a build-scoped runtime child ID in Phase 2B.
+  string name = 3;
+  string driver = 4;
+  int32 driver_protocol = 5;
+  string shared_host_path = 6;
+  string shared_child_path = 7;
+  int32 startup_timeout_seconds = 8;
+  string restart_policy = 9;
+  repeated App apps = 10;
+  repeated Script scripts = 11;
+  repeated Env envs = 12;
 }
 
 enum AppOpenIn {

@@ -244,6 +244,7 @@ export interface Agent {
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
   apiKeyScope: string;
+  subagentExecutions: SubagentExecution[];
 }
 
 export interface Agent_Metadata {
@@ -314,6 +315,23 @@ export interface Devcontainer {
   name: string;
   id: string;
   subagentId: string;
+  apps: App[];
+  scripts: Script[];
+  envs: Env[];
+}
+
+export interface SubagentExecution {
+  /** Terraform declaration ID. */
+  id: string;
+  /** Terraform association ID. Coderd will replace this with a build-scoped runtime child ID in Phase 2B. */
+  subagentId: string;
+  name: string;
+  driver: string;
+  driverProtocol: number;
+  sharedHostPath: string;
+  sharedChildPath: string;
+  startupTimeoutSeconds: number;
+  restartPolicy: string;
   apps: App[];
   scripts: Script[];
   envs: Env[];
@@ -947,6 +965,9 @@ export const Agent = {
     if (message.apiKeyScope !== "") {
       writer.uint32(210).string(message.apiKeyScope);
     }
+    for (const v of message.subagentExecutions) {
+      SubagentExecution.encode(v!, writer.uint32(218).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1120,6 +1141,48 @@ export const Devcontainer = {
     }
     for (const v of message.envs) {
       Env.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const SubagentExecution = {
+  encode(message: SubagentExecution, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.subagentId !== "") {
+      writer.uint32(18).string(message.subagentId);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.driver !== "") {
+      writer.uint32(34).string(message.driver);
+    }
+    if (message.driverProtocol !== 0) {
+      writer.uint32(40).int32(message.driverProtocol);
+    }
+    if (message.sharedHostPath !== "") {
+      writer.uint32(50).string(message.sharedHostPath);
+    }
+    if (message.sharedChildPath !== "") {
+      writer.uint32(58).string(message.sharedChildPath);
+    }
+    if (message.startupTimeoutSeconds !== 0) {
+      writer.uint32(64).int32(message.startupTimeoutSeconds);
+    }
+    if (message.restartPolicy !== "") {
+      writer.uint32(74).string(message.restartPolicy);
+    }
+    for (const v of message.apps) {
+      App.encode(v!, writer.uint32(82).fork()).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(90).fork()).ldelim();
+    }
+    for (const v of message.envs) {
+      Env.encode(v!, writer.uint32(98).fork()).ldelim();
     }
     return writer;
   },
