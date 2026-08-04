@@ -124,7 +124,7 @@ Budgets are the only spend cap for Coder Agents chats.
 Chats no longer enforce a separate limit of their own, and existing native limit values are not migrated to budgets.
 Budget controls in the Coder UI, the group budget endpoints, and the AI spend status endpoints all require a license that includes AI Gateway.
 
-Refer to [Spend Management](./usage-insights.md) for details.
+Refer to [Spend management](./spend-management.md) for details.
 
 ### Git providers
 

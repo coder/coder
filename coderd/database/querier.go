@@ -100,9 +100,6 @@ type sqlcQuerier interface {
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
-	// Counts enabled, non-deleted model configs that lack both input and
-	// output pricing in their JSONB options.cost configuration.
-	CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 	// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)
@@ -419,19 +416,6 @@ type sqlcQuerier interface {
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatCompactionModelOverride(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
-	// Per-root-chat cost breakdown for a single user within a date range.
-	// Groups by root_chat_id so forked chats roll up under their root.
-	// Only counts assistant-role messages.
-	GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error)
-	// Per-model cost breakdown for a single user within a date range.
-	// Only counts assistant-role messages that have a model_config_id.
-	GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error)
-	// Deployment-wide per-user cost rollup within a date range.
-	// Only counts assistant-role messages.
-	GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error)
-	// Aggregate cost summary for a single user within a date range.
-	// Only counts assistant-role messages.
-	GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
@@ -497,11 +481,6 @@ type sqlcQuerier interface {
 	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
-	// Assistant-message cost rolled up over the requested chat's subtree: the
-	// chat itself plus every descendant reachable through parent_chat_id. A
-	// root chat therefore reports its whole tree, while a subagent chat
-	// reports only its own spend plus any nested subagents it spawned.
-	GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatModelUsageCostByChatIDRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)

@@ -361,17 +361,6 @@ const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
-type ChatCostDateParams = {
-	start_date?: string;
-	end_date?: string;
-};
-
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
@@ -3941,29 +3930,6 @@ class ExperimentalApiMethods {
 			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
 				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
 			);
-		return response.data;
-	};
-
-	getChatCostSummary = async (
-		user = "me",
-		params?: ChatCostDateParams,
-	): Promise<TypesGen.ChatCostSummary> => {
-		const url = getURLWithSearchParams(
-			`/api/experimental/chats/cost/${encodeURIComponent(user)}/summary`,
-			params,
-		);
-		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
-		return response.data;
-	};
-
-	getChatCostUsers = async (
-		params?: ChatCostUsersParams,
-	): Promise<TypesGen.ChatCostUsersResponse> => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/chats/cost/users",
-			params,
-		);
-		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
 }

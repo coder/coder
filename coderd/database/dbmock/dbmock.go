@@ -528,21 +528,6 @@ func (mr *MockStoreMockRecorder) CountConnectionLogs(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountConnectionLogs), ctx, arg)
 }
 
-// CountEnabledModelsWithoutPricing mocks base method.
-func (m *MockStore) CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountEnabledModelsWithoutPricing", ctx)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountEnabledModelsWithoutPricing indicates an expected call of CountEnabledModelsWithoutPricing.
-func (mr *MockStoreMockRecorder) CountEnabledModelsWithoutPricing(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountEnabledModelsWithoutPricing", reflect.TypeOf((*MockStore)(nil).CountEnabledModelsWithoutPricing), ctx)
-}
-
 // CountInProgressPrebuilds mocks base method.
 func (m *MockStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	m.ctrl.T.Helper()
@@ -2700,66 +2685,6 @@ func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
 }
 
-// GetChatCostPerChat mocks base method.
-func (m *MockStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostPerChat", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostPerChatRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatCostPerChat indicates an expected call of GetChatCostPerChat.
-func (mr *MockStoreMockRecorder) GetChatCostPerChat(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerChat", reflect.TypeOf((*MockStore)(nil).GetChatCostPerChat), ctx, arg)
-}
-
-// GetChatCostPerModel mocks base method.
-func (m *MockStore) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostPerModel", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostPerModelRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatCostPerModel indicates an expected call of GetChatCostPerModel.
-func (mr *MockStoreMockRecorder) GetChatCostPerModel(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerModel", reflect.TypeOf((*MockStore)(nil).GetChatCostPerModel), ctx, arg)
-}
-
-// GetChatCostPerUser mocks base method.
-func (m *MockStore) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostPerUser", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostPerUserRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatCostPerUser indicates an expected call of GetChatCostPerUser.
-func (mr *MockStoreMockRecorder) GetChatCostPerUser(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerUser", reflect.TypeOf((*MockStore)(nil).GetChatCostPerUser), ctx, arg)
-}
-
-// GetChatCostSummary mocks base method.
-func (m *MockStore) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostSummary", ctx, arg)
-	ret0, _ := ret[0].(database.GetChatCostSummaryRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatCostSummary indicates an expected call of GetChatCostSummary.
-func (mr *MockStoreMockRecorder) GetChatCostSummary(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostSummary", reflect.TypeOf((*MockStore)(nil).GetChatCostSummary), ctx, arg)
-}
-
 // GetChatDebugLoggingAllowUsers mocks base method.
 func (m *MockStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -3193,21 +3118,6 @@ func (m *MockStore) GetChatModelConfigsForTelemetry(ctx context.Context) ([]data
 func (mr *MockStoreMockRecorder) GetChatModelConfigsForTelemetry(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigsForTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigsForTelemetry), ctx)
-}
-
-// GetChatModelUsageCostByChatID mocks base method.
-func (m *MockStore) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatModelUsageCostByChatIDRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatModelUsageCostByChatID", ctx, chatID)
-	ret0, _ := ret[0].(database.GetChatModelUsageCostByChatIDRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatModelUsageCostByChatID indicates an expected call of GetChatModelUsageCostByChatID.
-func (mr *MockStoreMockRecorder) GetChatModelUsageCostByChatID(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelUsageCostByChatID", reflect.TypeOf((*MockStore)(nil).GetChatModelUsageCostByChatID), ctx, chatID)
 }
 
 // GetChatPersonalModelOverridesEnabled mocks base method.

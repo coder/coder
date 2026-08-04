@@ -411,15 +411,19 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
-export const CostTrackingExpanded: Story = {
+export const NativeCostTrackingIsUnavailable: Story = {
 	args: {
 		editingModel: mockGPT5,
 		onDeleteModel: fn(async () => undefined),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button", { name: /cost tracking/i });
-		await userEvent.click(toggle);
+		await expect(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /cost tracking/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

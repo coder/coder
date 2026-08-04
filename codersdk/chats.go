@@ -17,7 +17,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
-	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/websocket"
@@ -1459,14 +1458,6 @@ type ChatModelVercelProviderOptions struct {
 	ExtraBody         map[string]any                         `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
 }
 
-// ModelCostConfig stores pricing metadata for a chat model.
-type ModelCostConfig struct {
-	InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
-	OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
-	CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
-	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
-}
-
 // Reasoning effort levels, ordered low to high for clamping and comparison.
 const (
 	ChatModelReasoningEffortNone    = "none"
@@ -1509,7 +1500,6 @@ type ChatModelCallConfig struct {
 	TopK             *int64                          `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
 	PresencePenalty  *float64                        `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
 	FrequencyPenalty *float64                        `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
-	Cost             *ModelCostConfig                `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
 	ReasoningEffort  *ChatModelReasoningEffortConfig `json:"reasoning_effort,omitempty" description:"Default and max reasoning effort for the model"`
 	OpenAIConfig     *ChatModelOpenAIConfig          `json:"openai_config,omitempty" description:"OpenAI client construction settings" providers:"openai"`
 	ProviderOptions  *ChatModelProviderOptions       `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
@@ -1521,67 +1511,30 @@ type ChatModelOpenAIConfig struct {
 	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
 }
 
-// UnmarshalJSON accepts both the current nested cost object and the previous
-// top-level pricing keys so legacy stored model_config JSON continues to load.
-func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
-	return c.unmarshal(data, json.Unmarshal)
-}
-
-// UnmarshalStrict is UnmarshalJSON except unknown fields are an error instead
-// of being silently dropped. Clients that accept free-form model config JSON
-// (e.g. the Terraform provider) use it to reject settings this SDK version
-// does not recognize before they are lost.
+// UnmarshalStrict rejects unknown fields except for removed pricing fields,
+// which may still be present in stored model configuration JSON: the nested
+// cost object and the four top-level per-million-token price keys that
+// predate it (see migration 000435, which read both forms).
 func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
-	return c.unmarshal(data, func(data []byte, v any) error {
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(v); err != nil {
-			return err
-		}
-		// Match json.Unmarshal: reject any trailing data after the value.
-		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-			return xerrors.New("unexpected trailing data after JSON value")
-		}
-		return nil
-	})
-}
-
-func (c *ChatModelCallConfig) unmarshal(data []byte, decode func(data []byte, v any) error) error {
 	type chatModelCallConfigAlias ChatModelCallConfig
 	aux := struct {
 		*chatModelCallConfigAlias
-		InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty"`
-		OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty"`
-		CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty"`
-		CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty"`
+		Cost            json.RawMessage `json:"cost"`
+		InputPrice      json.RawMessage `json:"input_price_per_million_tokens"`
+		OutputPrice     json.RawMessage `json:"output_price_per_million_tokens"`
+		CacheReadPrice  json.RawMessage `json:"cache_read_price_per_million_tokens"`
+		CacheWritePrice json.RawMessage `json:"cache_write_price_per_million_tokens"`
 	}{
 		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
 	}
-	if err := decode(data, &aux); err != nil {
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&aux); err != nil {
 		return err
 	}
-
-	if aux.InputPricePerMillionTokens == nil &&
-		aux.OutputPricePerMillionTokens == nil &&
-		aux.CacheReadPricePerMillionTokens == nil &&
-		aux.CacheWritePricePerMillionTokens == nil {
-		return nil
-	}
-
-	if c.Cost == nil {
-		c.Cost = &ModelCostConfig{}
-	}
-	if c.Cost.InputPricePerMillionTokens == nil {
-		c.Cost.InputPricePerMillionTokens = aux.InputPricePerMillionTokens
-	}
-	if c.Cost.OutputPricePerMillionTokens == nil {
-		c.Cost.OutputPricePerMillionTokens = aux.OutputPricePerMillionTokens
-	}
-	if c.Cost.CacheReadPricePerMillionTokens == nil {
-		c.Cost.CacheReadPricePerMillionTokens = aux.CacheReadPricePerMillionTokens
-	}
-	if c.Cost.CacheWritePricePerMillionTokens == nil {
-		c.Cost.CacheWritePricePerMillionTokens = aux.CacheWritePricePerMillionTokens
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return xerrors.New("unexpected trailing data after JSON value")
 	}
 	return nil
 }
@@ -1940,64 +1893,6 @@ type ChatStreamEvent struct {
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
-// ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
-type ChatCostSummaryOptions struct {
-	StartDate time.Time
-	EndDate   time.Time
-}
-
-// ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
-type ChatCostUsersOptions struct {
-	StartDate time.Time
-	EndDate   time.Time
-	Username  string
-	Pagination
-}
-
-// ChatCostSummary is the response from the chat cost summary endpoint.
-type ChatCostSummary struct {
-	StartDate                        time.Time                `json:"start_date" format:"date-time"`
-	EndDate                          time.Time                `json:"end_date" format:"date-time"`
-	TotalCostMicros                  int64                    `json:"total_cost_micros"`
-	PricedMessageCount               int64                    `json:"priced_message_count"`
-	UnpricedMessagesHavingUsageCount int64                    `json:"unpriced_messages_having_usage_count"`
-	TotalInputTokens                 int64                    `json:"total_input_tokens"`
-	TotalOutputTokens                int64                    `json:"total_output_tokens"`
-	TotalCacheReadTokens             int64                    `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens         int64                    `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs                   int64                    `json:"total_runtime_ms"`
-	ByModel                          []ChatCostModelBreakdown `json:"by_model"`
-	ByChat                           []ChatCostChatBreakdown  `json:"by_chat"`
-}
-
-// ChatCostModelBreakdown contains per-model cost aggregation.
-type ChatCostModelBreakdown struct {
-	ModelConfigID            uuid.UUID `json:"model_config_id" format:"uuid"`
-	DisplayName              string    `json:"display_name"`
-	Provider                 string    `json:"provider"`
-	Model                    string    `json:"model"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
-	MessageCount             int64     `json:"message_count"`
-	TotalInputTokens         int64     `json:"total_input_tokens"`
-	TotalOutputTokens        int64     `json:"total_output_tokens"`
-	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
-}
-
-// ChatCostChatBreakdown contains per-root-chat cost aggregation.
-type ChatCostChatBreakdown struct {
-	RootChatID               uuid.UUID `json:"root_chat_id" format:"uuid"`
-	ChatTitle                string    `json:"chat_title"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
-	MessageCount             int64     `json:"message_count"`
-	TotalInputTokens         int64     `json:"total_input_tokens"`
-	TotalOutputTokens        int64     `json:"total_output_tokens"`
-	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
-}
-
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
 // Root and subagent chats report the same total.
 // RequestCount counts every finished request in the tree, including ones that
@@ -2010,30 +1905,6 @@ type ChatCost struct {
 	TotalCostMicros      int64     `json:"total_cost_micros"`
 	RequestCount         int64     `json:"request_count"`
 	UnpricedRequestCount int64     `json:"unpriced_request_count"`
-}
-
-// ChatCostUserRollup contains per-user cost aggregation for admin views.
-type ChatCostUserRollup struct {
-	UserID                   uuid.UUID `json:"user_id" format:"uuid"`
-	Username                 string    `json:"username"`
-	Name                     string    `json:"name"`
-	AvatarURL                string    `json:"avatar_url"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
-	MessageCount             int64     `json:"message_count"`
-	ChatCount                int64     `json:"chat_count"`
-	TotalInputTokens         int64     `json:"total_input_tokens"`
-	TotalOutputTokens        int64     `json:"total_output_tokens"`
-	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
-}
-
-// ChatCostUsersResponse is the response from the admin chat cost users endpoint.
-type ChatCostUsersResponse struct {
-	StartDate time.Time            `json:"start_date" format:"date-time"`
-	EndDate   time.Time            `json:"end_date" format:"date-time"`
-	Count     int64                `json:"count"`
-	Users     []ChatCostUserRollup `json:"users"`
 }
 
 // ChatHookDispatchFailedResponse is the error body returned when a
@@ -2357,34 +2228,6 @@ func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelCon
 	return nil
 }
 
-// GetChatCostSummary returns an aggregate cost summary for the specified
-// user. Zero-valued StartDate or EndDate fields are omitted from the
-// request, letting the server apply its own defaults (typically the last
-// 30 days).
-func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
-	qp := url.Values{}
-	if !opts.StartDate.IsZero() {
-		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
-	}
-	if !opts.EndDate.IsZero() {
-		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
-	}
-	reqURL := fmt.Sprintf("/api/experimental/chats/cost/%s/summary", user)
-	if len(qp) > 0 {
-		reqURL += "?" + qp.Encode()
-	}
-	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return ChatCostSummary{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatCostSummary{}, ReadBodyAsError(res)
-	}
-	var summary ChatCostSummary
-	return summary, json.NewDecoder(res.Body).Decode(&summary)
-}
-
 // GetChatCost returns the AI Gateway cost for the whole chat tree that
 // contains chatID.
 func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
@@ -2398,43 +2241,6 @@ func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) 
 	}
 	var cost ChatCost
 	return cost, json.NewDecoder(res.Body).Decode(&cost)
-}
-
-// GetChatCostUsers returns a per-user cost rollup for the deployment
-// (admin only). Zero-valued StartDate or EndDate fields are omitted from
-// the request, letting the server apply its own defaults (typically the
-// last 30 days).
-func (c *ExperimentalClient) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
-	qp := url.Values{}
-	if !opts.StartDate.IsZero() {
-		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
-	}
-	if !opts.EndDate.IsZero() {
-		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
-	}
-	if opts.Username != "" {
-		qp.Set("username", opts.Username)
-	}
-	if opts.Limit > 0 {
-		qp.Set("limit", strconv.Itoa(opts.Limit))
-	}
-	if opts.Offset > 0 {
-		qp.Set("offset", strconv.Itoa(opts.Offset))
-	}
-	reqURL := "/api/experimental/chats/cost/users"
-	if len(qp) > 0 {
-		reqURL += "?" + qp.Encode()
-	}
-	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return ChatCostUsersResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatCostUsersResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatCostUsersResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.

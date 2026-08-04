@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -434,75 +433,40 @@ func TestChatMessagePart_ReasoningTimestamps_JSON(t *testing.T) {
 	})
 }
 
-func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
+func TestChatModelCallConfig_UnmarshalStoredCost(t *testing.T) {
 	t.Parallel()
 
-	var decoded codersdk.ModelCostConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": 1.5}"), &decoded)
-	require.NoError(t, err)
-	require.NotNil(t, decoded.InputPricePerMillionTokens)
-	require.True(t, decoded.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
-}
-
-func TestModelCostConfig_QuotedDecimalJSON(t *testing.T) {
-	t.Parallel()
-
-	var decoded codersdk.ModelCostConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": \"1.5\"}"), &decoded)
-	require.NoError(t, err)
-	require.NotNil(t, decoded.InputPricePerMillionTokens)
-	require.True(t, decoded.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
-}
-
-func TestModelCostConfig_NilVsZero(t *testing.T) {
-	t.Parallel()
-
-	zero := decimal.Zero
-	raw, err := json.Marshal(struct {
-		Nil  codersdk.ModelCostConfig `json:"nil"`
-		Zero codersdk.ModelCostConfig `json:"zero"`
-	}{
-		Nil:  codersdk.ModelCostConfig{},
-		Zero: codersdk.ModelCostConfig{InputPricePerMillionTokens: &zero},
-	})
-	require.NoError(t, err)
-	require.Contains(t, string(raw), "\"zero\":{\"input_price_per_million_tokens\":\"0\"}")
-	require.Contains(t, string(raw), "\"nil\":{}")
-}
-
-func TestChatModelCallConfig_UnmarshalLegacyPricing(t *testing.T) {
-	t.Parallel()
-
-	var decoded codersdk.ChatModelCallConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": 1.5}"), &decoded)
-	require.NoError(t, err)
-	require.NotNil(t, decoded.Cost)
-	require.NotNil(t, decoded.Cost.InputPricePerMillionTokens)
-	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
-}
-
-func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
-	t.Parallel()
-
-	var decoded codersdk.ChatModelCallConfig
-	err := decoded.UnmarshalStrict([]byte(`{
+	raw := []byte(`{
 		"temperature": 0.5,
 		"cost": {"input_price_per_million_tokens": "5"},
-		"input_price_per_million_tokens": 1.5,
 		"provider_options": {"anthropic": {"thinking": {"budget_tokens": 1024}}}
-	}`))
-	require.NoError(t, err)
-	require.NotNil(t, decoded.Temperature)
-	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("5")))
+	}`)
 
-	err = decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
+	var decoded codersdk.ChatModelCallConfig
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.NotNil(t, decoded.Temperature)
+
+	require.NoError(t, decoded.UnmarshalStrict(raw))
+	require.NotNil(t, decoded.Temperature)
+
+	// Configs predating the nested cost object stored the pricing keys at
+	// the top level (see migration 000435).
+	legacyTopLevel := []byte(`{
+		"temperature": 0.5,
+		"input_price_per_million_tokens": "5",
+		"output_price_per_million_tokens": "10",
+		"cache_read_price_per_million_tokens": "1",
+		"cache_write_price_per_million_tokens": "2"
+	}`)
+	require.NoError(t, decoded.UnmarshalStrict(legacyTopLevel))
+	require.NotNil(t, decoded.Temperature)
+
+	err := decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
 	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
 
-	// Trailing data after the first value is rejected, matching json.Unmarshal.
 	err = decoded.UnmarshalStrict([]byte(`{"temperature": 0.5} {"bogus_setting": true}`))
 	require.ErrorContains(t, err, "trailing data")
 
-	// UnmarshalJSON stays lenient.
 	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
@@ -526,21 +490,6 @@ func TestChatModelCallConfig_UseResponsesAPIRoundTrip(t *testing.T) {
 	raw, err = json.Marshal(unset)
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "use_responses_api")
-}
-
-func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	original := codersdk.ChatCostSummary{
-		TotalCostMicros: 123,
-	}
-	raw, err := json.Marshal(original)
-	require.NoError(t, err)
-
-	var decoded codersdk.ChatCostSummary
-	err = json.Unmarshal(raw, &decoded)
-	require.NoError(t, err)
-	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
 }
 
 // TestChat_JSONRoundTrip verifies that every field of codersdk.Chat

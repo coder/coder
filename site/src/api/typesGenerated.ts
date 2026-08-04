@@ -2204,108 +2204,6 @@ export interface ChatCost {
 
 // From codersdk/chats.go
 /**
- * ChatCostChatBreakdown contains per-root-chat cost aggregation.
- */
-export interface ChatCostChatBreakdown {
-	readonly root_chat_id: string;
-	readonly chat_title: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostModelBreakdown contains per-model cost aggregation.
- */
-export interface ChatCostModelBreakdown {
-	readonly model_config_id: string;
-	readonly display_name: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummary is the response from the chat cost summary endpoint.
- */
-export interface ChatCostSummary {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-	readonly by_model: readonly ChatCostModelBreakdown[];
-	readonly by_chat: readonly ChatCostChatBreakdown[];
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
- */
-export interface ChatCostSummaryOptions {
-	readonly StartDate: string;
-	readonly EndDate: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUserRollup contains per-user cost aggregation for admin views.
- */
-export interface ChatCostUserRollup {
-	readonly user_id: string;
-	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly chat_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
- */
-export interface ChatCostUsersOptions extends Pagination {
-	readonly StartDate: string;
-	readonly EndDate: string;
-	readonly Username: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersResponse is the response from the admin chat cost users endpoint.
- */
-export interface ChatCostUsersResponse {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly count: number;
-	readonly users: readonly ChatCostUserRollup[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatDebugLoggingAdminSettings describes the runtime admin setting
  * that allows users to opt into chat debug logging.
  */
@@ -2890,7 +2788,6 @@ export interface ChatModelCallConfig {
 	readonly top_k?: number;
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
-	readonly cost?: ModelCostConfig;
 	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly openai_config?: ChatModelOpenAIConfig;
 	readonly provider_options?: ChatModelProviderOptions;
@@ -6183,17 +6080,6 @@ export interface MinimalUser {
 	readonly username: string;
 	readonly name?: string;
 	readonly avatar_url?: string;
-}
-
-// From codersdk/chats.go
-/**
- * ModelCostConfig stores pricing metadata for a chat model.
- */
-export interface ModelCostConfig {
-	readonly input_price_per_million_tokens?: string;
-	readonly output_price_per_million_tokens?: string;
-	readonly cache_read_price_per_million_tokens?: string;
-	readonly cache_write_price_per_million_tokens?: string;
 }
 
 // From netcheck/netcheck.go
