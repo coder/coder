@@ -100,7 +100,90 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	repeated SubagentExecution subagent_executions = 20;
 }
+
+// SubagentExecution is a declared nested execution the parent agent
+// must launch. It is a declaration only: it never carries the child
+// agent's ID or auth token. The parent acquires those separately via
+// AcquireSubagentExecution so credentials are not distributed to
+// agents that never launch the execution.
+message SubagentExecution {
+	// execution_id is the stable declaration ID for this execution.
+	bytes execution_id = 1;
+	// generation changes whenever the declaration's desired
+	// launch identity changes, fencing stale launchers.
+	bytes generation = 2;
+	// name is the declared execution name, used for logging and
+	// state directory naming.
+	string name = 3;
+	// driver names the vetted driver responsible for launching
+	// the execution.
+	string driver = 4;
+	// driver_protocol is the driver protocol version the parent
+	// must speak when invoking the driver.
+	int32 driver_protocol = 5;
+	// shared_host_path is the single declared path shared from
+	// the host side of the boundary.
+	string shared_host_path = 6;
+	// shared_child_path is the single declared path the child
+	// sees for the shared host path.
+	string shared_child_path = 7;
+	// startup_timeout_seconds bounds how long the parent waits
+	// for the child agent to connect before treating the launch
+	// as failed.
+	int32 startup_timeout_seconds = 8;
+	// restart_policy is the declared restart behavior, for
+	// example "never" or "on_failure".
+	string restart_policy = 9;
+}
+
+// AcquireSubagentExecutionRequest asks coderd for the pre-created
+// child agent's credentials for a declared execution. The generation
+// fences the request against a superseded declaration.
+message AcquireSubagentExecutionRequest {
+	bytes execution_id = 1;
+	bytes generation = 2;
+}
+
+// AcquireSubagentExecutionResponse returns only the pre-created
+// child's identity and token. It cannot create a new child or
+// override any persisted declaration field.
+message AcquireSubagentExecutionResponse {
+	bytes child_agent_id = 1;
+	string auth_token = 2;
+	// acquisition_version increases on every successful
+	// acquisition. The parent echoes it back in status reports so
+	// coderd can reject reports from a superseded launcher.
+	int64 acquisition_version = 3;
+}
+
+// ReportSubagentExecutionStatusRequest reports launcher-observed
+// status for an execution the parent previously acquired.
+message ReportSubagentExecutionStatusRequest {
+	bytes execution_id = 1;
+	bytes generation = 2;
+	// acquisition_version must match the value returned by the
+	// acquisition that produced this launcher.
+	int64 acquisition_version = 3;
+	Status status = 4;
+	// error carries the failure string when status is FAILED.
+	string error = 5;
+
+	// Status is the launcher-observed execution status. The
+	// pending state is DB-only: it exists before any launcher
+	// reports, so agents never send it.
+	enum Status {
+		STATUS_UNSPECIFIED = 0;
+		STARTING = 1;
+		RUNNING = 2;
+		STOPPING = 3;
+		STOPPED = 4;
+		FAILED = 5;
+	}
+}
+
+message ReportSubagentExecutionStatusResponse {}
 
 // WorkspaceSecret is a secret included in the agent manifest
 // for injection into a workspace.
@@ -677,4 +760,6 @@ service Agent {
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
+	rpc AcquireSubagentExecution(AcquireSubagentExecutionRequest) returns (AcquireSubagentExecutionResponse);
+	rpc ReportSubagentExecutionStatus(ReportSubagentExecutionStatusRequest) returns (ReportSubagentExecutionStatusResponse);
 }

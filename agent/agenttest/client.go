@@ -304,6 +304,14 @@ func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatu
 	panic("unimplemented")
 }
 
+func (*FakeAgentAPI) AcquireSubagentExecution(context.Context, *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
+	panic("unimplemented")
+}
+
+func (*FakeAgentAPI) ReportSubagentExecutionStatus(context.Context, *agentproto.ReportSubagentExecutionStatusRequest) (*agentproto.ReportSubagentExecutionStatusResponse, error) {
+	panic("unimplemented")
+}
+
 // PushContextState records the incoming snapshot and returns
 // Accepted=true. Tests that need to assert against the captured
 // pushes can read them via ContextStatePushes.

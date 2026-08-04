@@ -99,3 +99,15 @@ type DRPCAgentClient210 interface {
 	DRPCAgentClient29
 	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
 }
+
+// DRPCAgentClient211 is the Agent API at v2.11. It adds the
+// AcquireSubagentExecution and ReportSubagentExecutionStatus RPCs used
+// by a parent agent to fetch the pre-created child agent's credentials
+// for a declared nested execution and to report launcher status. It
+// also adds subagent_executions to the manifest, which carries
+// declarations only (never child IDs or tokens).
+type DRPCAgentClient211 interface {
+	DRPCAgentClient210
+	AcquireSubagentExecution(ctx context.Context, in *AcquireSubagentExecutionRequest) (*AcquireSubagentExecutionResponse, error)
+	ReportSubagentExecutionStatus(ctx context.Context, in *ReportSubagentExecutionStatusRequest) (*ReportSubagentExecutionStatusResponse, error)
+}
