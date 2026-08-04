@@ -103,10 +103,6 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 										{template.display_name || template.name || "[Unnamed]"}
 									</span>
 									<span className="truncate text-[13px] text-content-secondary">
-										{/*
-										 * Some templates report -1 as their user count, which is
-										 * treated like a null. Treat those the same as 0.
-										 */}
 										{activeDeveloperLabel(template.active_user_count)}
 									</span>
 								</div>
@@ -140,6 +136,8 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 };
 
 function activeDeveloperLabel(count: number): string {
+	// Some templates report -1 as their user count, which is treated like a
+	// null. Treat those the same as 0.
 	if (count <= 0) {
 		return "No developers";
 	}
