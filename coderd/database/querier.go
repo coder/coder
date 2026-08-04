@@ -154,8 +154,6 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error
-	DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -531,9 +529,6 @@ type sqlcQuerier interface {
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
-	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
-	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
-	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
 	// Returns the concatenated text of each user-visible user prompt in a
 	// chat, newest first. Used by the composer to populate the up/down
 	// arrow prompt-history cycle. Non-text parts (tool calls, files,
@@ -931,11 +926,6 @@ type sqlcQuerier interface {
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error)
-	// Returns the total spend for a user in the given period.
-	// When organization_id is NULL, spend across all organizations is
-	// returned (global behavior). Otherwise only spend within the
-	// specified organization is included.
-	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
@@ -944,12 +934,6 @@ type sqlcQuerier interface {
 	// no organization membership.
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
-	// Returns the minimum (most restrictive) group limit for a user.
-	// Returns -1 if no group limits match the specified scope.
-	// When organization_id is NULL, groups across all organizations are
-	// considered (global behavior). Otherwise only groups within the
-	// specified organization are considered.
-	GetUserGroupSpendLimit(ctx context.Context, arg GetUserGroupSpendLimitParams) (int64, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates
@@ -1303,8 +1287,6 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
-	ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error)
-	ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
@@ -1366,18 +1348,6 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
-	// Resolves the effective spend limit for a user using the hierarchy:
-	// 1. Individual user override (highest priority, applies globally across
-	//    all organizations since it lives on the users table)
-	// 2. Minimum group limit across the user's groups
-	// 3. Global default from config
-	// Returns -1 if limits are not enabled.
-	// When organization_id is NULL, groups across all organizations are
-	// considered (global behavior). Otherwise only groups within the
-	// specified organization are considered.
-	// limit_source indicates which tier won: 'user', 'group', 'default',
-	// or 'disabled'.
-	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (ResolveUserChatSpendLimitRow, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1697,9 +1667,6 @@ type sqlcQuerier interface {
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
-	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)
-	UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error)
-	UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error)
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
