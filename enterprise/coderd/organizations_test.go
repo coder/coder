@@ -453,7 +453,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 	t.Run("DefaultOrgMemberRoles", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("EqualToDefaultAllowedWithoutExperiment", func(t *testing.T) {
+		t.Run("EqualToDefaultAllowed", func(t *testing.T) {
 			t.Parallel()
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -474,7 +474,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			require.Equal(t, rbac.DefaultOrgMemberRoles(), updated.DefaultOrgMemberRoles)
 		})
 
-		t.Run("DeviationRejectedWithoutExperiment", func(t *testing.T) {
+		t.Run("DeviationAllowed", func(t *testing.T) {
 			t.Parallel()
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -486,33 +486,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
-			// Empty array represents a Gateway Accounts organization. Without
-			// the experiment, this must be rejected.
-			//nolint:gocritic // Only owners can update organization settings.
-			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-				DefaultOrgMemberRoles: ptr.Ref([]string{}),
-			})
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-			require.Contains(t, apiErr.Message, "Changing default organization roles is not enabled")
-		})
-
-		t.Run("DeviationAllowedWithExperiment", func(t *testing.T) {
-			t.Parallel()
-			dv := coderdtest.DeploymentValues(t)
-			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{DeploymentValues: dv},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{
-						codersdk.FeatureMultipleOrganizations: 1,
-					},
-				},
-			})
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
-
+			// Empty array represents a Gateway Accounts organization.
 			//nolint:gocritic // Only owners can update organization settings.
 			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
 				DefaultOrgMemberRoles: ptr.Ref([]string{}),
@@ -523,10 +497,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
 			t.Parallel()
-			dv := coderdtest.DeploymentValues(t)
-			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{DeploymentValues: dv},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureMultipleOrganizations: 1,

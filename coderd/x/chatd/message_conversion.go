@@ -28,12 +28,13 @@ import (
 const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
 
 type buildCommitStepMessagesInput struct {
-	modelConfigID      uuid.UUID
-	modelCallConfig    codersdk.ChatModelCallConfig
-	step               stepData
-	toolNameToConfigID map[string]uuid.UUID
-	logger             slog.Logger
-	contentVersion     int16
+	modelConfigID          uuid.UUID
+	modelCallConfig        codersdk.ChatModelCallConfig
+	step                   stepData
+	toolNameToConfigID     map[string]uuid.UUID
+	logger                 slog.Logger
+	contentVersion         int16
+	hookRewrittenToolCalls map[string]json.RawMessage
 }
 
 type stepMessagesForCommit struct {
@@ -51,7 +52,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
-	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID)
+	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -112,6 +113,7 @@ func buildAssistantParts(
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
 	toolNameToConfigID map[string]uuid.UUID,
+	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	reasoningIdx := 0
@@ -124,6 +126,11 @@ func buildAssistantParts(
 				if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
 					part.CreatedAt = &ts
 				}
+			}
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
+				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
 			if part.ToolCallID != "" && step.ToolResultCreatedAt != nil {

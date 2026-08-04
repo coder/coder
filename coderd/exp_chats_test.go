@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -138,6 +139,14 @@ func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	return codersdk.NewExperimentalClient(client), api.Database, api
+}
+
+func newChatClientWithoutAIBridge(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
+	t.Helper()
+
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
 	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
@@ -9540,9 +9549,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9560,13 +9570,45 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.Equal(t, "Test Chat", updated.Title)
 	})
 
+	t.Run("NoPubsubDelivery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithoutAIBridge(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createTitleGenerationModelConfig(t, client)
+
+		// Wire the daemon's reload subscription to a pubsub coderd never
+		// publishes to: gateway routes can then only come from the
+		// synchronous initial load. This guards the invariant the
+		// create-config-before-daemon pattern above relies on; if the
+		// initial load is removed or made asynchronous, this fails
+		// deterministically instead of reintroducing the startup race.
+		isolated := dbpubsub.NewInMemory()
+		t.Cleanup(func() { _ = isolated.Close() })
+		aibridgedtest.StartTestAIBridgeDaemonWithPubsub(t.Context(), t, api, nil, isolated)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "New Chat",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+
+		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", updated.Title)
+	})
+
 	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9614,9 +9656,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfigWithTitleFailure(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -9726,9 +9769,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -9774,9 +9818,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createTitleGenerationModelConfig(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -9809,9 +9854,10 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
+		client, db, api := newChatClientWithoutAIBridge(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfigWithTitleFailure(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
