@@ -5364,6 +5364,16 @@ export interface Feature {
 	 * features that use these thresholds.
 	 */
 	readonly hard_limit?: number;
+	/**
+	 * Actual is the usage measured against Limit, when known. For most
+	 * features it is a point-in-time count sampled when entitlements were
+	 * computed (e.g. active users). Features with a UsagePeriod instead
+	 * accumulate usage over that period, in a feature-specific unit:
+	 * - FeatureManagedAgentLimit: workspace builds using managed agents.
+	 * - FeatureAgentRuntimeHours: whole hours of Coder Agent runtime,
+	 *   floored from the recorded milliseconds, sharing its unit with
+	 *   Limit, SoftLimit and HardLimit.
+	 */
 	readonly actual?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
@@ -5926,24 +5936,27 @@ export const LicenseAIGovernanceOverLimitWarningText =
 
 // From codersdk/licenses.go
 /**
- * LicenseAgentRuntimeHoursAllocationExceededWarningText is emitted once
- * the deployment reaches its runtime hour allocation. It replaces, and is
- * never emitted alongside, the soft limit warning. Both placeholders are
- * whole hours: the runtime used so far in the usage period, then the
+ * LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
+ * the deployment reaches its runtime hour allocation. Both placeholders
+ * are whole hours: the runtime used so far in the usage period, then the
  * allocation.
  */
-export const LicenseAgentRuntimeHoursAllocationExceededWarningText =
-	"You have used %d of %d Coder Agent runtime hours included in your license. Additional usage may be billable.";
+export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in your license. Additional usage may be billable.";
 
 // From codersdk/licenses.go
 /**
  * LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
  * deployment reaches the advisory soft limit but is still within its
- * runtime hour allocation. Both placeholders are whole hours: the
- * runtime used so far in the usage period, then the allocation.
+ * runtime hour allocation. All placeholders are whole hours: the runtime
+ * used so far in the usage period, the allocation, then the soft limit.
+ *
+ * Neither runtime hours text may share a prefix with another warning
+ * constant, and neither may be a prefix of the other: the dashboard's
+ * LicenseBanner dispatches on both. See TestLicenseAgentRuntimeHoursWarningTexts.
  */
 export const LicenseAgentRuntimeHoursSoftLimitWarningText =
-	"You have used %d of %d Coder Agent runtime hours included in your license.";
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in your license, reaching the advisory soft limit of %d hours.";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";

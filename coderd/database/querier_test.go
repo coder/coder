@@ -10809,13 +10809,13 @@ func TestUsageEventsTrigger(t *testing.T) {
 func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	t.Parallel()
 
-	// Relies on the usage_events_daily rollup trigger, so it needs a real
-	// database.
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 
-	day := func(d int) time.Time {
-		return time.Date(2025, 1, d, 0, 0, 0, 0, time.UTC)
+	// hb_agent_runtime_v1 events are one row per hourly bucket, created_at
+	// set to the bucket start.
+	hour := func(d, h int) time.Time {
+		return time.Date(2025, 1, d, h, 0, 0, 0, time.UTC)
 	}
 	insert := func(id string, runtimeMs int64, createdAt time.Time) {
 		t.Helper()
@@ -10838,50 +10838,47 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	}
 
 	// No events at all sums to zero rather than NULL.
-	require.EqualValues(t, 0, total(day(1), day(5)))
+	require.EqualValues(t, 0, total(hour(1, 0), hour(5, 0)))
 
-	// Two events on day 1 are summed into a single daily row by the trigger.
-	insert("rt-1a", 1000, day(1))
-	insert("rt-1b", 500, day(1).Add(12*time.Hour))
-	insert("rt-2", 250, day(2))
-	insert("rt-4", 7, day(4))
+	insert("rt-d1h0", 1000, hour(1, 0))
+	insert("rt-d1h12", 500, hour(1, 12))
+	insert("rt-d1h18", 0, hour(1, 18))
+	insert("rt-d2h0", 250, hour(2, 0))
+	insert("rt-d4h0", 7, hour(4, 0))
 
-	// A multi-day range sums every daily row it covers.
-	require.EqualValues(t, 1757, total(day(1), day(5)))
+	// A multi-day range sums every bucket it covers.
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
 
-	// Both bounds are inclusive.
-	require.EqualValues(t, 1500, total(day(1), day(1)))
-	require.EqualValues(t, 1750, total(day(1), day(2)))
-	require.EqualValues(t, 257, total(day(2), day(4)))
+	// The start bound is inclusive and the end bound is exclusive: a bucket
+	// starting exactly at the end timestamp belongs to the next period.
+	require.EqualValues(t, 1500, total(hour(1, 0), hour(2, 0)))
+	require.EqualValues(t, 1750, total(hour(1, 0), hour(2, 1)))
+	require.EqualValues(t, 250, total(hour(2, 0), hour(4, 0)))
+	require.EqualValues(t, 0, total(hour(3, 0), hour(4, 0)))
 
-	// Days outside the range are excluded, including the day immediately
-	// before the start and after the end.
-	require.EqualValues(t, 250, total(day(2), day(3)))
-	require.EqualValues(t, 0, total(day(3), day(3)))
+	// Bounds are exact timestamps rather than whole days: a period starting
+	// mid-day excludes that day's earlier buckets.
+	require.EqualValues(t, 757, total(hour(1, 12), hour(5, 0)))
 
-	// Bounds are truncated to whole UTC days, so a period that starts partway
-	// through a day still counts that entire day.
-	require.EqualValues(t, 1500, total(day(1).Add(23*time.Hour), day(1).Add(23*time.Hour)))
-
-	// A non-UTC timestamp is converted to UTC before truncation. Sydney is
-	// +1000 or +1100, so 8am on Jan 2 in Sydney is Jan 1 in UTC.
+	// A non-UTC timestamp addresses the same instant. Sydney is UTC+11 in
+	// January, so 23:00 on Jan 1 in Sydney is 12:00 on Jan 1 in UTC.
 	locSydney, err := time.LoadLocation("Australia/Sydney")
 	require.NoError(t, err)
-	require.EqualValues(t, 1500, total(
-		time.Date(2025, 1, 2, 8, 0, 0, 0, locSydney),
-		time.Date(2025, 1, 2, 8, 0, 0, 0, locSydney),
+	require.EqualValues(t, 750, total(
+		time.Date(2025, 1, 1, 23, 0, 0, 0, locSydney),
+		time.Date(2025, 1, 2, 12, 0, 0, 0, locSydney),
 	))
 
-	// Other event types are never mixed in, even on a day that already has
-	// runtime events.
+	// Other event types are never mixed in, even when they carry a
+	// runtime_ms key: without the event_type filter this would add 9999.
 	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		ID:        "seats-1",
 		EventType: "hb_ai_seats_v1",
-		EventData: []byte(`{"count": 9999}`),
-		CreatedAt: day(1),
+		EventData: []byte(`{"count": 1, "runtime_ms": 9999}`),
+		CreatedAt: hour(1, 0),
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 1757, total(day(1), day(5)))
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
 }
 
 func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {

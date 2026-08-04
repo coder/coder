@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -127,13 +128,8 @@ func TestPostLicense(t *testing.T) {
 	t.Run("AgentRuntimeClaims", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				license.ClaimAgentRuntimeHoursAllocation: 100,
-				license.ClaimAgentRuntimeHoursLimitSoft:  80,
-				license.ClaimAgentRuntimeHoursLimitHard:  120,
-			},
-		})
+		coderdenttest.AddLicense(t, client,
+			*(&coderdenttest.LicenseOptions{}).AgentRuntimeHours(100, 80, 120))
 		// The claims round-trip through GET /api/v2/entitlements.
 		//nolint:gocritic // This test asserts license state, not authz behavior.
 		entitlements, err := client.Entitlements(context.Background())
@@ -154,11 +150,14 @@ func TestPostLicense(t *testing.T) {
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, 0, *feature.Actual)
 		require.Empty(t, entitlements.Errors)
-		// Zero usage is below both thresholds, so no runtime warning fires.
-		// Unrelated warnings from this bare license are ignored.
-		for _, warning := range entitlements.Warnings {
-			require.NotContains(t, warning, "Coder Agent runtime hours")
-		}
+		// Zero usage is below both thresholds, so no runtime warning
+		// fires. Unrelated warnings from this bare license are ignored.
+		// The negatives are built from the exported constants so a reword
+		// cannot silently disarm this guard.
+		require.NotContains(t, entitlements.Warnings,
+			fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 0, 100, 80))
+		require.NotContains(t, entitlements.Warnings,
+			fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, 0, 100))
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {

@@ -29313,14 +29313,13 @@ const getTotalUsageHBAgentRuntimeV1 = `-- name: GetTotalUsageHBAgentRuntimeV1 :o
 SELECT
     -- The first cast is necessary since you can't sum strings, and the second
     -- cast is necessary to make sqlc happy.
-    COALESCE(SUM((usage_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+    COALESCE(SUM((event_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
 FROM
-    usage_events_daily
+    usage_events
 WHERE
     event_type = 'hb_agent_runtime_v1'
-    -- Parentheses are necessary to avoid sqlc from generating an extra
-    -- argument.
-    AND day BETWEEN date_trunc('day', ($1::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', ($2::timestamptz) AT TIME ZONE 'UTC')::date
+    AND created_at >= $1::timestamptz
+    AND created_at < $2::timestamptz
 `
 
 type GetTotalUsageHBAgentRuntimeV1Params struct {
@@ -29328,14 +29327,22 @@ type GetTotalUsageHBAgentRuntimeV1Params struct {
 	EndDate   time.Time `db:"end_date" json:"end_date"`
 }
 
-// Gets the total Coder Agent runtime in milliseconds between two dates. Uses
-// the aggregate table to avoid large scans or a complex index on the
-// usage_events table.
+// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+// The start bound is inclusive and the end bound is exclusive.
 //
-// This has the trade off that we can't total accurately between two exact
-// timestamps. The provided timestamps will be converted to UTC and truncated to
-// the events that happened on and between the two dates. Both dates are
-// inclusive.
+// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+// one row per hourly bucket deployment-wide (see
+// enterprise/coderd/usage/generator.go), served by the partial index
+// idx_usage_events_agent_runtime, and created_at is always the bucket start.
+// Exact bounds keep buckets from outside the requested period, e.g. the
+// previous license term, from being counted against it.
+//
+// SUM is only correct because the generator derives one event per bucket
+// under a deterministic ID; a second hb_agent_runtime_v1 row for a bucket
+// that already has one would double count. This also depends on usage_events
+// rows being retained; if a retention policy ever lands, this must move to
+// the usage_events_daily rollup and accept day-granularity bounds.
 func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartDate, arg.EndDate)
 	var total_runtime_ms int64

@@ -237,6 +237,19 @@ func (opts *LicenseOptions) ManagedAgentLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureManagedAgentLimit, limit)
 }
 
+// AgentRuntimeHours sets the Coder Agent runtime hour claims. A softLimit or
+// hardLimit of 0 omits that claim, which a license is allowed to do.
+func (opts *LicenseOptions) AgentRuntimeHours(allocation, softLimit, hardLimit int64) *LicenseOptions {
+	opts.Feature(license.ClaimAgentRuntimeHoursAllocation, allocation)
+	if softLimit > 0 {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitSoft, softLimit)
+	}
+	if hardLimit > 0 {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitHard, hardLimit)
+	}
+	return opts
+}
+
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {
 	if opts.Features == nil {
 		opts.Features = license.Features{}

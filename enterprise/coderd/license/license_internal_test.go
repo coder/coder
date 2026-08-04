@@ -160,9 +160,9 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 		{"ExactlyTwoHours", 2 * hourMs, 2},
 		// A realistic month of continuous runtime.
 		{"Large", 720 * hourMs, 720},
-		// Negative input is not expected from the aggregate query, which
-		// COALESCEs to 0, but it must never produce a negative hour count
-		// that would compare oddly against the license limits.
+		// Negative input is not expected from the production query, which
+		// coalesces NULL to 0, but it must never produce a negative hour
+		// count that would compare oddly against the license limits.
 		{"Negative", -1, 0},
 		{"NegativeHour", -hourMs, 0},
 	}
@@ -178,7 +178,7 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 func TestAgentRuntimeMsToHoursNoOverflow(t *testing.T) {
 	t.Parallel()
 
-	// Division cannot overflow, so the maximum int64 of milliseconds converts
-	// without wrapping to a negative hour count.
-	assert.Positive(t, agentRuntimeMsToHours(math.MaxInt64))
+	// Pins the divisor: the maximum int64 of milliseconds converts to the
+	// exact whole-hour count rather than wrapping to a negative value.
+	assert.EqualValues(t, math.MaxInt64/3_600_000, agentRuntimeMsToHours(math.MaxInt64))
 }
