@@ -362,6 +362,106 @@ func TestAgent_SubagentExecution_UnconfiguredDriverFails(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+// TestAgent_SubagentExecution_RejectedPathsReportFailed covers the agent's
+// side of the shared project path contract: the parent's expanded manifest
+// directory bounds the declared shared path, and a declaration that violates
+// the policy is reported as FAILED under the version it acquired without any
+// driver being invoked.
+func TestAgent_SubagentExecution_RejectedPathsReportFailed(t *testing.T) {
+	t.Parallel()
+
+	const acquisitionVersion = 9
+
+	for _, tc := range []struct {
+		name string
+		// manifest returns the manifest directory and the declaration the
+		// agent is started with.
+		manifest func(t *testing.T) (string, agentsdk.SubagentExecution)
+	}{
+		{
+			name: "SharedPathOutsideProjectDirectory",
+			manifest: func(t *testing.T) (string, agentsdk.SubagentExecution) {
+				project := execProjectDir(t)
+				outside := filepath.Join(filepath.Dir(project), "private")
+				require.NoError(t, os.MkdirAll(outside, 0o700))
+				return project, testSubagentExecution(outside)
+			},
+		},
+		{
+			name: "SharedPathEscapesProjectDirectoryThroughSymlink",
+			manifest: func(t *testing.T) (string, agentsdk.SubagentExecution) {
+				project := execProjectDir(t)
+				outside := filepath.Join(filepath.Dir(project), "private")
+				require.NoError(t, os.MkdirAll(outside, 0o700))
+				escape := filepath.Join(project, "escape")
+				require.NoError(t, os.Symlink(outside, escape))
+				return project, testSubagentExecution(escape)
+			},
+		},
+		{
+			name: "UnknownProjectDirectory",
+			manifest: func(t *testing.T) (string, agentsdk.SubagentExecution) {
+				// Without a project directory there is nothing to bound the
+				// declared shared path against, so the declaration is
+				// refused rather than accepted unchecked.
+				return "", testSubagentExecution(execProjectDir(t))
+			},
+		},
+		{
+			name: "ReservedChildPath",
+			manifest: func(t *testing.T) (string, agentsdk.SubagentExecution) {
+				project := execProjectDir(t)
+				decl := testSubagentExecution(project)
+				decl.SharedChildPath = "/etc/project"
+				return project, decl
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			directory, decl := tc.manifest(t)
+			driver := newFakeExecDriver()
+			client, _ := startExecAgent(t, agentsdk.Manifest{
+				Directory:          directory,
+				SubagentExecutions: []agentsdk.SubagentExecution{decl},
+			}, driver, nil, func(options *agent.Options) {
+				// A rejected declaration is logged as an error by design.
+				options.Logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+					Leveled(slog.LevelDebug).Named("agent")
+			})
+			childAgentID := uuid.New()
+			client.SetAcquireSubagentExecutionFunc(func(_ context.Context, _ *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
+				return &agentproto.AcquireSubagentExecutionResponse{
+					ChildAgentId:       childAgentID[:],
+					AuthToken:          "child-auth-token",
+					AcquisitionVersion: acquisitionVersion,
+				}, nil
+			})
+
+			// The rejection is retried on every manifest refresh, so the
+			// assertion is on the reported failure rather than a count.
+			require.Eventually(t, func() bool {
+				return slices.ContainsFunc(client.SubagentExecutionReports(), func(report *agentproto.ReportSubagentExecutionStatusRequest) bool {
+					return report.GetStatus() == agentproto.ReportSubagentExecutionStatusRequest_FAILED &&
+						report.GetAcquisitionVersion() == acquisitionVersion &&
+						strings.Contains(report.GetError(), "shared project path policy")
+				})
+			}, testutil.WaitLong, testutil.IntervalFast)
+
+			// The driver is never invoked, so no token file or private state
+			// exists for a rejected declaration.
+			require.Zero(t, driver.startCount())
+			for _, report := range client.SubagentExecutionReports() {
+				// Only the rule is reported: no resolved host path, and
+				// nothing about the launcher's private state.
+				require.NotContains(t, report.GetError(), decl.SharedHostPath)
+				require.NotContains(t, report.GetError(), "child-auth-token")
+			}
+		})
+	}
+}
+
 // versionCountingClient answers ConnectRPC211WithRole with a fixed error
 // and counts how often each version is dialed.
 type versionCountingClient struct {
