@@ -367,6 +367,9 @@ jobs:
       - name: Verify helm version
         run: helm version --short
 
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
         run: make --output-sync=line -j"$(nproc)" lint
@@ -982,6 +985,9 @@ jobs:
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
