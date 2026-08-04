@@ -3665,6 +3665,14 @@ func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionStatus(ctx, arg)

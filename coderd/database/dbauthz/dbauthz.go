@@ -5551,6 +5551,13 @@ func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAf
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, parentAgentID, policy.ActionRead); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentAgentID)
+}
+
 func (q *querier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
 	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionRead); err != nil {
 		return database.WorkspaceAgentSubagentExecutionStatus{}, err

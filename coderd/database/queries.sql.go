@@ -36487,8 +36487,81 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
+const getWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID = `-- name: GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID :many
+SELECT
+	executions.workspace_build_id,
+	executions.declaration_id,
+	COALESCE(child.name, '') AS child_agent_name,
+	executions.driver,
+	executions.driver_protocol,
+	executions.shared_host_path,
+	executions.shared_child_path,
+	executions.startup_timeout_seconds,
+	executions.restart_policy
+FROM workspace_agent_subagent_executions AS executions
+LEFT JOIN workspace_agents AS child
+	ON child.id = executions.child_agent_id
+	AND child.parent_id = executions.parent_agent_id
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
+WHERE executions.parent_agent_id = $1
+ORDER BY executions.created_at, executions.declaration_id
+`
+
+type GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow struct {
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ChildAgentName        string    `db:"child_agent_name" json:"child_agent_name"`
+	Driver                string    `db:"driver" json:"driver"`
+	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
+	SharedHostPath        string    `db:"shared_host_path" json:"shared_host_path"`
+	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
+	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
+}
+
+// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID returns the
+// non-secret declaration fields a parent agent needs to render its execution
+// manifest. The child auth token is deliberately excluded. The child agent is
+// resolved with a LEFT JOIN restricted to the exact parent, so a declaration
+// whose child is missing, reparented, deleted, or no longer execution isolated
+// yields an empty child name instead of being silently omitted or retargeted.
+// Callers must treat an empty name as a corrupted manifest and fail closed.
+func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID, parentAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow
+	for rows.Next() {
+		var i GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow
+		if err := rows.Scan(
+			&i.WorkspaceBuildID,
+			&i.DeclarationID,
+			&i.ChildAgentName,
+			&i.Driver,
+			&i.DriverProtocol,
+			&i.SharedHostPath,
+			&i.SharedChildPath,
+			&i.StartupTimeoutSeconds,
+			&i.RestartPolicy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentSubagentExecutionStatus = `-- name: GetWorkspaceAgentSubagentExecutionStatus :one
-SELECT workspace_agent_subagent_execution_statuses.workspace_build_id, workspace_agent_subagent_execution_statuses.declaration_id, workspace_agent_subagent_execution_statuses.status, workspace_agent_subagent_execution_statuses.created_at, workspace_agent_subagent_execution_statuses.updated_at, workspace_agent_subagent_execution_statuses.status_changed_at, workspace_agent_subagent_execution_statuses.last_acquired_at, workspace_agent_subagent_execution_statuses.last_reported_at, workspace_agent_subagent_execution_statuses.restart_count, workspace_agent_subagent_execution_statuses.last_error
+SELECT workspace_agent_subagent_execution_statuses.workspace_build_id, workspace_agent_subagent_execution_statuses.declaration_id, workspace_agent_subagent_execution_statuses.status, workspace_agent_subagent_execution_statuses.created_at, workspace_agent_subagent_execution_statuses.updated_at, workspace_agent_subagent_execution_statuses.status_changed_at, workspace_agent_subagent_execution_statuses.last_acquired_at, workspace_agent_subagent_execution_statuses.last_reported_at, workspace_agent_subagent_execution_statuses.restart_count, workspace_agent_subagent_execution_statuses.last_error, workspace_agent_subagent_execution_statuses.acquisition_version
 FROM workspace_agent_subagent_execution_statuses
 JOIN workspace_agent_subagent_executions
 	USING (workspace_build_id, declaration_id)
@@ -36517,6 +36590,7 @@ func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Contex
 		&i.LastReportedAt,
 		&i.RestartCount,
 		&i.LastError,
+		&i.AcquisitionVersion,
 	)
 	return i, err
 }

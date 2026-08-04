@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -8282,6 +8283,142 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.False(t, status.LastReportedAt.Valid)
 		require.Zero(t, status.RestartCount)
 		require.Empty(t, status.LastError)
+	})
+
+	t.Run("DeclarationManifestFields", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		require.Equal(t, []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow{{
+			WorkspaceBuildID:      params.WorkspaceBuildID,
+			DeclarationID:         params.DeclarationID,
+			ChildAgentName:        build.child.Name,
+			Driver:                params.Driver,
+			DriverProtocol:        params.DriverProtocol,
+			SharedHostPath:        params.SharedHostPath,
+			SharedChildPath:       params.SharedChildPath,
+			StartupTimeoutSeconds: params.StartupTimeoutSeconds,
+			RestartPolicy:         params.RestartPolicy,
+		}}, declarations)
+	})
+
+	t.Run("DeclarationManifestExcludesChildToken", func(t *testing.T) {
+		t.Parallel()
+
+		// The manifest read path must never expose the child auth token, so
+		// the generated row type may not carry any token field.
+		rowType := reflect.TypeOf(database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow{})
+		for i := 0; i < rowType.NumField(); i++ {
+			require.NotContains(t, strings.ToLower(rowType.Field(i).Name), "token")
+		}
+	})
+
+	t.Run("DeclarationManifestDeterministicOrder", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		first := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, first)
+		require.NoError(t, err)
+
+		secondChild := dbgen.WorkspaceSubAgent(t, fixture.db, build.parent, database.WorkspaceAgent{
+			ExecutionIsolation: true,
+		})
+		second := validParams(build)
+		second.ChildAgentID = secondChild.ID
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, second)
+		require.NoError(t, err)
+
+		// Collapse created_at so the declaration_id tiebreak is exercised.
+		_, err = fixture.sqlDB.ExecContext(fixture.ctx, `
+			UPDATE workspace_agent_subagent_executions
+			SET created_at = '2024-01-01 00:00:00+00'::timestamptz
+			WHERE parent_agent_id = $1
+		`, build.parent.ID)
+		require.NoError(t, err)
+
+		wantIDs := []uuid.UUID{first.DeclarationID, second.DeclarationID}
+		slices.SortFunc(wantIDs, func(a, b uuid.UUID) int {
+			return strings.Compare(a.String(), b.String())
+		})
+
+		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(fixture.ctx, build.parent.ID)
+		require.NoError(t, err)
+		gotIDs := make([]uuid.UUID, 0, len(declarations))
+		for _, declaration := range declarations {
+			gotIDs = append(gotIDs, declaration.DeclarationID)
+		}
+		require.Equal(t, wantIDs, gotIDs)
+	})
+
+	t.Run("DeclarationManifestFailsClosed", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name    string
+			corrupt func(t *testing.T, fixture fixture, build executionBuild)
+		}{
+			{
+				name: "WrongParent",
+				corrupt: func(t *testing.T, fixture fixture, build executionBuild) {
+					otherParent := dbgen.WorkspaceAgent(t, fixture.db, database.WorkspaceAgent{
+						ResourceID: build.resource.ID,
+					})
+					_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+						UPDATE workspace_agents
+						SET parent_id = $1
+						WHERE id = $2
+					`, otherParent.ID, build.child.ID)
+					require.NoError(t, err)
+				},
+			},
+			{
+				name: "DeletedChild",
+				corrupt: func(t *testing.T, fixture fixture, build executionBuild) {
+					require.NoError(t, fixture.db.DeleteWorkspaceSubAgentByID(fixture.ctx, build.child.ID))
+				},
+			},
+			{
+				name: "NonIsolatedChild",
+				corrupt: func(t *testing.T, fixture fixture, build executionBuild) {
+					_, err := fixture.sqlDB.ExecContext(fixture.ctx, `
+						UPDATE workspace_agents
+						SET execution_isolation = FALSE
+						WHERE id = $1
+					`, build.child.ID)
+					require.NoError(t, err)
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				fixture := newFixture(t)
+				build := fixture.newBuild(t, 1)
+				params := validParams(build)
+				_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+				require.NoError(t, err)
+
+				tt.corrupt(t, fixture, build)
+
+				// The declaration is still returned, but with an empty child
+				// name so callers reject the whole manifest instead of
+				// silently omitting or retargeting the declaration.
+				declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(fixture.ctx, build.parent.ID)
+				require.NoError(t, err)
+				require.Len(t, declarations, 1)
+				require.Equal(t, params.DeclarationID, declarations[0].DeclarationID)
+				require.Empty(t, declarations[0].ChildAgentName)
+			})
+		}
 	})
 
 	t.Run("DeclarationIncrementsChildStateVersionExactlyOnce", func(t *testing.T) {

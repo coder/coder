@@ -69,6 +69,33 @@ FROM workspace_agent_subagent_executions
 WHERE parent_agent_id = $1
 ORDER BY created_at, declaration_id;
 
+-- name: GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID :many
+-- GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID returns the
+-- non-secret declaration fields a parent agent needs to render its execution
+-- manifest. The child auth token is deliberately excluded. The child agent is
+-- resolved with a LEFT JOIN restricted to the exact parent, so a declaration
+-- whose child is missing, reparented, deleted, or no longer execution isolated
+-- yields an empty child name instead of being silently omitted or retargeted.
+-- Callers must treat an empty name as a corrupted manifest and fail closed.
+SELECT
+	executions.workspace_build_id,
+	executions.declaration_id,
+	COALESCE(child.name, '') AS child_agent_name,
+	executions.driver,
+	executions.driver_protocol,
+	executions.shared_host_path,
+	executions.shared_child_path,
+	executions.startup_timeout_seconds,
+	executions.restart_policy
+FROM workspace_agent_subagent_executions AS executions
+LEFT JOIN workspace_agents AS child
+	ON child.id = executions.child_agent_id
+	AND child.parent_id = executions.parent_agent_id
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
+WHERE executions.parent_agent_id = $1
+ORDER BY executions.created_at, executions.declaration_id;
+
 -- name: GetWorkspaceAgentSubagentExecutionStatus :one
 SELECT workspace_agent_subagent_execution_statuses.*
 FROM workspace_agent_subagent_execution_statuses

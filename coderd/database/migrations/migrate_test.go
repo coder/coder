@@ -2421,6 +2421,103 @@ func TestMigration000564WorkspaceAgentSubagentExecutionStatusesBackfill(t *testi
 	require.True(t, lastReportedAt.Valid)
 }
 
+func TestMigration000565SubagentExecutionAcquisitionVersion(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 565
+
+	sqlDB := testSQLDB(t)
+	fixtureDriver, fixtureMigrate := setupMigrate(t, sqlDB, "subagent_execution_statuses", filepath.Join("testdata", "fixtures"))
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+
+	nextFixtureVersion, err := fixtureDriver.First()
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if nextFixtureVersion == version {
+			require.NoError(t, fixtureMigrate.Steps(1))
+			if nextVersion, nextErr := fixtureDriver.Next(nextFixtureVersion); nextErr == nil {
+				nextFixtureVersion = nextVersion
+			}
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	declarationID := uuid.MustParse("b8510489-fbf8-4443-bfee-bbb3c626d3a8")
+	acquisitionVersion := func(t *testing.T) int64 {
+		t.Helper()
+
+		var got int64
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT acquisition_version
+			FROM workspace_agent_subagent_execution_statuses
+			WHERE declaration_id = $1
+		`, declarationID).Scan(&got)
+		require.NoError(t, err)
+		return got
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Rows that existed before the migration are backfilled with the default.
+	require.Zero(t, acquisitionVersion(t))
+
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE workspace_agent_subagent_execution_statuses
+		SET acquisition_version = 7
+		WHERE declaration_id = $1
+	`, declarationID)
+	require.NoError(t, err)
+	require.EqualValues(t, 7, acquisitionVersion(t))
+
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE workspace_agent_subagent_execution_statuses
+		SET acquisition_version = -1
+		WHERE declaration_id = $1
+	`, declarationID)
+	require.ErrorContains(t, err, "workspace_agent_subagent_execution_statuses_acq_version_check")
+	require.EqualValues(t, 7, acquisitionVersion(t))
+
+	require.EqualValues(t, migrationVersion, nextFixtureVersion)
+	require.NoError(t, fixtureMigrate.Steps(1))
+	require.EqualValues(t, 2, acquisitionVersion(t))
+
+	// The down migration removes both the constraint and the column.
+	downSQL, err := os.ReadFile("000565_subagent_execution_acquisition_version.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var remaining int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_name = 'workspace_agent_subagent_execution_statuses'
+			AND column_name = 'acquisition_version'
+	`).Scan(&remaining)
+	require.NoError(t, err)
+	require.Zero(t, remaining)
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM pg_constraint
+		WHERE conname = 'workspace_agent_subagent_execution_statuses_acq_version_check'
+	`).Scan(&remaining)
+	require.NoError(t, err)
+	require.Zero(t, remaining)
+}
+
 func TestMigration000556UserSecretsEnabled(t *testing.T) {
 	t.Parallel()
 

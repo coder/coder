@@ -6866,6 +6866,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, createdAt 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, createdAt)
 }
 
+// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID", ctx, parentAgentID)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID indicates an expected call of GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, parentAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID), ctx, parentAgentID)
+}
+
 // GetWorkspaceAgentSubagentExecutionStatus mocks base method.
 func (m *MockStore) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
 	m.ctrl.T.Helper()

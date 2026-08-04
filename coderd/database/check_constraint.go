@@ -61,6 +61,7 @@ const (
 	CheckUserSkillsDescriptionSize                                CheckConstraint = "user_skills_description_size"                                    // user_skills
 	CheckUserSkillsNameFormat                                     CheckConstraint = "user_skills_name_format"                                         // user_skills
 	CheckUserSkillsNameSize                                       CheckConstraint = "user_skills_name_size"                                           // user_skills
+	CheckWorkspaceAgentSubagentExecutionStatusesAcqVersionCheck   CheckConstraint = "workspace_agent_subagent_execution_statuses_acq_version_check"   // workspace_agent_subagent_execution_statuses
 	CheckWorkspaceAgentSubagentExecutionStatusesLastErrorCheck    CheckConstraint = "workspace_agent_subagent_execution_statuses_last_error_check"    // workspace_agent_subagent_execution_statuses
 	CheckWorkspaceAgentSubagentExecutionStatusesRestartCountCheck CheckConstraint = "workspace_agent_subagent_execution_statuses_restart_count_check" // workspace_agent_subagent_execution_statuses
 	CheckWorkspaceAgentSubagentExecutionStatusesStatusCheck       CheckConstraint = "workspace_agent_subagent_execution_statuses_status_check"        // workspace_agent_subagent_execution_statuses

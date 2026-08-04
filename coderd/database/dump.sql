@@ -3864,10 +3864,14 @@ CREATE TABLE workspace_agent_subagent_execution_statuses (
     last_reported_at timestamp with time zone,
     restart_count integer DEFAULT 0 NOT NULL,
     last_error text DEFAULT ''::text NOT NULL,
+    acquisition_version bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT workspace_agent_subagent_execution_statuses_acq_version_check CHECK ((acquisition_version >= 0)),
     CONSTRAINT workspace_agent_subagent_execution_statuses_last_error_check CHECK ((octet_length(last_error) <= 4096)),
     CONSTRAINT workspace_agent_subagent_execution_statuses_restart_count_check CHECK ((restart_count >= 0)),
     CONSTRAINT workspace_agent_subagent_execution_statuses_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'starting'::text, 'running'::text, 'stopping'::text, 'stopped'::text, 'failed'::text])))
 );
+
+COMMENT ON COLUMN workspace_agent_subagent_execution_statuses.acquisition_version IS 'Monotonically increasing counter bumped on each acquisition, fencing stale launchers of the same declaration.';
 
 CREATE TABLE workspace_agent_subagent_executions (
     workspace_build_id uuid NOT NULL,

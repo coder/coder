@@ -1,0 +1,3 @@
+ALTER TABLE workspace_agent_subagent_execution_statuses
+	DROP CONSTRAINT workspace_agent_subagent_execution_statuses_acq_version_check,
+	DROP COLUMN acquisition_version;

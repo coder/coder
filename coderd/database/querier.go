@@ -1021,6 +1021,14 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
+	// GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID returns the
+	// non-secret declaration fields a parent agent needs to render its execution
+	// manifest. The child auth token is deliberately excluded. The child agent is
+	// resolved with a LEFT JOIN restricted to the exact parent, so a declaration
+	// whose child is missing, reparented, deleted, or no longer execution isolated
+	// yields an empty child name instead of being silently omitted or retargeted.
+	// Callers must treat an empty name as a corrupted manifest and fail closed.
+	GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow, error)
 	GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionStatusParams) (WorkspaceAgentSubagentExecutionStatus, error)
 	GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]WorkspaceAgentSubagentExecution, error)
 	// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.

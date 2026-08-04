@@ -6550,6 +6550,8 @@ type WorkspaceAgentSubagentExecutionStatus struct {
 	LastReportedAt   sql.NullTime `db:"last_reported_at" json:"last_reported_at"`
 	RestartCount     int32        `db:"restart_count" json:"restart_count"`
 	LastError        string       `db:"last_error" json:"last_error"`
+	// Monotonically increasing counter bumped on each acquisition, fencing stale launchers of the same declaration.
+	AcquisitionVersion int64 `db:"acquisition_version" json:"acquisition_version"`
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {
