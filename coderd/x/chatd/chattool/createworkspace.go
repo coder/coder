@@ -78,7 +78,7 @@ type createWorkspaceArgs struct {
 	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
 	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template when needed."`
-	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
+	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -98,8 +98,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"template_id from list_templates; follow its "+NextStepField+" "+
 			"before calling. Optionally provide a name (one is generated if "+
 			"omitted), parameter values, and a preset_id from read_template "+
-			"to apply preset parameters and potentially claim a prebuilt "+
-			"workspace for faster startup. Idempotent: if the chat already "+
+			"to apply preset parameters. Idempotent: if the chat already "+
 			"has a workspace building or running, it is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
@@ -204,8 +203,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			}
 
 			createReq := codersdk.CreateWorkspaceRequest{
-				TemplateID: templateID,
-				TTLMillis:  ttlMs,
+				TemplateID:         templateID,
+				TTLMillis:          ttlMs,
+				ExecutionIsolation: true,
 			}
 
 			// Apply preset if provided.

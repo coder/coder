@@ -2009,6 +2009,8 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
 
+	require.True(t, capturedReq.ExecutionIsolation,
+		"Coder Agent workspace requests must enable execution isolation")
 	require.Equal(t, presetID, capturedReq.TemplateVersionPresetID,
 		"expected preset ID to be set on CreateWorkspaceRequest")
 }

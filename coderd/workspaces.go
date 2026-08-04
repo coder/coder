@@ -684,8 +684,9 @@ func createWorkspace(
 			}
 		}
 
-		// Try to claim a prebuilt workspace.
-		if templateVersionPresetID != uuid.Nil {
+		// Isolated workspaces must be fresh because ordinary prebuilds may have
+		// already received owner credentials.
+		if templateVersionPresetID != uuid.Nil && !req.ExecutionIsolation {
 			// Try and claim an eligible prebuild, if available.
 			// On successful claim, initialize all lifecycle fields from template and workspace-level config
 			// so the newly claimed workspace is properly managed by the lifecycle executor.

@@ -4395,6 +4395,8 @@ func (api *API) chatCreateWorkspace(
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
+	req.ExecutionIsolation = true
+
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)

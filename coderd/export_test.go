@@ -1,5 +1,8 @@
 package coderd
 
+// ChatCreateWorkspace exposes chatCreateWorkspace for external tests.
+var ChatCreateWorkspace = (*API).chatCreateWorkspace
+
 // ChatStartWorkspace exposes chatStartWorkspace for external tests.
 //
 // chatStartWorkspace is intentionally unexported to keep symmetry with

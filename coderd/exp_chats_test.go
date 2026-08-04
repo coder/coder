@@ -5793,8 +5793,9 @@ func TestPatchChat(t *testing.T) {
 			modelConfig := createChatModelConfig(t, client)
 
 			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OrganizationID: firstUser.OrganizationID,
-				OwnerID:        firstUser.UserID,
+				OrganizationID:     firstUser.OrganizationID,
+				OwnerID:            firstUser.UserID,
+				ExecutionIsolation: false,
 			}).Seed(database.WorkspaceBuild{
 				HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
 			}).WithAgent().Do()
@@ -5814,6 +5815,11 @@ func TestPatchChat(t *testing.T) {
 			require.NoError(t, err)
 
 			updated := getChat(ctx, t, client, chat.ID)
+			persisted, err := db.GetWorkspaceByID(
+				dbauthz.AsSystemRestricted(ctx), workspaceBuild.Workspace.ID,
+			)
+			require.NoError(t, err)
+			require.False(t, persisted.ExecutionIsolation)
 			require.NotNil(t, updated.WorkspaceID)
 			require.Equal(t, workspaceBuild.Workspace.ID, *updated.WorkspaceID)
 			require.True(t, mAudit.Contains(t, database.AuditLog{
@@ -16331,6 +16337,30 @@ func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) d
 
 func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
 	return nil
+}
+
+func TestChatCreateWorkspace_ForcesExecutionIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	workspace, err := coderd.ChatCreateWorkspace(api, ctx, user.UserID, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	require.True(t, workspace.ExecutionIsolation)
+
+	persisted, err := api.Database.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+	require.NoError(t, err)
+	require.True(t, persisted.ExecutionIsolation)
 }
 
 func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {

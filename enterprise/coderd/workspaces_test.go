@@ -577,12 +577,13 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// WHEN a workspace is created that matches the available prebuilt workspace
-		_, err = client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+		workspace, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateVersionID:       tv.TemplateVersion.ID,
 			TemplateVersionPresetID: presetID,
 			Name:                    "claimed-workspace",
 		})
 		require.NoError(t, err)
+		require.Equal(t, r.Workspace.ID, workspace.ID)
 
 		// THEN a new build is scheduled with the build stage specified
 		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, r.Workspace.ID)
@@ -593,6 +594,72 @@ func TestCreateUserWorkspace(t *testing.T) {
 		var metadata provisionerdserver.WorkspaceProvisionJob
 		require.NoError(t, json.Unmarshal(job.Input, &metadata))
 		require.Equal(t, metadata.PrebuiltWorkspaceBuildStage, proto.PrebuiltWorkspaceBuildStage_CLAIM)
+	})
+
+	t.Run("ExecutionIsolationBypassesPrebuild", func(t *testing.T) {
+		t.Parallel()
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspacePrebuilds: 1,
+				},
+			},
+		})
+
+		presetID := uuid.New()
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Preset(database.TemplateVersionPreset{
+			ID: presetID,
+		}).Do()
+
+		prebuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  presetID,
+				Valid: true,
+			},
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			return a
+		}).Do()
+
+		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+		agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(prebuild.AgentToken))
+		require.NoError(t, err)
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.WorkspaceAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+		require.NoError(t, err)
+
+		workspace, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:       tv.TemplateVersion.ID,
+			TemplateVersionPresetID: presetID,
+			Name:                    coderdtest.RandomUsername(t),
+			ExecutionIsolation:      true,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, prebuild.Workspace.ID, workspace.ID)
+		require.True(t, workspace.ExecutionIsolation)
+		require.NotNil(t, workspace.LatestBuild.TemplateVersionPresetID)
+		require.Equal(t, presetID, *workspace.LatestBuild.TemplateVersionPresetID)
+
+		persisted, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.True(t, persisted.ExecutionIsolation)
+
+		ordinaryPrebuild, err := db.GetWorkspaceByID(ctx, prebuild.Workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.PrebuildsSystemUserID, ordinaryPrebuild.OwnerID)
+		require.False(t, ordinaryPrebuild.ExecutionIsolation)
 	})
 }
 
