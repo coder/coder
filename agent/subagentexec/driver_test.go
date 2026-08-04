@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -912,13 +911,10 @@ func TestManager_ScriptDriverLifecycle(t *testing.T) {
 	controller := newFakeController()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
+	decl := m.declaration()
 	decl.Name = testDeclaredName
 	decl.Driver = readyScript(outDir)
-	// The concrete driver resolves the declared shared path, so it has to be
-	// a real directory here.
-	decl.SharedHostPath = t.TempDir()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	m.reconcile(controller, decl)
 
 	report := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
@@ -933,11 +929,42 @@ func TestManager_ScriptDriverLifecycle(t *testing.T) {
 	require.Equal(t, StateRunning, statuses[0].State)
 
 	// Withdrawing the declaration stops the driver and reclaims the token.
-	m.Reconcile(controller, nil)
+	m.reconcile(controller)
 	report = testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_STOPPED, report.GetStatus())
 	require.NoFileExists(t, paths.token)
 	require.NoDirExists(t, paths.dir)
+}
+
+// TestManager_RejectedPathsLeaveNoPrivateStateOnDisk pairs the path policy
+// with the concrete driver: a declaration the policy rejects never reaches
+// the driver, so no state directory, protocol document, or token file is
+// created for it.
+func TestManager_RejectedPathsLeaveNoPrivateStateOnDisk(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	paths := newTestPaths(t)
+	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) {
+		cfg.StateRoot = paths.state
+	})
+	controller := newFakeController()
+	m := newManagerWithPaths(t, driver, paths)
+
+	decl := m.declaration()
+	decl.Driver = "#!/bin/sh\nexit 0\n"
+	// A child path over a directory the sandbox owns is rejected, so the
+	// otherwise valid declaration never launches.
+	decl.SharedChildPath = "/etc/project"
+	m.reconcile(controller, decl)
+
+	report := testutil.RequireReceive(ctx, t, controller.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_FAILED, report.GetStatus())
+	require.Contains(t, report.GetError(), reasonChildPathReserved)
+	require.NotContains(t, report.GetError(), testAuthToken)
+
+	require.NoDirExists(t, paths.state)
+	requireNoTokenOnDisk(t, paths.home)
 }
 
 func TestManager_ScriptDriverReportsFailure(t *testing.T) {
@@ -951,10 +978,9 @@ func TestManager_ScriptDriverReportsFailure(t *testing.T) {
 		controller := newFakeController()
 		m := newManager(t, driver)
 
-		decl := testDeclaration()
+		decl := m.declaration()
 		decl.Driver = "#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 0; fi\nexit 5\n"
-		decl.SharedHostPath = t.TempDir()
-		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+		m.reconcile(controller, decl)
 
 		// RUNNING is reported when the foreground driver starts, then the
 		// early exit is reported as a failure.
@@ -975,9 +1001,9 @@ func TestManager_ScriptDriverReportsFailure(t *testing.T) {
 		controller := newFakeController()
 		m := newManager(t, driver)
 
-		decl := testDeclaration()
+		decl := m.declaration()
 		decl.Driver = "not-a-script"
-		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+		m.reconcile(controller, decl)
 
 		report := testutil.RequireReceive(ctx, t, controller.reportCh)
 		require.Equal(t, proto.ReportSubagentExecutionStatusRequest_FAILED, report.GetStatus())

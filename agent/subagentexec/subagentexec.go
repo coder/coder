@@ -82,6 +82,13 @@ type Launch struct {
 	ChildAgentID uuid.UUID
 	// AcquisitionVersion fences this launch against a superseded one.
 	AcquisitionVersion int64
+	// SharedHostPath is the canonical form of the declaration's shared
+	// project directory, resolved through symlinks and validated against
+	// the parent's project directory, home directory, and the launcher's
+	// private state root. A driver must mount this path rather than
+	// Declaration.SharedHostPath, which is the unresolved path the
+	// deployment declared.
+	SharedHostPath string
 
 	// authToken is the pre-created child agent's auth token.
 	authToken string
@@ -90,9 +97,9 @@ type Launch struct {
 // String redacts the launch so that formatting it, directly or through a
 // log field, cannot leak the child's auth token.
 func (l Launch) String() string {
-	return fmt.Sprintf("subagentexec.Launch{ExecutionID:%s Generation:%s Name:%q Driver:%q ChildAgentID:%s AcquisitionVersion:%d}",
+	return fmt.Sprintf("subagentexec.Launch{ExecutionID:%s Generation:%s Name:%q Driver:%q ChildAgentID:%s AcquisitionVersion:%d SharedHostPath:%q}",
 		l.Declaration.ExecutionID, l.Declaration.Generation, l.Declaration.Name,
-		l.Declaration.Driver, l.ChildAgentID, l.AcquisitionVersion)
+		l.Declaration.Driver, l.ChildAgentID, l.AcquisitionVersion, l.SharedHostPath)
 }
 
 // Status is the redacted, externally visible view of one declared

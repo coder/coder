@@ -37,6 +37,12 @@ type Options struct {
 	// CloseTimeout bounds the work Close does. Zero uses
 	// defaultCloseTimeout.
 	CloseTimeout time.Duration
+	// StateRoot is the private state root the configured driver writes
+	// tokens and protocol documents under. The manager needs it to reject a
+	// declaration whose shared project path overlaps it. Empty means no
+	// driver state root is configured, which skips that one rule: the
+	// driver has nowhere to write private state either.
+	StateRoot string
 }
 
 // execution is one declared execution the manager tracks. Every mutable
@@ -85,6 +91,10 @@ type Manager struct {
 	logger       slog.Logger
 	driver       Driver
 	closeTimeout time.Duration
+	// stateRoot is the configured private state root, used by the path
+	// policy only. The manager never writes to it: that is the driver's
+	// job.
+	stateRoot string
 
 	// runCtx bounds the reconciliation path: acquisitions, driver starts,
 	// and the reports that follow. It is cancelled at the very end of
@@ -109,9 +119,12 @@ type Manager struct {
 
 // request is one queued manifest. The controller travels with it so that
 // declarations are acquired through the connection that carried them,
-// while reports always use whichever controller is current.
+// while reports always use whichever controller is current. The path
+// context travels with it too, so declarations are judged against the
+// project directory the manifest that carried them named.
 type request struct {
 	controller   Controller
+	paths        PathContext
 	declarations []agentsdk.SubagentExecution
 }
 
@@ -129,6 +142,7 @@ func New(opts Options) *Manager {
 		logger:        opts.Logger,
 		driver:        opts.Driver,
 		closeTimeout:  opts.CloseTimeout,
+		stateRoot:     opts.StateRoot,
 		runCtx:        runCtx,
 		cancelRun:     cancelRun,
 		stopReconcile: make(chan struct{}),
@@ -146,10 +160,15 @@ func New(opts Options) *Manager {
 // controller means this coderd does not implement the subagent execution
 // API, so nothing is launched.
 //
+// paths is the parent-side path context the declared shared project paths
+// are judged against. It is queued with the declarations rather than held
+// on the manager, so a manifest that moves the project directory is
+// applied atomically with the declarations it carries.
+//
 // Child agents never launch nested executions; their caller passes no
 // declarations, which also tears down anything an earlier manifest
 // declared.
-func (m *Manager) Reconcile(controller Controller, declarations []agentsdk.SubagentExecution) {
+func (m *Manager) Reconcile(controller Controller, paths PathContext, declarations []agentsdk.SubagentExecution) {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -159,6 +178,7 @@ func (m *Manager) Reconcile(controller Controller, declarations []agentsdk.Subag
 	m.controller = controller
 	m.pending = append(m.pending, request{
 		controller:   controller,
+		paths:        paths,
 		declarations: slices.Clone(declarations),
 	})
 	m.mu.Unlock()
@@ -324,7 +344,7 @@ func (m *Manager) reconcile(req request) {
 		// that failed: at most one acquisition per execution is ever in
 		// flight, and each queued reconcile drives at most one further
 		// attempt.
-		m.start(m.runCtx, req.controller, decl)
+		m.start(m.runCtx, req.controller, req.paths, decl)
 	}
 }
 
@@ -333,7 +353,7 @@ func (m *Manager) reconcile(req request) {
 // but not launched, so the next reconcile of the same declaration retries
 // it. There is no background retry: nothing happens until the parent agent
 // reconciles again, which it does on every manifest refresh and reconnect.
-func (m *Manager) start(ctx context.Context, controller Controller, decl agentsdk.SubagentExecution) {
+func (m *Manager) start(ctx context.Context, controller Controller, paths PathContext, decl agentsdk.SubagentExecution) {
 	logger := m.declLogger(decl)
 
 	if controller == nil {
@@ -391,19 +411,28 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 	m.executions[decl.ExecutionID] = ex
 	m.mu.Unlock()
 
+	// The declared paths are judged here, after the acquisition and before
+	// the driver runs, so a rejection is reported under the version this
+	// launch acquired and no token file or private state is created for it.
+	// Only the generic reason is reported; the paths involved stay in the
+	// parent agent's log.
+	sharedHostPath, err := validateDeclaredPaths(paths, m.stateRoot, decl)
+	if err != nil {
+		logger.Error(ctx, "rejected subagent execution shared project paths",
+			slog.Error(err), slog.F("detail", policyDetail(err)))
+		m.fail(ctx, ex, err)
+		return
+	}
+
 	// The driver gets the manager's run context so the process outlives
 	// this reconciliation.
-	proc, err := m.startDriver(ctx, ex, resp.GetAuthToken())
+	proc, err := m.startDriver(ctx, ex, sharedHostPath, resp.GetAuthToken())
 	if err != nil {
 		// No process exists, so this acquisition is spent. The record stays
 		// unlaunched: the next reconcile of the same declaration acquires a
 		// higher version, which fences this dead launch.
 		logger.Error(ctx, "start subagent execution", slog.Error(err))
-		m.mu.Lock()
-		ex.state = StateFailed
-		ex.lastError = BoundError(err.Error())
-		m.mu.Unlock()
-		m.report(ctx, ex, proto.ReportSubagentExecutionStatusRequest_FAILED, err)
+		m.fail(ctx, ex, err)
 		return
 	}
 
@@ -430,15 +459,29 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 //
 // Go cannot guarantee the string's bytes are wiped from memory, so this is
 // a lifetime boundary rather than a scrubbing guarantee.
-func (m *Manager) startDriver(ctx context.Context, ex *execution, authToken string) (Process, error) {
+func (m *Manager) startDriver(ctx context.Context, ex *execution, sharedHostPath, authToken string) (Process, error) {
 	launch := Launch{
 		Declaration:        ex.declaration,
 		ChildAgentID:       ex.childAgentID,
 		AcquisitionVersion: ex.acquisitionVersion,
+		SharedHostPath:     sharedHostPath,
 		authToken:          authToken,
 	}
 	defer func() { launch.authToken = "" }()
 	return m.driver.Start(ctx, launch)
+}
+
+// fail records a launch that never produced a process and reports FAILED
+// under the version it acquired. The record stays unlaunched, so the next
+// reconcile of the same declaration tries again: a rejection that the
+// deployment then corrects, such as a project directory that did not exist
+// yet, is retryable.
+func (m *Manager) fail(ctx context.Context, ex *execution, err error) {
+	m.mu.Lock()
+	ex.state = StateFailed
+	ex.lastError = BoundError(err.Error())
+	m.mu.Unlock()
+	m.report(ctx, ex, proto.ReportSubagentExecutionStatusRequest_FAILED, err)
 }
 
 // supervise waits for a launched process and reports the outcome. An exit

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -266,15 +268,74 @@ func testLogger(t *testing.T) slog.Logger {
 	return slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 }
 
-func newManager(t *testing.T, driver Driver) *Manager {
+// testPaths is the parent-side filesystem layout the shared project path
+// policy is judged against: a home directory, a project directory inside
+// it, and a private state root outside both.
+type testPaths struct {
+	home    string
+	project string
+	state   string
+}
+
+func newTestPaths(t *testing.T) testPaths {
+	t.Helper()
+
+	// The policy compares canonical paths, so the fixture starts from a
+	// canonical base: a temporary directory is itself behind a symlink on
+	// some platforms.
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	paths := testPaths{
+		home:    filepath.Join(base, "home"),
+		project: filepath.Join(base, "home", "project"),
+		state:   filepath.Join(base, "state", "subagentexec"),
+	}
+	require.NoError(t, os.MkdirAll(paths.project, 0o700))
+	return paths
+}
+
+func (p testPaths) context() PathContext {
+	return PathContext{ProjectRoot: p.project, ParentHome: p.home}
+}
+
+// testManager binds a Manager to the path context its declarations are
+// judged against, so every case reconciles with a context that matches the
+// declarations declaration returns.
+type testManager struct {
+	*Manager
+	paths testPaths
+}
+
+func newManager(t *testing.T, driver Driver) *testManager {
+	t.Helper()
+	return newManagerWithPaths(t, driver, newTestPaths(t))
+}
+
+// newManagerWithPaths is newManager for a case that needs the manager and a
+// concrete driver to agree on one private state root.
+func newManagerWithPaths(t *testing.T, driver Driver, paths testPaths) *testManager {
 	t.Helper()
 	m := New(Options{
 		Logger:       testLogger(t),
 		Driver:       driver,
 		CloseTimeout: testutil.WaitShort,
+		StateRoot:    paths.state,
 	})
 	t.Cleanup(func() { _ = m.Close() })
-	return m
+	return &testManager{Manager: m, paths: paths}
+}
+
+// declaration returns a declaration whose declared shared project path is
+// the project root itself, which is the equality case the policy allows.
+func (m *testManager) declaration() agentsdk.SubagentExecution {
+	decl := testDeclaration()
+	decl.SharedHostPath = m.paths.project
+	return decl
+}
+
+// reconcile queues declarations with this manager's path context.
+func (m *testManager) reconcile(controller Controller, declarations ...agentsdk.SubagentExecution) {
+	m.Reconcile(controller, m.paths.context(), declarations)
 }
 
 func testDeclaration() agentsdk.SubagentExecution {
@@ -307,8 +368,8 @@ func TestManager_LaunchesDeclaredExecution(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 
 	acquire := testutil.RequireReceive(ctx, t, controller.acquireCh)
 	require.Equal(t, decl.ExecutionID[:], acquire.GetExecutionId())
@@ -346,8 +407,8 @@ func TestManager_StartFailureReportsFailed(t *testing.T) {
 	driver.startErr = xerrors.New("no sandbox for you")
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 
 	report := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_FAILED, report.GetStatus())
@@ -370,8 +431,8 @@ func TestManager_AcquireFailureDoesNotReport(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, controller.acquireCh)
 
 	require.Eventually(t, func() bool {
@@ -398,8 +459,8 @@ func TestManager_AcquireFailureRetriesWithFreshController(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(stale, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(stale, decl)
 	testutil.RequireReceive(ctx, t, stale.acquireCh)
 
 	require.Eventually(t, func() bool {
@@ -426,7 +487,7 @@ func TestManager_AcquireFailureRetriesWithFreshController(t *testing.T) {
 			AcquisitionVersion: 11,
 		}
 	})
-	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl})
+	m.reconcile(fresh, decl)
 
 	acquire := testutil.RequireReceive(ctx, t, fresh.acquireCh)
 	require.Equal(t, decl.ExecutionID[:], acquire.GetExecutionId())
@@ -456,9 +517,9 @@ func TestManager_AcquireFailureRetriesWithFreshController(t *testing.T) {
 	// Now that it is running, an identical declaration is a no-op: a
 	// reconcile that adds a second declaration is the ordering point that
 	// proves the identical one ahead of it was drained.
-	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl})
-	next := testDeclaration()
-	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl, next})
+	m.reconcile(fresh, decl)
+	next := m.declaration()
+	m.reconcile(fresh, decl, next)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 
 	require.Equal(t, 1, fresh.acquisitionCountFor(decl.ExecutionID))
@@ -483,13 +544,13 @@ func TestManager_QueuedReconcilesAcquireSequentially(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, controller.acquireCh)
 
 	// The loop is inside the first acquisition, so these queue behind it.
 	for range 3 {
-		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+		m.reconcile(controller, decl)
 	}
 	require.Zero(t, driver.startCount())
 
@@ -500,8 +561,8 @@ func TestManager_QueuedReconcilesAcquireSequentially(t *testing.T) {
 	report := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
 
-	next := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl, next})
+	next := m.declaration()
+	m.reconcile(controller, decl, next)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 
 	// Exactly one retry: the first queued reconcile launched the
@@ -529,15 +590,15 @@ func TestManager_StartFailureRetriesOnNextReconcile(t *testing.T) {
 	driver.startErr = xerrors.New("sandbox setup failed")
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 
 	failed := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_FAILED, failed.GetStatus())
 	require.Contains(t, failed.GetError(), "sandbox setup failed")
 
 	driver.setStartErr(nil)
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	m.reconcile(controller, decl)
 
 	running := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, running.GetStatus())
@@ -563,7 +624,7 @@ func TestManager_UnexpectedExitReportsFailed(t *testing.T) {
 	driver.processes = []*fakeProcess{proc}
 	m := newManager(t, driver)
 
-	m.Reconcile(controller, []agentsdk.SubagentExecution{testDeclaration()})
+	m.reconcile(controller, m.declaration())
 	running := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, running.GetStatus())
 
@@ -590,7 +651,7 @@ func TestManager_CleanExitIsUnexpected(t *testing.T) {
 	driver.processes = []*fakeProcess{proc}
 	m := newManager(t, driver)
 
-	m.Reconcile(controller, []agentsdk.SubagentExecution{testDeclaration()})
+	m.reconcile(controller, m.declaration())
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
 	// This slice has no restart policy, so an exit nobody asked for is a
@@ -610,18 +671,18 @@ func TestManager_IdenticalReconcileIsIdempotent(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
 	for range 3 {
-		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+		m.reconcile(controller, decl)
 	}
 	// A reconcile that changes something is the only way to observe the
 	// loop draining the identical ones ahead of it.
-	next := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl, next})
+	next := m.declaration()
+	m.reconcile(controller, decl, next)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 
 	require.Equal(t, 2, driver.startCount())
@@ -639,14 +700,14 @@ func TestManager_ReplacedControllerReceivesLaterReport(t *testing.T) {
 	driver.processes = []*fakeProcess{proc}
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(first, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(first, decl)
 	testutil.RequireReceive(ctx, t, first.reportCh)
 
 	// A DRPC reconnect replaces the controller without re-acquiring the
 	// execution, and the next report must use the live connection.
 	second := newFakeController()
-	m.Reconcile(second, []agentsdk.SubagentExecution{decl})
+	m.reconcile(second, decl)
 
 	require.Eventually(t, func() bool {
 		return m.currentController() == Controller(second)
@@ -670,13 +731,13 @@ func TestManager_NewGenerationStopsOldAndReacquires(t *testing.T) {
 	driver.processes = []*fakeProcess{old, newFakeProcess()}
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
 	next := decl
 	next.Generation = uuid.New()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{next})
+	m.reconcile(controller, next)
 
 	stopped := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_STOPPED, stopped.GetStatus())
@@ -705,11 +766,11 @@ func TestManager_RemovedDeclarationStops(t *testing.T) {
 	driver.processes = []*fakeProcess{proc}
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
-	m.Reconcile(controller, nil)
+	m.reconcile(controller)
 
 	stopped := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_STOPPED, stopped.GetStatus())
@@ -726,14 +787,12 @@ func TestManager_CloseStopsActiveExecutions(t *testing.T) {
 	first, second := newFakeProcess(), newFakeProcess()
 	driver := newFakeDriver()
 	driver.processes = []*fakeProcess{first, second}
-	m := New(Options{
-		Logger:       testLogger(t),
-		Driver:       driver,
-		CloseTimeout: testutil.WaitShort,
-	})
+	// Close is called explicitly below; the helper's cleanup Close is
+	// idempotent.
+	m := newManager(t, driver)
 
-	declA, declB := testDeclaration(), testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{declA, declB})
+	declA, declB := m.declaration(), m.declaration()
+	m.reconcile(controller, declA, declB)
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
@@ -747,7 +806,7 @@ func TestManager_CloseStopsActiveExecutions(t *testing.T) {
 
 	// Close is idempotent, and a reconcile afterwards launches nothing.
 	require.NoError(t, m.Close())
-	m.Reconcile(controller, []agentsdk.SubagentExecution{testDeclaration()})
+	m.reconcile(controller, m.declaration())
 	require.Equal(t, 2, driver.startCount())
 }
 
@@ -759,7 +818,7 @@ func TestManager_StatusNeverExposesToken(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	m.Reconcile(controller, []agentsdk.SubagentExecution{testDeclaration()})
+	m.reconcile(controller, m.declaration())
 	testutil.RequireReceive(ctx, t, controller.reportCh)
 
 	// The driver did receive the token, so the redaction below is not
@@ -788,12 +847,12 @@ func TestManager_NoControllerNeverLaunches(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	m.Reconcile(nil, []agentsdk.SubagentExecution{testDeclaration()})
+	m.reconcile(nil, m.declaration())
 	// A reconcile with a controller is the only ordering point available,
 	// so use one that returns declarations we can wait on.
 	controller := newFakeController()
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, driver.startCh)
 
 	require.Equal(t, 1, driver.startCount())
@@ -808,15 +867,15 @@ func TestManager_IgnoresInvalidDeclarations(t *testing.T) {
 	driver := newFakeDriver()
 	m := newManager(t, driver)
 
-	valid := testDeclaration()
-	noID := testDeclaration()
+	valid := m.declaration()
+	noID := m.declaration()
 	noID.ExecutionID = uuid.Nil
-	noGeneration := testDeclaration()
+	noGeneration := m.declaration()
 	noGeneration.Generation = uuid.Nil
 	duplicate := valid
 	duplicate.Generation = uuid.New()
 
-	m.Reconcile(controller, []agentsdk.SubagentExecution{noID, noGeneration, valid, duplicate})
+	m.reconcile(controller, noID, noGeneration, valid, duplicate)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 
 	require.Equal(t, 1, driver.startCount())
@@ -835,15 +894,15 @@ func TestManager_BlockingDriverDoesNotDeadlock(t *testing.T) {
 	driver.gate = gate
 	m := newManager(t, driver)
 
-	decl := testDeclaration()
-	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	decl := m.declaration()
+	m.reconcile(controller, decl)
 	testutil.RequireReceive(ctx, t, driver.startCh)
 
 	// Start is blocked. Every caller-facing method must still return
 	// promptly, which is only true if no lock spans the driver call.
 	done := make(chan []Status, 1)
 	go func() {
-		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+		m.reconcile(controller, decl)
 		done <- m.Statuses()
 	}()
 	statuses := testutil.RequireReceive(ctx, t, done)

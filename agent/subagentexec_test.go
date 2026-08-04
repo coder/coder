@@ -79,14 +79,28 @@ func (p *fakeExecProcess) Stop(context.Context) error {
 	return nil
 }
 
-func testSubagentExecution() agentsdk.SubagentExecution {
+// execProjectDir returns a canonical directory an agent manifest can point
+// at. The shared project path policy resolves both the manifest directory
+// and the declared shared path, so a fixture has to be a real directory that
+// is already free of symlinked components.
+func execProjectDir(t *testing.T) string {
+	t.Helper()
+
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	project := filepath.Join(base, "project")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+	return project
+}
+
+func testSubagentExecution(sharedHostPath string) agentsdk.SubagentExecution {
 	return agentsdk.SubagentExecution{
 		ExecutionID:     uuid.New(),
 		Generation:      uuid.New(),
 		Name:            "sandbox",
 		Driver:          "bubblewrap",
 		DriverProtocol:  1,
-		SharedHostPath:  "/home/coder/project",
+		SharedHostPath:  sharedHostPath,
 		SharedChildPath: "/workspace/project",
 		StartupTimeout:  time.Minute,
 		RestartPolicy:   "never",
@@ -147,10 +161,14 @@ func TestAgent_SubagentExecution_TopLevelManifestLaunches(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	decl := testSubagentExecution()
+	// The manifest directory is the project root the declared shared path
+	// must live under, and the declaration shares the project root itself.
+	project := execProjectDir(t)
+	decl := testSubagentExecution(project)
 	childAgentID := uuid.New()
 	driver := newFakeExecDriver()
 	client, _ := startExecAgent(t, agentsdk.Manifest{
+		Directory:          project,
 		SubagentExecutions: []agentsdk.SubagentExecution{decl},
 	}, driver, nil)
 	client.SetAcquireSubagentExecutionFunc(func(_ context.Context, _ *agentproto.AcquireSubagentExecutionRequest) (*agentproto.AcquireSubagentExecutionResponse, error) {
@@ -169,6 +187,8 @@ func TestAgent_SubagentExecution_TopLevelManifestLaunches(t *testing.T) {
 	require.Equal(t, decl.Generation, launch.Declaration.Generation)
 	require.Equal(t, childAgentID, launch.ChildAgentID)
 	require.EqualValues(t, 3, launch.AcquisitionVersion)
+	// The driver receives the canonical shared path the agent validated.
+	require.Equal(t, project, launch.SharedHostPath)
 
 	acquisitions := client.SubagentExecutionAcquisitions()
 	require.Len(t, acquisitions, 1)
@@ -190,9 +210,11 @@ func TestAgent_SubagentExecution_ChildManifestNeverAcquires(t *testing.T) {
 	// even attempt an acquisition. The top-level case above is the control
 	// that proves an identical manifest does launch.
 	driver := newFakeExecDriver()
+	project := execProjectDir(t)
 	client, _ := startExecAgent(t, agentsdk.Manifest{
 		ParentID:           uuid.New(),
-		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution()},
+		Directory:          project,
+		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution(project)},
 	}, driver, nil)
 
 	awaitManifestHandled(t, client)
@@ -228,10 +250,10 @@ func TestAgent_SubagentExecution_DefaultDriverLaunches(t *testing.T) {
 	markerDir := t.TempDir()
 	const childToken = "child-auth-token"
 
-	decl := testSubagentExecution()
-	// The concrete driver resolves the declared shared path before it writes
-	// any private state, so it has to be a real directory here.
-	decl.SharedHostPath = t.TempDir()
+	// The declared shared path is the project root the manifest names: the
+	// launcher resolves both before it writes any private state.
+	project := execProjectDir(t)
+	decl := testSubagentExecution(project)
 	decl.Driver = fmt.Sprintf(`#!/bin/sh
 if [ "$1" = cleanup ]; then exit 0; fi
 cp "$2" %[1]q/input.json
@@ -240,6 +262,7 @@ while true; do sleep 0.05; done
 `, markerDir)
 
 	client, agnt := startExecAgent(t, agentsdk.Manifest{
+		Directory:          project,
 		SubagentExecutions: []agentsdk.SubagentExecution{decl},
 	}, nil, nil, func(options *agent.Options) {
 		options.SubagentExecDriverConfig = subagentexec.ScriptDriverConfig{
@@ -311,8 +334,10 @@ while true; do sleep 0.05; done
 func TestAgent_SubagentExecution_UnconfiguredDriverFails(t *testing.T) {
 	t.Parallel()
 
+	project := execProjectDir(t)
 	client, _ := startExecAgent(t, agentsdk.Manifest{
-		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution()},
+		Directory:          project,
+		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution(project)},
 	}, nil, nil, func(options *agent.Options) {
 		// A launch that cannot proceed is logged as an error by design.
 		options.Logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
@@ -385,8 +410,10 @@ func TestAgent_ConnectRPC_FallsBackToV210(t *testing.T) {
 
 	var counting *versionCountingClient
 	driver := newFakeExecDriver()
+	project := execProjectDir(t)
 	client, _ := startExecAgent(t, agentsdk.Manifest{
-		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution()},
+		Directory:          project,
+		SubagentExecutions: []agentsdk.SubagentExecution{testSubagentExecution(project)},
 	}, driver, func(inner agent.Client) agent.Client {
 		counting = &versionCountingClient{
 			Client: inner,

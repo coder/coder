@@ -301,7 +301,18 @@ func (d *ScriptDriver) Start(_ context.Context, launch Launch) (Process, error) 
 	// to. Both sides are resolved through symlinks before they are
 	// compared, so neither a symlinked shared path nor a symlinked ancestor
 	// of the state root can place private state inside the shared tree.
-	sharedHost, err := canonicalSharedPath(decl.SharedHostPath)
+	//
+	// The manager already validated and canonicalized the shared path
+	// against the parent's path context, and hands the result down on the
+	// launch. This driver resolves it again as defense in depth: it is the
+	// component that writes the token, so it does not depend on its caller
+	// having checked. A launch without a canonical path, such as one built
+	// by a test or another caller, falls back to the declared path.
+	declaredSharedHost := launch.SharedHostPath
+	if declaredSharedHost == "" {
+		declaredSharedHost = decl.SharedHostPath
+	}
+	sharedHost, err := canonicalSharedPath(declaredSharedHost)
 	if err != nil {
 		return nil, err
 	}

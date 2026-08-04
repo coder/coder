@@ -574,6 +574,10 @@ func (a *agent) init() {
 	a.subagentExecManager = subagentexec.New(subagentexec.Options{
 		Logger: a.logger.Named("subagentexec"),
 		Driver: a.subagentExecutionDriver(),
+		// The manager rejects a declaration whose shared project path
+		// overlaps the private state the driver writes tokens into, so it
+		// needs the same state root the driver is configured with.
+		StateRoot: a.subagentExecDriverConfig.StateRoot,
 	})
 
 	a.initSocketServer()
@@ -1573,7 +1577,21 @@ func (a *agent) handleManifest(manifestOK *checkpoint, execController subagentex
 		if manifest.ParentID != uuid.Nil {
 			declaredExecutions = nil
 		}
-		a.subagentExecManager.Reconcile(execController, declaredExecutions)
+		// The home directory is resolved once here: the shared project path
+		// policy uses it as a reference point, and the secret files below
+		// are written under it.
+		homeDir, homeErr := a.envInfo.HomeDir()
+		if homeErr != nil {
+			a.logger.Warn(ctx, "failed to resolve home directory", slog.Error(homeErr))
+		}
+		// The expanded manifest directory is the canonical project root the
+		// declared shared path must live under. An unknown home directory
+		// only relaxes the home-relative rules; it is never guessed from
+		// the project directory.
+		a.subagentExecManager.Reconcile(execController, subagentexec.PathContext{
+			ProjectRoot: manifest.Directory,
+			ParentHome:  homeDir,
+		}, declaredExecutions)
 
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as
@@ -1584,10 +1602,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint, execController subagentex
 		// longer than file writes. Startup scripts still wait because they run
 		// sequentially below. Env var injection is unaffected because it
 		// happens lazily per-command in updateCommandEnv.
-		homeDir, err := a.envInfo.HomeDir()
-		if err != nil {
-			a.logger.Warn(ctx, "failed to resolve home directory for secret files", slog.Error(err))
-		}
 		writeSecretFiles(ctx, a.logger, a.filesystem, homeDir, secrets)
 
 		// The startup script should only execute on the first run!
