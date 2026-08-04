@@ -1,10 +1,10 @@
 -- name: UpsertWorkspaceAgentContextSnapshot :one
 WITH live_agent AS MATERIALIZED (
-    UPDATE workspace_agents
-    SET updated_at = updated_at
+    SELECT id
+    FROM workspace_agents
     WHERE id = @workspace_agent_id
         AND deleted = FALSE
-    RETURNING id
+    FOR NO KEY UPDATE
 )
 INSERT INTO workspace_agent_context_snapshots (
     workspace_agent_id,
@@ -29,11 +29,11 @@ RETURNING *;
 
 -- name: UpsertWorkspaceAgentContextResource :one
 WITH live_agent AS MATERIALIZED (
-    UPDATE workspace_agents
-    SET updated_at = updated_at
+    SELECT id
+    FROM workspace_agents
     WHERE id = @workspace_agent_id
         AND deleted = FALSE
-    RETURNING id
+    FOR NO KEY UPDATE
 )
 INSERT INTO workspace_agent_context_resources (
     workspace_agent_id,

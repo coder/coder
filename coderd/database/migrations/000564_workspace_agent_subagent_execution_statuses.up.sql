@@ -1,3 +1,6 @@
+ALTER TABLE workspace_agents
+	ADD COLUMN subagent_state_version BIGINT NOT NULL DEFAULT 0;
+
 CREATE INDEX workspace_agents_parent_id_not_deleted_idx
 ON workspace_agents (parent_id)
 WHERE deleted = FALSE;

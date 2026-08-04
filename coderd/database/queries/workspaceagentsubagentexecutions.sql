@@ -12,13 +12,8 @@ WITH locked_parent AS MATERIALIZED (
 		AND workspace_builds.id = @workspace_build_id
 	FOR KEY SHARE OF parent
 ), updated_child AS MATERIALIZED (
-	-- Updating updated_at is a deliberate version bump used by the legacy
-	-- delete's optimistic guard.
 	UPDATE workspace_agents AS child
-	SET updated_at = GREATEST(
-		clock_timestamp(),
-		child.updated_at + INTERVAL '1 microsecond'
-	)
+	SET subagent_state_version = child.subagent_state_version + 1
 	FROM locked_parent
 	WHERE child.id = @child_agent_id
 		AND child.parent_id = locked_parent.id

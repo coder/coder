@@ -8249,6 +8249,33 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Empty(t, status.LastError)
 	})
 
+	t.Run("DeclarationIncrementsChildStateVersionExactlyOnce", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		before, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.Zero(t, before.SubagentStateVersion)
+
+		params := validParams(build)
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		after, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, after.SubagentStateVersion)
+		require.Equal(t, before.UpdatedAt, after.UpdatedAt)
+
+		_, err = fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.Error(t, err)
+
+		afterDuplicate, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, afterDuplicate.SubagentStateVersion)
+		require.Equal(t, after.UpdatedAt, afterDuplicate.UpdatedAt)
+	})
+
 	t.Run("DuplicateStatusRow", func(t *testing.T) {
 		t.Parallel()
 
@@ -8597,6 +8624,55 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		require.Len(t, declarations, 1)
 	})
 
+	t.Run("StaleSubagentStateVersionPreventsLegacyDelete", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		before, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+
+		versionTx, err := fixture.sqlDB.BeginTx(fixture.ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = versionTx.Rollback()
+		})
+		_, err = versionTx.ExecContext(fixture.ctx, `
+			UPDATE workspace_agents
+			SET subagent_state_version = subagent_state_version + 1
+			WHERE id = $1
+		`, build.child.ID)
+		require.NoError(t, err)
+
+		type deleteResult struct {
+			count int64
+			err   error
+		}
+		deleteStarted := make(chan struct{})
+		deleteDone := make(chan deleteResult, 1)
+		go func() {
+			close(deleteStarted)
+			count, err := fixture.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(fixture.ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+				ID:       build.child.ID,
+				ParentID: build.parent.ID,
+			})
+			deleteDone <- deleteResult{count: count, err: err}
+		}()
+		testutil.TryReceive(fixture.ctx, t, deleteStarted)
+		requireQueryBlocked(t, fixture, "SET deleted = TRUE")
+
+		require.NoError(t, versionTx.Commit())
+		deleted := testutil.TryReceive(fixture.ctx, t, deleteDone)
+		require.NoError(t, deleted.err)
+		require.Zero(t, deleted.count)
+
+		after, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.False(t, after.Deleted)
+		require.Equal(t, before.UpdatedAt, after.UpdatedAt)
+		require.Equal(t, before.SubagentStateVersion+1, after.SubagentStateVersion)
+	})
+
 	t.Run("LegacyDeleteWinsDeclarationRace", func(t *testing.T) {
 		t.Parallel()
 
@@ -8676,6 +8752,40 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		`, params.WorkspaceBuildID, params.DeclarationID).Scan(&statusCount)
 		require.NoError(t, err)
 		require.Zero(t, statusCount)
+	})
+
+	t.Run("ContextWritesDoNotMutateChildState", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		before, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+
+		now := dbtime.Now()
+		_, err = fixture.db.UpsertWorkspaceAgentContextSnapshot(fixture.ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+			WorkspaceAgentID: build.child.ID,
+			Version:          1,
+			AggregateHash:    []byte("hash"),
+			ReceivedAt:       now,
+		})
+		require.NoError(t, err)
+		_, err = fixture.db.UpsertWorkspaceAgentContextResource(fixture.ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: build.child.ID,
+			Source:           "/workspace/AGENTS.md",
+			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:             json.RawMessage(`{}`),
+			ContentHash:      []byte("content-hash"),
+			SizeBytes:        2,
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			Now:              now,
+		})
+		require.NoError(t, err)
+
+		after, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, build.child.ID)
+		require.NoError(t, err)
+		require.Equal(t, before.UpdatedAt, after.UpdatedAt)
+		require.Equal(t, before.SubagentStateVersion, after.SubagentStateVersion)
 	})
 
 	for _, tc := range []struct {
@@ -9090,8 +9200,9 @@ func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
 	require.Zero(t, deleted)
 	executionChildAfter, err := db.GetWorkspaceAgentByID(ctx, executionChild.ID)
 	require.NoError(t, err)
-	require.True(t, executionChildAfter.UpdatedAt.After(executionChild.UpdatedAt))
-	executionChild.UpdatedAt = executionChildAfter.UpdatedAt
+	require.Equal(t, executionChild.UpdatedAt, executionChildAfter.UpdatedAt)
+	require.Equal(t, executionChild.SubagentStateVersion+1, executionChildAfter.SubagentStateVersion)
+	executionChild.SubagentStateVersion = executionChildAfter.SubagentStateVersion
 	require.Equal(t, executionChild, executionChildAfter)
 
 	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{

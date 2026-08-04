@@ -5552,7 +5552,7 @@ func (q *querier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, 
 }
 
 func (q *querier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.WorkspaceAgentSubagentExecution, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, parentAgentID, policy.ActionRead); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, parentAgentID, policy.ActionRead); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parentAgentID)
@@ -6669,7 +6669,7 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.InsertWorkspaceAgentSubagentExecutionRow, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
 		return database.InsertWorkspaceAgentSubagentExecutionRow{}, err
 	}
 	return q.db.InsertWorkspaceAgentSubagentExecution(ctx, arg)

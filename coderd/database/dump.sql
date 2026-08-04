@@ -3003,6 +3003,7 @@ CREATE TABLE workspace_agents (
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     execution_isolation boolean DEFAULT false NOT NULL,
+    subagent_state_version bigint DEFAULT 0 NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );

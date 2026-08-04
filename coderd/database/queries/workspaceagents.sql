@@ -569,7 +569,7 @@ WHERE workspace_agents.id = @id
 WITH candidate_child AS MATERIALIZED (
 	SELECT
 		workspace_agents.id,
-		workspace_agents.updated_at AS candidate_updated_at
+		workspace_agents.subagent_state_version AS candidate_state_version
 	FROM workspace_agents
 	WHERE workspace_agents.id = @id
 		AND workspace_agents.parent_id = @parent_id::uuid
@@ -587,7 +587,7 @@ WITH candidate_child AS MATERIALIZED (
 		AND workspace_agents.id = candidate_child.id
 		AND workspace_agents.parent_id = @parent_id::uuid
 		AND workspace_agents.deleted = FALSE
-		AND workspace_agents.updated_at = candidate_child.candidate_updated_at
+		AND workspace_agents.subagent_state_version = candidate_child.candidate_state_version
 	RETURNING workspace_agents.id
 ), purged_context_resources AS (
 	DELETE FROM workspace_agent_context_resources

@@ -1,3 +1,6 @@
 DROP INDEX workspace_agents_parent_id_not_deleted_idx;
 
 DROP TABLE workspace_agent_subagent_execution_statuses;
+
+ALTER TABLE workspace_agents
+	DROP COLUMN subagent_state_version;

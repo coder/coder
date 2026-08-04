@@ -7655,6 +7655,22 @@ func TestExactParentWorkspaceAuthorizationIgnoresCachedWorkspace(t *testing.T) {
 			},
 		},
 		{
+			name: "ExecutionList",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parentID)
+				return err
+			},
+		},
+		{
+			name: "ExecutionInsert",
+			call: func(ctx context.Context, db database.Store) error {
+				_, err := db.InsertWorkspaceAgentSubagentExecution(ctx, database.InsertWorkspaceAgentSubagentExecutionParams{
+					ParentAgentID: parentID,
+				})
+				return err
+			},
+		},
+		{
 			name: "Status",
 			call: func(ctx context.Context, db database.Store) error {
 				_, err := db.GetWorkspaceAgentSubagentExecutionStatus(ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{

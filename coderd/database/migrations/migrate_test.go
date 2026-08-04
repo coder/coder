@@ -2362,6 +2362,16 @@ func TestMigration000564WorkspaceAgentSubagentExecutionStatusesBackfill(t *testi
 	require.True(t, more)
 	require.EqualValues(t, migrationVersion, version)
 
+	childAgentID := uuid.MustParse("3d7ba76a-82ab-4a72-b18c-3ba3404a0a46")
+	var subagentStateVersion int64
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT subagent_state_version
+		FROM workspace_agents
+		WHERE id = $1
+	`, childAgentID).Scan(&subagentStateVersion)
+	require.NoError(t, err)
+	require.Zero(t, subagentStateVersion)
+
 	var (
 		status          string
 		createdAt       time.Time
