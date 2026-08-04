@@ -179,7 +179,7 @@ export function FilterCombobox({
 				</ComboboxChips>
 				<InputGroupAddon
 					align="inline-end"
-					className="w-10 items-start self-stretch border-0 border-l border-solid border-border p-0"
+					className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
 				>
 					<InputGroupButton
 						type="button"
