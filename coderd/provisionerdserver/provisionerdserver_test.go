@@ -2029,6 +2029,126 @@ func TestCompleteJob(t *testing.T) {
 		})
 	})
 
+	t.Run("WorkspaceBuild_ExecutionIsolation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name               string
+			executionIsolation bool
+			buildCount         int32
+		}{
+			{name: "OrdinaryInitialBuild", executionIsolation: false, buildCount: 1},
+			{name: "IsolatedInitialBuildAndRebuild", executionIsolation: true, buildCount: 2},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv, db, ps, pd := setup(t, false, &overrides{})
+				user := dbgen.User(t, db, database.User{})
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					CreatedBy:      user.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+				})
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID:         template.ID,
+					OwnerID:            user.ID,
+					OrganizationID:     pd.OrganizationID,
+					ExecutionIsolation: tc.executionIsolation,
+				})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+
+				var previousResourceIDs []uuid.UUID
+				var previousAgentIDs []uuid.UUID
+				for buildNumber := int32(1); buildNumber <= tc.buildCount; buildNumber++ {
+					buildID := uuid.New()
+					job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+						FileID:      file.ID,
+						InitiatorID: user.ID,
+						Type:        database.ProvisionerJobTypeWorkspaceBuild,
+						Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+							WorkspaceBuildID: buildID,
+						})),
+						OrganizationID: pd.OrganizationID,
+					})
+					dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+						ID:                buildID,
+						BuildNumber:       buildNumber,
+						JobID:             job.ID,
+						WorkspaceID:       workspace.ID,
+						InitiatorID:       user.ID,
+						TemplateVersionID: version.ID,
+						Transition:        database.WorkspaceTransitionStart,
+						Reason:            database.BuildReasonInitiator,
+					})
+					_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+						OrganizationID: pd.OrganizationID,
+						WorkerID: uuid.NullUUID{
+							UUID:  pd.ID,
+							Valid: true,
+						},
+						Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+						ProvisionerTags: must(json.Marshal(job.Tags)),
+						StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+					})
+					require.NoError(t, err)
+
+					_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+						JobId: job.ID.String(),
+						Type: &proto.CompletedJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+								State: []byte{},
+								Resources: []*sdkproto.Resource{{
+									Name: "example",
+									Type: "aws_instance",
+									Agents: []*sdkproto.Agent{
+										{Name: "first"},
+										{Name: "second"},
+									},
+								}},
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+					require.NoError(t, err)
+					require.Len(t, resources, 1)
+					agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+					require.NoError(t, err)
+					require.Len(t, agents, 2)
+
+					currentAgentIDs := make([]uuid.UUID, 0, len(agents))
+					for _, agent := range agents {
+						require.False(t, agent.ParentID.Valid)
+						require.Equal(t, tc.executionIsolation, agent.ExecutionIsolation)
+						currentAgentIDs = append(currentAgentIDs, agent.ID)
+					}
+					for _, previousAgentID := range previousAgentIDs {
+						require.NotContains(t, currentAgentIDs, previousAgentID)
+					}
+					if len(previousResourceIDs) > 0 {
+						previousAgents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, previousResourceIDs)
+						require.NoError(t, err)
+						require.Empty(t, previousAgents)
+					}
+					previousResourceIDs = []uuid.UUID{resources[0].ID}
+					previousAgentIDs = currentAgentIDs
+				}
+			})
+		}
+	})
+
 	t.Run("WorkspaceBuild_BadFormType", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -4084,6 +4204,17 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	insertWithProtoIDs := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
 		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{}, provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto())
 	}
+	insertWithWorkspaceExecutionIsolation := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource, executionIsolation bool) error {
+		return provisionerdserver.InsertWorkspaceResource(
+			ctx,
+			db,
+			jobID,
+			database.WorkspaceTransitionStart,
+			resource,
+			&telemetry.Snapshot{},
+			provisionerdserver.InsertWorkspaceResourceWithWorkspaceExecutionIsolation(executionIsolation),
+		)
+	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -4096,6 +4227,63 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
+	})
+	t.Run("WorkspaceExecutionIsolation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name               string
+			executionIsolation bool
+		}{
+			{name: "Ordinary", executionIsolation: false},
+			{name: "Isolated", executionIsolation: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				db, _ := dbtestutil.NewDB(t)
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+				err := insertWithWorkspaceExecutionIsolation(db, job.ID, &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{
+						{Name: "first"},
+						{
+							Name: "second",
+							Devcontainers: []*sdkproto.Devcontainer{{
+								Name:            "child",
+								WorkspaceFolder: "/workspace",
+								Apps: []*sdkproto.App{{
+									Slug: "child-app",
+								}},
+							}},
+						},
+					},
+				}, tc.executionIsolation)
+				require.NoError(t, err)
+
+				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, resources, 1)
+				agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+				require.NoError(t, err)
+
+				var topLevelAgents, childAgents []database.WorkspaceAgent
+				for _, agent := range agents {
+					if agent.ParentID.Valid {
+						childAgents = append(childAgents, agent)
+						continue
+					}
+					topLevelAgents = append(topLevelAgents, agent)
+				}
+				require.Len(t, topLevelAgents, 2)
+				for _, agent := range topLevelAgents {
+					require.Equal(t, tc.executionIsolation, agent.ExecutionIsolation)
+				}
+				require.Len(t, childAgents, 1)
+				require.False(t, childAgents[0].ExecutionIsolation)
+			})
+		}
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()

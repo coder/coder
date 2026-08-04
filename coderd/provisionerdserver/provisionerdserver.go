@@ -2160,6 +2160,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// Ensure that the agent IDs we set previously
 				// are written to the database.
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
+				InsertWorkspaceResourceWithWorkspaceExecutionIsolation(workspace.ExecutionIsolation),
 			)
 			if err != nil {
 				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
@@ -2831,7 +2832,8 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 }
 
 type insertWorkspaceResourceOptions struct {
-	useAgentIDsFromProto bool
+	useAgentIDsFromProto        bool
+	workspaceExecutionIsolation bool
 }
 
 // InsertWorkspaceResourceOption represents a functional option for
@@ -2843,6 +2845,14 @@ type InsertWorkspaceResourceOption func(*insertWorkspaceResourceOptions)
 func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOption {
 	return func(opts *insertWorkspaceResourceOptions) {
 		opts.useAgentIDsFromProto = true
+	}
+}
+
+// InsertWorkspaceResourceWithWorkspaceExecutionIsolation applies the persisted
+// workspace execution-isolation policy to top-level agents in the resource.
+func InsertWorkspaceResourceWithWorkspaceExecutionIsolation(executionIsolation bool) InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.workspaceExecutionIsolation = executionIsolation
 	}
 }
 
@@ -2975,7 +2985,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
 			DisplayOrder:       int32(prAgent.Order),
 			APIKeyScope:        apiKeyScope,
-			ExecutionIsolation: false,
+			ExecutionIsolation: opts.workspaceExecutionIsolation,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
