@@ -5,13 +5,14 @@ The audience determines vocabulary, depth, and the prior knowledge the page assu
 The outcome determines what the page covers and where it stops.
 
 Pages that try to serve two audiences, or chain multiple unrelated outcomes, serve none of their readers well.
-A reader who is one persona away from the page's target has to skip past content that doesn't apply to them, guess which sentences are for them, and trust the writer not to have buried a step they need inside a section labeled for someone else.
+A reader who is one persona away from the page's target has to skip past content that doesn't apply to them.
+They must guess which sentences are for them, and trust the writer not to have hidden a step they need inside a section labeled for someone else.
 
 The single canonical Coder example is **install Coder**.
 An end user wants to connect their local editor to a Coder workspace and start coding.
 A platform engineer wants to deploy the Coder control plane to their company's Kubernetes cluster.
-Both groups search for "install Coder.
-A page that tries to cover both forces the end user to read past Helm chart values, and forces the platform engineer to read past Visual Studio Code download links.
+Both groups search for "install Coder."
+A page that tries to cover both forces the end user to read past Helm chart values and forces the platform engineer to read past Visual Studio Code download links.
 Two pages, one per audience and one per outcome, serve both groups better than one page that combines them.
 
 ## Pick one audience per page
@@ -32,9 +33,8 @@ Section tags don't save readers from scanning content that doesn't apply to them
 ```md
 # Connect Visual Studio Code to your Coder workspace
 
-*Audience: a developer with an existing Coder workspace.*
-
-This page covers the Visual Studio Code IDE.
+This page is for a developer with an existing Coder workspace.
+It covers the Visual Studio Code IDE.
 For Cursor, refer to [Cursor](./cursor.md).
 For Windsurf, refer to [Windsurf](./windsurf.md).
 ```
@@ -90,7 +90,7 @@ A hub page may have a broad title and a short body when its job is to direct the
 
 Hub pages aren't an exemption from the audience and outcome rules.
 The audience is the reader looking for the right child page.
-The outcome is making the routing decision in three or four lines.
+The outcome is making the routing decision in 3 or 4 lines.
 
 A hub page is appropriate when:
 
@@ -128,8 +128,8 @@ This page covers OIDC, SAML, GitHub OAuth, password authentication, and the API 
 [300 lines of provider-specific configuration]
 ```
 
-The Don't example forces every reader to scan a wall of content for the section that applies to them.
-The Do example routes them to the right page in four lines.
+The Don't example forces every reader to scan the whole page for the section that applies to them.
+The Do example routes them to the right page in 4 lines.
 
 A hub page doesn't need every link to be a direct child page in the file tree.
 Cross-references to sibling sections of the docs are valid when that's where the reader's next step lives.
@@ -137,7 +137,7 @@ Cross-references to sibling sections of the docs are valid when that's where the
 ## Declare audience and scope up front
 
 The first paragraph of the page names the audience and the outcome.
-The reader should know within the first two or three sentences whether the page is for them and whether it covers their task.
+The reader should know within the first 2 or 3 sentences whether the page is for them and whether it covers their task.
 
 Conventions:
 
@@ -188,13 +188,11 @@ For pages of that kind, add an `IMPORTANT` callout at the beginning of the page 
 ```md
 # Configure single sign-on with Okta
 
-This guide is for a Coder deployment administrator
-who has access to both the Coder control plane and the Okta tenant.
+This guide is for a Coder deployment administrator who has access to both the Coder control plane and the Okta tenant.
 
 > [!IMPORTANT]
 > You must be a Coder deployment administrator to complete this guide.
-> If you aren't a deployment administrator,
-> ask your administrator to complete the steps for you.
+> If you aren't a deployment administrator, ask your administrator to complete the steps for you.
 ```
 
 The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`), not the writer-facing persona name (`Perry the Platform Engineer`).
@@ -206,7 +204,7 @@ A page written for a known audience gives that reader what they need to reach th
 
 Knowing the audience means knowing what that audience can already do.
 When the page assumes a reader who runs their own Coder deployment, that reader is their own administrator.
-Don't hedge a step with "ask your administrator" or "if you have permission".
+Don't hedge a step with "ask your administrator" or "if you have permission."
 Those caveats are written for a reader this page doesn't target, and they make the real reader doubt whether the step is meant for them.
 
 Before you add a caveat, a permission note, or an "if you don't have access" aside, check it against the audience and the full context of the page:
@@ -215,9 +213,9 @@ Before you add a caveat, a permission note, or an "if you don't have access" asi
 - Has the page already established that this reader has the access?
 - Does the caveat help this reader, or only a reader who belongs on a different page?
 
-If the caveat serves a different audience, cut it, or move it to the page that audience reads.
+If the caveat serves a different audience, cut it or move it to the page that audience reads.
 
-**Do** (a local-first Quickstart, where the reader started the server two pages earlier):
+**Do** (a local-first Quickstart, where the reader started the server 2 pages earlier):
 
 > Configure a GitHub provider on your deployment, then create the workspace again.
 
@@ -246,11 +244,13 @@ Inside a page, name the audience by the role the reader recognizes from their ow
 
 ### Primary personas
 
+These personas cover the audiences most Coder docs pages serve.
+
 #### Perry the Platform Engineer
 
 Perry builds self-service platforms for development teams at a mid-to-large enterprise.
 They own the templates, governance, and integrations that turn the Coder control plane Ada deploys into the default workflow developers actually use.
-They need template authoring docs, RBAC and organization design, integration patterns, prebuilds, cost reporting, and policy-as-code.
+They need template authoring docs (including prebuilds), RBAC and organization design, integration patterns, cost reporting, and policy-as-code.
 
 *Coder surface:* template authoring (Terraform, modules, prebuilds), RBAC, organizations and groups, policy and governance, integrations (CI/CD, observability, secrets, Git), audit logs.
 
@@ -271,14 +271,15 @@ They don't need template authoring or infrastructure context.
 
 *Coder surface:* workspaces, web terminal, IDE and notebook integrations (VS Code, Jupyter, RStudio), dotfiles, port forwarding, SSH, file uploads and downloads.
 
-> [!NOTE] Elliot is a stopgap umbrella persona for non-developer end users.
+> [!NOTE]
+> Elliot is a provisional persona that groups non-developer end users.
 > The Coder docs team plans to revisit the persona model with product and design once the broader audience is mapped out.
 
 #### Ada the Infrastructure Admin
 
 Ada runs the underlying infrastructure that Coder deploys onto: Kubernetes clusters, cloud accounts, networking, storage, identity, and security policy.
-They need deployment, operation, and recovery docs: install paths, upgrade and rollback, IAM and SSO, monitoring and alerting, capacity planning, and incident playbooks.
-Their success metric is uptime, so they trust proven, well-documented configurations over bleeding-edge defaults.
+They need deployment, operation, and recovery docs: install paths, upgrade and rollback, IAM and SSO, monitoring and alerting, and operational playbooks for capacity and incidents.
+Their success metric is uptime, so they trust proven, well-documented configurations over unproven defaults.
 
 *Coder surface:* control plane install (Helm, Docker, VM, airgapped), database, networking and DERP, IAM and SSO/OIDC/SAML, telemetry and audit logs, backup and disaster recovery.
 
@@ -291,6 +292,8 @@ They need overview pages that explain what Coder is, how it fits the existing st
 *Coder surface:* architecture overviews, why-Coder framing, pricing and licensing, security and compliance summaries, release notes, success-metric dashboards.
 
 ### Secondary personas
+
+These personas appear in narrower feature areas.
 
 #### Melissa the Machine Learner
 
@@ -327,7 +330,7 @@ They value precise, traceable numbers over feature descriptions.
 #### Sergio the Security Officer
 
 Sergio is the IT security officer at an organization with strict compliance requirements.
-They need docs for the security architecture, identity and access control, secrets management, audit and compliance evidence (SOC 2, FedRAMP-style controls), data residency, and the supply chain story.
+They need docs for the security architecture, identity and access control, secrets management, audit and compliance evidence (SOC 2, FedRAMP-style controls), and data residency and supply-chain posture.
 They are skeptical of new tools by default and want documented, auditable behavior.
 
 *Coder surface:* SSO and OIDC/SAML, RBAC, secrets management, audit logs, security architecture pages, compliance and trust-center content, allowlists and network policies.
@@ -344,7 +347,7 @@ They run their team inside the guardrails Perry or Ada set up.
 *Documentation-only.
 No Vale rule.*
 
-## Related
+## Learn more
 
 - [Voice and tone](./voice-and-tone.md)
 - [Word choice](./word-choice.md)
