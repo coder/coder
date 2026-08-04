@@ -274,6 +274,15 @@ type standaloneGateway struct {
 	drpcClosed             atomic.Bool
 	providerRefreshStopped atomic.Bool
 	listenerClosed         atomic.Bool
+
+	// httpAddr is the address the HTTP listener is bound to. It is valid once
+	// listenerReady is closed.
+	httpAddr net.Addr
+
+	// listenerReady is closed once the HTTP listener is bound. It stays open
+	// when binding fails.
+	listenerReady chan struct{}
+
 	// providersLoaded is an initial-load latch. Reconnects refresh providers
 	// through the watch loop without resetting readiness.
 	providersLoaded atomic.Bool
@@ -314,6 +323,8 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 
 		logger:         params.logger,
 		providerLogger: providerLogger,
+
+		listenerReady: make(chan struct{}),
 	}
 	gateway.httpServer = &http.Server{
 		Handler:           newGatewayMux(gateway.daemon, gateway.ready, gatewayMiddleware(params.bridgeConfig, params.tracer)),
@@ -341,6 +352,9 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("listen on %q: %w", s.httpAddress, err)
 	}
+	// serve runs once per gateway, so closing listenerReady only happens once.
+	s.httpAddr = listener.Addr()
+	close(s.listenerReady)
 
 	serveErr := make(chan error, 1)
 	var serveWG sync.WaitGroup
