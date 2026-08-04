@@ -11,7 +11,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	VerticalForm,
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
@@ -93,7 +93,7 @@ export const AppearanceSettingsPageView: FC<
 					</Tooltip>
 				</Badges>
 
-				<HorizontalForm
+				<VerticalForm
 					onSubmit={form.handleSubmit}
 					aria-label="Appearance settings"
 					className="mt-8"
@@ -136,7 +136,7 @@ export const AppearanceSettingsPageView: FC<
 							Save
 						</Button>
 					</FormFooter>
-				</HorizontalForm>
+				</VerticalForm>
 			</div>
 
 			<AnnouncementBannerSettings
