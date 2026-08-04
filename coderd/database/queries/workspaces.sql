@@ -440,6 +440,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'{}'::jsonb, -- group_acl
 		'{}'::jsonb, -- user_acl
+		false, -- execution_isolation
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name

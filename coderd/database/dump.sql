@@ -3002,6 +3002,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    execution_isolation boolean DEFAULT false NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -3104,6 +3105,7 @@ CREATE TABLE workspaces (
     next_start_at timestamp with time zone,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    execution_isolation boolean DEFAULT false NOT NULL,
     CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
@@ -4199,6 +4201,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     workspaces.group_acl,
     workspaces.user_acl,
+    workspaces.execution_isolation,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     visible_users.name AS owner_name,

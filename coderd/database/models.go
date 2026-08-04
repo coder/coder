@@ -6309,6 +6309,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime            `db:"next_start_at" json:"next_start_at"`
 	GroupACL                WorkspaceACL            `db:"group_acl" json:"group_acl"`
 	UserACL                 WorkspaceACL            `db:"user_acl" json:"user_acl"`
+	ExecutionIsolation      bool                    `db:"execution_isolation" json:"execution_isolation"`
 	OwnerAvatarUrl          string                  `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string                  `db:"owner_username" json:"owner_username"`
 	OwnerName               string                  `db:"owner_name" json:"owner_name"`
@@ -6372,7 +6373,8 @@ type WorkspaceAgent struct {
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
-	Deleted bool `db:"deleted" json:"deleted"`
+	Deleted            bool `db:"deleted" json:"deleted"`
+	ExecutionIsolation bool `db:"execution_isolation" json:"execution_isolation"`
 }
 
 // Per-resource state for the latest pushed workspace agent context snapshot.
@@ -6797,8 +6799,9 @@ type WorkspaceTable struct {
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite    bool         `db:"favorite" json:"favorite"`
-	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
-	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
-	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
+	Favorite           bool         `db:"favorite" json:"favorite"`
+	NextStartAt        sql.NullTime `db:"next_start_at" json:"next_start_at"`
+	GroupACL           WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL            WorkspaceACL `db:"user_acl" json:"user_acl"`
+	ExecutionIsolation bool         `db:"execution_isolation" json:"execution_isolation"`
 }
