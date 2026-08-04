@@ -1,4 +1,3 @@
-import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import type { Permission } from "#/api/typesGenerated";
 import { Pill } from "#/components/Pill/Pill";
@@ -23,7 +22,7 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 	const resourceTypes = getUniqueResourceTypes(permissions);
 
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{permissions.length > 0 ? (
 				<PermissionsPill
 					resource={resourceTypes[0]}
@@ -39,7 +38,7 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 					permissions={permissions.slice(1)}
 				/>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
