@@ -273,19 +273,13 @@ const reasoningEffortEnum =
 const reasoningEffortRank = (value: string): number =>
 	reasoningEffortEnum.indexOf(value.trim().toLowerCase());
 
-function isValidOptionalNumber(
-	value: string | undefined,
-	minimum?: number,
-): boolean {
+function isValidOptionalNumber(value: string | undefined): boolean {
 	const trimmed = value?.trim();
 	if (!trimmed) {
 		return true;
 	}
 
-	const parsed = Number(trimmed);
-	return (
-		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
-	);
+	return Number.isFinite(Number(trimmed));
 }
 
 // ── Schema-driven Yup validation ───────────────────────────────

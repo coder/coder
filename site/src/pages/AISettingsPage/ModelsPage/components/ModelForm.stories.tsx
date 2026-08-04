@@ -411,6 +411,22 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
+export const NativeCostTrackingIsUnavailable: Story = {
+	args: {
+		editingModel: mockGPT5,
+		onDeleteModel: fn(async () => undefined),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /cost tracking/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const UseResponsesAPIForOpenAI: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

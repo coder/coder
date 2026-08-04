@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
 import AISettingsSidebarView from "./AISettingsSidebarView";
@@ -30,7 +31,15 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 export default meta;
 type Story = StoryObj<typeof AISettingsSidebarView>;
 
-export const CoderAgentsActive: Story = {};
+export const CoderAgentsActive: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Spend" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const ModelsActive: Story = {
 	parameters: {

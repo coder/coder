@@ -78,8 +78,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-// Use local noon so the rendered range label stays stable
-// across timezones.
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
 		adminOverridesData={{ allow_users: false }}

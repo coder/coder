@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -417,7 +416,6 @@ func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 	t.Parallel()
 
-	costSample := decimal.NewFromInt(3)
 	sampled := codersdk.ChatModelCallConfig{
 		MaxOutputTokens:  ptr.Ref(int64(4096)),
 		Temperature:      ptr.Ref(0.7),
@@ -425,9 +423,6 @@ func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 		TopK:             ptr.Ref(int64(40)),
 		PresencePenalty:  ptr.Ref(0.1),
 		FrequencyPenalty: ptr.Ref(0.2),
-		Cost: &codersdk.ModelCostConfig{
-			InputPricePerMillionTokens: &costSample,
-		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 			Default: ptr.Ref("medium"),
 		},
