@@ -204,11 +204,9 @@ export const SpendUsersEmpty: Story = {
 		const canvas = within(canvasElement);
 
 		await canvas.findByText("AI spend usage");
-		await expect(
-			canvas.getByText(
-				/Cost controls features will move to AI Governance in v2\.36\./,
-			),
-		).toBeInTheDocument();
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"As of v2.36, AI Governance Cost Control replaces Coder Agents Cost Control.",
+		);
 		await expect(
 			canvas.getByRole("link", { name: /Read more here/ }),
 		).toHaveAttribute(

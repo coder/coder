@@ -316,8 +316,12 @@ export const ZeroBudget: Story = {
 		const canvas = within(canvasElement);
 		const trigger = await canvas.findByRole("button");
 		await userEvent.click(trigger);
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByText(/limit exceeded/);
+		const menu = within(
+			await within(canvasElement.ownerDocument.body).findByRole("menu"),
+		);
+		await waitFor(() => {
+			expect(menu.getByText(/limit exceeded/)).toBeVisible();
+		});
 	},
 };
 

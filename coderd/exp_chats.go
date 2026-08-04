@@ -130,9 +130,8 @@ func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, de
 	return false
 }
 
-// maybeWriteChatUsageLimitError writes a 409 when a synchronous generation
-// failure was caused by exhausted AI spend. The AI Gateway rejects
-// over-budget requests with a 403, which must not surface as a 500.
+// AI Gateway budget rejections and provider quota failures classify as usage
+// limits; synchronous generation reports them as conflicts instead of 500s.
 func maybeWriteChatUsageLimitError(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	classified := chaterror.Classify(err)
 	if classified.Kind != codersdk.ChatErrorKindUsageLimit {
