@@ -551,6 +551,46 @@ func TestBundleTar(t *testing.T) {
 	})
 }
 
+// TestBaseIncludedModulesMatchRendered enforces that each base's
+// included_modules manifest field exactly lists the catalog modules the base
+// actually renders. This keeps the collision guard's seen-set in sync with the
+// base's Terraform: if a base adds a `module "<catalog-id>"` block without
+// listing it (or lists one it no longer renders), this test fails instead of
+// silently re-opening the duplicate-module hazard the guard exists to prevent.
+func TestBaseIncludedModulesMatchRendered(t *testing.T) {
+	t.Parallel()
+
+	manifests, err := templatebuilder.LoadModules()
+	require.NoError(t, err)
+	catalogIDs := make(map[string]bool, len(manifests))
+	for _, m := range manifests {
+		catalogIDs[m.ID] = true
+	}
+
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			mainTF, err := templatebuilder.RenderBaseTemplate(
+				id, "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext(id))
+			require.NoError(t, err)
+
+			// Only catalog-named module blocks can collide with a
+			// wizard-selected module, so ignore any non-catalog modules a base
+			// renders (e.g. region helpers that are not in the catalog).
+			var renderedCatalog []string
+			for _, name := range templatebuilder.ExtractModuleNames(mainTF) {
+				if catalogIDs[name] {
+					renderedCatalog = append(renderedCatalog, name)
+				}
+			}
+
+			require.ElementsMatch(t, templatebuilder.BaseIncludedModules(id), renderedCatalog,
+				"base %q: included_modules must match the catalog modules it renders", id)
+		})
+	}
+}
+
 // extractTar reads a tar archive and returns a map of filename to content.
 func extractTar(t *testing.T, data []byte) map[string]string {
 	t.Helper()
