@@ -104,17 +104,21 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 		}
 		// A slow fetch can outlive iOS's transient user activation, making
 		// share() reject with NotAllowedError. The toast action click is a
-		// fresh gesture, so retrying from it shares the already-fetched file.
+		// fresh gesture, so retrying from it shares the already-fetched
+		// file. Other rejections would fail a retry identically, so they
+		// get no action.
+		if (errorHasName(error, "NotAllowedError")) {
+			toast.error(`Couldn't download ${fileName}`, {
+				description: "The file is ready to save.",
+				action: {
+					label: "Save",
+					onClick: () => void shareFileViaSheet(file, fileName),
+				},
+			});
+			return;
+		}
 		toast.error(`Couldn't download ${fileName}`, {
-			description: errorHasName(error, "NotAllowedError")
-				? "The file is ready to save."
-				: error instanceof Error
-					? error.message
-					: undefined,
-			action: {
-				label: "Save",
-				onClick: () => void shareFileViaSheet(file, fileName),
-			},
+			description: error instanceof Error ? error.message : undefined,
 		});
 	});
 

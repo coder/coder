@@ -190,6 +190,26 @@ describe("handleAttachmentDownloadClick", () => {
 		});
 	});
 
+	it("reports permanent share failures without a retry action", async () => {
+		enterIOSStandalonePWA();
+		overrideNavigator(
+			"share",
+			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
+		);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" })),
+		);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(toast.error).mock.calls[0][1]).not.toHaveProperty(
+			"action",
+		);
+	});
+
 	it("skips sharing when the fetched file turns out unshareable", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
