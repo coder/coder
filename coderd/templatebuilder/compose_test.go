@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/fs"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -557,6 +559,12 @@ func TestBundleTar(t *testing.T) {
 // base's Terraform: if a base adds a `module "<catalog-id>"` block without
 // listing it (or lists one it no longer renders), this test fails instead of
 // silently re-opening the duplicate-module hazard the guard exists to prevent.
+//
+// This renders with DefaultBaseRenderContext, which applies no variable
+// overlay. A base that gated a catalog `module` block on a variable would not
+// render that block here, so the guard could be evaded; that is dormant today
+// because no base declares variables. When bases gain variables, extend this to
+// also render with representative variable contexts.
 func TestBaseIncludedModulesMatchRendered(t *testing.T) {
 	t.Parallel()
 
@@ -589,6 +597,42 @@ func TestBaseIncludedModulesMatchRendered(t *testing.T) {
 				"base %q: included_modules must match the catalog modules it renders", id)
 		})
 	}
+}
+
+// hasLanguageDispatchPattern matches the `if has_language <name>` call sites in
+// the quickstart language-install script (not the has_language definition).
+var hasLanguageDispatchPattern = regexp.MustCompile(`(?m)^\s*if has_language (\S+?);`)
+
+// TestQuickstartLanguageSelectorMatchesInstallScript enforces that the
+// quickstart "languages" selector options and the language-install script's
+// has_language dispatch branches describe the same set of languages. They are
+// two hand-maintained lists with nothing else binding them: if one gains or
+// loses a language without the other, a selected language would silently
+// install nothing (or a branch would be dead). This test fails on that drift.
+func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
+	t.Parallel()
+
+	mainTF, err := templatebuilder.RenderBaseTemplate(
+		"quickstart", "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext("quickstart"))
+	require.NoError(t, err)
+	selectorValues := templatebuilder.ExtractParameterOptionValues(mainTF, "languages")
+	require.NotEmpty(t, selectorValues,
+		"expected the quickstart languages selector to declare options")
+
+	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
+	require.NoError(t, err)
+	script, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
+	require.NoError(t, err)
+
+	var dispatchNames []string
+	for _, m := range hasLanguageDispatchPattern.FindAllSubmatch(script, -1) {
+		dispatchNames = append(dispatchNames, string(m[1]))
+	}
+	require.NotEmpty(t, dispatchNames,
+		"expected the install script to dispatch on has_language")
+
+	require.ElementsMatch(t, selectorValues, dispatchNames,
+		"quickstart languages selector options must match the install script's has_language branches")
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.

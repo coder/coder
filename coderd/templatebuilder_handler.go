@@ -86,10 +86,8 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Order bases alphabetically by display name, then group the Coder
-	// Quickstart base directly before the Docker base. Quickstart is a
-	// Docker-based "start here" template, so it belongs next to Docker rather
-	// than in its default alphabetical slot.
+	// Order bases alphabetically by display name, then group Quickstart next to
+	// Docker (see groupQuickstartBeforeDocker for the rationale).
 	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
 		// Tiebreak on ID so the order is total and deterministic even if two
 		// bases ever share a display name.
