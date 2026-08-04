@@ -25,7 +25,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	onUpdate,
 }) => {
 	const theme = useTheme();
-	const isCreating = !banner.message;
+	const isCreating = new Boolean(banner.message);
 
 	const bannerForm = useFormik<{
 		message: string;
