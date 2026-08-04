@@ -1957,6 +1957,15 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prep)
 }
 
+func (q *querier) CountActiveConcurrencyChats(ctx context.Context) (int64, error) {
+	// Deployment-wide capacity accounting is a system-level read
+	// enforced by the AsChatd context, not per-row authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.CountActiveConcurrencyChats(ctx)
+}
+
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	// Shortcut if the user is an owner. The SQL filter is noticeable,
 	// and this is an easy win for owners. Which is the common case.
@@ -2012,6 +2021,15 @@ func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]databas
 		return nil, err
 	}
 	return q.db.CountPendingNonActivePrebuilds(ctx)
+}
+
+func (q *querier) CountQueuedConcurrencyChats(ctx context.Context) (int64, error) {
+	// Deployment-wide capacity accounting is a system-level read
+	// enforced by the AsChatd context, not per-row authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.CountQueuedConcurrencyChats(ctx)
 }
 
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -4203,6 +4221,15 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
 	}
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
+}
+
+func (q *querier) GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error) {
+	// Deployment-wide capacity accounting is a system-level read
+	// enforced by the AsChatd context, not per-row authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetOldestQueuedConcurrencyChats(ctx, limitCount)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -7058,6 +7085,17 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 		return nil, err
 	}
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
+}
+
+func (q *querier) SetChatConcurrencyState(ctx context.Context, arg database.SetChatConcurrencyStateParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.SetChatConcurrencyState(ctx, arg)
 }
 
 func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {

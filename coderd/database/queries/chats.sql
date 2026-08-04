@@ -1,7 +1,9 @@
 -- name: ArchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats
-    SET archived = true, pin_order = 0, updated_at = NOW()
+    SET archived = true, pin_order = 0,
+        concurrency_state = NULL, concurrency_queued_at = NULL,
+        updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
 ),
@@ -53,7 +55,9 @@ chats_expanded AS (
         updated_chats.context_dirty_since,
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
-        updated_chats.compaction_requested_at
+        updated_chats.compaction_requested_at,
+        updated_chats.concurrency_state,
+        updated_chats.concurrency_queued_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -123,7 +127,9 @@ chats_expanded AS (
         updated_chats.context_dirty_since,
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
-        updated_chats.compaction_requested_at
+        updated_chats.compaction_requested_at,
+        updated_chats.concurrency_state,
+        updated_chats.concurrency_queued_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -864,7 +870,9 @@ chats_expanded AS (
         inserted_chat.context_dirty_since,
         inserted_chat.context_dirty_resources,
         inserted_chat.context_error,
-        inserted_chat.compaction_requested_at
+        inserted_chat.compaction_requested_at,
+        inserted_chat.concurrency_state,
+        inserted_chat.concurrency_queued_at
     FROM
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
@@ -1028,7 +1036,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1098,7 +1108,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1166,7 +1178,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1234,7 +1248,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1302,7 +1318,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1390,7 +1408,9 @@ chats_expanded AS (
         result_chat.context_dirty_since,
         result_chat.context_dirty_resources,
         result_chat.context_error,
-        result_chat.compaction_requested_at
+        result_chat.compaction_requested_at,
+        result_chat.concurrency_state,
+        result_chat.concurrency_queued_at
     FROM
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
@@ -1457,7 +1477,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1553,7 +1575,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1710,6 +1734,10 @@ SET
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::jsonb,
+    -- Concurrency capacity markers are only meaningful while the chat
+    -- executes; leaving the counted statuses releases the slot.
+    concurrency_state = CASE WHEN @status::chat_status IN ('running', 'interrupting') THEN concurrency_state ELSE NULL END,
+    concurrency_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') THEN concurrency_queued_at ELSE NULL END,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -1763,7 +1791,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -2044,7 +2074,9 @@ chats_expanded AS (
         locked_chat.context_dirty_since,
         locked_chat.context_dirty_resources,
         locked_chat.context_error,
-        locked_chat.compaction_requested_at
+        locked_chat.compaction_requested_at,
+        locked_chat.concurrency_state,
+        locked_chat.concurrency_queued_at
     FROM
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
@@ -2108,7 +2140,9 @@ chats_expanded AS (
         shared_chat.context_dirty_since,
         shared_chat.context_dirty_resources,
         shared_chat.context_error,
-        shared_chat.compaction_requested_at
+        shared_chat.compaction_requested_at,
+        shared_chat.concurrency_state,
+        shared_chat.concurrency_queued_at
     FROM
         shared_chat
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
@@ -2465,7 +2499,9 @@ chats_expanded AS (
         bumped_chat.context_dirty_since,
         bumped_chat.context_dirty_resources,
         bumped_chat.context_error,
-        bumped_chat.compaction_requested_at
+        bumped_chat.compaction_requested_at,
+        bumped_chat.concurrency_state,
+        bumped_chat.concurrency_queued_at
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
@@ -2490,6 +2526,10 @@ WITH updated_chat AS (
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
+        -- Concurrency capacity markers are only meaningful while the chat
+        -- executes; leaving the counted statuses releases the slot.
+        concurrency_state = CASE WHEN @status::chat_status IN ('running', 'interrupting') AND NOT @archived::boolean THEN concurrency_state ELSE NULL END,
+        concurrency_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') AND NOT @archived::boolean THEN concurrency_queued_at ELSE NULL END,
         updated_at = NOW()
     WHERE id = @id::uuid
     RETURNING *
@@ -2542,7 +2582,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2609,7 +2651,9 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2802,3 +2846,101 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
+
+-- name: CountActiveConcurrencyChats :one
+-- Counts chats holding a concurrent-agent capacity slot. Callers
+-- serialize claims with LockIDChatConcurrency; this query is the
+-- mechanical count only.
+SELECT COUNT(*)
+FROM chats
+WHERE concurrency_state = 'active'
+  AND NOT archived
+  AND status IN ('running', 'interrupting');
+
+-- name: CountQueuedConcurrencyChats :one
+SELECT COUNT(*)
+FROM chats
+WHERE concurrency_state = 'queued'
+  AND NOT archived
+  AND status IN ('running', 'interrupting');
+
+-- name: GetOldestQueuedConcurrencyChats :many
+-- Returns the chats first in line for a concurrent-agent capacity
+-- slot, oldest queued first.
+SELECT id
+FROM chats
+WHERE concurrency_state = 'queued'
+  AND NOT archived
+  AND status IN ('running', 'interrupting')
+ORDER BY concurrency_queued_at ASC, id ASC
+LIMIT @limit_count::bigint;
+
+-- name: SetChatConcurrencyState :one
+-- Sets the concurrent-agent capacity markers. Deliberately does not
+-- bump updated_at: queue admission is internal bookkeeping and must
+-- not reorder chat lists.
+WITH updated_chat AS (
+    UPDATE chats
+    SET
+        concurrency_state = sqlc.narg('concurrency_state')::chat_concurrency_state,
+        concurrency_queued_at = sqlc.narg('concurrency_queued_at')::timestamptz
+    WHERE id = @id::uuid
+    RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at,
+        updated_chat.concurrency_state,
+        updated_chat.concurrency_queued_at
+    FROM updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;

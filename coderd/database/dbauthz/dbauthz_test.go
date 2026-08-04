@@ -1280,6 +1280,32 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatRetryState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
+	s.Run("SetChatConcurrencyState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.SetChatConcurrencyStateParams{
+			ID: chat.ID,
+			ConcurrencyState: database.NullChatConcurrencyState{
+				ChatConcurrencyState: database.ChatConcurrencyStateActive,
+				Valid:                true,
+			},
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().SetChatConcurrencyState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("CountActiveConcurrencyChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountActiveConcurrencyChats(gomock.Any()).Return(int64(2), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChat, policy.ActionRead).Returns(int64(2))
+	}))
+	s.Run("CountQueuedConcurrencyChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountQueuedConcurrencyChats(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChat, policy.ActionRead).Returns(int64(1))
+	}))
+	s.Run("GetOldestQueuedConcurrencyChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().GetOldestQueuedConcurrencyChats(gomock.Any(), int64(5)).Return(ids, nil).AnyTimes()
+		check.Args(int64(5)).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(ids)
+	}))
 	s.Run("GetDatabaseNow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		now := time.Now()
 		dbm.EXPECT().GetDatabaseNow(gomock.Any()).Return(now, nil).AnyTimes()

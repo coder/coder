@@ -95,6 +95,10 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
+	// Counts chats holding a concurrent-agent capacity slot. Callers
+	// serialize claims with LockIDChatConcurrency; this query is the
+	// mechanical count only.
+	CountActiveConcurrencyChats(ctx context.Context) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
@@ -110,6 +114,7 @@ type sqlcQuerier interface {
 	CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]CountOIDCLinkedIDsByIssuerRow, error)
 	// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
 	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
+	CountQueuedConcurrencyChats(ctx context.Context) (int64, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
@@ -686,6 +691,9 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
+	// Returns the chats first in line for a concurrent-agent capacity
+	// slot, oldest queued first.
+	GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
@@ -1333,6 +1341,10 @@ type sqlcQuerier interface {
 	// for the table.
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
+	// Sets the concurrent-agent capacity markers. Deliberately does not
+	// bump updated_at: queue admission is internal bookkeeping and must
+	// not reorder chat lists.
+	SetChatConcurrencyState(ctx context.Context, arg SetChatConcurrencyStateParams) (Chat, error)
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the
 	// refresh endpoint. Does not bump updated_at: context pinning is
