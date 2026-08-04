@@ -11,7 +11,6 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
-import { aiProvidersKey } from "./aiProviderKeys";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -1909,32 +1908,6 @@ export const chatModels = () => ({
 		API.experimental.getChatModels(),
 });
 
-const selectChatProviderConfigs = (
-	providers: readonly TypesGen.AIProvider[],
-): TypesGen.ChatProviderConfig[] =>
-	providers.map((provider) => ({
-		id: provider.id,
-		provider: provider.type,
-		display_name: provider.display_name || provider.type,
-		icon: provider.icon,
-		enabled: provider.enabled,
-		has_api_key: provider.api_keys.length > 0,
-		central_api_key_enabled: true,
-		allow_user_api_key: true,
-		allow_central_api_key_fallback: true,
-		base_url: provider.base_url,
-		source: "database",
-		created_at: provider.created_at,
-		updated_at: provider.updated_at,
-	}));
-
-export const chatProviderConfigs = () =>
-	queryOptions({
-		queryKey: aiProvidersKey,
-		queryFn: (): Promise<TypesGen.AIProvider[]> => API.getAIProviders(),
-		select: selectChatProviderConfigs,
-	});
-
 export const chatModelConfigsKey = [
 	...chatConfigKey,
 	"models",
@@ -2003,7 +1976,6 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	await Promise.all([
-		queryClient.invalidateQueries({ queryKey: aiProvidersKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 	]);

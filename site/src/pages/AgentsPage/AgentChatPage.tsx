@@ -23,6 +23,7 @@ import {
 	watchWorkspace,
 } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -31,7 +32,6 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
-	chatProviderConfigs,
 	chatQueueConvergence,
 	compactChat,
 	createChatMessage,

@@ -1,12 +1,12 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
 	chatModelConfigs,
 	chatModelOverride,
 	chatPersonalModelOverridesAdminSettings,
-	chatProviderConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
 	updateChatModelOverride,
