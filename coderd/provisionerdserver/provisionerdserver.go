@@ -535,13 +535,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
-		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
-			if !xerrors.Is(err, sql.ErrNoRows) {
-				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+		if !workspace.ExecutionIsolation {
+			if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
+				if !xerrors.Is(err, sql.ErrNoRows) {
+					return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+				}
+			} else {
+				ownerSSHPublicKey = ownerSSHKey.PublicKey
+				ownerSSHPrivateKey = ownerSSHKey.PrivateKey
 			}
-		} else {
-			ownerSSHPublicKey = ownerSSHKey.PublicKey
-			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
 		}
 		ownerGroups, err := s.Database.GetGroups(ctx, database.GetGroupsParams{
 			HasMemberID:    owner.ID,
@@ -570,7 +572,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		var workspaceOwnerOIDCAccessToken string
 		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
 		// pointing to a typed nil.
-		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
+		if !workspace.ExecutionIsolation && !reflect.ValueOf(s.OIDCConfig).IsNil() {
 			workspaceOwnerOIDCAccessToken, err = ObtainOIDCAccessToken(ctx, s.Logger, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
@@ -580,9 +582,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		var sessionToken string
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
-			sessionToken, err = s.regenerateSessionToken(ctx, owner, workspace)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
+			if workspace.ExecutionIsolation {
+				err = deleteSessionToken(ctx, s.Database, workspace)
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("delete session token: %s", err))
+				}
+			} else {
+				sessionToken, err = s.regenerateSessionToken(ctx, owner, workspace)
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
+				}
 			}
 		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
 			err = deleteSessionToken(ctx, s.Database, workspace)
@@ -639,53 +648,56 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
-		dbExternalAuthProviders := []database.ExternalAuthProvider{}
-		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to deserialize external_auth_providers value: %w", err)
-		}
-
-		externalAuthProviders := make([]*sdkproto.ExternalAuthProvider, 0, len(dbExternalAuthProviders))
-		for _, p := range dbExternalAuthProviders {
-			link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: p.ID,
-				UserID:     owner.ID,
-			})
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
+		externalAuthProviders := []*sdkproto.ExternalAuthProvider{}
+		if !workspace.ExecutionIsolation {
+			dbExternalAuthProviders := []database.ExternalAuthProvider{}
+			err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
 			if err != nil {
-				return nil, failJob(fmt.Sprintf("acquire external auth link: %s", err))
+				return nil, xerrors.Errorf("failed to deserialize external_auth_providers value: %w", err)
 			}
-			var config *externalauth.Config
-			for _, c := range s.ExternalAuthConfigs {
-				if c.ID != p.ID {
+
+			externalAuthProviders = make([]*sdkproto.ExternalAuthProvider, 0, len(dbExternalAuthProviders))
+			for _, p := range dbExternalAuthProviders {
+				link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+					ProviderID: p.ID,
+					UserID:     owner.ID,
+				})
+				if errors.Is(err, sql.ErrNoRows) {
 					continue
 				}
-				config = c
-				break
-			}
-			// We weren't able to find a matching config for the ID!
-			if config == nil {
-				s.Logger.Warn(ctx, "workspace build job is missing external auth provider",
-					slog.F("provider_id", p.ID),
-					slog.F("template_version_id", templateVersion.ID),
-					slog.F("workspace_id", workspaceBuild.WorkspaceID))
-				continue
-			}
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("acquire external auth link: %s", err))
+				}
+				var config *externalauth.Config
+				for _, c := range s.ExternalAuthConfigs {
+					if c.ID != p.ID {
+						continue
+					}
+					config = c
+					break
+				}
+				// We weren't able to find a matching config for the ID!
+				if config == nil {
+					s.Logger.Warn(ctx, "workspace build job is missing external auth provider",
+						slog.F("provider_id", p.ID),
+						slog.F("template_version_id", templateVersion.ID),
+						slog.F("workspace_id", workspaceBuild.WorkspaceID))
+					continue
+				}
 
-			refreshed, err := config.RefreshToken(ctx, s.Database, link)
-			if err != nil && !externalauth.IsInvalidTokenError(err) {
-				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
+				refreshed, err := config.RefreshToken(ctx, s.Database, link)
+				if err != nil && !externalauth.IsInvalidTokenError(err) {
+					return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
+				}
+				if err != nil {
+					// Invalid tokens are skipped
+					continue
+				}
+				externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
+					Id:          p.ID,
+					AccessToken: refreshed.OAuthAccessToken,
+				})
 			}
-			if err != nil {
-				// Invalid tokens are skipped
-				continue
-			}
-			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
-				Id:          p.ID,
-				AccessToken: refreshed.OAuthAccessToken,
-			})
 		}
 
 		allUserRoles, err := s.Database.GetAuthorizationUserRoles(ctx, owner.ID)

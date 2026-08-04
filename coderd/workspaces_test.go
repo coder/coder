@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -1557,6 +1559,16 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	})
 }
 
+type rejectExternalAuthLinkStore struct {
+	database.Store
+	calls *atomic.Int64
+}
+
+func (s rejectExternalAuthLinkStore) GetExternalAuthLink(context.Context, database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	s.calls.Add(1)
+	return database.ExternalAuthLink{}, xerrors.New("unexpected external auth link lookup")
+}
+
 func TestCreateWorkspaceExternalAuth(t *testing.T) {
 	t.Parallel()
 
@@ -1711,6 +1723,76 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("ExecutionIsolationRequiredProvider", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		linkLookups := &atomic.Int64{}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:                 rejectExternalAuthLinkStore{Store: db, calls: linkLookups},
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:         template.ID,
+			Name:               coderdtest.RandomUsername(t),
+			ExecutionIsolation: true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Zero(t, linkLookups.Load())
+	})
+
+	t.Run("ExecutionIsolationOptionalProvider", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		linkLookups := &atomic.Int64{}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:                 rejectExternalAuthLinkStore{Store: db, calls: linkLookups},
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github", Optional: true}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:         template.ID,
+			Name:               coderdtest.RandomUsername(t),
+			ExecutionIsolation: true,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Zero(t, linkLookups.Load())
 	})
 
 	t.Run("InvalidToken", func(t *testing.T) {

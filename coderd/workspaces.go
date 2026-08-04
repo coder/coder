@@ -566,7 +566,11 @@ func createWorkspace(
 			Detail:  err.Error(),
 		})
 	}
-	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+	if req.ExecutionIsolation {
+		if err := api.rejectIsolatedWorkspaceRequiredExternalAuth(templateVersion); err != nil {
+			return codersdk.Workspace{}, err
+		}
+	} else if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
 		return codersdk.Workspace{}, err
 	}
 
@@ -899,6 +903,47 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 			Detail: provider.ID,
 		})
 	}
+	return workspaceExternalAuthRequiredError(missingNames, validations)
+}
+
+// rejectIsolatedWorkspaceRequiredExternalAuth rejects required providers
+// without accessing owner links because isolated workspace builds cannot use
+// owner external auth credentials.
+func (api *API) rejectIsolatedWorkspaceRequiredExternalAuth(templateVersion database.TemplateVersion) error {
+	var providers []database.ExternalAuthProvider
+	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &providers)
+	if err != nil {
+		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading auth config from database",
+			Detail:  err.Error(),
+		})
+	}
+
+	var (
+		missingNames []string
+		validations  []codersdk.ValidationError
+	)
+	for _, provider := range providers {
+		if provider.Optional {
+			continue
+		}
+		name := provider.ID
+		for _, config := range api.ExternalAuthConfigs {
+			if config.ID == provider.ID && config.DisplayName != "" {
+				name = config.DisplayName
+				break
+			}
+		}
+		missingNames = append(missingNames, name)
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "external_auth",
+			Detail: provider.ID,
+		})
+	}
+	return workspaceExternalAuthRequiredError(missingNames, validations)
+}
+
+func workspaceExternalAuthRequiredError(missingNames []string, validations []codersdk.ValidationError) error {
 	if len(missingNames) == 0 {
 		return nil
 	}

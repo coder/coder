@@ -316,6 +316,172 @@ func TestHeartbeat(t *testing.T) {
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
 
+type rejectWorkspaceOwnerCredentialsStore struct {
+	database.Store
+}
+
+func (s rejectWorkspaceOwnerCredentialsStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(rejectWorkspaceOwnerCredentialsStore{Store: tx})
+	}, opts)
+}
+
+func (rejectWorkspaceOwnerCredentialsStore) GetGitSSHKey(context.Context, uuid.UUID) (database.GitSSHKey, error) {
+	return database.GitSSHKey{}, xerrors.New("unexpected owner Git SSH key lookup")
+}
+
+func (rejectWorkspaceOwnerCredentialsStore) GetUserLinkByUserIDLoginType(context.Context, database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
+	return database.UserLink{}, xerrors.New("unexpected owner OIDC link lookup")
+}
+
+func (rejectWorkspaceOwnerCredentialsStore) GetExternalAuthLink(context.Context, database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	return database.ExternalAuthLink{}, xerrors.New("unexpected owner external auth link lookup")
+}
+
+func (rejectWorkspaceOwnerCredentialsStore) InsertAPIKey(context.Context, database.InsertAPIKeyParams) (database.APIKey, error) {
+	return database.APIKey{}, xerrors.New("unexpected owner API key insertion")
+}
+
+func TestAcquireJobExecutionIsolationCredentials(t *testing.T) {
+	t.Parallel()
+
+	for _, transition := range []database.WorkspaceTransition{
+		database.WorkspaceTransitionStart,
+		database.WorkspaceTransitionStop,
+		database.WorkspaceTransitionDelete,
+	} {
+		t.Run(string(transition), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			srv, db, ps, pd := setup(t, false, &overrides{
+				databaseStore: func(db database.Store) database.Store {
+					return rejectWorkspaceOwnerCredentialsStore{Store: db}
+				},
+				externalAuthConfigs: []*externalauth.Config{{
+					ID:                       "github",
+					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+					RefreshGroup:             new(singleflight.Group),
+				}},
+			})
+
+			owner := dbgen.User(t, db, database.User{
+				LoginType: database.LoginTypeOIDC,
+			})
+			group := dbgen.Group(t, db, database.Group{
+				Name:           "isolated-group",
+				OrganizationID: pd.OrganizationID,
+			})
+			require.NoError(t, db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+				UserID:  owner.ID,
+				GroupID: group.ID,
+			}))
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         owner.ID,
+				OrganizationID: pd.OrganizationID,
+				Roles:          []string{rbac.RoleOrgAuditor()},
+			})
+			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: owner.ID})
+			dbgen.UserLink(t, db, database.UserLink{
+				UserID:           owner.ID,
+				LoginType:        database.LoginTypeOIDC,
+				OAuthAccessToken: "oidc-access-token",
+				OAuthExpiry:      dbtime.Now().Add(time.Hour),
+			})
+			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ProviderID: "github",
+				UserID:     owner.ID,
+			})
+
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "isolated-template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      owner.ID,
+			})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      owner.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			})
+			externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
+				ID:       "github",
+				Optional: true,
+			}})
+			require.NoError(t, err)
+			require.NoError(t, db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+				JobID:                 version.JobID,
+				ExternalAuthProviders: externalAuthProviders,
+				UpdatedAt:             dbtime.Now(),
+			}))
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:         template.ID,
+				OwnerID:            owner.ID,
+				OrganizationID:     pd.OrganizationID,
+				ExecutionIsolation: true,
+			})
+			historicalSessionKey, _ := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    owner.ID,
+				TokenName: provisionerdserver.WorkspaceSessionTokenName(owner.ID, workspace.ID),
+			})
+			task := dbgen.Task(t, db, database.TaskTable{
+				OrganizationID:    pd.OrganizationID,
+				OwnerID:           owner.ID,
+				WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+				TemplateVersionID: version.ID,
+				Prompt:            "preserve the task prompt",
+			})
+
+			buildID := uuid.New()
+			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    owner.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         dbgen.File(t, db, database.File{CreatedBy: owner.ID}).ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				})),
+				Tags: pd.Tags,
+			})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: version.ID,
+				JobID:             job.ID,
+				Transition:        transition,
+				InitiatorID:       owner.ID,
+			})
+
+			acquired, err := srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+			workspaceBuild := acquired.GetWorkspaceBuild()
+			require.NotNil(t, workspaceBuild)
+			require.Equal(t, build.ID.String(), workspaceBuild.WorkspaceBuildId)
+			require.Empty(t, workspaceBuild.ExternalAuthProviders)
+
+			metadata := workspaceBuild.Metadata
+			require.NotNil(t, metadata)
+			require.Empty(t, metadata.WorkspaceOwnerSshPublicKey)
+			require.Empty(t, metadata.WorkspaceOwnerSshPrivateKey)
+			require.Empty(t, metadata.WorkspaceOwnerOidcAccessToken)
+			require.Empty(t, metadata.WorkspaceOwnerSessionToken)
+			require.Equal(t, owner.Username, metadata.WorkspaceOwner)
+			require.Equal(t, owner.Email, metadata.WorkspaceOwnerEmail)
+			require.Equal(t, owner.Name, metadata.WorkspaceOwnerName)
+			require.ElementsMatch(t, []string{database.EveryoneGroup, group.Name}, metadata.WorkspaceOwnerGroups)
+			require.True(t, slices.ContainsFunc(metadata.WorkspaceOwnerRbacRoles, func(role *sdkproto.Role) bool {
+				return role.Name == rbac.RoleOrgAuditor() && role.OrgId == pd.OrganizationID.String()
+			}))
+			require.Equal(t, task.ID.String(), metadata.TaskId)
+			require.Equal(t, task.Prompt, metadata.TaskPrompt)
+
+			_, err = db.GetAPIKeyByID(ctx, historicalSessionKey.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+		})
+	}
+}
+
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 
@@ -5171,6 +5337,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	databaseStore               func(database.Store) database.Store
 	usageInserter               *atomic.Pointer[usage.Inserter]
 	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
@@ -5283,8 +5450,12 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 
 	// Use an authz wrapped database for the server to ensure permission checks
 	// work.
+	serverStore := db
+	if ov.databaseStore != nil {
+		serverStore = ov.databaseStore(db)
+	}
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	serverDB := dbauthz.New(db, authorizer, logger, coderdtest.AccessControlStorePointer())
+	serverDB := dbauthz.New(serverStore, authorizer, logger, coderdtest.AccessControlStorePointer())
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
 		proto.CurrentVersion.String(),
