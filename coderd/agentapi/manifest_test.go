@@ -51,7 +51,10 @@ func TestGetManifest(t *testing.T) {
 			OwnerUsername: owner.Username,
 			Name:          "cool-workspace",
 		}
-		agent = database.WorkspaceAgent{
+		// The generation of a subagent execution declaration is the workspace
+		// build it was declared by.
+		workspaceBuildID = uuid.New()
+		agent            = database.WorkspaceAgent{
 			ID:   uuid.New(),
 			Name: "cool-agent",
 			EnvironmentVariables: pqtype.NullRawMessage{
@@ -244,6 +247,56 @@ func TestGetManifest(t *testing.T) {
 				ConfigPath:      devcontainers[1].ConfigPath,
 			},
 		}
+		// The declarations are returned in the query's deterministic order, and
+		// the manifest must preserve it.
+		subagentExecutions = []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow{
+			{
+				WorkspaceBuildID:      workspaceBuildID,
+				DeclarationID:         uuid.New(),
+				ChildAgentName:        "cool-execution-1",
+				Driver:                "docker",
+				DriverProtocol:        1,
+				SharedHostPath:        "/home/coder/project",
+				SharedChildPath:       "/workspace/project",
+				StartupTimeoutSeconds: 30,
+				RestartPolicy:         "on-failure",
+			},
+			{
+				WorkspaceBuildID:      workspaceBuildID,
+				DeclarationID:         uuid.New(),
+				ChildAgentName:        "cool-execution-2",
+				Driver:                "sysbox",
+				DriverProtocol:        2,
+				SharedHostPath:        "/home/coder/other",
+				SharedChildPath:       "/workspace/other",
+				StartupTimeoutSeconds: 60,
+				RestartPolicy:         "never",
+			},
+		}
+		protoSubagentExecutions = []*agentproto.SubagentExecution{
+			{
+				ExecutionId:           subagentExecutions[0].DeclarationID[:],
+				Generation:            workspaceBuildID[:],
+				Name:                  subagentExecutions[0].ChildAgentName,
+				Driver:                subagentExecutions[0].Driver,
+				DriverProtocol:        subagentExecutions[0].DriverProtocol,
+				SharedHostPath:        subagentExecutions[0].SharedHostPath,
+				SharedChildPath:       subagentExecutions[0].SharedChildPath,
+				StartupTimeoutSeconds: subagentExecutions[0].StartupTimeoutSeconds,
+				RestartPolicy:         subagentExecutions[0].RestartPolicy,
+			},
+			{
+				ExecutionId:           subagentExecutions[1].DeclarationID[:],
+				Generation:            workspaceBuildID[:],
+				Name:                  subagentExecutions[1].ChildAgentName,
+				Driver:                subagentExecutions[1].Driver,
+				DriverProtocol:        subagentExecutions[1].DriverProtocol,
+				SharedHostPath:        subagentExecutions[1].SharedHostPath,
+				SharedChildPath:       subagentExecutions[1].SharedChildPath,
+				StartupTimeoutSeconds: subagentExecutions[1].StartupTimeoutSeconds,
+				RestartPolicy:         subagentExecutions[1].RestartPolicy,
+			},
+		}
 	)
 
 	t.Run("OK", func(t *testing.T) {
@@ -337,6 +390,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+		mDB.EXPECT().GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(gomock.Any(), agent.ID).Return(subagentExecutions, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -364,6 +418,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			SubagentExecutions: protoSubagentExecutions,
 		}
 
 		// Log got and expected with spew.
@@ -373,6 +429,8 @@ func TestGetManifest(t *testing.T) {
 		require.Equal(t, expected, got)
 	})
 
+	// A child agent has no declarations of its own, and the mock store fails the
+	// test if the declaration query is issued for it at all.
 	t.Run("OK/Child", func(t *testing.T) {
 		t.Parallel()
 
@@ -431,6 +489,9 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			// A child agent never launches nested executions.
+			SubagentExecutions: []*agentproto.SubagentExecution{},
 		}
 
 		require.Equal(t, expected, got)
@@ -587,6 +648,8 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+		mDB.EXPECT().GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(gomock.Any(), agent.ID).
+			Return([]database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow{}, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -613,6 +676,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			SubagentExecutions: []*agentproto.SubagentExecution{},
 		}
 
 		// Log got and expected with spew.
@@ -620,5 +685,83 @@ func TestGetManifest(t *testing.T) {
 		// t.Log("expected:\n" + spew.Sdump(expected))
 
 		require.Equal(t, expected, got)
+	})
+
+	// A declaration whose child cannot be resolved for this exact parent comes
+	// back with an empty child name. The manifest must fail closed instead of
+	// omitting the declaration or launching some other child under its name.
+	t.Run("SubagentExecutions/CorruptDeclaration", func(t *testing.T) {
+		t.Parallel()
+
+		corrupt := func(mutate func(row *database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow)) []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow {
+			rows := []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow{
+				subagentExecutions[0],
+				subagentExecutions[1],
+			}
+			mutate(&rows[1])
+			return rows
+		}
+
+		for _, tc := range []struct {
+			name string
+			rows []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow
+		}{
+			{
+				name: "EmptyChildName",
+				rows: corrupt(func(row *database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow) {
+					row.ChildAgentName = ""
+				}),
+			},
+			{
+				name: "NilDeclarationID",
+				rows: corrupt(func(row *database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow) {
+					row.DeclarationID = uuid.Nil
+				}),
+			},
+			{
+				name: "NilGeneration",
+				rows: corrupt(func(row *database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow) {
+					row.WorkspaceBuildID = uuid.Nil
+				}),
+			},
+			{
+				name: "EmptyDriver",
+				rows: corrupt(func(row *database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow) {
+					row.Driver = ""
+				}),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+				api := &agentapi.ManifestAPI{
+					AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+					AppHostname: "*--apps.example.com",
+
+					AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+					WorkspaceID: workspace.ID,
+					Database:    mDB,
+					DerpMapFn:   derpMapFn,
+				}
+
+				mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{}, nil)
+				mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
+				mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+					WorkspaceAgentID: agent.ID,
+					Keys:             nil,
+				}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+				mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+				mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+				mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+				mDB.EXPECT().GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(gomock.Any(), agent.ID).Return(tc.rows, nil)
+
+				got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+				require.Error(t, err)
+				require.Nil(t, got)
+				require.Contains(t, err.Error(), "converting subagent executions")
+			})
+		}
 	})
 }

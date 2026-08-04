@@ -57,6 +57,7 @@ type API struct {
 	*ScriptsAPI
 	*ConnLogAPI
 	*SubAgentAPI
+	*SubagentExecutionAPI
 	*BoundaryLogsAPI
 	*ContextAPI
 	*tailnet.DRPCService
@@ -237,6 +238,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Clock:          opts.Clock,
 		Database:       opts.Database,
 		PortSharer:     opts.PortSharer,
+	}
+
+	api.SubagentExecutionAPI = &SubagentExecutionAPI{
+		AgentFn:  api.agent,
+		Log:      opts.Log,
+		Clock:    opts.Clock,
+		Database: opts.Database,
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{

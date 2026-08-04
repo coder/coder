@@ -44,6 +44,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
+		executions    []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow
 	)
 
 	workspaceAgent, err := a.AgentFn(ctx)
@@ -85,6 +86,18 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 		return nil
 	})
+	// Only a top-level agent launches nested executions. A child agent has no
+	// declarations of its own and must never be handed its parent's, so the
+	// query is not even issued for it.
+	if !workspaceAgent.ParentID.Valid {
+		eg.Go(func() (err error) {
+			executions, err = a.Database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(ctx, workspaceAgent.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			return nil
+		})
+	}
 	err = eg.Wait()
 	if err != nil {
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
@@ -124,6 +137,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
 
+	subagentExecutions, err := dbAgentSubagentExecutionsToProto(executions)
+	if err != nil {
+		return nil, xerrors.Errorf("converting subagent executions: %w", err)
+	}
+
 	var parentID []byte
 	if workspaceAgent.ParentID.Valid {
 		parentID = workspaceAgent.ParentID.UUID[:]
@@ -150,7 +168,53 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets),
+
+		SubagentExecutions: subagentExecutions,
 	}, nil
+}
+
+// dbAgentSubagentExecutionsToProto converts persisted execution declarations
+// into manifest entries. The declaration carries no credentials: the child agent
+// ID and its auth token are handed out by AcquireSubagentExecution alone, so a
+// manifest fetch never distributes them to an agent that never launches the
+// execution.
+//
+// A row that does not describe a launchable execution fails the whole manifest.
+// The query resolves the child with a LEFT JOIN pinned to the exact parent, so an
+// empty child name means the declaration's child is missing, reparented, deleted,
+// or no longer execution isolated. Omitting such a row would hide a corrupted
+// declaration, and substituting another child would retarget the launch, so
+// neither is acceptable.
+//
+// The query's ORDER BY makes the row order deterministic. This conversion
+// preserves it.
+func dbAgentSubagentExecutionsToProto(executions []database.GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentIDRow) ([]*agentproto.SubagentExecution, error) {
+	ret := make([]*agentproto.SubagentExecution, 0, len(executions))
+	for i, execution := range executions {
+		switch {
+		case execution.DeclarationID == uuid.Nil:
+			return nil, xerrors.Errorf("subagent execution %v has no declaration id", i)
+		case execution.WorkspaceBuildID == uuid.Nil:
+			return nil, xerrors.Errorf("subagent execution %v has no generation", i)
+		case execution.ChildAgentName == "":
+			return nil, xerrors.Errorf("subagent execution %v has no usable child agent", i)
+		case execution.Driver == "":
+			return nil, xerrors.Errorf("subagent execution %v has no driver", i)
+		}
+
+		ret = append(ret, &agentproto.SubagentExecution{
+			ExecutionId:           execution.DeclarationID[:],
+			Generation:            execution.WorkspaceBuildID[:],
+			Name:                  execution.ChildAgentName,
+			Driver:                execution.Driver,
+			DriverProtocol:        execution.DriverProtocol,
+			SharedHostPath:        execution.SharedHostPath,
+			SharedChildPath:       execution.SharedChildPath,
+			StartupTimeoutSeconds: execution.StartupTimeoutSeconds,
+			RestartPolicy:         execution.RestartPolicy,
+		})
+	}
+	return ret, nil
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {
