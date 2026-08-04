@@ -13,11 +13,14 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -34,6 +37,8 @@ type AppearanceSettingsPageViewProps = {
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, isPremium, onSaveAppearance }) => {
+	const { permissions } = useAuthenticated();
+
 	const applicationNameForm = useFormik<{
 		application_name: string;
 	}>({
@@ -64,7 +69,20 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<Badges>
-				{isEntitled && !isPremium ? <EnterpriseBadge /> : <PremiumBadge />}
+				{isEntitled ? (
+					isPremium ? (
+						<PremiumBadge />
+					) : (
+						<EnterpriseBadge />
+					)
+				) : (
+					<PaywallPremium
+						message="Appearance"
+						description="With a Premium license, you can customize the appearance and branding of your deployment."
+						documentationLink={docs("/admin/setup/appearance")}
+						canViewPremium={permissions.viewAllLicenses}
+					/>
+				)}
 			</Badges>
 
 			<Fieldset
