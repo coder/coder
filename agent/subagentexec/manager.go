@@ -39,9 +39,14 @@ type Options struct {
 	CloseTimeout time.Duration
 }
 
-// execution is one declared execution the manager has acquired. Every
-// mutable field is guarded by Manager.mu; the immutable fields are safe to
-// read from the supervision goroutine without it.
+// execution is one declared execution the manager tracks. Every mutable
+// field is guarded by Manager.mu; the immutable fields are safe to read
+// from the supervision goroutine without it.
+//
+// A tracked execution is not necessarily a running one: a declaration
+// whose acquisition or driver handoff failed is retained so its failure is
+// visible through Statuses, with launched left false so the next
+// reconcile of the same declaration tries again.
 type execution struct {
 	// immutable after construction.
 	declaration        agentsdk.SubagentExecution
@@ -61,6 +66,13 @@ type execution struct {
 	// guarded by Manager.mu.
 	state     State
 	lastError string
+	// launched records that the driver handed back a process for this
+	// execution. Only a launched execution satisfies its declaration, so a
+	// record that never launched is retried by the next reconcile of the
+	// same generation. It stays true after the process exits: this slice
+	// has no restart policy, so an execution that ran and then failed is
+	// terminal rather than retryable.
+	launched bool
 	// stopping records that the manager, not the process, ended this run,
 	// so the supervision goroutine leaves the report to stop.
 	stopping bool
@@ -211,7 +223,7 @@ func (m *Manager) Close() error {
 		m.logger.Warn(ctx, "timed out waiting for subagent execution reconciliation to yield")
 	}
 
-	for _, ex := range m.activeExecutions() {
+	for _, ex := range m.trackedExecutions() {
 		m.stop(ctx, ex, reasonClosing)
 	}
 
@@ -291,7 +303,7 @@ func (m *Manager) reconcile(req request) {
 	// executions whose declaration moved to a new generation, before
 	// launching anything: a superseded generation must not run alongside
 	// its replacement.
-	for _, ex := range m.activeExecutions() {
+	for _, ex := range m.trackedExecutions() {
 		decl, declared := desired[ex.declaration.ExecutionID]
 		if declared && decl.Generation == ex.declaration.Generation {
 			continue
@@ -304,17 +316,27 @@ func (m *Manager) reconcile(req request) {
 	}
 
 	for _, decl := range ordered {
-		if m.tracked(decl.ExecutionID, decl.Generation) {
-			// Already acquired at this generation. Re-acquiring would
+		if m.launchedAtGeneration(decl.ExecutionID, decl.Generation) {
+			// Already launched at this generation. Re-acquiring would
 			// fence the running launcher against itself, and restarting
 			// would duplicate the child.
 			continue
 		}
+		// A declaration whose previous attempt never launched is retried
+		// here, with this request's controller. Because every reconcile
+		// runs on this one goroutine, the retry cannot overlap the attempt
+		// that failed: at most one acquisition per execution is ever in
+		// flight, and each queued reconcile drives at most one further
+		// attempt.
 		m.start(m.runCtx, req.controller, decl)
 	}
 }
 
-// start acquires the child's credentials and launches the execution.
+// start acquires the child's credentials and launches the execution. A
+// failure before the driver returns a process leaves the execution tracked
+// but not launched, so the next reconcile of the same declaration retries
+// it. There is no background retry: nothing happens until the parent agent
+// reconciles again, which it does on every manifest refresh and reconnect.
 func (m *Manager) start(ctx context.Context, controller Controller, decl agentsdk.SubagentExecution) {
 	logger := m.declLogger(decl)
 
@@ -329,7 +351,10 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 	})
 	if err != nil {
 		// Without an acquisition version there is no launcher identity to
-		// report under, so the failure is recorded locally only.
+		// report under, so the failure is recorded locally only. A stale
+		// controller or a dropped connection lands here, so the record must
+		// stay retryable: the reconcile that follows the reconnect acquires
+		// again through the fresh controller.
 		logger.Warn(ctx, "acquire subagent execution", slog.Error(err))
 		m.record(decl, uuid.Nil, 0, StateFailed, xerrors.Errorf("acquire subagent execution: %w", err))
 		return
@@ -380,6 +405,9 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 		authToken:          ex.authToken,
 	})
 	if err != nil {
+		// No process exists, so this acquisition is spent. The record stays
+		// unlaunched: the next reconcile of the same declaration acquires a
+		// higher version, which fences this dead launch.
 		logger.Error(ctx, "start subagent execution", slog.Error(err))
 		m.mu.Lock()
 		ex.state = StateFailed
@@ -392,6 +420,7 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 	m.mu.Lock()
 	ex.proc = proc
 	ex.state = StateRunning
+	ex.launched = true
 	m.mu.Unlock()
 
 	logger.Info(ctx, "launched subagent execution",
@@ -503,8 +532,10 @@ func (m *Manager) report(ctx context.Context, ex *execution, status proto.Report
 	}
 }
 
-// record retains a redacted status for a declaration the manager could
-// not launch, so a later identical manifest does not retry it.
+// record retains a redacted status for a declaration the manager could not
+// acquire, so the failure is visible through Statuses. The record is
+// deliberately unlaunched, so it does not suppress the retry a later
+// identical manifest performs.
 func (m *Manager) record(decl agentsdk.SubagentExecution, childAgentID uuid.UUID, acquisitionVersion int64, state State, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -529,9 +560,9 @@ func (m *Manager) currentController() Controller {
 	return m.controller
 }
 
-// activeExecutions snapshots the tracked executions in a stable order so
-// teardown is deterministic.
-func (m *Manager) activeExecutions() []*execution {
+// trackedExecutions snapshots every tracked execution, launched or not, in
+// a stable order so teardown is deterministic.
+func (m *Manager) trackedExecutions() []*execution {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	executions := make([]*execution, 0, len(m.executions))
@@ -544,11 +575,15 @@ func (m *Manager) activeExecutions() []*execution {
 	return executions
 }
 
-func (m *Manager) tracked(executionID, generation uuid.UUID) bool {
+// launchedAtGeneration reports whether this exact declaration already
+// reached a started process. A tracked but unlaunched record, such as one
+// left by a failed acquisition, does not count: suppressing the retry there
+// would strand the declared child forever.
+func (m *Manager) launchedAtGeneration(executionID, generation uuid.UUID) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	ex, ok := m.executions[executionID]
-	return ok && ex.declaration.Generation == generation
+	return ok && ex.launched && ex.declaration.Generation == generation
 }
 
 func (m *Manager) declLogger(decl agentsdk.SubagentExecution) slog.Logger {

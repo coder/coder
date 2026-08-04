@@ -34,6 +34,15 @@ type fakeController struct {
 
 	acquireErr        error
 	acquireResponseFn func(*proto.AcquireSubagentExecutionRequest) *proto.AcquireSubagentExecutionResponse
+	// acquireErrs are returned one per call, in order, before falling back
+	// to acquireErr. A nil entry lets that call succeed.
+	acquireErrs []error
+	// acquireGate, when non-nil, blocks every Acquire until it is closed.
+	acquireGate chan struct{}
+	// inFlight and maxInFlight track overlapping Acquire calls, which is
+	// how the tests prove acquisitions are never concurrent.
+	inFlight    int
+	maxInFlight int
 
 	acquireCh chan *proto.AcquireSubagentExecutionRequest
 	reportCh  chan *proto.ReportSubagentExecutionStatusRequest
@@ -49,11 +58,25 @@ func newFakeController() *fakeController {
 func (f *fakeController) AcquireSubagentExecution(_ context.Context, in *proto.AcquireSubagentExecutionRequest) (*proto.AcquireSubagentExecutionResponse, error) {
 	f.mu.Lock()
 	f.acquisitions = append(f.acquisitions, in)
+	f.inFlight++
+	f.maxInFlight = max(f.maxInFlight, f.inFlight)
 	err := f.acquireErr
+	if len(f.acquireErrs) > 0 {
+		err, f.acquireErrs = f.acquireErrs[0], f.acquireErrs[1:]
+	}
 	responseFn := f.acquireResponseFn
+	gate := f.acquireGate
 	f.mu.Unlock()
+	defer func() {
+		f.mu.Lock()
+		f.inFlight--
+		f.mu.Unlock()
+	}()
 
 	f.acquireCh <- in
+	if gate != nil {
+		<-gate
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +104,26 @@ func (f *fakeController) acquisitionCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.acquisitions)
+}
+
+// acquisitionCountFor counts the acquisitions for one execution, which is
+// what pins the number of retry attempts a declaration produced.
+func (f *fakeController) acquisitionCountFor(executionID uuid.UUID) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var count int
+	for _, acquisition := range f.acquisitions {
+		if uuid.Must(uuid.FromBytes(acquisition.GetExecutionId())) == executionID {
+			count++
+		}
+	}
+	return count
+}
+
+func (f *fakeController) maxConcurrentAcquisitions() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.maxInFlight
 }
 
 func (f *fakeController) reportCount() int {
@@ -197,6 +240,12 @@ func (d *fakeDriver) Start(_ context.Context, launch Launch) (Process, error) {
 		proc = newFakeProcess()
 	}
 	return proc, nil
+}
+
+func (d *fakeDriver) setStartErr(err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.startErr = err
 }
 
 func (d *fakeDriver) startCount() int {
@@ -334,6 +383,174 @@ func TestManager_AcquireFailureDoesNotReport(t *testing.T) {
 	// A launcher with no acquisition version has no identity to report
 	// under, so it must not send a report at all.
 	require.Zero(t, controller.reportCount())
+}
+
+// A transient acquisition failure, such as the one a stale controller
+// returns while the DRPC connection is being replaced, must not strand the
+// declared child. The reconcile that follows the reconnect has to acquire
+// again, through the fresh controller.
+func TestManager_AcquireFailureRetriesWithFreshController(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	stale := newFakeController()
+	stale.setAcquireErr(xerrors.New("connection reset by peer"))
+	driver := newFakeDriver()
+	m := newManager(t, driver)
+
+	decl := testDeclaration()
+	m.Reconcile(stale, []agentsdk.SubagentExecution{decl})
+	testutil.RequireReceive(ctx, t, stale.acquireCh)
+
+	require.Eventually(t, func() bool {
+		statuses := m.Statuses()
+		return len(statuses) == 1 && statuses[0].State == StateFailed
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// The failure is visible locally, redacted, and carries no token.
+	failedStatuses := m.Statuses()
+	require.Contains(t, failedStatuses[0].LastError, "connection reset by peer")
+	require.LessOrEqual(t, len(failedStatuses[0].LastError), MaxReportErrorBytes)
+	encoded, err := json.Marshal(failedStatuses)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), testAuthToken)
+	require.Zero(t, driver.startCount())
+
+	// The reconnect supplies a fresh controller with the same declaration.
+	fresh := newFakeController()
+	childAgentID := uuid.New()
+	fresh.setAcquireResponseFn(func(*proto.AcquireSubagentExecutionRequest) *proto.AcquireSubagentExecutionResponse {
+		return &proto.AcquireSubagentExecutionResponse{
+			ChildAgentId:       childAgentID[:],
+			AuthToken:          testAuthToken,
+			AcquisitionVersion: 11,
+		}
+	})
+	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl})
+
+	acquire := testutil.RequireReceive(ctx, t, fresh.acquireCh)
+	require.Equal(t, decl.ExecutionID[:], acquire.GetExecutionId())
+	require.Equal(t, decl.Generation[:], acquire.GetGeneration())
+
+	launch := testutil.RequireReceive(ctx, t, driver.startCh)
+	require.Equal(t, decl, launch.Declaration)
+	require.Equal(t, childAgentID, launch.ChildAgentID)
+
+	report := testutil.RequireReceive(ctx, t, fresh.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
+	require.EqualValues(t, 11, report.GetAcquisitionVersion())
+
+	statuses := m.Statuses()
+	require.Len(t, statuses, 1)
+	require.Equal(t, StateRunning, statuses[0].State)
+	require.Equal(t, childAgentID, statuses[0].ChildAgentID)
+	require.EqualValues(t, 11, statuses[0].AcquisitionVersion)
+	require.Empty(t, statuses[0].LastError)
+
+	// The stale controller acquired once and, having no acquisition
+	// version, reported nothing.
+	require.Equal(t, 1, stale.acquisitionCount())
+	require.Zero(t, stale.reportCount())
+	require.Equal(t, 1, driver.startCount())
+
+	// Now that it is running, an identical declaration is a no-op: a
+	// reconcile that adds a second declaration is the ordering point that
+	// proves the identical one ahead of it was drained.
+	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl})
+	next := testDeclaration()
+	m.Reconcile(fresh, []agentsdk.SubagentExecution{decl, next})
+	testutil.RequireReceive(ctx, t, driver.startCh)
+
+	require.Equal(t, 1, fresh.acquisitionCountFor(decl.ExecutionID))
+	require.Equal(t, 1, fresh.acquisitionCountFor(next.ExecutionID))
+	require.Equal(t, 2, driver.startCount())
+}
+
+// Reconciles that queue up behind a blocked acquisition must not race it.
+// Reconciliation is single-goroutine, so the queued requests only drive a
+// further attempt after the first one has finished, and only while the
+// declaration has not launched.
+func TestManager_QueuedReconcilesAcquireSequentially(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	controller := newFakeController()
+	gate := make(chan struct{})
+	controller.acquireGate = gate
+	// The first attempt fails; the retry the queued reconciles drive
+	// succeeds.
+	controller.acquireErrs = []error{xerrors.New("acquisition is temporarily unavailable")}
+	driver := newFakeDriver()
+	m := newManager(t, driver)
+
+	decl := testDeclaration()
+	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	testutil.RequireReceive(ctx, t, controller.acquireCh)
+
+	// The loop is inside the first acquisition, so these queue behind it.
+	for range 3 {
+		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+	}
+	require.Zero(t, driver.startCount())
+
+	close(gate)
+
+	launch := testutil.RequireReceive(ctx, t, driver.startCh)
+	require.Equal(t, decl, launch.Declaration)
+	report := testutil.RequireReceive(ctx, t, controller.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
+
+	next := testDeclaration()
+	m.Reconcile(controller, []agentsdk.SubagentExecution{decl, next})
+	testutil.RequireReceive(ctx, t, driver.startCh)
+
+	// Exactly one retry: the first queued reconcile launched the
+	// declaration and the rest found it already launched.
+	require.Equal(t, 1, controller.maxConcurrentAcquisitions())
+	require.Equal(t, 2, controller.acquisitionCountFor(decl.ExecutionID))
+	require.Equal(t, 2, driver.startCount())
+
+	statuses := m.Statuses()
+	require.Len(t, statuses, 2)
+	for _, status := range statuses {
+		require.Equal(t, StateRunning, status.State)
+	}
+}
+
+// A driver that could not start the process leaves no launcher behind, so
+// the next reconcile of the same declaration retries it. The retry acquires
+// a fresh version, which fences the launch that never happened.
+func TestManager_StartFailureRetriesOnNextReconcile(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	controller := newFakeController()
+	driver := newFakeDriver()
+	driver.startErr = xerrors.New("sandbox setup failed")
+	m := newManager(t, driver)
+
+	decl := testDeclaration()
+	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+
+	failed := testutil.RequireReceive(ctx, t, controller.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_FAILED, failed.GetStatus())
+	require.Contains(t, failed.GetError(), "sandbox setup failed")
+
+	driver.setStartErr(nil)
+	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
+
+	running := testutil.RequireReceive(ctx, t, controller.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, running.GetStatus())
+	require.Equal(t, decl.Generation[:], running.GetGeneration())
+
+	require.Equal(t, 2, controller.acquisitionCountFor(decl.ExecutionID))
+	require.Equal(t, 1, controller.maxConcurrentAcquisitions())
+	require.Equal(t, 2, driver.startCount())
+
+	statuses := m.Statuses()
+	require.Len(t, statuses, 1)
+	require.Equal(t, StateRunning, statuses[0].State)
+	require.Empty(t, statuses[0].LastError)
 }
 
 func TestManager_UnexpectedExitReportsFailed(t *testing.T) {
