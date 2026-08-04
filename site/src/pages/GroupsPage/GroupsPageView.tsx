@@ -1,5 +1,5 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import { type FC, useContext } from "react";
+import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
@@ -23,7 +23,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { AuthContext } from "#/contexts/auth/AuthProvider";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
@@ -68,7 +68,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groupsEnabled,
 	showAIBudget,
 }) => {
-	const auth = useContext(AuthContext);
+	const { permissions } = useAuthenticated();
 
 	if (!groupsEnabled) {
 		return (
@@ -76,7 +76,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				message="Groups"
 				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 				documentationLink={docs("/admin/users/groups-roles")}
-				canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);
 	}

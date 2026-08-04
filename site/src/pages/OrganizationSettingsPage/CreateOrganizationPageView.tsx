@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import { type FC, useContext } from "react";
+import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -12,7 +12,7 @@ import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { AuthContext } from "#/contexts/auth/AuthProvider";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -42,7 +42,7 @@ interface CreateOrganizationPageViewProps {
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
 > = ({ error, onSubmit, isEntitled }) => {
-	const auth = useContext(AuthContext);
+	const { permissions } = useAuthenticated();
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",
@@ -95,7 +95,7 @@ export const CreateOrganizationPageView: FC<
 							message="Organizations"
 							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
 							documentationLink={docs("/admin/users/organizations")}
-							canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
+							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>
 				) : (

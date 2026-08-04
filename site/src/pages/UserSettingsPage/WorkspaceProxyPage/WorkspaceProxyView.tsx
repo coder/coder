@@ -1,4 +1,4 @@
-import { type FC, useContext } from "react";
+import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
@@ -17,8 +17,8 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { AuthContext } from "#/contexts/auth/AuthProvider";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
@@ -42,7 +42,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	selectProxyError,
 	showPaywall,
 }) => {
-	const auth = useContext(AuthContext);
+	const { permissions } = useAuthenticated();
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -65,7 +65,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					message="Workspace Proxies"
 					description="Workspace proxies provide low-latency connections for geo-distributed teams. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/networking/workspace-proxies")}
-					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<>

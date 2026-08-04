@@ -1,4 +1,4 @@
-import { type ComponentProps, type FC, useContext } from "react";
+import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
@@ -20,7 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
-import { AuthContext } from "#/contexts/auth/AuthProvider";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
@@ -45,7 +45,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	auditsQuery: paginationResult,
 	showOrgDetails,
 }) => {
-	const auth = useContext(AuthContext);
+	const { permissions } = useAuthenticated();
 
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -92,7 +92,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					message="Audit logs"
 					description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/security/audit-logs")}
-					canViewPremium={auth?.permissions?.viewAllLicenses ?? false}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 		</Margins>
