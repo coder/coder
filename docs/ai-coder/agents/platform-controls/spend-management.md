@@ -1,4 +1,4 @@
-# Spend management
+# Spend management (Premium)
 
 Coder controls agent spend with AI Gateway budgets, and surfaces the resulting spend to both admins and users.
 
@@ -55,6 +55,12 @@ Organization administrators can export per-user, per-group, per-model, and per-p
 ```sh
 curl -X GET "https://coder.example.com/api/v2/organizations/$ORGANIZATION/ai/spend/export" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
+```
+
+A successful response has the `Content-Type` header `text/csv; charset=utf-8` and starts with this CSV header:
+
+```csv
+user_id,username,group_id,group_name,organization_id,organization_name,model,provider,provider_name,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micros,period_start,period_end
 ```
 
 The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.

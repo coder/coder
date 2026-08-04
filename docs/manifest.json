@@ -1087,7 +1087,7 @@
 									"title": "Spend management",
 									"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
 									"path": "./ai-coder/agents/platform-controls/spend-management.md",
-									"state": ["beta"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Git Providers",
