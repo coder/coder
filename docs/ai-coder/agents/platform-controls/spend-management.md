@@ -23,8 +23,12 @@ $1,000,000 per member per period.
 > Budget controls in the Coder UI, the group budget endpoints (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting endpoints all require the AI Gateway entitlement.
 > No experiment is needed.
 >
-> Native chat usage limits are removed from the application.
+> Native chat usage limits and native cost tracking are removed from the application.
 > Existing native limit values are not migrated to AI Gateway budgets and are no longer enforced.
+> Configured per-model prices and historical native cost totals are also not migrated to AI Gateway.
+> Before upgrading, record any per-model prices you need from **Admin settings** > **AI** > **Models**, and save responses from `/api/experimental/chats/cost/users` and `/api/experimental/chats/cost/{user}/summary` if you need historical native cost reports.
+> After upgrading, the native **Spend** page, per-model pricing fields, and aggregate cost endpoints are unavailable.
+> Historical `chat_messages.total_cost_micros` values remain in the database temporarily for rolling upgrade compatibility, but AI Gateway reports do not include or reconstruct them.
 > Configure AI Gateway budgets separately.
 
 The API reference documents how to [get](../../../reference/api/enterprise.md#get-group-ai-budget), [upsert](../../../reference/api/enterprise.md#upsert-group-ai-budget), and [delete](../../../reference/api/enterprise.md#delete-group-ai-budget) a group budget.
