@@ -256,6 +256,8 @@ type CreateWorkspaceRequest struct {
 	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// ExecutionIsolation marks the workspace for isolated agent execution.
+	ExecutionIsolation bool `json:"execution_isolation,omitempty"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

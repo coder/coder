@@ -813,18 +813,19 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 	}
 
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{
-		ID:                takeFirst(orig.ID, uuid.New()),
-		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
-		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID:    takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
-		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
-		LastUsedAt:        takeFirst(orig.LastUsedAt, dbtime.Now()),
-		Name:              takeFirst(orig.Name, testutil.GetRandomName(t)),
-		AutostartSchedule: orig.AutostartSchedule,
-		Ttl:               orig.Ttl,
-		AutomaticUpdates:  takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
-		NextStartAt:       orig.NextStartAt,
+		ID:                 takeFirst(orig.ID, uuid.New()),
+		OwnerID:            takeFirst(orig.OwnerID, uuid.New()),
+		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:          takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OrganizationID:     takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
+		TemplateID:         takeFirst(orig.TemplateID, uuid.New()),
+		LastUsedAt:         takeFirst(orig.LastUsedAt, dbtime.Now()),
+		Name:               takeFirst(orig.Name, testutil.GetRandomName(t)),
+		AutostartSchedule:  orig.AutostartSchedule,
+		Ttl:                orig.Ttl,
+		AutomaticUpdates:   takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
+		NextStartAt:        orig.NextStartAt,
+		ExecutionIsolation: orig.ExecutionIsolation,
 	})
 	require.NoError(t, err, "insert workspace")
 	if orig.Deleted {

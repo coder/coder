@@ -733,8 +733,9 @@ func createWorkspace(
 				Ttl:               dbTTL,
 				// The workspaces page will sort by last used at, and it's useful to
 				// have the newly created workspace at the top of the list!
-				LastUsedAt:       now,
-				AutomaticUpdates: dbAU,
+				LastUsedAt:         now,
+				AutomaticUpdates:   dbAU,
+				ExecutionIsolation: req.ExecutionIsolation,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace: %w", err)
@@ -2908,13 +2909,14 @@ func convertWorkspace(
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,
 		},
-		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
-		AllowRenames:     allowRenames,
-		Favorite:         requesterFavorite,
-		NextStartAt:      nextStartAt,
-		IsPrebuild:       workspace.IsPrebuild(),
-		TaskID:           workspace.TaskID,
-		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
+		AutomaticUpdates:   codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
+		AllowRenames:       allowRenames,
+		Favorite:           requesterFavorite,
+		NextStartAt:        nextStartAt,
+		IsPrebuild:         workspace.IsPrebuild(),
+		ExecutionIsolation: workspace.ExecutionIsolation,
+		TaskID:             workspace.TaskID,
+		SharedWith:         sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }
 

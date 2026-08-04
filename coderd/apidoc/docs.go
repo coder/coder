@@ -19597,6 +19597,10 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
+                "execution_isolation": {
+                    "description": "ExecutionIsolation marks the workspace for isolated agent execution.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -27027,6 +27031,10 @@ const docTemplate = `{
                     "description": "DormantAt being non-nil indicates a workspace that is dormant.\nA dormant workspace is no longer accessible must be activated.\nIt is subject to deletion if it breaches\nthe duration of the time_til_ field on its template.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "execution_isolation": {
+                    "description": "ExecutionIsolation indicates that the workspace is marked for isolated agent execution.",
+                    "type": "boolean"
                 },
                 "favorite": {
                     "type": "boolean"

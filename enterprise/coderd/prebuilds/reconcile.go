@@ -899,18 +899,19 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 		now := c.clock.Now()
 
 		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:                prebuiltWorkspaceID,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			OwnerID:           database.PrebuildsSystemUserID,
-			OrganizationID:    template.OrganizationID,
-			TemplateID:        template.ID,
-			Name:              name,
-			LastUsedAt:        c.clock.Now(),
-			AutomaticUpdates:  database.AutomaticUpdatesNever,
-			AutostartSchedule: sql.NullString{},
-			Ttl:               sql.NullInt64{},
-			NextStartAt:       sql.NullTime{},
+			ID:                 prebuiltWorkspaceID,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+			OwnerID:            database.PrebuildsSystemUserID,
+			OrganizationID:     template.OrganizationID,
+			TemplateID:         template.ID,
+			Name:               name,
+			LastUsedAt:         c.clock.Now(),
+			AutomaticUpdates:   database.AutomaticUpdatesNever,
+			AutostartSchedule:  sql.NullString{},
+			Ttl:                sql.NullInt64{},
+			NextStartAt:        sql.NullTime{},
+			ExecutionIsolation: false,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)

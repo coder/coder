@@ -40365,25 +40365,27 @@ INSERT INTO
 		ttl,
 		last_used_at,
 		automatic_updates,
-		next_start_at
+		next_start_at,
+		execution_isolation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, execution_isolation
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, execution_isolation
 `
 
 type InsertWorkspaceParams struct {
-	ID                uuid.UUID        `db:"id" json:"id"`
-	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
-	Name              string           `db:"name" json:"name"`
-	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
-	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	NextStartAt       sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	ID                 uuid.UUID        `db:"id" json:"id"`
+	CreatedAt          time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID            uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID     uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID         uuid.UUID        `db:"template_id" json:"template_id"`
+	Name               string           `db:"name" json:"name"`
+	AutostartSchedule  sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt         time.Time        `db:"last_used_at" json:"last_used_at"`
+	AutomaticUpdates   AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	NextStartAt        sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	ExecutionIsolation bool             `db:"execution_isolation" json:"execution_isolation"`
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (WorkspaceTable, error) {
@@ -40400,6 +40402,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.LastUsedAt,
 		arg.AutomaticUpdates,
 		arg.NextStartAt,
+		arg.ExecutionIsolation,
 	)
 	var i WorkspaceTable
 	err := row.Scan(

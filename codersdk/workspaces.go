@@ -75,6 +75,8 @@ type Workspace struct {
 	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
 	// and IsPrebuild returns false.
 	IsPrebuild bool `json:"is_prebuild"`
+	// ExecutionIsolation indicates that the workspace is marked for isolated agent execution.
+	ExecutionIsolation bool `json:"execution_isolation"`
 	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	TaskID     uuid.NullUUID          `json:"task_id,omitempty"`
 	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`

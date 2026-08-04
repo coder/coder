@@ -571,10 +571,11 @@ INSERT INTO
 		ttl,
 		last_used_at,
 		automatic_updates,
-		next_start_at
+		next_start_at,
+		execution_isolation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE

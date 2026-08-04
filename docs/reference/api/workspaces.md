@@ -25,6 +25,7 @@ of the template will be used.
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
+  "execution_isolation": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -59,6 +60,7 @@ of the template will be used.
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "execution_isolation": true,
   "favorite": true,
   "health": {
     "failing_agents": [
@@ -425,6 +427,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "execution_isolation": true,
   "favorite": true,
   "health": {
     "failing_agents": [
@@ -725,6 +728,7 @@ of the template will be used.
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
+  "execution_isolation": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -758,6 +762,7 @@ of the template will be used.
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "execution_isolation": true,
   "favorite": true,
   "health": {
     "failing_agents": [
@@ -1069,6 +1074,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
       "dormant_at": "2019-08-24T14:15:22Z",
+      "execution_isolation": true,
       "favorite": true,
       "health": {
         "failing_agents": [
@@ -1361,6 +1367,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "execution_isolation": true,
   "favorite": true,
   "health": {
     "failing_agents": [
@@ -1980,6 +1987,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "execution_isolation": true,
   "favorite": true,
   "health": {
     "failing_agents": [

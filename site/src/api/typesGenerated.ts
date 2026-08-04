@@ -4560,6 +4560,10 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
+	/**
+	 * ExecutionIsolation marks the workspace for isolated agent execution.
+	 */
+	readonly execution_isolation?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -10842,6 +10846,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * ExecutionIsolation indicates that the workspace is marked for isolated agent execution.
+	 */
+	readonly execution_isolation: boolean;
 	/**
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */

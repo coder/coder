@@ -98,6 +98,49 @@ func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
 		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
 }
 
+func TestWorkspaceExecutionIsolation(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	isolated, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID:         template.ID,
+		Name:               coderdtest.RandomUsername(t),
+		ExecutionIsolation: true,
+	})
+	require.NoError(t, err)
+	require.True(t, isolated.ExecutionIsolation)
+
+	standard, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	require.False(t, standard.ExecutionIsolation)
+
+	isolated, err = client.Workspace(ctx, isolated.ID)
+	require.NoError(t, err)
+	require.True(t, isolated.ExecutionIsolation)
+
+	standard, err = client.Workspace(ctx, standard.ID)
+	require.NoError(t, err)
+	require.False(t, standard.ExecutionIsolation)
+
+	listed, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	isolationByID := make(map[uuid.UUID]bool, len(listed.Workspaces))
+	for _, workspace := range listed.Workspaces {
+		isolationByID[workspace.ID] = workspace.ExecutionIsolation
+	}
+	require.True(t, isolationByID[isolated.ID])
+	require.False(t, isolationByID[standard.ID])
+}
+
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
 

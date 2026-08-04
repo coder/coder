@@ -3,10 +3,18 @@ package codersdk
 import (
 	"context"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestUpdateWorkspaceRequestDoesNotExposeExecutionIsolation(t *testing.T) {
+	t.Parallel()
+
+	_, ok := reflect.TypeOf(UpdateWorkspaceRequest{}).FieldByName("ExecutionIsolation")
+	require.False(t, ok)
+}
 
 func TestWorkspaceFilterAsRequestOption(t *testing.T) {
 	t.Parallel()
