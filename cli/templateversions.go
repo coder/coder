@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,24 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
+
+// allTemplateVersions fetches template versions page by page until a page
+// returns fewer rows than requested, which marks the end of the result set.
+func allTemplateVersions(ctx context.Context, client *codersdk.Client, req codersdk.TemplateVersionsByTemplateRequest) ([]codersdk.TemplateVersion, error) {
+	req.Limit = pageLimit
+	var versions []codersdk.TemplateVersion
+	for {
+		page, err := client.TemplateVersionsByTemplate(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, page...)
+		if len(page) < pageLimit {
+			return versions, nil
+		}
+		req.Offset += len(page)
+	}
+}
 
 func (r *RootCmd) templateVersions() *serpent.Command {
 	cmd := &serpent.Command{
@@ -110,7 +129,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 				IncludeArchived: includeArchived.Value(),
 			}
 
-			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
+			versions, err := allTemplateVersions(inv.Context(), client, req)
 			if err != nil {
 				return xerrors.Errorf("get template versions by template: %w", err)
 			}
