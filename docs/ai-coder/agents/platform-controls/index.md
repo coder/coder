@@ -116,18 +116,15 @@ none, if the template does not define any).
 
 ### Spend management
 
-AI Gateway budgets cap each user's AI spend, including Coder Agents chats,
-over a monthly period. Budgets are set per group, and the deployment policy
-selects the group with the largest spend limit when a user belongs to several
-budgeted groups. A per-user override takes priority over group budgets.
+AI Gateway budgets cap each user's AI spend, including Coder Agents chats, over a monthly period.
+Coder sets budgets per group, and the deployment policy selects the group with the largest spend limit when a user belongs to several budgeted groups.
+A per-user override takes priority over all group budgets.
 
-Budgets are the only spend cap for Coder Agents chats; chats no longer
-enforce a separate limit of their own, and existing native limit values are
-not migrated to budgets. Budget controls in the Coder UI, the group budget
-endpoints, and the AI spend status endpoints all require a license that
-includes AI Gateway.
+Budgets are the only spend cap for Coder Agents chats.
+Chats no longer enforce a separate limit of their own, and existing native limit values are not migrated to budgets.
+Budget controls in the Coder UI, the group budget endpoints, and the AI spend status endpoints all require a license that includes AI Gateway.
 
-See [Spend Management](./usage-insights.md) for details.
+Refer to [Spend Management](./usage-insights.md) for details.
 
 ### Git providers
 
@@ -164,10 +161,8 @@ For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-d
 
 ## Where we are headed
 
-The controls above cover providers, models, system prompts, templates, MCP
-servers, AI Gateway budgets, and data retention. We are continuing to invest in platform controls
-based on what we hear from customers deploying agents in regulated and
-enterprise environments.
+The controls above cover providers, models, system prompts, templates, MCP servers, AI Gateway budgets, and data retention.
+We are continuing to invest in platform controls based on what feedback we get from customers deploying agents in regulated and enterprise environments.
 
 ### Infrastructure-level enforcement
 

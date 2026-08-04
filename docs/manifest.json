@@ -1085,7 +1085,7 @@
 								},
 								{
 									"title": "Spend Management",
-									"description": "Cap Coder Agents spend with AI Gateway budgets and see the resulting spend.",
+									"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["beta"]
 								},
