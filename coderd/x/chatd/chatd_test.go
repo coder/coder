@@ -4529,6 +4529,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	workspaceID := *chatResult.WorkspaceID
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err)
+	require.True(t, workspace.ExecutionIsolation)
 	require.Equal(t, workspaceName, workspace.Name)
 
 	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
