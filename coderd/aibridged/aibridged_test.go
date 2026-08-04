@@ -128,6 +128,71 @@ func TestClient_TransientDialErrorRetries(t *testing.T) {
 	require.Equal(t, int32(2), calls.Load())
 }
 
+// TestClient_FatalDialErrors pins which /api/v2/ai-gateway/serve rejections end
+// the daemon's lifecycle instead of being retried. A status that cannot be
+// fixed by redialing must stop the connect loop after a single attempt, so an
+// operator sees the failure instead of an endless retry.
+func TestClient_FatalDialErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status int
+		fatal  bool
+	}{
+		{name: "IncompatibleVersion", status: http.StatusBadRequest, fatal: true},
+		{name: "InvalidKey", status: http.StatusUnauthorized, fatal: true},
+		{name: "MissingEntitlement", status: http.StatusForbidden, fatal: true},
+		{name: "EndpointUnsupported", status: http.StatusNotFound, fatal: true},
+		{name: "CoderdUnavailable", status: http.StatusServiceUnavailable, fatal: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+			ctrl := gomock.NewController(t)
+			pool := mock.NewMockPooler(ctrl)
+			pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+			dialFc := func(context.Context) (aibridged.DRPCClient, error) {
+				calls.Add(1)
+				return nil, sdkError(tc.status, "dial rejected")
+			}
+
+			srv, err := aibridged.New(t.Context(), pool, dialFc, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), testTracer)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			if !tc.fatal {
+				// A transient status keeps the loop redialing and the lifecycle open.
+				require.Eventually(t, func() bool {
+					return calls.Load() > 1
+				}, testutil.WaitShort, testutil.IntervalFast, "a transient status must be retried")
+				require.NoError(t, srv.Err())
+				require.False(t, srv.Ready())
+				return
+			}
+
+			select {
+			case <-srv.Done():
+			case <-ctx.Done():
+				t.Fatalf("daemon lifecycle did not end: %v", ctx.Err())
+			}
+			require.ErrorContains(t, srv.Err(), "dial coderd")
+			require.ErrorContains(t, srv.Err(), "dial rejected")
+			require.False(t, srv.Ready())
+			require.Equal(t, int32(1), calls.Load(), "a fatal status must not be retried")
+
+			// Requests arriving after the fatal exit are told the daemon is gone
+			// instead of waiting for a connection that will never come.
+			_, err = srv.Client(ctx)
+			require.ErrorContains(t, err, "dial coderd")
+		})
+	}
+}
+
 func TestServeHTTP_FailureModes(t *testing.T) {
 	t.Parallel()
 
