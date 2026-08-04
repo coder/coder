@@ -137,3 +137,54 @@ spec:
       serviceAccountName: coder-ai-gateway
       terminationGracePeriodSeconds: 330
       volumes: []
+---
+# Source: coder-ai-gateway/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coder-ai-gateway
+  namespace: default
+  labels:
+    helm.sh/chart: coder-ai-gateway-0.1.0
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  rules:
+    - host: "ai.example.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: coder-ai-gateway
+                port:
+                  number: 80
+---
+# Source: coder-ai-gateway/templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: coder-ai-gateway
+  namespace: default
+  labels:
+    helm.sh/chart: coder-ai-gateway-0.1.0
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  parentRefs:
+    - name: shared-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: coder-ai-gateway
+          port: 80
