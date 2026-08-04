@@ -528,37 +528,39 @@ func ReadBodyAsJSON(res *http.Response, v any) error {
 
 	mimeType := parseMimeType(res.Header.Get("Content-Type"))
 	if isHTMLMimeType(mimeType) {
-		return invalidBodyError(res, Response{
-			Message: "Received an HTML response instead of JSON from the Coder API.",
-			Detail:  invalidBodyDetail(res),
-		}, htmlResponseHelper, nil)
+		return htmlBodyError(res)
 	}
 
 	body := &responseBodyReader{Reader: res.Body}
 	prefix := &bodyPrefixWriter{}
 	err := json.NewDecoder(io.TeeReader(body, prefix)).Decode(v)
-	if err == nil {
+	switch {
+	case err == nil:
 		return nil
-	}
-	if body.err != nil && errors.Is(err, body.err) {
+	case body.err != nil && errors.Is(err, body.err):
 		return xerrors.Errorf("read response body: %w", err)
-	}
-	if len(prefix.bytes) == 0 && errors.Is(err, io.EOF) {
+	case len(prefix.bytes) == 0 && errors.Is(err, io.EOF):
 		return invalidBodyError(res, Response{
 			Message: "Received an empty response from the Coder API.",
 			Detail:  invalidBodyDetail(res),
 		}, "", nil)
-	}
-	if isHTMLBody(mimeType, prefix.bytes) {
+	case isHTMLBody(mimeType, prefix.bytes):
+		return htmlBodyError(res)
+	default:
 		return invalidBodyError(res, Response{
-			Message: "Received an HTML response instead of JSON from the Coder API.",
-			Detail:  invalidBodyDetail(res),
-		}, htmlResponseHelper, nil)
+			Message: "Received an invalid JSON response from the Coder API.",
+			Detail:  fmt.Sprintf("decode body: %s, %s", err.Error(), invalidBodyDetail(res)),
+		}, "", err)
 	}
+}
+
+// htmlBodyError returns the structured *Error reported when the Coder API
+// response body is HTML rather than JSON.
+func htmlBodyError(res *http.Response) *Error {
 	return invalidBodyError(res, Response{
-		Message: "Received an invalid JSON response from the Coder API.",
-		Detail:  fmt.Sprintf("decode body: %s, %s", err.Error(), invalidBodyDetail(res)),
-	}, "", err)
+		Message: "Received an HTML response instead of JSON from the Coder API.",
+		Detail:  invalidBodyDetail(res),
+	}, htmlResponseHelper, nil)
 }
 
 // responseBodyReader records non-EOF read errors so decode errors from custom
