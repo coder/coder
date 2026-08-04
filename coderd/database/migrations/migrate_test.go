@@ -1923,8 +1923,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   "{",
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{
@@ -1932,8 +1932,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   `{}`,
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{
@@ -1941,8 +1941,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   `"value"`,
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{
@@ -1950,8 +1950,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   `["not-a-uuid"]`,
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{
@@ -1959,8 +1959,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   `[null]`,
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{
@@ -1968,8 +1968,8 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			value:   fmt.Sprintf(`[%q,"not-a-uuid"]`, templateIDs[0]),
 			present: true,
 			want: map[uuid.UUID]bool{
-				templateIDs[0]: true,
-				templateIDs[1]: true,
+				templateIDs[0]: false,
+				templateIDs[1]: false,
 			},
 		},
 		{

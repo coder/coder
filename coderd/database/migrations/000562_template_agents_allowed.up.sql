@@ -33,12 +33,12 @@ BEGIN
 			RAISE EXCEPTION 'contains a null template ID';
 		END IF;
 	EXCEPTION WHEN others THEN
-		RAISE WARNING 'agents_template_allowlist is corrupt (%); leaving all templates allowed', SQLERRM;
-		RETURN;
+		RAISE WARNING 'agents_template_allowlist is corrupt (%); blocking all templates', SQLERRM;
+		parsed_ids := ARRAY[]::uuid[];
 	END;
 
-	-- A valid nonempty list allows matching existing templates only. Missing,
-	-- empty, or corrupt data leaves templates allowed.
+	-- A valid nonempty list allows matching existing templates only. Missing or
+	-- empty data leaves templates allowed. Corrupt data blocks all templates.
 	UPDATE templates
 	SET agents_allowed = (id = ANY(parsed_ids));
 END $$;
