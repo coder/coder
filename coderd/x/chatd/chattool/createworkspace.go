@@ -169,7 +169,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				), nil
 			}
 			if !tmpl.AgentsAllowed {
-				return fantasy.NewTextErrorResponse("template not available for chat workspaces; use list_templates to find allowed templates"), nil
+				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
 
 			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)

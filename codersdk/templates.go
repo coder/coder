@@ -283,7 +283,9 @@ type UpdateTemplateMeta struct {
 	// DisableModuleCache disables the using of cached Terraform modules during
 	// provisioning. It is recommended not to disable this.
 	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
-	AgentsAllowed      *bool `json:"agents_allowed,omitempty"`
+	// AgentsAllowed controls whether Coder Agents can create workspaces using
+	// this template. If omitted, the current value is preserved.
+	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
 }
 
 type TemplateExample struct {

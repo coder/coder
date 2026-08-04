@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const templateNotAvailableMessage = "template not available for chat workspaces; use list_templates to find allowed templates"
+
 func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {

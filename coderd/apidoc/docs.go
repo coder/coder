@@ -19067,7 +19067,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "agents_allowed": {
-                    "description": "AgentsAllowed controls whether Coder Agents can use this template. It defaults to true.",
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. Defaults to true.",
                     "type": "boolean"
                 },
                 "allow_user_autostart": {
@@ -26008,6 +26008,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "agents_allowed": {
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. If omitted, the current value is preserved.",
                     "type": "boolean"
                 },
                 "allow_user_autostart": {

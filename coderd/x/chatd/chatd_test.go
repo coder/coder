@@ -10933,7 +10933,7 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, ps := dbtestutil.NewDB(t)
 
 	// Declare templates before the handler so the closure can
 	// reference their IDs when building tool-call arguments.
@@ -10984,16 +10984,14 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "allowed-template",
+		AgentsAllowed:  true,
 	})
 	tplBlocked = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "blocked-template",
+		AgentsAllowed:  false,
 	})
-
-	// Block tplBlocked for Coder Agents.
-	_, err := sqlDB.ExecContext(ctx, `UPDATE templates SET agents_allowed = false WHERE id = $1`, tplBlocked.ID)
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -11142,6 +11140,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "code-2",
 		DisplayName:    "typescript-alpha",
 		Description:    "this is a long description",
+		AgentsAllowed:  true,
 	})
 	tplDocker = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
@@ -11149,6 +11148,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "docker",
 		DisplayName:    "Docker Containers",
 		Description:    "Provision Docker containers as Coder workspaces",
+		AgentsAllowed:  true,
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {

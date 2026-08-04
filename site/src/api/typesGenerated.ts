@@ -4109,7 +4109,8 @@ export interface CreateTemplateRequest {
 	 */
 	readonly cors_behavior: CORSBehavior | null;
 	/**
-	 * AgentsAllowed controls whether Coder Agents can use this template. It defaults to true.
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. Defaults to true.
 	 */
 	readonly agents_allowed?: boolean;
 }
@@ -9783,6 +9784,10 @@ export interface UpdateTemplateMeta {
 	 * provisioning. It is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
+	/**
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. If omitted, the current value is preserved.
+	 */
 	readonly agents_allowed?: boolean;
 }
 

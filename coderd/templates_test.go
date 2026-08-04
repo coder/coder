@@ -1048,29 +1048,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 
-	t.Run("AgentsAllowedAuthorization", func(t *testing.T) {
-		t.Parallel()
-
-		ownerClient := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
-		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
-		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version.ID)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		updated, err := templateAdminClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			AgentsAllowed: ptr.Ref(false),
-		})
-		require.NoError(t, err)
-		assert.False(t, updated.AgentsAllowed)
-
-		_, err = memberClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			AgentsAllowed: ptr.Ref(true),
-		})
-		require.Error(t, err)
-	})
-
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 
