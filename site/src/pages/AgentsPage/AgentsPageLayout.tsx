@@ -441,7 +441,7 @@ const AgentsPageLayout: FC = () => {
 				archivedChatId,
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatEntityKey is removed). This must be read at
+				// parent's chatKey is removed). This must be read at
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
@@ -625,7 +625,7 @@ const AgentsPageLayout: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
-						// chatEntityKey and infinite-list caches below.
+						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
 							queryKey: chatDiffContentsKey(updatedChat.id),
 							exact: true,

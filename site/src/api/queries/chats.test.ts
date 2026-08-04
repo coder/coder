@@ -196,7 +196,6 @@ describe("invalidateChatListQueries", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Sidebar list queries.
 		queryClient.setQueryData(chatListKey(toChatListParams()), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
@@ -215,7 +214,6 @@ describe("invalidateChatListQueries", () => {
 
 		await invalidateChatListQueries(queryClient);
 
-		// Sidebar list queries should be invalidated.
 		expect(
 			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
 			"default chat list should be invalidated",
@@ -573,7 +571,6 @@ describe("archiveChat optimistic update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
-		// Deliberately do NOT set chatEntityKey(chatId) data.
 
 		const mutation = archiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
@@ -909,18 +906,13 @@ describe("mutation invalidation scope", () => {
 	/** Populate the QueryClient with every query key that is actively
 	 *  observed on the /agents/:id detail page. */
 	const seedAllActiveQueries = (queryClient: QueryClient, chatId: string) => {
-		// Sidebar list: ["chats", "collections", "list", params]
 		queryClient.setQueryData(chatListKey(toChatListParams()), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
-		// Individual chat: ["chats", "entities", chatId]
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		// Messages: ["chats", "entities", chatId, "messages"]
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		// Debug runs: ["chats", "entities", chatId, "debug-runs"]
 		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
-		// Diff contents: ["chats", "entities", chatId, "diff-contents"]
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 	};
 
@@ -1543,10 +1535,6 @@ describe("mutation invalidation scope", () => {
 
 describe("chatListKey shape", () => {
 	it("places the params object one slot after the list family prefix", () => {
-		// archivedFilterForChatListKey reads the archived flag from the
-		// slot immediately after the list family prefix. If this layout
-		// ever changes, that helper silently stops removing chats from
-		// conflicting filtered lists, so keep the two in sync.
 		const key = chatListKey(toChatListParams({ archived: true }));
 		expect(key.length).toBe(chatListFamilyKey.length + 1);
 		expect(key[chatListFamilyKey.length]).toEqual(
@@ -1706,7 +1694,6 @@ describe("diff_status_change invalidation scope", () => {
 			exact: true,
 		});
 
-		// chatEntityKey itself should be invalidated.
 		expect(
 			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
 			"chatEntityKey should be invalidated",
@@ -1744,9 +1731,6 @@ describe("diff_status_change invalidation scope", () => {
 			queryKey: chatEntityKey(chatId),
 		});
 
-		// Without exact: true, ALL queries starting with
-		// ["chats", "entities", chatId] get invalidated, including
-		// messages and diff-contents.
 		expect(
 			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
 			"chatMessagesKey IS invalidated without exact: true (old bug)",

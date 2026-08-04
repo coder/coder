@@ -39,8 +39,6 @@ export const ProposePlanTool: React.FC<{
 	onImplementPlan,
 }) => {
 	const hasInlineContent = (inlineContent?.trim().length ?? 0) > 0;
-	// skipToken keeps the file query inert instead of constructing a
-	// file key without a file ID. Inline content never fetches the file.
 	const fileQueryOptions: UseQueryOptions<
 		string,
 		Error,

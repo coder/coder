@@ -15,12 +15,6 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 
-// Family roots and shared prefixes. These have no single owning
-// factory; many factories and cache helpers build on them, so they
-// live together at the top. Per-factory key helpers are co-located
-// with the options factory or mutation that uses them.
-
-// Collections
 const chatCollectionsKey = ["chats", "collections"] as const;
 
 export const chatListFamilyKey = [...chatCollectionsKey, "list"] as const;
@@ -32,18 +26,13 @@ export const chatsByWorkspaceFamilyKey = [
 	"by-workspace",
 ] as const;
 
-// Entities. chatEntityKey doubles as the family root for per-chat
-// descendant keys and as the detail key used by the chat factory.
 export const chatEntityKey = (chatId: string) =>
 	["chats", "entities", chatId] as const;
 
-// Files
 export const chatFilesKey = ["chats", "files"] as const;
 
-// Analytics
 const chatAnalyticsKey = ["chats", "analytics"] as const;
 
-// Config
 const chatConfigKey = ["chats", "config"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
@@ -121,7 +110,6 @@ export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
-	// Update ALL infinite chat queries regardless of their filter params.
 	queryClient.setQueriesData<InfiniteChatsCacheData>(
 		{ queryKey: chatListFamilyKey },
 		(prev) => {
@@ -265,11 +253,6 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
-// Inverse of chatListKey, which builds keys as [...chatListFamilyKey, params].
-// The params object lives in the slot immediately after the list family
-// prefix, so derive both the expected length and the params index from
-// chatListFamilyKey. If chatListKey's shape changes, this must change with
-// it; the "chatListKey shape" test in chats.test.ts guards that contract.
 const archivedFilterForChatListKey = (
 	queryKey: readonly unknown[],
 ): boolean | undefined => {
@@ -610,12 +593,6 @@ const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 	return maxPinOrder + 1;
 };
 
-/**
- * Invalidates every chat list query. The list family prefix matches
- * all list entries regardless of params and nothing else: search,
- * by-workspace, entities, analytics, and config live under separate
- * prefixes, so no predicate is needed to exclude them.
- */
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
 		queryKey: chatListFamilyKey,
@@ -712,12 +689,6 @@ const canonicalizeChatSources = (
 	return CHAT_SOURCE_ORDER.filter((source) => selected.has(source));
 };
 
-/**
- * Normalizes a partial list input into the concrete params object that
- * the list key stores. Set-like arrays are sorted in a fixed order and
- * de-duplicated, and every optional field gets a concrete default, so
- * equivalent filter combinations share one cache identity.
- */
 export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	archived: input?.archived ?? false,
 	prStatuses: canonicalizeChatListPRStatuses(input?.prStatuses ?? []),
@@ -727,9 +698,6 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 
 const getChatListQueryString = (params: ChatListParams): string | undefined => {
 	const qParts: string[] = [];
-	// archived is always part of the canonical params, and the backend
-	// treats an absent archived filter as false, so send it explicitly
-	// to keep the wire query identical to the pre-migration behaviour.
 	qParts.push(`archived:${params.archived}`);
 	if (params.prStatuses.length) {
 		qParts.push(`pr_status:${params.prStatuses.join(",")}`);
@@ -1937,10 +1905,6 @@ export const chatModels = () => ({
 		API.experimental.getChatModels(),
 });
 
-// The AI provider list has one canonical cache entry, owned by
-// ./aiProviders and keyed ["ai", "providers"]. The chat UI derives its
-// ChatProviderConfig view with a pure selector instead of fetching the
-// same resource into a second cache entry.
 const aiProvidersKey = ["ai", "providers"] as const;
 
 const selectChatProviderConfigs = (
@@ -2122,9 +2086,6 @@ export const updateChatModelOverride = (
 
 // ── MCP Server Configs ───────────────────────────────────────
 
-// MCP server configuration is shared by the Agents experience and the
-// AI Settings MCP pages, so it lives under the mcp root rather than
-// the chats root.
 export const mcpServersKey = ["mcp", "servers"] as const;
 
 export const mcpServerConfigs = () => ({

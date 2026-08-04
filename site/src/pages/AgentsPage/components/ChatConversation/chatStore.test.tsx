@@ -6,8 +6,6 @@ import {
 	toChatListParams,
 } from "#/api/queries/chats";
 
-// The infinite query key used by useInfiniteQuery(infiniteChats())
-// is the list key built from the default (no-filter) list params.
 const infiniteChatsTestKey = chatListKey(toChatListParams());
 
 type InfiniteData = {
