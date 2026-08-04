@@ -151,6 +151,6 @@ whether each user is consuming an AI seat:
 - A gray X icon indicates the user is not consuming an AI seat.
 
 A user consumes an AI seat when they use AI features such as AI Gateway or
-Tasks. The column helps administrators identify which users contribute to
-the organization's AI seat count, making it easier to manage seat
+Coder Agents. The column helps administrators identify which users contribute
+to the organization's AI seat count, making it easier to manage seat
 allocations and stay within license limits.
