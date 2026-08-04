@@ -494,9 +494,9 @@ func ReadBodyAsError(res *http.Response) error {
 	}
 }
 
-// jsonBodyExcerptLen bounds how much of an invalid response body is
-// buffered and included in error details by ReadBodyAsJSON.
-const jsonBodyExcerptLen = 512
+// jsonBodySniffLen bounds how much of a response body is retained while
+// decoding to identify HTML without buffering the entire response.
+const jsonBodySniffLen = 512
 
 // htmlResponseHelper suggests the most common causes of receiving HTML
 // from what should be a Coder API endpoint: a misconfigured Coder URL,
@@ -526,58 +526,67 @@ func ReadBodyAsJSON(res *http.Response, v any) error {
 		return xerrors.New("no response body to decode")
 	}
 
-	// Buffer a bounded prefix of the body. It is used to sniff HTML
-	// bodies and to include an excerpt in error details without ever
-	// buffering the entire response.
-	prefix := make([]byte, jsonBodyExcerptLen)
-	n, err := io.ReadFull(res.Body, prefix)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return xerrors.Errorf("read response body: %w", err)
-	}
-	prefix = prefix[:n]
-
-	if len(prefix) == 0 {
-		return invalidBodyError(res, Response{
-			Message: "Received an empty response from the Coder API.",
-			Detail:  invalidBodyDetail(res, ""),
-		}, "", nil)
-	}
-
-	if isHTMLBody(parseMimeType(res.Header.Get("Content-Type")), prefix) {
+	mimeType := parseMimeType(res.Header.Get("Content-Type"))
+	if isHTMLMimeType(mimeType) {
 		return invalidBodyError(res, Response{
 			Message: "Received an HTML response instead of JSON from the Coder API.",
-			Detail:  invalidBodyDetail(res, sanitizeBodyExcerpt(prefix)),
+			Detail:  invalidBodyDetail(res),
 		}, htmlResponseHelper, nil)
 	}
 
-	body := io.MultiReader(bytes.NewReader(prefix), res.Body)
-	if err := json.NewDecoder(body).Decode(v); err != nil {
-		if !isJSONDecodeError(err) {
-			// Errors other than malformed JSON come from reading the
-			// body, e.g. a connection reset mid-response. Report them
-			// as read failures rather than an invalid API response.
-			return xerrors.Errorf("read response body: %w", err)
-		}
-		return invalidBodyError(res, Response{
-			Message: "Received an invalid JSON response from the Coder API.",
-			Detail:  fmt.Sprintf("decode body: %s, %s", err.Error(), invalidBodyDetail(res, sanitizeBodyExcerpt(prefix))),
-		}, "", err)
+	body := &responseBodyReader{Reader: res.Body}
+	prefix := &bodyPrefixWriter{}
+	err := json.NewDecoder(io.TeeReader(body, prefix)).Decode(v)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if body.err != nil && errors.Is(err, body.err) {
+		return xerrors.Errorf("read response body: %w", err)
+	}
+	if len(prefix.bytes) == 0 && errors.Is(err, io.EOF) {
+		return invalidBodyError(res, Response{
+			Message: "Received an empty response from the Coder API.",
+			Detail:  invalidBodyDetail(res),
+		}, "", nil)
+	}
+	if isHTMLBody(mimeType, prefix.bytes) {
+		return invalidBodyError(res, Response{
+			Message: "Received an HTML response instead of JSON from the Coder API.",
+			Detail:  invalidBodyDetail(res),
+		}, htmlResponseHelper, nil)
+	}
+	return invalidBodyError(res, Response{
+		Message: "Received an invalid JSON response from the Coder API.",
+		Detail:  fmt.Sprintf("decode body: %s, %s", err.Error(), invalidBodyDetail(res)),
+	}, "", err)
 }
 
-// isJSONDecodeError reports whether err indicates a malformed JSON
-// body rather than a failure reading the body from the network.
-// Truncated bodies surface as io.ErrUnexpectedEOF from the decoder and
-// are treated as malformed since the two cases are indistinguishable.
-func isJSONDecodeError(err error) bool {
-	if _, ok := errors.AsType[*json.SyntaxError](err); ok {
-		return true
+// responseBodyReader records non-EOF read errors so decode errors from custom
+// JSON unmarshallers are not mistaken for transport failures.
+type responseBodyReader struct {
+	io.Reader
+	err error
+}
+
+func (r *responseBodyReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && r.err == nil {
+		r.err = err
 	}
-	if _, ok := errors.AsType[*json.UnmarshalTypeError](err); ok {
-		return true
+	return n, err
+}
+
+// bodyPrefixWriter retains only the beginning of a body while reporting every
+// byte as written so it can be used with io.TeeReader.
+type bodyPrefixWriter struct {
+	bytes []byte
+}
+
+func (w *bodyPrefixWriter) Write(p []byte) (int, error) {
+	if remaining := jsonBodySniffLen - len(w.bytes); remaining > 0 {
+		w.bytes = append(w.bytes, p[:min(remaining, len(p))]...)
 	}
-	return errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF)
+	return len(p), nil
 }
 
 // isHTMLBody reports whether a response body is HTML, either by its
@@ -587,7 +596,7 @@ func isJSONDecodeError(err error) bool {
 // XML are intentionally classified the same way since the remediation,
 // fixing the URL or the intermediary, is identical.
 func isHTMLBody(mimeType string, prefix []byte) bool {
-	if mimeType == "text/html" || mimeType == "application/xhtml+xml" {
+	if isHTMLMimeType(mimeType) {
 		return true
 	}
 	// Strip a UTF-8 byte order mark, which some intermediaries prepend
@@ -597,23 +606,13 @@ func isHTMLBody(mimeType string, prefix []byte) bool {
 	return len(trimmed) > 0 && trimmed[0] == '<'
 }
 
-// sanitizeBodyExcerpt makes a bounded body prefix safe to include in an
-// error message by dropping invalid UTF-8 and collapsing control
-// characters and whitespace runs into single spaces.
-func sanitizeBodyExcerpt(prefix []byte) string {
-	s := strings.ToValidUTF8(string(prefix), "")
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsGraphic(r) {
-			return r
-		}
-		return ' '
-	}, s)
-	return strings.Join(strings.Fields(s), " ")
+func isHTMLMimeType(mimeType string) bool {
+	return mimeType == "text/html" || mimeType == "application/xhtml+xml"
 }
 
 // invalidBodyDetail describes an invalid response body and how it was
 // reached, for inclusion in an Error Detail.
-func invalidBodyDetail(res *http.Response, excerpt string) string {
+func invalidBodyDetail(res *http.Response) string {
 	var sb strings.Builder
 	if contentType := res.Header.Get("Content-Type"); contentType != "" {
 		_, _ = fmt.Fprintf(&sb, "content type %q", contentType)
@@ -622,9 +621,6 @@ func invalidBodyDetail(res *http.Response, excerpt string) string {
 	}
 	if orig := originalRequestURL(res); orig != "" && res.Request != nil && res.Request.URL != nil && orig != res.Request.URL.String() {
 		_, _ = fmt.Fprintf(&sb, ", after following redirects from %s", orig)
-	}
-	if excerpt != "" {
-		_, _ = fmt.Fprintf(&sb, ", body starts with: %s", excerpt)
 	}
 	return sb.String()
 }

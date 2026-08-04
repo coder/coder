@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
-	"unicode"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -415,11 +415,11 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 			name: "ValidJSONLargerThanSniffWindow",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", jsonCT)
-				_, _ = io.WriteString(w, `{"name":"`+strings.Repeat("a", 4*jsonBodyExcerptLen)+`"}`)
+				_, _ = io.WriteString(w, `{"name":"`+strings.Repeat("a", 4*jsonBodySniffLen)+`"}`)
 			},
 			assert: func(t *testing.T, v apiResponse, err error) {
 				require.NoError(t, err)
-				assert.Len(t, v.Name, 4*jsonBodyExcerptLen)
+				assert.Len(t, v.Name, 4*jsonBodySniffLen)
 			},
 		},
 		{
@@ -432,7 +432,7 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 				sdkErr := assertInvalidBody(t, err, "text/html; charset=utf-8")
 				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
 				assert.Contains(t, sdkErr.Helper, "/api/v2")
-				assert.Contains(t, sdkErr.Detail, "<!DOCTYPE html>")
+				assert.NotContains(t, sdkErr.Detail, "<!DOCTYPE html>")
 			},
 		},
 		{
@@ -472,7 +472,7 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 			assert: func(t *testing.T, _ apiResponse, err error) {
 				sdkErr := assertInvalidBody(t, err, "application/xml")
 				assert.Contains(t, sdkErr.Message, "HTML response instead of JSON")
-				assert.Contains(t, sdkErr.Detail, "<?xml")
+				assert.NotContains(t, sdkErr.Detail, "<?xml")
 			},
 		},
 		{
@@ -495,8 +495,7 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 			assert: func(t *testing.T, _ apiResponse, err error) {
 				sdkErr := assertInvalidBody(t, err, jsonCT)
 				assert.Contains(t, sdkErr.Message, "invalid JSON response")
-				assert.Contains(t, sdkErr.Detail, `{"name": "hello"`)
-				// The decode cause is preserved on the error chain.
+				assert.NotContains(t, sdkErr.Detail, `{"name": "hello"`)
 				assert.Error(t, errors.Unwrap(sdkErr))
 			},
 		},
@@ -509,7 +508,7 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 			assert: func(t *testing.T, _ apiResponse, err error) {
 				sdkErr := assertInvalidBody(t, err, "text/plain; charset=utf-8")
 				assert.Contains(t, sdkErr.Message, "invalid JSON response")
-				assert.Contains(t, sdkErr.Detail, "upstream connect error")
+				assert.NotContains(t, sdkErr.Detail, "upstream connect error")
 			},
 		},
 		{
@@ -523,20 +522,14 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "ExcerptBoundedAndSanitized",
+			name: "BodyExcerptOmitted",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/html")
-				// A large body with control characters and invalid
-				// UTF-8 must produce a small, printable excerpt.
-				_, _ = io.WriteString(w, "<html>\x00\x07evil\r\n\tbody\xff "+strings.Repeat("a", 1024*1024))
+				_, _ = io.WriteString(w, "<html>secret-token")
 			},
 			assert: func(t *testing.T, _ apiResponse, err error) {
 				sdkErr := assertInvalidBody(t, err, "text/html")
-				assert.LessOrEqual(t, len(sdkErr.Detail), jsonBodyExcerptLen+256)
-				assert.Contains(t, sdkErr.Detail, "<html> evil body")
-				for _, r := range sdkErr.Detail {
-					assert.True(t, unicode.IsGraphic(r), "detail contains non-graphic character %q", r)
-				}
+				assert.NotContains(t, sdkErr.Detail, "secret-token")
 			},
 		},
 		{
@@ -588,6 +581,40 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 	})
 
 	//nolint:bodyclose // The response is constructed, not from a client.
+	t.Run("CompleteShortJSONDoesNotReadAhead", func(t *testing.T) {
+		t.Parallel()
+
+		errReadAhead := xerrors.New("unexpected read after JSON value")
+		body := io.MultiReader(
+			strings.NewReader(`{"name":"hello"}`),
+			iotest.ErrReader(errReadAhead),
+		)
+		res := newResponse(http.StatusOK, jsonCT, body)
+
+		var v apiResponse
+		require.NoError(t, ReadBodyAsJSON(res, &v))
+		require.Equal(t, "hello", v.Name)
+	})
+
+	//nolint:bodyclose // The response is constructed, not from a client.
+	t.Run("CustomUnmarshalError", func(t *testing.T) {
+		t.Parallel()
+
+		var v struct {
+			CreatedAt time.Time `json:"created_at"`
+		}
+		res := newResponse(http.StatusOK, jsonCT, `{"created_at":"invalid"}`)
+		requestURL, err := url.Parse("https://coder.example.com/api/v2/users/me")
+		require.NoError(t, err)
+		res.Request = &http.Request{Method: http.MethodGet, URL: requestURL}
+		err = ReadBodyAsJSON(res, &v)
+		sdkErr := assertInvalidBody(t, err, jsonCT)
+		require.Contains(t, sdkErr.Detail, "cannot parse")
+		require.Error(t, errors.Unwrap(sdkErr))
+		require.NotContains(t, err.Error(), "read response body")
+	})
+
+	//nolint:bodyclose // The response is constructed, not from a client.
 	t.Run("BodyReadError", func(t *testing.T) {
 		t.Parallel()
 
@@ -596,7 +623,7 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 		// response.
 		errTransport := xerrors.New("connection reset by peer")
 		body := io.MultiReader(
-			strings.NewReader(`{"name":"`+strings.Repeat("a", 2*jsonBodyExcerptLen)),
+			strings.NewReader(`{"name":"`+strings.Repeat("a", 2*jsonBodySniffLen)),
 			iotest.ErrReader(errTransport),
 		)
 		res := newResponse(http.StatusOK, jsonCT, body)
