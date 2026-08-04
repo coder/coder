@@ -1640,6 +1640,21 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceACLsByOrganization(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceACLsByOrganization", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceACLsByOrganization), ctx, arg)
 }
 
+// DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned indicates an expected call of DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned), ctx, arg)
+}
+
 // DeleteWorkspaceAgentPortShare mocks base method.
 func (m *MockStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	m.ctrl.T.Helper()
@@ -6643,6 +6658,36 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentByID(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByID), ctx, id)
 }
 
+// GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned mocks base method.
+func (m *MockStore) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned indicates an expected call of GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned), ctx, arg)
+}
+
+// GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned mocks base method.
+func (m *MockStore) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned", ctx, parentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned indicates an expected call of GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned), ctx, parentID)
+}
+
 // GetWorkspaceAgentDevcontainersByAgentID mocks base method.
 func (m *MockStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	m.ctrl.T.Helper()
@@ -6791,6 +6836,21 @@ func (m *MockStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, created
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, createdAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, createdAt)
+}
+
+// GetWorkspaceAgentSubagentExecutionStatus mocks base method.
+func (m *MockStore) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSubagentExecutionStatus", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentSubagentExecutionStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSubagentExecutionStatus indicates an expected call of GetWorkspaceAgentSubagentExecutionStatus.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSubagentExecutionStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSubagentExecutionStatus", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSubagentExecutionStatus), ctx, arg)
 }
 
 // GetWorkspaceAgentSubagentExecutionsByParentAgentID mocks base method.
@@ -8730,10 +8790,10 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentStats(ctx, arg any) *gomock
 }
 
 // InsertWorkspaceAgentSubagentExecution mocks base method.
-func (m *MockStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+func (m *MockStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.InsertWorkspaceAgentSubagentExecutionRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceAgentSubagentExecution", ctx, arg)
-	ret0, _ := ret[0].(database.WorkspaceAgentSubagentExecution)
+	ret0, _ := ret[0].(database.InsertWorkspaceAgentSubagentExecutionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

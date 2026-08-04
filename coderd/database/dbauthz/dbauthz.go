@@ -2648,6 +2648,13 @@ func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params 
 	return q.db.DeleteWorkspaceACLsByOrganization(ctx, params)
 }
 
+func (q *querier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+}
+
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -5432,6 +5439,20 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 	return q.db.GetWorkspaceAgentByID(ctx, id)
 }
 
+func (q *querier) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentID, policy.ActionUpdateAgent); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return q.db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, parentID, policy.ActionRead); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentID)
+}
+
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {
@@ -5511,6 +5532,13 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.
 
 func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+}
+
+func (q *querier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentAgentID, policy.ActionRead); err != nil {
+		return database.WorkspaceAgentSubagentExecutionStatus{}, err
+	}
+	return q.db.GetWorkspaceAgentSubagentExecutionStatus(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.WorkspaceAgentSubagentExecution, error) {
@@ -6630,9 +6658,9 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+func (q *querier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.InsertWorkspaceAgentSubagentExecutionRow, error) {
 	if err := q.authorizeWorkspaceByAgentID(ctx, arg.ParentAgentID, policy.ActionUpdate); err != nil {
-		return database.WorkspaceAgentSubagentExecution{}, err
+		return database.InsertWorkspaceAgentSubagentExecutionRow{}, err
 	}
 	return q.db.InsertWorkspaceAgentSubagentExecution(ctx, arg)
 }

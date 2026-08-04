@@ -540,6 +540,54 @@ WHERE
 	parent_id = @parent_id::uuid
 	AND deleted = FALSE;
 
+-- name: GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned :many
+SELECT workspace_agents.*
+FROM workspace_agents
+WHERE workspace_agents.parent_id = @parent_id::uuid
+	AND workspace_agents.deleted = FALSE
+	AND NOT EXISTS (
+		SELECT 1
+		FROM workspace_agent_subagent_executions
+		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+	);
+
+-- name: GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+SELECT workspace_agents.*
+FROM workspace_agents
+WHERE workspace_agents.id = @id
+	AND workspace_agents.parent_id = @parent_id::uuid
+	AND workspace_agents.deleted = FALSE
+	AND NOT EXISTS (
+		SELECT 1
+		FROM workspace_agent_subagent_executions
+		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+	);
+
+-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :execrows
+-- Soft-deletes one exact child agent while preserving immutable execution-owned
+-- agents for the execution-specific control path.
+WITH target_agent AS (
+	SELECT workspace_agents.id
+	FROM workspace_agents
+	WHERE workspace_agents.id = @id
+		AND workspace_agents.parent_id = @parent_id::uuid
+		AND workspace_agents.deleted = FALSE
+		AND NOT EXISTS (
+			SELECT 1
+			FROM workspace_agent_subagent_executions
+			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+		)
+), purged_context_resources AS (
+	DELETE FROM workspace_agent_context_resources
+	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+), purged_context_snapshots AS (
+	DELETE FROM workspace_agent_context_snapshots
+	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+)
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (SELECT id FROM target_agent);
+
 -- name: DeleteWorkspaceSubAgentByID :exec
 -- Soft-deletes a single sub-agent (a child agent such as a devcontainer
 -- agent). Called from the DeleteSubAgent RPC when a sub-agent is torn

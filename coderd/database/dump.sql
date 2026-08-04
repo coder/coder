@@ -3852,6 +3852,22 @@ CREATE TABLE workspace_agent_stats (
     usage boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE workspace_agent_subagent_execution_statuses (
+    workspace_build_id uuid NOT NULL,
+    declaration_id uuid NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    status_changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_acquired_at timestamp with time zone,
+    last_reported_at timestamp with time zone,
+    restart_count integer DEFAULT 0 NOT NULL,
+    last_error text DEFAULT ''::text NOT NULL,
+    CONSTRAINT workspace_agent_subagent_execution_statuses_last_error_check CHECK ((octet_length(last_error) <= 4096)),
+    CONSTRAINT workspace_agent_subagent_execution_statuses_restart_count_check CHECK ((restart_count >= 0)),
+    CONSTRAINT workspace_agent_subagent_execution_statuses_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'starting'::text, 'running'::text, 'stopping'::text, 'stopped'::text, 'failed'::text])))
+);
+
 CREATE TABLE workspace_agent_subagent_executions (
     workspace_build_id uuid NOT NULL,
     declaration_id uuid NOT NULL,
@@ -4614,6 +4630,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_subagent_execution_statuses
+    ADD CONSTRAINT workspace_agent_subagent_execution_statuses_pkey PRIMARY KEY (workspace_build_id, declaration_id);
 
 ALTER TABLE ONLY workspace_agent_subagent_executions
     ADD CONSTRAINT workspace_agent_subagent_executions_child_agent_id_key UNIQUE (child_agent_id);
@@ -5517,6 +5536,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_subagent_execution_statuses
+    ADD CONSTRAINT workspace_agent_subagent_execution_statuses_execution_fkey FOREIGN KEY (workspace_build_id, declaration_id) REFERENCES workspace_agent_subagent_executions(workspace_build_id, declaration_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_subagent_executions
     ADD CONSTRAINT workspace_agent_subagent_executions_child_agent_id_fkey FOREIGN KEY (child_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

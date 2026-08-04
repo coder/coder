@@ -8175,6 +8175,15 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 		declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, params.ParentAgentID)
 		require.NoError(t, err)
 		require.Empty(t, declarations)
+
+		var statusCount int
+		err = fixture.sqlDB.QueryRowContext(fixture.ctx, `
+			SELECT COUNT(*)
+			FROM workspace_agent_subagent_execution_statuses
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID).Scan(&statusCount)
+		require.NoError(t, err)
+		require.Zero(t, statusCount)
 	}
 
 	t.Run("InsertGetRoundTrip", func(t *testing.T) {
@@ -8199,8 +8208,163 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 
 		got, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, build.parent.ID)
 		require.NoError(t, err)
-		require.Equal(t, []database.WorkspaceAgentSubagentExecution{inserted}, got)
+		require.Equal(t, []database.WorkspaceAgentSubagentExecution{database.WorkspaceAgentSubagentExecution(inserted)}, got)
+
+		status, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, params.WorkspaceBuildID, status.WorkspaceBuildID)
+		require.Equal(t, params.DeclarationID, status.DeclarationID)
+		require.Equal(t, "pending", status.Status)
+		require.False(t, status.CreatedAt.IsZero())
+		require.False(t, status.UpdatedAt.IsZero())
+		require.False(t, status.StatusChangedAt.IsZero())
+		require.Equal(t, status.CreatedAt, status.UpdatedAt)
+		require.Equal(t, status.CreatedAt, status.StatusChangedAt)
+		require.False(t, status.LastAcquiredAt.Valid)
+		require.False(t, status.LastReportedAt.Valid)
+		require.Zero(t, status.RestartCount)
+		require.Empty(t, status.LastError)
 	})
+
+	t.Run("StatusMutableFields", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		updatedAt := dbtime.Now().Add(time.Minute).Truncate(time.Microsecond)
+		statusChangedAt := updatedAt.Add(time.Second)
+		lastAcquiredAt := updatedAt.Add(2 * time.Second)
+		lastReportedAt := updatedAt.Add(3 * time.Second)
+		_, err = fixture.sqlDB.ExecContext(fixture.ctx, `
+			UPDATE workspace_agent_subagent_execution_statuses
+			SET status = 'running',
+				updated_at = $3,
+				status_changed_at = $4,
+				last_acquired_at = $5,
+				last_reported_at = $6,
+				restart_count = 2,
+				last_error = 'driver restarted'
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID, updatedAt, statusChangedAt, lastAcquiredAt, lastReportedAt)
+		require.NoError(t, err)
+
+		status, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "running", status.Status)
+		require.True(t, status.UpdatedAt.Equal(updatedAt))
+		require.True(t, status.StatusChangedAt.Equal(statusChangedAt))
+		require.True(t, status.LastAcquiredAt.Valid)
+		require.True(t, status.LastAcquiredAt.Time.Equal(lastAcquiredAt))
+		require.True(t, status.LastReportedAt.Valid)
+		require.True(t, status.LastReportedAt.Time.Equal(lastReportedAt))
+		require.EqualValues(t, 2, status.RestartCount)
+		require.Equal(t, "driver restarted", status.LastError)
+	})
+
+	t.Run("StatusReadExactScope", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		base := database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		}
+		for _, mutate := range []func(*database.GetWorkspaceAgentSubagentExecutionStatusParams){
+			func(arg *database.GetWorkspaceAgentSubagentExecutionStatusParams) { arg.WorkspaceBuildID = uuid.New() },
+			func(arg *database.GetWorkspaceAgentSubagentExecutionStatusParams) { arg.DeclarationID = uuid.New() },
+			func(arg *database.GetWorkspaceAgentSubagentExecutionStatusParams) { arg.ParentAgentID = uuid.New() },
+		} {
+			arg := base
+			mutate(&arg)
+			_, err := fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, arg)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+		}
+	})
+
+	t.Run("StatusCascadeDelete", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+		build := fixture.newBuild(t, 1)
+		params := validParams(build)
+		_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+		require.NoError(t, err)
+
+		_, err = fixture.sqlDB.ExecContext(fixture.ctx, `
+			DELETE FROM workspace_agent_subagent_executions
+			WHERE workspace_build_id = $1 AND declaration_id = $2
+		`, params.WorkspaceBuildID, params.DeclarationID)
+		require.NoError(t, err)
+
+		_, err = fixture.db.GetWorkspaceAgentSubagentExecutionStatus(fixture.ctx, database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: params.WorkspaceBuildID,
+			DeclarationID:    params.DeclarationID,
+			ParentAgentID:    params.ParentAgentID,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	for _, tc := range []struct {
+		name       string
+		column     string
+		value      any
+		constraint database.CheckConstraint
+	}{
+		{
+			name:       "InvalidStatus",
+			column:     "status",
+			value:      "unknown",
+			constraint: database.CheckWorkspaceAgentSubagentExecutionStatusesStatusCheck,
+		},
+		{
+			name:       "NegativeRestartCount",
+			column:     "restart_count",
+			value:      -1,
+			constraint: database.CheckWorkspaceAgentSubagentExecutionStatusesRestartCountCheck,
+		},
+		{
+			name:       "OversizedLastError",
+			column:     "last_error",
+			value:      strings.Repeat("x", 4097),
+			constraint: database.CheckWorkspaceAgentSubagentExecutionStatusesLastErrorCheck,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newFixture(t)
+			build := fixture.newBuild(t, 1)
+			params := validParams(build)
+			_, err := fixture.db.InsertWorkspaceAgentSubagentExecution(fixture.ctx, params)
+			require.NoError(t, err)
+
+			_, err = fixture.sqlDB.ExecContext(fixture.ctx, fmt.Sprintf(`
+				UPDATE workspace_agent_subagent_execution_statuses
+				SET %s = $3
+				WHERE workspace_build_id = $1 AND declaration_id = $2
+			`, tc.column), params.WorkspaceBuildID, params.DeclarationID, tc.value)
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, tc.constraint))
+		})
+	}
 
 	t.Run("BuildFromAnotherWorkspace", func(t *testing.T) {
 		t.Parallel()
@@ -8442,6 +8606,176 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceAgentSubagentExecutionsStartupTimeoutCheck))
 		})
 	}
+}
+
+func TestWorkspaceAgentChildrenExcludingExecutionOwned(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		BuildNumber:       1,
+		JobID:             job.ID,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
+	parent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	otherParent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+
+	dynamicChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{Name: "dynamic-child"})
+	wrongParentTarget := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{Name: "wrong-parent-target"})
+	devcontainerChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{Name: "devcontainer-child"})
+	_ = dbgen.WorkspaceAgentDevcontainer(t, db, database.WorkspaceAgentDevcontainer{
+		WorkspaceAgentID: parent.ID,
+		SubagentID:       uuid.NullUUID{UUID: devcontainerChild.ID, Valid: true},
+	})
+	executionChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+		Name:               "execution-child",
+		ExecutionIsolation: true,
+	})
+	otherParentChild := dbgen.WorkspaceSubAgent(t, db, otherParent, database.WorkspaceAgent{Name: "other-parent-child"})
+
+	_, err := db.InsertWorkspaceAgentSubagentExecution(ctx, database.InsertWorkspaceAgentSubagentExecutionParams{
+		WorkspaceBuildID:      build.ID,
+		DeclarationID:         uuid.New(),
+		ParentAgentID:         parent.ID,
+		ChildAgentID:          executionChild.ID,
+		Driver:                "docker",
+		DriverProtocol:        1,
+		SharedHostPath:        "/home/coder/project",
+		SharedChildPath:       "/workspace/project",
+		StartupTimeoutSeconds: 30,
+		RestartPolicy:         "on-failure",
+	})
+	require.NoError(t, err)
+
+	children, err := db.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parent.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{dynamicChild.ID, wrongParentTarget.ID, devcontainerChild.ID}, slice.Convert(children, func(agent database.WorkspaceAgent) uuid.UUID {
+		return agent.ID
+	}))
+
+	otherChildren, err := db.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, otherParent.ID)
+	require.NoError(t, err)
+	require.Equal(t, []database.WorkspaceAgent{otherParentChild}, otherChildren)
+
+	for _, child := range []database.WorkspaceAgent{dynamicChild, devcontainerChild} {
+		got, err := db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:       child.ID,
+			ParentID: parent.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, child, got)
+	}
+
+	_, err = db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       executionChild.ID,
+		ParentID: parent.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       wrongParentTarget.ID,
+		ParentID: otherParent.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	now := dbtime.Now()
+	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: dynamicChild.ID,
+		Version:          1,
+		AggregateHash:    []byte("hash"),
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+		WorkspaceAgentID: dynamicChild.ID,
+		Source:           "/workspace/AGENTS.md",
+		BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:             json.RawMessage(`{}`),
+		ContentHash:      []byte("content-hash"),
+		SizeBytes:        2,
+		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		Now:              now,
+	})
+	require.NoError(t, err)
+
+	deleted, err := db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       dynamicChild.ID,
+		ParentID: parent.ID,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(ctx, dynamicChild.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	contextResources, err := db.ListWorkspaceAgentContextResources(ctx, dynamicChild.ID)
+	require.NoError(t, err)
+	require.Empty(t, contextResources)
+
+	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       devcontainerChild.ID,
+		ParentID: parent.ID,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       executionChild.ID,
+		ParentID: parent.ID,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	executionChildAfter, err := db.GetWorkspaceAgentByID(ctx, executionChild.ID)
+	require.NoError(t, err)
+	require.Equal(t, executionChild, executionChildAfter)
+
+	deleted, err = db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+		ID:       wrongParentTarget.ID,
+		ParentID: otherParent.ID,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	wrongParentTargetAfter, err := db.GetWorkspaceAgentByID(ctx, wrongParentTarget.ID)
+	require.NoError(t, err)
+	require.Equal(t, wrongParentTarget, wrongParentTargetAfter)
+
+	var deletedIDs []uuid.UUID
+	rows, err := sqlDB.QueryContext(ctx, `SELECT id FROM workspace_agents WHERE deleted = TRUE AND id = ANY($1)`, pq.Array([]uuid.UUID{
+		dynamicChild.ID,
+		devcontainerChild.ID,
+		executionChild.ID,
+		wrongParentTarget.ID,
+	}))
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		require.NoError(t, rows.Scan(&id))
+		deletedIDs = append(deletedIDs, id)
+	}
+	require.NoError(t, rows.Err())
+	require.ElementsMatch(t, []uuid.UUID{dynamicChild.ID, devcontainerChild.ID}, deletedIDs)
 }
 
 func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {

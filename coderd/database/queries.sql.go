@@ -33505,6 +33505,45 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 	return result.RowsAffected()
 }
 
+const deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :execrows
+WITH target_agent AS (
+	SELECT workspace_agents.id
+	FROM workspace_agents
+	WHERE workspace_agents.id = $1
+		AND workspace_agents.parent_id = $2::uuid
+		AND workspace_agents.deleted = FALSE
+		AND NOT EXISTS (
+			SELECT 1
+			FROM workspace_agent_subagent_executions
+			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+		)
+), purged_context_resources AS (
+	DELETE FROM workspace_agent_context_resources
+	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+), purged_context_snapshots AS (
+	DELETE FROM workspace_agent_context_snapshots
+	WHERE workspace_agent_id IN (SELECT id FROM target_agent)
+)
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (SELECT id FROM target_agent)
+`
+
+type DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	ParentID uuid.UUID `db:"parent_id" json:"parent_id"`
+}
+
+// Soft-deletes one exact child agent while preserving immutable execution-owned
+// agents for the execution-specific control path.
+func (q *sqlQuerier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
 WITH soft_deleted_agents AS (
     UPDATE workspace_agents
@@ -33939,6 +33978,138 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ExecutionIsolation,
 	)
 	return i, err
+}
+
+const getWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+SELECT workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.execution_isolation
+FROM workspace_agents
+WHERE workspace_agents.id = $1
+	AND workspace_agents.parent_id = $2::uuid
+	AND workspace_agents.deleted = FALSE
+	AND NOT EXISTS (
+		SELECT 1
+		FROM workspace_agent_subagent_executions
+		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+	)
+`
+
+type GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	ParentID uuid.UUID `db:"parent_id" json:"parent_id"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.Architecture,
+		&i.EnvironmentVariables,
+		&i.OperatingSystem,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+		&i.Directory,
+		&i.Version,
+		&i.LastConnectedReplicaID,
+		&i.ConnectionTimeoutSeconds,
+		&i.TroubleshootingURL,
+		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.ExpandedDirectory,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+		&i.StartedAt,
+		&i.ReadyAt,
+		pq.Array(&i.Subsystems),
+		pq.Array(&i.DisplayApps),
+		&i.APIVersion,
+		&i.DisplayOrder,
+		&i.ParentID,
+		&i.APIKeyScope,
+		&i.Deleted,
+		&i.ExecutionIsolation,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentChildrenByParentIDExcludingExecutionOwned = `-- name: GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned :many
+SELECT workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.execution_isolation
+FROM workspace_agents
+WHERE workspace_agents.parent_id = $1::uuid
+	AND workspace_agents.deleted = FALSE
+	AND NOT EXISTS (
+		SELECT 1
+		FROM workspace_agent_subagent_executions
+		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+	)
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx context.Context, parentID uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentChildrenByParentIDExcludingExecutionOwned, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+			&i.ParentID,
+			&i.APIKeyScope,
+			&i.Deleted,
+			&i.ExecutionIsolation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAgentLifecycleStateByID = `-- name: GetWorkspaceAgentLifecycleStateByID :one
@@ -36169,6 +36340,40 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
+const getWorkspaceAgentSubagentExecutionStatus = `-- name: GetWorkspaceAgentSubagentExecutionStatus :one
+SELECT workspace_agent_subagent_execution_statuses.workspace_build_id, workspace_agent_subagent_execution_statuses.declaration_id, workspace_agent_subagent_execution_statuses.status, workspace_agent_subagent_execution_statuses.created_at, workspace_agent_subagent_execution_statuses.updated_at, workspace_agent_subagent_execution_statuses.status_changed_at, workspace_agent_subagent_execution_statuses.last_acquired_at, workspace_agent_subagent_execution_statuses.last_reported_at, workspace_agent_subagent_execution_statuses.restart_count, workspace_agent_subagent_execution_statuses.last_error
+FROM workspace_agent_subagent_execution_statuses
+JOIN workspace_agent_subagent_executions
+	USING (workspace_build_id, declaration_id)
+WHERE workspace_agent_subagent_execution_statuses.workspace_build_id = $1
+	AND workspace_agent_subagent_execution_statuses.declaration_id = $2
+	AND workspace_agent_subagent_executions.parent_agent_id = $3
+`
+
+type GetWorkspaceAgentSubagentExecutionStatusParams struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID    uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ParentAgentID    uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg GetWorkspaceAgentSubagentExecutionStatusParams) (WorkspaceAgentSubagentExecutionStatus, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentSubagentExecutionStatus, arg.WorkspaceBuildID, arg.DeclarationID, arg.ParentAgentID)
+	var i WorkspaceAgentSubagentExecutionStatus
+	err := row.Scan(
+		&i.WorkspaceBuildID,
+		&i.DeclarationID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StatusChangedAt,
+		&i.LastAcquiredAt,
+		&i.LastReportedAt,
+		&i.RestartCount,
+		&i.LastError,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentSubagentExecutionsByParentAgentID = `-- name: GetWorkspaceAgentSubagentExecutionsByParentAgentID :many
 SELECT workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
 FROM workspace_agent_subagent_executions
@@ -36212,45 +36417,60 @@ func (q *sqlQuerier) GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx cont
 }
 
 const insertWorkspaceAgentSubagentExecution = `-- name: InsertWorkspaceAgentSubagentExecution :one
-INSERT INTO workspace_agent_subagent_executions (
-	workspace_build_id,
-	declaration_id,
-	parent_agent_id,
-	child_agent_id,
-	driver,
-	driver_protocol,
-	shared_host_path,
-	shared_child_path,
-	startup_timeout_seconds,
-	restart_policy
+WITH inserted_execution AS (
+	INSERT INTO workspace_agent_subagent_executions (
+		workspace_build_id,
+		declaration_id,
+		parent_agent_id,
+		child_agent_id,
+		driver,
+		driver_protocol,
+		shared_host_path,
+		shared_child_path,
+		startup_timeout_seconds,
+		restart_policy
+	)
+	SELECT
+		workspace_builds.id,
+		$1,
+		parent.id,
+		child.id,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7
+	FROM workspace_agents AS parent
+	JOIN workspace_resources
+		ON workspace_resources.id = parent.resource_id
+	JOIN workspace_builds
+		ON workspace_builds.job_id = workspace_resources.job_id
+	JOIN workspace_agents AS child
+		ON child.id = $8
+		AND child.parent_id = parent.id
+		AND child.resource_id = parent.resource_id
+	WHERE parent.id = $9
+		AND parent.parent_id IS NULL
+		AND parent.deleted = FALSE
+		AND workspace_builds.id = $10
+		AND child.deleted = FALSE
+		AND child.execution_isolation = TRUE
+	RETURNING workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
+), inserted_status AS (
+	INSERT INTO workspace_agent_subagent_execution_statuses (
+		workspace_build_id,
+		declaration_id
+	)
+	SELECT
+		workspace_build_id,
+		declaration_id
+	FROM inserted_execution
+	RETURNING workspace_build_id, declaration_id
 )
-SELECT
-	workspace_builds.id,
-	$1,
-	parent.id,
-	child.id,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6,
-	$7
-FROM workspace_agents AS parent
-JOIN workspace_resources
-	ON workspace_resources.id = parent.resource_id
-JOIN workspace_builds
-	ON workspace_builds.job_id = workspace_resources.job_id
-JOIN workspace_agents AS child
-	ON child.id = $8
-	AND child.parent_id = parent.id
-	AND child.resource_id = parent.resource_id
-WHERE parent.id = $9
-	AND parent.parent_id IS NULL
-	AND parent.deleted = FALSE
-	AND workspace_builds.id = $10
-	AND child.deleted = FALSE
-	AND child.execution_isolation = TRUE
-RETURNING workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
+SELECT inserted_execution.workspace_build_id, inserted_execution.declaration_id, inserted_execution.parent_agent_id, inserted_execution.child_agent_id, inserted_execution.created_at, inserted_execution.driver, inserted_execution.driver_protocol, inserted_execution.shared_host_path, inserted_execution.shared_child_path, inserted_execution.startup_timeout_seconds, inserted_execution.restart_policy
+FROM inserted_execution
+JOIN inserted_status USING (workspace_build_id, declaration_id)
 `
 
 type InsertWorkspaceAgentSubagentExecutionParams struct {
@@ -36266,7 +36486,21 @@ type InsertWorkspaceAgentSubagentExecutionParams struct {
 	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (WorkspaceAgentSubagentExecution, error) {
+type InsertWorkspaceAgentSubagentExecutionRow struct {
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
+	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	CreatedAt             time.Time `db:"created_at" json:"created_at"`
+	Driver                string    `db:"driver" json:"driver"`
+	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
+	SharedHostPath        string    `db:"shared_host_path" json:"shared_host_path"`
+	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
+	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (InsertWorkspaceAgentSubagentExecutionRow, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentSubagentExecution,
 		arg.DeclarationID,
 		arg.Driver,
@@ -36279,7 +36513,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, 
 		arg.ParentAgentID,
 		arg.WorkspaceBuildID,
 	)
-	var i WorkspaceAgentSubagentExecution
+	var i InsertWorkspaceAgentSubagentExecutionRow
 	err := row.Scan(
 		&i.WorkspaceBuildID,
 		&i.DeclarationID,

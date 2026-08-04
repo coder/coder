@@ -2317,6 +2317,100 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
 }
 
+func TestMigration000564WorkspaceAgentSubagentExecutionStatusesBackfill(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 564
+
+	sqlDB := testSQLDB(t)
+	fixtureDriver, fixtureMigrate := setupMigrate(t, sqlDB, "subagent_execution_statuses", filepath.Join("testdata", "fixtures"))
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+
+	nextFixtureVersion, err := fixtureDriver.First()
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if nextFixtureVersion == version {
+			require.NoError(t, fixtureMigrate.Steps(1))
+			if nextVersion, nextErr := fixtureDriver.Next(nextFixtureVersion); nextErr == nil {
+				nextFixtureVersion = nextVersion
+			}
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	declarationID := uuid.MustParse("b8510489-fbf8-4443-bfee-bbb3c626d3a8")
+	var declarationCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM workspace_agent_subagent_executions
+		WHERE declaration_id = $1
+	`, declarationID).Scan(&declarationCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, declarationCount)
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	var (
+		status          string
+		createdAt       time.Time
+		updatedAt       time.Time
+		statusChangedAt time.Time
+		lastAcquiredAt  sql.NullTime
+		lastReportedAt  sql.NullTime
+		restartCount    int32
+		lastError       string
+	)
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT status, created_at, updated_at, status_changed_at,
+			last_acquired_at, last_reported_at, restart_count, last_error
+		FROM workspace_agent_subagent_execution_statuses
+		WHERE declaration_id = $1
+	`, declarationID).Scan(
+		&status,
+		&createdAt,
+		&updatedAt,
+		&statusChangedAt,
+		&lastAcquiredAt,
+		&lastReportedAt,
+		&restartCount,
+		&lastError,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "pending", status)
+	require.False(t, createdAt.IsZero())
+	require.Equal(t, createdAt, updatedAt)
+	require.Equal(t, createdAt, statusChangedAt)
+	require.False(t, lastAcquiredAt.Valid)
+	require.False(t, lastReportedAt.Valid)
+	require.Zero(t, restartCount)
+	require.Empty(t, lastError)
+
+	require.EqualValues(t, migrationVersion, nextFixtureVersion)
+	require.NoError(t, fixtureMigrate.Steps(1))
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT status, restart_count, last_acquired_at, last_reported_at
+		FROM workspace_agent_subagent_execution_statuses
+		WHERE declaration_id = $1
+	`, declarationID).Scan(&status, &restartCount, &lastAcquiredAt, &lastReportedAt)
+	require.NoError(t, err)
+	require.Equal(t, "running", status)
+	require.EqualValues(t, 1, restartCount)
+	require.True(t, lastAcquiredAt.Valid)
+	require.True(t, lastReportedAt.Valid)
+}
+
 func TestMigration000556UserSecretsEnabled(t *testing.T) {
 	t.Parallel()
 

@@ -5234,6 +5234,60 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceAgentsByParentID(gomock.Any(), parent.ID).Return([]database.WorkspaceAgent{child}, nil).AnyTimes()
 		check.Args(parent.ID).Asserts(ws, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		parentID := uuid.New()
+		child := testutil.Fake(s.T(), faker, database.WorkspaceAgent{
+			ID:       uuid.New(),
+			ParentID: uuid.NullUUID{UUID: parentID, Valid: true},
+		})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(gomock.Any(), parentID).Return([]database.WorkspaceAgent{child}, nil).AnyTimes()
+		check.Args(parentID).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceAgent{child})
+	}))
+	s.Run("GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		parentID := uuid.New()
+		child := testutil.Fake(s.T(), faker, database.WorkspaceAgent{
+			ID:       uuid.New(),
+			ParentID: uuid.NullUUID{UUID: parentID, Valid: true},
+		})
+		arg := database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:       child.ID,
+			ParentID: parentID,
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(child, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdateAgent).Returns(child)
+	}))
+	s.Run("DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		parentID := uuid.New()
+		childID := uuid.New()
+		arg := database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:       childID,
+			ParentID: parentID,
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionDeleteAgent).Returns(int64(1))
+	}))
+	s.Run("GetWorkspaceAgentSubagentExecutionStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		parentID := uuid.New()
+		arg := database.GetWorkspaceAgentSubagentExecutionStatusParams{
+			WorkspaceBuildID: uuid.New(),
+			DeclarationID:    uuid.New(),
+			ParentAgentID:    parentID,
+		}
+		status := testutil.Fake(s.T(), faker, database.WorkspaceAgentSubagentExecutionStatus{
+			WorkspaceBuildID: arg.WorkspaceBuildID,
+			DeclarationID:    arg.DeclarationID,
+		})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentSubagentExecutionStatus(gomock.Any(), arg).Return(status, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns(status)
+	}))
 	s.Run("GetWorkspaceAgentSubagentExecutionsByParentAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		parent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ID: uuid.New()})
@@ -5245,7 +5299,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAgentSubagentExecution", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		arg := testutil.Fake(s.T(), faker, database.InsertWorkspaceAgentSubagentExecutionParams{ParentAgentID: uuid.New()})
-		execution := testutil.Fake(s.T(), faker, database.WorkspaceAgentSubagentExecution{ParentAgentID: arg.ParentAgentID})
+		execution := testutil.Fake(s.T(), faker, database.InsertWorkspaceAgentSubagentExecutionRow{ParentAgentID: arg.ParentAgentID})
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), arg.ParentAgentID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().InsertWorkspaceAgentSubagentExecution(gomock.Any(), arg).Return(execution, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(execution)

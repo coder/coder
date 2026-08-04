@@ -6538,6 +6538,19 @@ type WorkspaceAgentSubagentExecution struct {
 	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
 }
 
+type WorkspaceAgentSubagentExecutionStatus struct {
+	WorkspaceBuildID uuid.UUID    `db:"workspace_build_id" json:"workspace_build_id"`
+	DeclarationID    uuid.UUID    `db:"declaration_id" json:"declaration_id"`
+	Status           string       `db:"status" json:"status"`
+	CreatedAt        time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
+	StatusChangedAt  time.Time    `db:"status_changed_at" json:"status_changed_at"`
+	LastAcquiredAt   sql.NullTime `db:"last_acquired_at" json:"last_acquired_at"`
+	LastReportedAt   sql.NullTime `db:"last_reported_at" json:"last_reported_at"`
+	RestartCount     int32        `db:"restart_count" json:"restart_count"`
+	LastError        string       `db:"last_error" json:"last_error"`
+}
+
 type WorkspaceAgentVolumeResourceMonitor struct {
 	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
 	Enabled        bool                       `db:"enabled" json:"enabled"`

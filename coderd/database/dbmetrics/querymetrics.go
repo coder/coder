@@ -961,6 +961,14 @@ func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context
 	return r0
 }
 
+func (m queryMetricsStore) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWorkspaceAgentPortShare(ctx, arg)
@@ -3553,6 +3561,22 @@ func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UU
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned(ctx, parentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentChildrenByParentIDExcludingExecutionOwned").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
@@ -3630,6 +3654,14 @@ func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, 
 	r0, r1 := m.s.GetWorkspaceAgentStatsAndLabels(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStatsAndLabels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentStatsAndLabels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentSubagentExecutionStatus(ctx context.Context, arg database.GetWorkspaceAgentSubagentExecutionStatusParams) (database.WorkspaceAgentSubagentExecutionStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSubagentExecutionStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSubagentExecutionStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSubagentExecutionStatus").Inc()
 	return r0, r1
 }
 
@@ -4665,7 +4697,7 @@ func (m queryMetricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.WorkspaceAgentSubagentExecution, error) {
+func (m queryMetricsStore) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg database.InsertWorkspaceAgentSubagentExecutionParams) (database.InsertWorkspaceAgentSubagentExecutionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspaceAgentSubagentExecution(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentSubagentExecution").Observe(time.Since(start).Seconds())
