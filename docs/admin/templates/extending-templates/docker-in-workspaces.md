@@ -27,7 +27,7 @@ the Coder host, modify your template to use the sysbox-runc runtime:
 resource "docker_container" "workspace" {
   # ...
   name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   command = ["sh", "-c", coder_agent.main.init_script]
   # Use the Sysbox container runtime (required)
@@ -105,7 +105,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
     }
   }
@@ -333,7 +333,7 @@ resource "docker_container" "dind" {
 
 resource "docker_container" "workspace" {
   count   = data.coder_workspace.me.start_count
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   name    = "dev-${data.coder_workspace.me.id}"
   command = ["sh", "-c", coder_agent.main.init_script]
   env = [
@@ -391,7 +391,7 @@ resource "kubernetes_pod" "main" {
     }
     container {
       name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
+      image   = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
@@ -472,7 +472,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", <<EOF
     # Start the Coder agent as the "coder" user
     # once systemd has started up

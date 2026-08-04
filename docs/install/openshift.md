@@ -267,7 +267,7 @@ Security Context Constraints (SCCs) in OpenShift.
        type: Dockerfile
        dockerfile: |
          # Specify the source image.
-         FROM docker.io/codercom/enterprise-base:ubuntu
+         FROM docker.io/codercom/example-base:ubuntu
 
          # Switch to root
          USER root
