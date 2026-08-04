@@ -119,6 +119,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIA-original"),
 				AccessKeySecret: serpent.String("secret-original"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -213,8 +214,9 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// via the AWS environment (instance profile, AWS_PROFILE, etc.).
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
-				Region: serpent.String("us-east-1"),
-				Model:  serpent.String("anthropic.claude-3-5-sonnet"),
+				Region:         serpent.String("us-east-1"),
+				Model:          serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel: serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -229,6 +231,58 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, keys, "Bedrock provider must not seed bearer keys")
 	})
 
+	t.Run("BedrockModelsRequired", func(t *testing.T) {
+		t.Parallel()
+
+		// A seeded Bedrock provider always uses InvokeModel, which replaces
+		// the client's model with the configured one. Seeding it without
+		// models writes a row that cannot be built, so every request to the
+		// provider would return a bare 404. Fail before touching the database.
+		t.Run("Legacy", func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Both legacy options carry defaults, so this state is only
+			// reachable by setting one to the empty string.
+			cfg := codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Region: serpent.String("us-east-1"),
+					Model:  serpent.String("anthropic.claude-3-5-sonnet"),
+				},
+			}
+			err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+			require.ErrorContains(t, err, "small fast model is required")
+			require.ErrorContains(t, err, "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL")
+
+			_, err = db.GetAIProviderByName(ctx, "anthropic")
+			require.Error(t, err, "no row may be written")
+		})
+
+		t.Run("Indexed", func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// The indexed options carry no defaults, so this is the state an
+			// operator reaches by migrating off the legacy env vars.
+			cfg := codersdk.AIBridgeConfig{
+				Providers: []codersdk.AIProviderConfig{{
+					Type:          "bedrock",
+					Name:          "bedrock-indexed",
+					BaseURL:       "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					BedrockRegion: "us-east-1",
+				}},
+			}
+			err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+			require.ErrorContains(t, err, `indexed AI provider "bedrock-indexed"`)
+			require.ErrorContains(t, err, "bedrock model and small fast model are required")
+
+			_, err = db.GetAIProviderByName(ctx, "bedrock-indexed")
+			require.Error(t, err, "no row may be written")
+		})
+	})
+
 	t.Run("BedrockOnlyAnthropic", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -240,6 +294,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIAONLY"),
 				AccessKeySecret: serpent.String("secretonly"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
@@ -363,6 +418,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 					BaseURL:                 "https://bedrock-runtime.us-east-1.amazonaws.com/",
 					BedrockRegion:           "us-east-1",
 					BedrockModel:            "anthropic.claude-3-5-sonnet",
+					BedrockSmallFastModel:   "anthropic.claude-3-5-haiku",
 					BedrockAccessKeys:       []string{"AKIA-indexed"},
 					BedrockAccessKeySecrets: []string{"indexed-secret"},
 				},
@@ -615,6 +671,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				AccessKey:       serpent.String("AKIA"),
 				AccessKeySecret: serpent.String("secret"),
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
 

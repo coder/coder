@@ -338,6 +338,14 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			Type: database.AIProviderTypeAnthropic,
 		}
 		if hasLegacyBedrock {
+			// The env vars cannot express a protocol, so a seeded Bedrock
+			// provider always uses InvokeModel, which substitutes the
+			// configured models into every upstream request. Both options
+			// carry defaults, so this only fires when an operator sets one
+			// to the empty string.
+			if err := validateSeededBedrockModels(bedrock); err != nil {
+				return nil, xerrors.Errorf("legacy bedrock provider: %w, set CODER_AI_GATEWAY_BEDROCK_MODEL and CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL", err)
+			}
 			dp.Type = database.AIProviderTypeBedrock
 			if hasAnthropicKey {
 				logger.Warn(ctx, "ignoring legacy Anthropic API key because Bedrock credentials are configured; Bedrock authenticates via access keys or credential chain",
@@ -407,6 +415,12 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			)
 			isBedrock = codersdk.IsBedrockConfigured(p.BedrockBaseURL, bedrock)
 			if isBedrock {
+				// Unlike the legacy CODER_AI_GATEWAY_BEDROCK_* options, the
+				// indexed ones carry no defaults, so a provider migrated from
+				// legacy to indexed env vars loses its models silently.
+				if err := validateSeededBedrockModels(bedrock); err != nil {
+					return nil, xerrors.Errorf("indexed AI provider %q: %w, set BEDROCK_MODEL and BEDROCK_SMALL_FAST_MODEL on it", name, err)
+				}
 				dp.Bedrock = &bedrock
 				// Always overwrite the generic BaseURL so removing
 				// BASE_URL later doesn't trigger drift. Empty is fine:
@@ -458,4 +472,23 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		res = append(res, out[name])
 	}
 	return res, nil
+}
+
+// validateSeededBedrockModels rejects an env-seeded Bedrock provider
+// that omits the model identifiers. Neither env path can express a
+// protocol, so a seeded provider always uses InvokeModel, which
+// replaces the client's model with the configured one on every
+// request. Without them the provider fails to build and is skipped,
+// leaving every request to it to return a bare 404, so failing here
+// keeps the dead row out of the database.
+func validateSeededBedrockModels(b codersdk.AIProviderBedrockSettings) error {
+	switch {
+	case b.Model == "" && b.SmallFastModel == "":
+		return xerrors.New("bedrock model and small fast model are required")
+	case b.Model == "":
+		return xerrors.New("bedrock model is required")
+	case b.SmallFastModel == "":
+		return xerrors.New("bedrock small fast model is required")
+	}
+	return nil
 }
