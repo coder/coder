@@ -23,8 +23,8 @@ import (
 )
 
 // MaxConcurrentAgents is the default cap for chatd generation loops when
-// codersdk.FeatureAgentRuntimeHours is disabled. It does not cap workspace
-// agents.
+// codersdk.FeatureAgentRuntimeHours does not lift it (see gate.uncapped).
+// It does not cap workspace agents.
 const MaxConcurrentAgents = 5
 
 // Fallback polling covers missed nudges, entitlement changes, and release
@@ -33,8 +33,8 @@ const defaultCapacityPollInterval = 15 * time.Second
 
 const defaultMetricsInterval = 30 * time.Second
 
-// NewAgentConcurrencyGateFactory returns a gate that checks the current
-// entitlement before each claim.
+// NewAgentConcurrencyGateFactory returns a gate that evaluates the agent
+// runtime hours entitlement before each claim.
 func NewAgentConcurrencyGateFactory(set *entitlements.Set) osschatd.AgentConcurrencyGateFactory {
 	return func(opts osschatd.AgentConcurrencyGateOptions) osschatd.AgentConcurrencyGate {
 		return newGate(gateOptions{
@@ -145,14 +145,27 @@ func newGate(opts gateOptions) *gate {
 	return g
 }
 
-func (g *gate) entitled() bool {
-	return g.entitlements.Enabled(codersdk.FeatureAgentRuntimeHours)
+// uncapped reports whether the license has remaining agent runtime hours.
+// Enabled alone only means the license carries a positive allocation; once
+// recorded usage (Actual) reaches it, the deployment is capped like
+// community. A nil allocation or usage reading fails open to Enabled
+// semantics: capping on a missing usage reading is worse than bounded
+// over-admission.
+func (g *gate) uncapped() bool {
+	f, ok := g.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
+	if !ok || !f.Enabled {
+		return false
+	}
+	if f.Limit == nil || f.Actual == nil {
+		return true
+	}
+	return *f.Actual < *f.Limit
 }
 
 func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
-	if g.entitled() {
+	if g.uncapped() {
 		g.releaseQueuedMarker(ctx, chatID, runnerID)
 		return nil
 	}
@@ -177,7 +190,7 @@ func (g *gate) Acquire(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID
 	}
 
 	for {
-		if g.entitled() {
+		if g.uncapped() {
 			g.releaseQueuedMarker(ctx, chatID, runnerID)
 			return nil
 		}
@@ -221,7 +234,7 @@ func (g *gate) claimOnce(ctx context.Context, chatID uuid.UUID, runnerID uuid.UU
 func (g *gate) Yield(ctx context.Context, chatID uuid.UUID, runnerID uuid.UUID) error {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
-	if g.entitled() {
+	if g.uncapped() {
 		return nil
 	}
 	_, err := g.store.SetChatConcurrencyState(ctx, database.SetChatConcurrencyStateParams{

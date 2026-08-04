@@ -16,35 +16,28 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-func entitledSet(t *testing.T) *entitlements.Set {
-	t.Helper()
-	set := entitlements.New()
-	set.Modify(func(entitlements *codersdk.Entitlements) {
-		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
-			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     true,
-		}
-	})
-	return set
-}
-
-func licensedWithoutHours(t *testing.T) *entitlements.Set {
+func agentHoursSet(t *testing.T, feature codersdk.Feature) *entitlements.Set {
 	t.Helper()
 	set := entitlements.New()
 	set.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.HasLicense = true
-		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
-			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     false,
-		}
+		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = feature
 	})
 	return set
+}
+
+func entitledSet(t *testing.T) *entitlements.Set {
+	return agentHoursSet(t, codersdk.Feature{
+		Entitlement: codersdk.EntitlementEntitled,
+		Enabled:     true,
+	})
 }
 
 type gateFixture struct {
@@ -290,18 +283,44 @@ func TestGateOldestQueuedFirst(t *testing.T) {
 	require.Equal(t, database.ChatConcurrencyStateQueued, newerState.ChatConcurrencyState)
 }
 
-func TestGateEntitledBypass(t *testing.T) {
+func TestGateRuntimeHoursBypass(t *testing.T) {
 	t.Parallel()
-	f := newGateFixture(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	cases := []struct {
+		name    string
+		feature codersdk.Feature
+	}{
+		{
+			name: "UsageUnknown",
+			feature: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+			},
+		},
+		{
+			name: "RemainingHours",
+			feature: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(99)),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newGateFixture(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-	g := newGate(gateOptions{Entitlements: entitledSet(t), Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
+			g := newGate(gateOptions{Entitlements: agentHoursSet(t, tc.feature), Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
 
-	for range 3 {
-		chat := f.chat(t)
-		require.NoError(t, g.Acquire(ctx, chat.ID, uuid.Nil))
-		state := concurrencyStateOf(ctx, t, f.db, chat.ID)
-		require.False(t, state.Valid)
+			for range 3 {
+				chat := f.chat(t)
+				require.NoError(t, g.Acquire(ctx, chat.ID, uuid.Nil))
+				state := concurrencyStateOf(ctx, t, f.db, chat.ID)
+				require.False(t, state.Valid)
+			}
+		})
 	}
 }
 
@@ -346,28 +365,59 @@ func TestGateEntitledBypassClearsStaleMarker(t *testing.T) {
 	require.Len(t, admittedChats, 0)
 }
 
-func TestGateLicensedWithoutHoursIsCapped(t *testing.T) {
+func TestGateLicensedCapped(t *testing.T) {
 	t.Parallel()
-	f := newGateFixture(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	cases := []struct {
+		name    string
+		feature codersdk.Feature
+	}{
+		{
+			name: "WithoutHours",
+			feature: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     false,
+			},
+		},
+		{
+			name: "ExhaustedHours",
+			feature: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(100)),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newGateFixture(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-	g := newGate(gateOptions{Entitlements: licensedWithoutHours(t), Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
+			g := newGate(gateOptions{Entitlements: agentHoursSet(t, tc.feature), Store: f.db, Pubsub: f.ps, Capacity: 1, Logger: testutil.Logger(t)})
 
-	first := f.chat(t)
-	second := f.chat(t)
-	require.NoError(t, g.Acquire(ctx, first.ID, uuid.Nil))
+			first := f.chat(t)
+			second := f.chat(t)
+			require.NoError(t, g.Acquire(ctx, first.ID, uuid.Nil))
 
-	blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
-	defer cancel()
-	require.ErrorIs(t, g.Acquire(blockedCtx, second.ID, uuid.Nil), context.DeadlineExceeded)
+			blockedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+			defer cancel()
+			require.ErrorIs(t, g.Acquire(blockedCtx, second.ID, uuid.Nil), context.DeadlineExceeded)
+
+			state := concurrencyStateOf(ctx, t, f.db, second.ID)
+			require.True(t, state.Valid)
+			require.Equal(t, database.ChatConcurrencyStateQueued, state.ChatConcurrencyState)
+		})
+	}
 }
 
-func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
-	t.Parallel()
+// testGateAdmitsAfterFeatureChange queues a chat behind a full gate, then
+// swaps the agent runtime hours feature and expects the waiter to admit.
+func testGateAdmitsAfterFeatureChange(t *testing.T, set *entitlements.Set, updated codersdk.Feature) {
+	t.Helper()
 	f := newGateFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	set := entitlements.New()
 	g := newGate(gateOptions{
 		Entitlements: set,
 		Store:        f.db,
@@ -391,14 +441,35 @@ func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	set.Modify(func(entitlements *codersdk.Entitlements) {
-		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
-			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     true,
-		}
+		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = updated
 	})
 	require.NoError(t, testutil.RequireReceive(ctx, t, admitted))
 	state := concurrencyStateOf(ctx, t, f.db, queued.ID)
 	require.False(t, state.Valid)
+}
+
+func TestGateEntitlementInstalledWhileQueued(t *testing.T) {
+	t.Parallel()
+	testGateAdmitsAfterFeatureChange(t, entitlements.New(), codersdk.Feature{
+		Entitlement: codersdk.EntitlementEntitled,
+		Enabled:     true,
+	})
+}
+
+func TestGateHoursRenewedWhileQueued(t *testing.T) {
+	t.Parallel()
+	exhausted := agentHoursSet(t, codersdk.Feature{
+		Entitlement: codersdk.EntitlementEntitled,
+		Enabled:     true,
+		Limit:       ptr.Ref(int64(100)),
+		Actual:      ptr.Ref(int64(100)),
+	})
+	testGateAdmitsAfterFeatureChange(t, exhausted, codersdk.Feature{
+		Entitlement: codersdk.EntitlementEntitled,
+		Enabled:     true,
+		Limit:       ptr.Ref(int64(100)),
+		Actual:      ptr.Ref(int64(0)),
+	})
 }
 
 func TestGateYieldFreesCapacity(t *testing.T) {

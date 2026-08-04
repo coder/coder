@@ -937,7 +937,7 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 
 ## Concurrent-agent gate
 
-When `FeatureAgentRuntimeHours` is disabled, chatd limits a deployment to `MaxConcurrentAgents` concurrent generation loops. The cap is license enforcement, so the gate lives in the enterprise-licensed `enterprise/coderd/x/chatd` package; this package only defines the contract and calls it. If no factory is configured, generation remains uncapped.
+When the deployment has no remaining agent runtime hours (`FeatureAgentRuntimeHours` is disabled, or recorded usage has reached the licensed allocation), chatd limits a deployment to `MaxConcurrentAgents` concurrent generation loops. The cap is license enforcement, so the gate lives in the enterprise-licensed `enterprise/coderd/x/chatd` package; this package only defines the contract and calls it. If no factory is configured, generation remains uncapped.
 
 Capacity denial does not reject chat creation or message sends. The generation task records a durable queued state and retries when capacity becomes available.
 
@@ -966,9 +966,11 @@ Subagent chats count against the cap. The generation context carries a lease tha
 
 ### Entitlement bypass
 
-The gate checks the entitlement before each claim and during fallback polling. A newly entitled queued chat proceeds on the next poll if no nudge arrives. Entitled claims clear any leftover marker so a running chat is not reported as queued; that cleanup is best effort.
+The gate bypasses the cap only while the license has remaining agent runtime hours: `FeatureAgentRuntimeHours` is enabled and the feature's recorded usage (`Actual`) is below the allocation (`Limit`). The gate never queries usage itself; it reads the entitlements snapshot. Two cases fail open to enabled-only semantics: a nil allocation (the license decoder always sets `Limit` for this feature) and a nil usage reading. Entitlements do not populate `Actual` for this feature yet, so until they do every enabled deployment takes the nil-usage path and capping on a missing reading would be worse than bounded over-admission.
 
-Known windows remain: a chat running when the entitlement expires can finish without a marker; a rollout does not mark existing chats until their next claim; queue ordering is oldest first per claim, not strict FIFO across replicas. Capacity watch events carry no freshness ordering, so overlapping claims for one chat can deliver them out of order; the database state stays correct and the UI corrects at the next status transition.
+The gate checks this before each claim and during fallback polling. A newly uncapped queued chat proceeds on the next poll if no nudge arrives, so purchased or renewed hours admit queued chats automatically. Bypassed claims clear any leftover marker so a running chat is not reported as queued; that cleanup is best effort.
+
+Known windows remain: a chat running when the bypass ends can finish without a marker; a rollout does not mark existing chats until their next claim; queue ordering is oldest first per claim, not strict FIFO across replicas. Recorded usage reaches the snapshot only after usage rollup and an entitlements refresh, so a deployment can briefly over-admit after consuming its last hours. Capacity watch events carry no freshness ordering, so overlapping claims for one chat can deliver them out of order; the database state stays correct and the UI corrects at the next status transition.
 
 ### Observability
 
