@@ -9,6 +9,7 @@ import {
 	Fragment,
 	memo,
 	type ReactNode,
+	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -876,6 +877,18 @@ const StickyUserMessage = memo<{
 		const containerRef = useRef<HTMLDivElement>(null);
 		const spacerRef = useRef<HTMLDivElement>(null);
 
+		// The frosted band carries `backdrop-filter`, which is the most
+		// expensive thing in the transcript: 150 of them cost WebKit about 14ms
+		// per frame, because every forced style and layout update has to bring
+		// that many filtered layers up to date. Only the prompt in the
+		// scrollport can show a band, so only that prompt renders one.
+		const [showBand, setShowBand] = useState(false);
+		const bandInputs = useRef({ inView: false, tooTall: false });
+		const syncBand = useCallback(() => {
+			const { inView, tooTall } = bandInputs.current;
+			setShowBand(inView && !tooTall);
+		}, []);
+
 		// A layout effect, never a passive one: `ResizeObserver` delivers its
 		// first callback after layout and before the first paint, so the clip is
 		// correct on the frame the prompt first appears. Observing from a passive
@@ -934,6 +947,10 @@ const StickyUserMessage = memo<{
 				// Prompts taller than most of the scrollport are not worth
 				// pinning: they would cover the reply they belong to.
 				const tooTall = fullHeight > scrollerHeight * 0.75;
+				if (bandInputs.current.tooTall !== tooTall) {
+					bandInputs.current.tooTall = tooTall;
+					syncBand();
+				}
 				container.style.position = tooTall ? "relative" : "";
 				// A prompt that is not pinned never covers a sibling, and the
 				// stacking context the raised prompt opens changes how its text is
@@ -942,7 +959,6 @@ const StickyUserMessage = memo<{
 				if (tooTall) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
-					container.style.setProperty("--fade-display", "none");
 					container.style.setProperty("--pin-slack", "0px");
 					spacer.style.height = "0px";
 					return;
@@ -963,15 +979,6 @@ const StickyUserMessage = memo<{
 								Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
 							);
 				container.style.setProperty("--fade-opacity", String(fade));
-				// The frosted band carries `backdrop-filter` and a mask. Both promote
-				// a compositing layer and open a stacking context even at zero
-				// opacity, which changes how the text under the band is antialiased,
-				// so it is kept out of rendering until the fade has something to
-				// show.
-				container.style.setProperty(
-					"--fade-display",
-					fade > 0 ? "block" : "none",
-				);
 				// `max-height` only shrinks the bubble, so the pinned box is the
 				// clipped bubble plus the action row, and the browser pushes it out
 				// when that box plus the gaps either side of the turn boundary
@@ -1022,7 +1029,28 @@ const StickyUserMessage = memo<{
 				observer.disconnect();
 				if (rafId !== null) cancelAnimationFrame(rafId);
 			};
-		}, []);
+		}, [syncBand]);
+
+		// Whether this prompt can show a band at all. `IntersectionObserver`
+		// answers that without reading geometry during the frame, so it adds no
+		// forced layout to a scroll.
+		useLayoutEffect(() => {
+			const container = containerRef.current;
+			if (!container) return;
+			const scroller = container.closest<HTMLElement>(".overflow-y-auto");
+			if (!scroller) return;
+			const observer = new IntersectionObserver(
+				(entries) => {
+					const inView = entries[entries.length - 1].isIntersecting;
+					if (bandInputs.current.inView === inView) return;
+					bandInputs.current.inView = inView;
+					syncBand();
+				},
+				{ root: scroller },
+			);
+			observer.observe(container);
+			return () => observer.disconnect();
+		}, [syncBand]);
 
 		const handleEditUserMessage = onEditUserMessage
 			? (
@@ -1060,22 +1088,21 @@ const StickyUserMessage = memo<{
 				>
 					{/* Frosted band below the clipped bubble. It reaches past the
 					    sticky box on purpose, so the fade covers the transcript
-					    scrolling underneath. Out of rendering until the fade has
-					    something to show: the blur and mask promote a layer whether
-					    or not the band is opaque. */}
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-0 backdrop-blur-[1px] bg-surface-primary/15"
-						style={{
-							display: "var(--fade-display, none)",
-							opacity: "var(--fade-opacity, 0)",
-							height: "calc(var(--clip-h, 0px) + 48px)",
-							maskImage:
-								"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
-							WebkitMaskImage:
-								"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
-						}}
-					/>
+					    scrolling underneath. */}
+					{showBand && (
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-x-0 top-0 backdrop-blur-[1px] bg-surface-primary/15"
+							style={{
+								opacity: "var(--fade-opacity, 0)",
+								height: "calc(var(--clip-h, 0px) + 48px)",
+								maskImage:
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+								WebkitMaskImage:
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+							}}
+						/>
+					)}
 					<ChatMessageItem
 						message={message}
 						parsed={parsed}
