@@ -34,10 +34,11 @@ type tokenUsageCost struct {
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
-// interception and computes its cost. Two independent conditions yield a NULL
+// interception and computes its cost. Three independent conditions yield a NULL
 // column rather than an error: an unresolved effective group (the user has no
-// org membership), and a model absent from the price table leaves prices and
-// cost NULL (a NULL cost unambiguously means "model not priced").
+// org membership), an interception whose provider name matches no configured
+// provider, and a model absent from the price table. The latter two leave prices
+// and cost NULL (a NULL cost unambiguously means "model not priced").
 // Any other error is returned.
 func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBridgeInterception, in *proto.RecordTokenUsageRequest) (tokenUsageCost, error) {
 	var result tokenUsageCost
@@ -63,22 +64,40 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		}
 	}
 
+	// The interception records one of three upstream wire formats. Prices are
+	// keyed on the configured provider type, the provider actually serving the
+	// request, resolved by provider name. Names are unique among live providers.
+	provider, err := s.store.GetAIProviderByName(ctx, intc.ProviderName)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		// Only reachable if the provider was deleted mid-request.
+		s.logger.Info(ctx, "no configured provider found for interception, recording token usage with NULL cost",
+			slog.F("provider_name", intc.ProviderName), slog.F("model", intc.Model))
+		if s.metrics != nil {
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, intc.Model).Inc()
+		}
+		return result, nil
+	case err != nil:
+		return tokenUsageCost{}, xerrors.Errorf("get configured provider %q: %w", intc.ProviderName, err)
+	}
+	configuredType := string(provider.Type)
+
 	// Snapshot the price for this (provider, model) and compute cost.
 	price, err := s.store.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-		Provider: intc.Provider,
+		Provider: configuredType,
 		Model:    intc.Model,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		// Model not in the price table: record tokens but leave cost NULL.
 		s.logger.Info(ctx, "no price found for model, recording token usage with NULL cost",
-			slog.F("provider", intc.Provider), slog.F("model", intc.Model))
+			slog.F("provider", configuredType), slog.F("model", intc.Model))
 		if s.metrics != nil {
-			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.Provider, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(configuredType, intc.Model).Inc()
 		}
 		return result, nil
 	case err != nil:
-		return tokenUsageCost{}, xerrors.Errorf("look up model price for %s/%s: %w", intc.Provider, intc.Model, err)
+		return tokenUsageCost{}, xerrors.Errorf("look up model price for %s/%s: %w", configuredType, intc.Model, err)
 	}
 
 	result.inputPriceMicros = price.InputPrice
