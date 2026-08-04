@@ -5362,7 +5362,6 @@ const (
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember     Experiment = "minimum-implicit-member"     // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
@@ -5388,8 +5387,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
 		return "NATS Pubsub"
-	case ExperimentMinimumImplicitMember:
-		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
@@ -5418,7 +5415,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
-	ExperimentMinimumImplicitMember,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentChatAdvisor,
@@ -5430,9 +5426,7 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentMinimumImplicitMember,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

@@ -1313,7 +1313,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
 			TurnID:       &mintedTurnID,
-		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassGeneration)
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
