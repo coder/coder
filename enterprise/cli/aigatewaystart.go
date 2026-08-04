@@ -352,7 +352,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("listen on %q: %w", s.httpAddress, err)
 	}
-	// serve runs once per gateway, so closing the latch here cannot repeat.
+	// serve runs once per gateway, so closing listenerReady only happens once.
 	s.httpAddr = listener.Addr()
 	close(s.listenerReady)
 
