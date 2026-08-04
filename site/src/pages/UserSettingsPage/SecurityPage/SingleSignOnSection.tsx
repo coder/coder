@@ -1,5 +1,5 @@
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -252,11 +252,12 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 	onConfirm,
 }) => {
 	const [password, setPassword] = useState("");
+	const passwordId = useId();
+	const errorId = useId();
 	const hasError = Boolean(error);
 	const errorMessage = error
 		? getErrorMessage(error, "Your password is incorrect")
 		: undefined;
-	const errorId = "confirm-password-error";
 
 	const handleConfirm = () => {
 		onConfirm(password);
@@ -281,7 +282,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						again. Are you sure you want to proceed and change your login type?
 					</p>
 					<div className="flex flex-col gap-2 text-left">
-						<Label htmlFor="confirm-password">Confirm your password</Label>
+						<Label htmlFor={passwordId}>Confirm your password</Label>
 						<Input
 							autoFocus
 							onKeyDown={(event) => {
@@ -290,7 +291,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 								}
 							}}
 							name="confirm-password"
-							id="confirm-password"
+							id={passwordId}
 							value={password}
 							onChange={(e) => setPassword(e.currentTarget.value)}
 							type="password"
