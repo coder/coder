@@ -2148,6 +2148,25 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 						}
 					}
 				}
+
+				for _, execution := range protoAgent.GetSubagentExecutions() {
+					if execution == nil {
+						continue
+					}
+					// ConvertState uses SubagentId as a Terraform association ID
+					// when attaching resources. Validate it before replacing it with
+					// the fresh runtime child ID scoped to this build.
+					associationID := execution.GetSubagentId()
+					if _, err := uuid.Parse(associationID); err != nil {
+						return xerrors.Errorf("parse subagent execution %q association id %q: %w", execution.GetName(), associationID, err)
+					}
+					childAgentID := uuid.New()
+					execution.SubagentId = childAgentID.String()
+					for _, app := range execution.GetApps() {
+						appIDs = append(appIDs, app.GetId())
+						agentIDByAppID[app.GetId()] = childAgentID
+					}
+				}
 			}
 
 			err = InsertWorkspaceResource(
@@ -2161,6 +2180,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// are written to the database.
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
 				InsertWorkspaceResourceWithWorkspaceExecutionIsolation(workspace.ExecutionIsolation),
+				InsertWorkspaceResourceWithWorkspaceBuildID(workspaceBuild.ID),
 			)
 			if err != nil {
 				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
@@ -2834,6 +2854,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 type insertWorkspaceResourceOptions struct {
 	useAgentIDsFromProto        bool
 	workspaceExecutionIsolation bool
+	workspaceBuildID            uuid.NullUUID
 }
 
 // InsertWorkspaceResourceOption represents a functional option for
@@ -2853,6 +2874,14 @@ func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOptio
 func InsertWorkspaceResourceWithWorkspaceExecutionIsolation(executionIsolation bool) InsertWorkspaceResourceOption {
 	return func(opts *insertWorkspaceResourceOptions) {
 		opts.workspaceExecutionIsolation = executionIsolation
+	}
+}
+
+// InsertWorkspaceResourceWithWorkspaceBuildID persists build-scoped declarations
+// created while completing a real workspace build.
+func InsertWorkspaceResourceWithWorkspaceBuildID(workspaceBuildID uuid.UUID) InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.workspaceBuildID = uuid.NullUUID{UUID: workspaceBuildID, Valid: true}
 	}
 }
 
@@ -3101,6 +3130,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			})
 			if err != nil {
 				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
+		}
+
+		for _, execution := range prAgent.GetSubagentExecutions() {
+			if execution == nil {
+				return xerrors.Errorf("insert subagent execution: declaration is nil")
+			}
+			if _, err := insertSubagentExecution(ctx, db, execution, dbAgent, resource.ID, appSlugs, snapshot, opts); err != nil {
+				return xerrors.Errorf("insert subagent execution %q: %w", execution.GetName(), err)
 			}
 		}
 
@@ -3447,6 +3485,107 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+// insertSubagentExecution pre-creates the isolated child agent declared by a
+// subagent execution and attaches all declaration-owned resources to it.
+func insertSubagentExecution(
+	ctx context.Context,
+	db database.Store,
+	execution *sdkproto.SubagentExecution,
+	parentAgent database.WorkspaceAgent,
+	resourceID uuid.UUID,
+	appSlugs map[string]struct{},
+	snapshot *telemetry.Snapshot,
+	opts *insertWorkspaceResourceOptions,
+) (uuid.UUID, error) {
+	childAgentID := uuid.New()
+	if opts.useAgentIDsFromProto {
+		var err error
+		childAgentID, err = uuid.Parse(execution.GetSubagentId())
+		if err != nil {
+			return uuid.UUID{}, xerrors.Errorf("parse runtime child id %q: %w", execution.GetSubagentId(), err)
+		}
+	}
+	if childAgentID == parentAgent.ID {
+		return uuid.UUID{}, xerrors.Errorf("runtime child id %q matches parent agent id", childAgentID)
+	}
+
+	var declarationID uuid.UUID
+	if opts.workspaceBuildID.Valid {
+		var err error
+		declarationID, err = uuid.Parse(execution.GetId())
+		if err != nil {
+			return uuid.UUID{}, xerrors.Errorf("parse declaration id %q: %w", execution.GetId(), err)
+		}
+	}
+
+	envJSON, err := encodeSubagentEnvs(execution.GetEnvs())
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	childAuthToken := uuid.New()
+	for childAuthToken == parentAgent.AuthToken {
+		childAuthToken = uuid.New()
+	}
+	childAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID:                       childAgentID,
+		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		ResourceID:               resourceID,
+		Name:                     execution.GetName(),
+		AuthToken:                childAuthToken,
+		AuthInstanceID:           sql.NullString{},
+		Architecture:             parentAgent.Architecture,
+		EnvironmentVariables:     envJSON,
+		Directory:                execution.GetSharedChildPath(),
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		OperatingSystem:          parentAgent.OperatingSystem,
+		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       parentAgent.TroubleshootingURL,
+		MOTDFile:                 "",
+		DisplayApps:              []database.DisplayApp{},
+		DisplayOrder:             0,
+		APIKeyScope:              parentAgent.APIKeyScope,
+		ExecutionIsolation:       true,
+	})
+	if err != nil {
+		return uuid.UUID{}, xerrors.Errorf("insert isolated child agent: %w", err)
+	}
+	snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(childAgent))
+
+	for _, app := range execution.GetApps() {
+		if err := insertAgentApp(ctx, db, childAgentID, app, appSlugs, snapshot); err != nil {
+			return uuid.UUID{}, xerrors.Errorf("insert agent app: %w", err)
+		}
+	}
+
+	if err := insertAgentScriptsAndLogSources(ctx, db, childAgentID, agentScriptsFromProto(execution.GetScripts())); err != nil {
+		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
+	}
+
+	if opts.workspaceBuildID.Valid {
+		_, err = db.InsertWorkspaceAgentSubagentExecution(ctx, database.InsertWorkspaceAgentSubagentExecutionParams{
+			WorkspaceBuildID:      opts.workspaceBuildID.UUID,
+			DeclarationID:         declarationID,
+			ParentAgentID:         parentAgent.ID,
+			ChildAgentID:          childAgentID,
+			Driver:                execution.GetDriver(),
+			DriverProtocol:        execution.GetDriverProtocol(),
+			SharedHostPath:        execution.GetSharedHostPath(),
+			SharedChildPath:       execution.GetSharedChildPath(),
+			StartupTimeoutSeconds: execution.GetStartupTimeoutSeconds(),
+			RestartPolicy:         execution.GetRestartPolicy(),
+		})
+		if err != nil {
+			return uuid.UUID{}, xerrors.Errorf("insert declaration: %w", err)
+		}
+	}
+
+	return childAgentID, nil
 }
 
 // insertDevcontainerSubagent creates a workspace agent for a devcontainer's

@@ -5057,6 +5057,781 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 }
 
+func TestInsertWorkspaceResourceSubagentExecutionEmpty(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db, _ := dbtestutil.NewDB(t)
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+	parentToken := uuid.New()
+	snapshot := &telemetry.Snapshot{}
+
+	err := provisionerdserver.InsertWorkspaceResource(
+		ctx,
+		db,
+		job.ID,
+		database.WorkspaceTransitionStart,
+		&sdkproto.Resource{
+			Name: "subagent-empty",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name:                     "parent",
+				Architecture:             "arm64",
+				OperatingSystem:          "linux",
+				Directory:                "/home/coder",
+				ConnectionTimeoutSeconds: 91,
+				TroubleshootingUrl:       "https://example.com/help",
+				ApiKeyScope:              string(database.AgentKeyScopeEnumNoUserData),
+				Auth:                     &sdkproto.Agent_Token{Token: parentToken.String()},
+				SubagentExecutions: []*sdkproto.SubagentExecution{{
+					Id:              uuid.NewString(),
+					SubagentId:      uuid.NewString(),
+					Name:            "isolated-child",
+					SharedChildPath: "/workspace/project",
+				}},
+			}},
+		},
+		snapshot,
+	)
+	require.NoError(t, err)
+
+	resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+	require.NoError(t, err)
+	require.Len(t, agents, 2)
+
+	parent, children := splitWorkspaceAgents(agents)
+	require.Len(t, children, 1)
+	child := children[0]
+	require.NotEqual(t, parent.ID, child.ID)
+	require.NotEqual(t, parent.AuthToken, child.AuthToken)
+	require.Equal(t, parent.ID, child.ParentID.UUID)
+	require.True(t, child.ParentID.Valid)
+	require.Equal(t, parent.ResourceID, child.ResourceID)
+	require.Equal(t, "isolated-child", child.Name)
+	require.Equal(t, "/workspace/project", child.Directory)
+	require.Equal(t, parent.Architecture, child.Architecture)
+	require.Equal(t, parent.OperatingSystem, child.OperatingSystem)
+	require.Equal(t, parent.ConnectionTimeoutSeconds, child.ConnectionTimeoutSeconds)
+	require.Equal(t, parent.TroubleshootingURL, child.TroubleshootingURL)
+	require.False(t, child.AuthInstanceID.Valid)
+	require.Empty(t, child.AuthInstanceID.String)
+	require.Equal(t, []database.DisplayApp{}, child.DisplayApps)
+	require.True(t, child.ExecutionIsolation)
+	require.Equal(t, parent.APIKeyScope, child.APIKeyScope)
+	require.False(t, child.EnvironmentVariables.Valid)
+
+	parentApps, err := db.GetWorkspaceAppsByAgentID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Empty(t, parentApps)
+	childApps, err := db.GetWorkspaceAppsByAgentID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Empty(t, childApps)
+	scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{parent.ID, child.ID})
+	require.NoError(t, err)
+	require.Empty(t, scripts)
+	logSources, err := db.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{parent.ID, child.ID})
+	require.NoError(t, err)
+	require.Empty(t, logSources)
+	declarations, err := db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Empty(t, declarations)
+
+	require.Len(t, snapshot.WorkspaceAgents, 2)
+	require.ElementsMatch(t, []uuid.UUID{parent.ID, child.ID}, []uuid.UUID{
+		snapshot.WorkspaceAgents[0].ID,
+		snapshot.WorkspaceAgents[1].ID,
+	})
+}
+
+func TestInsertWorkspaceResourceSubagentExecutionFull(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db, _ := dbtestutil.NewDB(t)
+	organization, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: organization.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: organization.ID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      user.ID,
+		OrganizationID: organization.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          uuid.New(),
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		InitiatorID:    user.ID,
+		OrganizationID: organization.ID,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             job.ID,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+	})
+
+	parentID := uuid.New()
+	childID := uuid.New()
+	declarationID := uuid.New()
+	appID := uuid.New()
+	snapshot := &telemetry.Snapshot{}
+	execution := &sdkproto.SubagentExecution{
+		Id:                    declarationID.String(),
+		SubagentId:            childID.String(),
+		Name:                  "isolated-child",
+		Driver:                "driver body",
+		DriverProtocol:        7,
+		SharedHostPath:        "/home/coder/project",
+		SharedChildPath:       "/workspace/project",
+		StartupTimeoutSeconds: 45,
+		RestartPolicy:         "on-failure",
+		Apps: []*sdkproto.App{{
+			Id:          appID.String(),
+			Slug:        "child-app",
+			DisplayName: "Child App",
+			Url:         "http://localhost:8080",
+		}},
+		Scripts: []*sdkproto.Script{{
+			DisplayName:    "Child Startup",
+			Icon:           "/icon.svg",
+			Script:         "echo child",
+			RunOnStart:     true,
+			TimeoutSeconds: 30,
+		}},
+		Envs: []*sdkproto.Env{{Name: "CHILD_ONLY", Value: "true"}},
+	}
+
+	err = provisionerdserver.InsertWorkspaceResource(
+		ctx,
+		db,
+		job.ID,
+		database.WorkspaceTransitionStart,
+		&sdkproto.Resource{
+			Name: "subagent-full",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Id:                 parentID.String(),
+				Name:               "parent",
+				Architecture:       "amd64",
+				OperatingSystem:    "linux",
+				SubagentExecutions: []*sdkproto.SubagentExecution{execution},
+			}},
+		},
+		snapshot,
+		provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto(),
+		provisionerdserver.InsertWorkspaceResourceWithWorkspaceBuildID(build.ID),
+	)
+	require.NoError(t, err)
+
+	resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+	require.NoError(t, err)
+	require.Len(t, agents, 2)
+	parent, children := splitWorkspaceAgents(agents)
+	require.Equal(t, parentID, parent.ID)
+	require.Len(t, children, 1)
+	child := children[0]
+	require.Equal(t, childID, child.ID)
+	require.False(t, parent.EnvironmentVariables.Valid)
+	require.True(t, child.EnvironmentVariables.Valid)
+	require.JSONEq(t, `{"CHILD_ONLY":"true"}`, string(child.EnvironmentVariables.RawMessage))
+
+	parentApps, err := db.GetWorkspaceAppsByAgentID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Empty(t, parentApps)
+	childApps, err := db.GetWorkspaceAppsByAgentID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, childApps, 1)
+	require.Equal(t, appID, childApps[0].ID)
+	require.Equal(t, child.ID, childApps[0].AgentID)
+
+	parentScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{parent.ID})
+	require.NoError(t, err)
+	require.Empty(t, parentScripts)
+	childScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{child.ID})
+	require.NoError(t, err)
+	require.Len(t, childScripts, 1)
+	require.Equal(t, child.ID, childScripts[0].WorkspaceAgentID)
+	require.Equal(t, "Child Startup", childScripts[0].DisplayName)
+	parentLogSources, err := db.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{parent.ID})
+	require.NoError(t, err)
+	require.Empty(t, parentLogSources)
+	childLogSources, err := db.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{child.ID})
+	require.NoError(t, err)
+	require.Len(t, childLogSources, 1)
+	require.Equal(t, child.ID, childLogSources[0].WorkspaceAgentID)
+	require.Equal(t, childScripts[0].LogSourceID, childLogSources[0].ID)
+
+	declarations, err := db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Len(t, declarations, 1)
+	declaration := declarations[0]
+	require.Equal(t, build.ID, declaration.WorkspaceBuildID)
+	require.Equal(t, declarationID, declaration.DeclarationID)
+	require.Equal(t, parent.ID, declaration.ParentAgentID)
+	require.Equal(t, child.ID, declaration.ChildAgentID)
+	require.Equal(t, execution.Driver, declaration.Driver)
+	require.Equal(t, execution.DriverProtocol, declaration.DriverProtocol)
+	require.Equal(t, execution.SharedHostPath, declaration.SharedHostPath)
+	require.Equal(t, execution.SharedChildPath, declaration.SharedChildPath)
+	require.Equal(t, execution.StartupTimeoutSeconds, declaration.StartupTimeoutSeconds)
+	require.Equal(t, execution.RestartPolicy, declaration.RestartPolicy)
+	require.False(t, declaration.CreatedAt.IsZero())
+}
+
+func TestInsertWorkspaceResourceSubagentExecutionMultiple(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db, _ := dbtestutil.NewDB(t)
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+	parentID := uuid.New()
+	firstChildID := uuid.New()
+	secondChildID := uuid.New()
+
+	err := provisionerdserver.InsertWorkspaceResource(
+		ctx,
+		db,
+		job.ID,
+		database.WorkspaceTransitionStart,
+		&sdkproto.Resource{
+			Name: "subagent-multiple",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Id:   parentID.String(),
+				Name: "parent",
+				SubagentExecutions: []*sdkproto.SubagentExecution{
+					{
+						Id:              uuid.NewString(),
+						SubagentId:      firstChildID.String(),
+						Name:            "first-child",
+						SharedChildPath: "/workspace/first",
+						Apps:            []*sdkproto.App{{Slug: "first-app"}},
+						Scripts:         []*sdkproto.Script{{DisplayName: "First Script", Script: "echo first"}},
+						Envs:            []*sdkproto.Env{{Name: "EXECUTION", Value: "first"}},
+					},
+					{
+						Id:              uuid.NewString(),
+						SubagentId:      secondChildID.String(),
+						Name:            "second-child",
+						SharedChildPath: "/workspace/second",
+						Apps:            []*sdkproto.App{{Slug: "second-app"}},
+						Scripts:         []*sdkproto.Script{{DisplayName: "Second Script", Script: "echo second"}},
+						Envs:            []*sdkproto.Env{{Name: "EXECUTION", Value: "second"}},
+					},
+				},
+			}},
+		},
+		&telemetry.Snapshot{},
+		provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto(),
+	)
+	require.NoError(t, err)
+
+	resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+	require.NoError(t, err)
+	agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+	require.NoError(t, err)
+	parent, children := splitWorkspaceAgents(agents)
+	require.Equal(t, parentID, parent.ID)
+	require.Len(t, children, 2)
+
+	childrenByID := make(map[uuid.UUID]database.WorkspaceAgent, len(children))
+	for _, child := range children {
+		childrenByID[child.ID] = child
+		require.NotEqual(t, parent.AuthToken, child.AuthToken)
+	}
+	first := childrenByID[firstChildID]
+	second := childrenByID[secondChildID]
+	require.NotEqual(t, first.ID, second.ID)
+	require.NotEqual(t, first.AuthToken, second.AuthToken)
+	require.JSONEq(t, `{"EXECUTION":"first"}`, string(first.EnvironmentVariables.RawMessage))
+	require.JSONEq(t, `{"EXECUTION":"second"}`, string(second.EnvironmentVariables.RawMessage))
+
+	firstApps, err := db.GetWorkspaceAppsByAgentID(ctx, first.ID)
+	require.NoError(t, err)
+	require.Len(t, firstApps, 1)
+	require.Equal(t, "first-app", firstApps[0].Slug)
+	secondApps, err := db.GetWorkspaceAppsByAgentID(ctx, second.ID)
+	require.NoError(t, err)
+	require.Len(t, secondApps, 1)
+	require.Equal(t, "second-app", secondApps[0].Slug)
+	firstScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{first.ID})
+	require.NoError(t, err)
+	require.Len(t, firstScripts, 1)
+	require.Equal(t, "First Script", firstScripts[0].DisplayName)
+	secondScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{second.ID})
+	require.NoError(t, err)
+	require.Len(t, secondScripts, 1)
+	require.Equal(t, "Second Script", secondScripts[0].DisplayName)
+	parentApps, err := db.GetWorkspaceAppsByAgentID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Empty(t, parentApps)
+	parentScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{parent.ID})
+	require.NoError(t, err)
+	require.Empty(t, parentScripts)
+}
+
+func TestInsertWorkspaceResourceSubagentExecutionInvalidIDs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvalidRuntimeChildID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := provisionerdserver.InsertWorkspaceResource(
+			ctx,
+			db,
+			job.ID,
+			database.WorkspaceTransitionStart,
+			&sdkproto.Resource{
+				Name: "invalid-runtime-child-id",
+				Type: "aws_instance",
+				Agents: []*sdkproto.Agent{{
+					Id:   uuid.NewString(),
+					Name: "parent",
+					SubagentExecutions: []*sdkproto.SubagentExecution{{
+						Id:         uuid.NewString(),
+						SubagentId: "not-a-runtime-child-id",
+						Name:       "child",
+					}},
+				}},
+			},
+			&telemetry.Snapshot{},
+			provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto(),
+		)
+		require.ErrorContains(t, err, `insert subagent execution "child": parse runtime child id "not-a-runtime-child-id"`)
+	})
+
+	t.Run("InvalidDeclarationIDWithBuildID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		organization, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{CreatedBy: user.ID, OrganizationID: organization.ID})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+			OrganizationID: organization.ID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: organization.ID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			InitiatorID:    user.ID,
+			OrganizationID: organization.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.ID,
+		})
+
+		err = provisionerdserver.InsertWorkspaceResource(
+			ctx,
+			db,
+			job.ID,
+			database.WorkspaceTransitionStart,
+			&sdkproto.Resource{
+				Name: "invalid-declaration-id",
+				Type: "aws_instance",
+				Agents: []*sdkproto.Agent{{
+					Id:   uuid.NewString(),
+					Name: "parent",
+					SubagentExecutions: []*sdkproto.SubagentExecution{{
+						Id:         "not-a-declaration-id",
+						SubagentId: uuid.NewString(),
+						Name:       "child",
+					}},
+				}},
+			},
+			&telemetry.Snapshot{},
+			provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto(),
+			provisionerdserver.InsertWorkspaceResourceWithWorkspaceBuildID(build.ID),
+		)
+		require.ErrorContains(t, err, `insert subagent execution "child": parse declaration id "not-a-declaration-id"`)
+	})
+}
+
+func TestCompleteJobSubagentExecutionPersistenceBoundary(t *testing.T) {
+	t.Parallel()
+
+	newResource := func() *sdkproto.Resource {
+		return &sdkproto.Resource{
+			Name: "subagent-persistence-boundary",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "parent",
+				SubagentExecutions: []*sdkproto.SubagentExecution{{
+					Id:              uuid.NewString(),
+					SubagentId:      uuid.NewString(),
+					Name:            "isolated-child",
+					SharedChildPath: "/workspace/project",
+				}},
+			}},
+		}
+	}
+	requireNoDeclarations := func(t *testing.T, ctx context.Context, db database.Store, jobID uuid.UUID) {
+		t.Helper()
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, jobID)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		parent, children := splitWorkspaceAgents(agents)
+		require.NotEqual(t, uuid.Nil, parent.ID)
+		require.Len(t, children, 1)
+		require.True(t, children[0].ExecutionIsolation)
+		declarations, err := db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(ctx, parent.ID)
+		require.NoError(t, err)
+		require.Empty(t, declarations)
+	}
+
+	t.Run("TemplateImport", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		srv, db, _, pd := setup(t, false, nil)
+		user := dbgen.User(t, db, database.User{})
+		jobID := uuid.New()
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          jobID,
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             jobID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: pd.OrganizationID,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+			})),
+			Tags: pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateImport_{
+				TemplateImport: &proto.CompletedJob_TemplateImport{
+					StartResources: []*sdkproto.Resource{newResource()},
+					Plan:           []byte("{}"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		requireNoDeclarations(t, ctx, db, job.ID)
+	})
+
+	t.Run("TemplateDryRun", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		srv, db, _, pd := setup(t, false, nil)
+		user := dbgen.User(t, db, database.User{})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          uuid.New(),
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			OrganizationID: pd.OrganizationID,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+				TemplateVersionID: version.ID,
+			})),
+			Tags: pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateDryRun_{
+				TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+					Resources: []*sdkproto.Resource{newResource()},
+				},
+			},
+		})
+		require.NoError(t, err)
+		requireNoDeclarations(t, ctx, db, job.ID)
+	})
+}
+
+func TestCompleteJobSubagentExecutionInvalidAssociationID(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSubagentExecutionWorkspaceFixture(t)
+	job, _ := fixture.newBuildJob(t, 1)
+	_, err := fixture.server.CompleteJob(fixture.ctx, &proto.CompletedJob{
+		JobId: job.ID.String(),
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				Resources: []*sdkproto.Resource{{
+					Name: "invalid-association-id",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Name: "parent",
+						SubagentExecutions: []*sdkproto.SubagentExecution{{
+							Id:         uuid.NewString(),
+							SubagentId: "not-an-association-id",
+							Name:       "isolated-child",
+						}},
+					}},
+				}},
+			},
+		},
+	})
+	require.ErrorContains(t, err, `parse subagent execution "isolated-child" association id "not-an-association-id"`)
+	resources, err := fixture.db.GetWorkspaceResourcesByJobID(fixture.ctx, job.ID)
+	require.NoError(t, err)
+	require.Empty(t, resources)
+}
+
+func TestCompleteJobSubagentExecutionRebuildLifecycle(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSubagentExecutionWorkspaceFixture(t)
+	declarationID := uuid.New()
+	associationID := uuid.New()
+	newExecution := func() *sdkproto.SubagentExecution {
+		return &sdkproto.SubagentExecution{
+			Id:                    declarationID.String(),
+			SubagentId:            associationID.String(),
+			Name:                  "isolated-child",
+			Driver:                "driver body",
+			DriverProtocol:        1,
+			SharedHostPath:        "/home/coder/project",
+			SharedChildPath:       "/workspace/project",
+			StartupTimeoutSeconds: 60,
+			RestartPolicy:         "on-failure",
+		}
+	}
+
+	firstExecution := newExecution()
+	first := fixture.completeBuild(t, 1, firstExecution)
+	require.Len(t, first.children, 1)
+	require.Len(t, first.declarations, 1)
+	firstChild := first.children[0]
+	require.NotEqual(t, associationID, firstChild.ID)
+	require.Equal(t, firstChild.ID.String(), firstExecution.SubagentId)
+	require.Equal(t, firstChild.ID, first.declarations[0].ChildAgentID)
+	require.Equal(t, first.build.ID, first.declarations[0].WorkspaceBuildID)
+
+	secondExecution := newExecution()
+	second := fixture.completeBuild(t, 2, secondExecution)
+	require.Len(t, second.children, 1)
+	require.Len(t, second.declarations, 1)
+	secondChild := second.children[0]
+	require.NotEqual(t, associationID, secondChild.ID)
+	require.NotEqual(t, firstChild.ID, secondChild.ID)
+	require.NotEqual(t, firstChild.AuthToken, secondChild.AuthToken)
+	require.Equal(t, secondChild.ID.String(), secondExecution.SubagentId)
+	require.Equal(t, declarationID, second.declarations[0].DeclarationID)
+	require.Equal(t, secondChild.ID, second.declarations[0].ChildAgentID)
+	_, err := fixture.db.GetWorkspaceAgentByID(fixture.ctx, firstChild.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	third := fixture.completeBuild(t, 3, nil)
+	require.Empty(t, third.children)
+	require.Empty(t, third.declarations)
+	_, err = fixture.db.GetWorkspaceAgentByID(fixture.ctx, secondChild.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+type subagentExecutionWorkspaceFixture struct {
+	ctx            context.Context
+	server         proto.DRPCProvisionerDaemonServer
+	db             database.Store
+	pubsub         pubsub.Pubsub
+	daemon         database.ProvisionerDaemon
+	organizationID uuid.UUID
+	user           database.User
+	file           database.File
+	workspace      database.WorkspaceTable
+	version        database.TemplateVersion
+}
+
+type completedSubagentExecutionBuild struct {
+	build        database.WorkspaceBuild
+	parent       database.WorkspaceAgent
+	children     []database.WorkspaceAgent
+	declarations []database.WorkspaceAgentSubagentExecution
+}
+
+func newSubagentExecutionWorkspaceFixture(t *testing.T) subagentExecutionWorkspaceFixture {
+	t.Helper()
+
+	ctx := context.Background()
+	server, db, ps, daemon := setup(t, false, nil)
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		Name:           "subagent-execution-template",
+		CreatedBy:      user.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		OrganizationID: daemon.OrganizationID,
+	})
+	file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: daemon.OrganizationID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      user.ID,
+		OrganizationID: daemon.OrganizationID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          uuid.New(),
+	})
+	return subagentExecutionWorkspaceFixture{
+		ctx:            ctx,
+		server:         server,
+		db:             db,
+		pubsub:         ps,
+		daemon:         daemon,
+		organizationID: daemon.OrganizationID,
+		user:           user,
+		file:           file,
+		workspace:      workspace,
+		version:        version,
+	}
+}
+
+func (f subagentExecutionWorkspaceFixture) newBuildJob(t *testing.T, buildNumber int32) (database.ProvisionerJob, database.WorkspaceBuild) {
+	t.Helper()
+
+	buildID := uuid.New()
+	job := dbgen.ProvisionerJob(t, f.db, f.pubsub, database.ProvisionerJob{
+		FileID:      f.file.ID,
+		InitiatorID: f.user.ID,
+		Type:        database.ProvisionerJobTypeWorkspaceBuild,
+		Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID: buildID,
+		})),
+		OrganizationID: f.organizationID,
+	})
+	build := dbgen.WorkspaceBuild(t, f.db, database.WorkspaceBuild{
+		ID:                buildID,
+		BuildNumber:       buildNumber,
+		JobID:             job.ID,
+		WorkspaceID:       f.workspace.ID,
+		InitiatorID:       f.user.ID,
+		TemplateVersionID: f.version.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+	})
+	_, err := f.db.AcquireProvisionerJob(f.ctx, database.AcquireProvisionerJobParams{
+		OrganizationID:  f.organizationID,
+		WorkerID:        uuid.NullUUID{UUID: f.daemon.ID, Valid: true},
+		Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+		StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+		ProvisionerTags: must(json.Marshal(job.Tags)),
+	})
+	require.NoError(t, err)
+	return job, build
+}
+
+func (f subagentExecutionWorkspaceFixture) completeBuild(t *testing.T, buildNumber int32, execution *sdkproto.SubagentExecution) completedSubagentExecutionBuild {
+	t.Helper()
+
+	job, build := f.newBuildJob(t, buildNumber)
+	agent := &sdkproto.Agent{
+		Name:                     "parent",
+		Architecture:             "amd64",
+		OperatingSystem:          "linux",
+		ConnectionTimeoutSeconds: 30,
+		TroubleshootingUrl:       "https://example.com/help",
+	}
+	if execution != nil {
+		agent.SubagentExecutions = []*sdkproto.SubagentExecution{execution}
+	}
+	_, err := f.server.CompleteJob(f.ctx, &proto.CompletedJob{
+		JobId: job.ID.String(),
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				State: []byte{},
+				Resources: []*sdkproto.Resource{{
+					Name:   "subagent-lifecycle",
+					Type:   "aws_instance",
+					Agents: []*sdkproto.Agent{agent},
+				}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	resources, err := f.db.GetWorkspaceResourcesByJobID(f.ctx, job.ID)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	agents, err := f.db.GetWorkspaceAgentsByResourceIDs(f.ctx, []uuid.UUID{resources[0].ID})
+	require.NoError(t, err)
+	parent, children := splitWorkspaceAgents(agents)
+	require.NotEqual(t, uuid.Nil, parent.ID)
+	declarations, err := f.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(f.ctx, parent.ID)
+	require.NoError(t, err)
+	return completedSubagentExecutionBuild{
+		build:        build,
+		parent:       parent,
+		children:     children,
+		declarations: declarations,
+	}
+}
+
+func splitWorkspaceAgents(agents []database.WorkspaceAgent) (database.WorkspaceAgent, []database.WorkspaceAgent) {
+	var parent database.WorkspaceAgent
+	children := make([]database.WorkspaceAgent, 0, len(agents))
+	for _, agent := range agents {
+		if agent.ParentID.Valid {
+			children = append(children, agent)
+			continue
+		}
+		parent = agent
+	}
+	return parent, children
+}
+
 func TestNotifications(t *testing.T) {
 	t.Parallel()
 
