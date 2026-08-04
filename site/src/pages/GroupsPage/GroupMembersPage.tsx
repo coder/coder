@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -50,6 +49,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
+import { formatSpendResetLabel } from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
@@ -114,9 +114,7 @@ const GroupMembersPage: FC = () => {
 	);
 	const aiBudgetNote = [
 		"Estimated monthly AI spend for this user.",
-		// Spend resets at period_end, rendered in the viewer's local time.
-		aiSpend &&
-			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
+		aiSpend && `Resets ${formatSpendResetLabel(aiSpend.period_end)}.`,
 		// A $0 default still shows: it means no spending allowance.
 		groupBudget &&
 			`The group's default limit is ${formatBudgetUSD(groupBudget.spend_limit_micros)} per member.`,

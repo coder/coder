@@ -116,10 +116,11 @@ none, if the template does not define any).
 
 ### Spend management
 
-The Spend page provides usage-only reporting for Coder Agents chats. The native
-usage-limit configuration UI has been removed from release 2.36, but values
-configured before upgrading remain stored and enforced. Existing native values
-are not migrated to AI Gateway budgets.
+The Spend page provides usage-only reporting for Coder Agents chats. As of
+release 2.36, native chat usage limits are no longer configurable or enforced.
+Values configured before upgrading remain stored, have no effect, and are not
+migrated to AI Gateway budgets. AI Gateway budgets are the only way to limit
+spend.
 
 Configure new AI Gateway budgets from group settings or through the generated
 group budget API. See [Spend Management](./usage-insights.md) for details.
