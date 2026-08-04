@@ -136,3 +136,21 @@ func ExtractAgentResourceName(hcl []byte) (string, error) {
 			len(matches), names)
 	}
 }
+
+// moduleBlockPattern matches a `module "<name>"` block declaration anchored to
+// the start of a line in HCL.
+var moduleBlockPattern = regexp.MustCompile(`(?m)^[ \t]*module[ \t]+"([^"]+)"`)
+
+// ExtractModuleNames returns the labels of every module block declared in
+// rendered HCL, in declaration order. Matching is anchored to the start of a
+// line so commented-out references or string literals are ignored. The input
+// is expected to be rendered output from our own curated base templates, not
+// arbitrary user HCL.
+func ExtractModuleNames(hcl []byte) []string {
+	matches := moduleBlockPattern.FindAllSubmatch(hcl, -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, string(m[1]))
+	}
+	return names
+}

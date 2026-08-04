@@ -222,6 +222,8 @@ func TestTemplateBuilderModules(t *testing.T) {
 		// docker base does not bundle it, so it stays available there.
 		quickstartResp, err := client.TemplateBuilderModules(ctx, "quickstart")
 		require.NoError(t, err)
+		require.NotEmpty(t, quickstartResp.Modules,
+			"quickstart should still offer modules other than the ones it bundles")
 		for _, m := range quickstartResp.Modules {
 			require.NotEqual(t, "git-clone", m.ID,
 				"git-clone should be excluded for the quickstart base")
