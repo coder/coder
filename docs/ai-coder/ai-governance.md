@@ -82,24 +82,19 @@ generally available as part of AI Governance.
 To learn more about AI Governance, pricing, or trial options, reach out to your
 [Coder account team](https://coder.com/contact/sales).
 
-## How Agent Workspace Build usage is measured
+## How agent workspace build usage is measured
 
-**Agent Workspace Builds** (prev. "managed agents") is the usage metric used to
-measure workspaces provisioned by [Coder Agents](./agents/index.md) to execute
-tasks on behalf of developers.
+**Agent Workspace Builds** (prev. "managed agents") is the usage metric used to measure workspaces provisioned by [Coder Agents](./agents/index.md) to execute tasks on behalf of developers.
 
-An Agent Workspace Build is counted each time a workspace is started for a
-coding agent to independently work on a task. Most of the work in this
-workspace is performed by the agent, not a human developer.
+An agent workspace build is counted each time a workspace is started for a coding agent to independently work on a task.
+Most of the work in this workspace is performed by the agent, not a human developer.
 
-Traditional Coder Workspaces started manually by developers or scheduled to
-auto-start do not count as an Agent Workspace Build. These are considered
-daily-driver development environments where developers co-exist with their IDEs
-and coding assistants.
+Traditional Coder Workspaces started manually by developers or scheduled to auto-start do not count as an agent workspace build.
+These are considered daily-driver development environments where developers co-exist with their IDEs and coding assistants.
 
 ### Scenarios
 
-| Scenario                                                                       | Consumes Agent Workspace Build |
+| Scenario                                                                       | Consumes agent workspace build |
 |--------------------------------------------------------------------------------|--------------------------------|
 | Coder Agents provisions a workspace to write end-to-end tests                  | Yes                            |
 | Automated pipeline triggers Coder Agents to review a pull request              | Yes                            |
@@ -108,33 +103,25 @@ and coding assistants.
 | Developer creates a workspace for use with Cursor and Claude Code CLI          | No                             |
 | Developer creates a workspace for use with Coder AI Gateway and Agent Firewall | No                             |
 
-### Agent Workspace Build Limits
+### Agent workspace build limits
 
-Without proper controls and sandboxing, it is not recommended to open up Coder
-Agents to a large audience in the enterprise. Both Community and Premium
-deployments include 1,000 Agent Workspace Builds, primarily for
-proof-of-concept use and basic workflows. Community deployments do not have
-access to [AI Gateway](./ai-gateway/index.md) or
-[Agent Firewall](./agent-firewall/index.md).
+Without proper controls and sandboxing, it is not recommended to open up Coder Agents to a large audience in the enterprise.
+Both Community and Premium deployments include 1,000 agent workspace builds, primarily for proof-of-concept use and basic workflows.
+Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
-Premium deployments include a shared usage pool of Agent Workspace Builds for
-automated workflows, along with limits that scale proportionately with user
-count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). Coder Agents and other AI
-features continue to function normally even if the limit is breached. Admins
-will receive a warning to [contact their account team](https://coder.com/contact)
-to remediate.
+Premium deployments include a shared usage pool of agent workspace builds for automated workflows, along with limits that scale proportionately with user count.
+Usage counts are measured and sent to Coder via [usage data reporting](./usage-data-reporting.md).
+Coder Agents and other AI features continue to function normally even if the limit is breached.
+Admins will receive a warning to [contact their account team](https://coder.com/contact) to remediate.
 
-### Tracking Agent Workspace Builds
+### Tracking agent workspace builds
 
-Admins can monitor Agent Workspace Build usage from the Coder dashboard.
-Navigate to **Deployment** > **Licenses** to view current usage against your
-entitlement limits.
+Admins can monitor agent workspace build usage from the Coder dashboard.
+Navigate to **Deployment** > **Licenses** to view current usage against your entitlement limits.
 
-![Agent Workspace Build usage](../images/admin/ai-governance-awb-usage.png)
+![Agent workspace build usage](../images/admin/ai-governance-awb-usage.png)
 
-<small>Agent Workspace Build usage showing current consumption against
-entitlement limits in the Licenses page.</small>
+<small>Agent workspace build usage showing current consumption against entitlement limits in the Licenses page.</small>
 
 ## Identifying AI seat consumers
 
@@ -145,7 +132,5 @@ whether each user is consuming an AI seat:
 - A green check icon indicates the user is actively consuming an AI seat.
 - A gray X icon indicates the user is not consuming an AI seat.
 
-A user consumes an AI seat when they use AI features such as AI Gateway or
-Coder Agents. The column helps administrators identify which users contribute
-to the organization's AI seat count, making it easier to manage seat
-allocations and stay within license limits.
+A user consumes an AI seat when they use AI features such as AI Gateway or Coder Agents.
+The column helps administrators identify which users contribute to the organization's AI seat count, making it easier to manage seat allocations and stay within license limits.
