@@ -171,9 +171,8 @@ describe("handleAttachmentDownloadClick", () => {
 
 		await handleAttachmentDownloadClick(event, target);
 
-		// Clicking the rendered Save button and verifying the second share
-		// attempt is covered by the DownloadInIOSStandaloneRecoversExpiredActivation
-		// Storybook interaction, which exercises the real toast UI.
+		// DownloadInIOSStandaloneRecoversExpiredActivation covers the Save click
+		// and retry through the real toast UI.
 		expect(share).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith(
 			"Couldn't download 01-agents-list.png",

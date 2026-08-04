@@ -192,9 +192,7 @@ const mockAttachmentFetch = () => {
 	});
 };
 
-// Shadows the Navigator.prototype getters with own properties so the
-// download handler sees an iOS standalone PWA; the returned cleanup
-// restores the real values for subsequent stories.
+// Read-only Navigator values must be shadowed with removable own properties.
 const overrideNavigatorForIOSStandalone = (
 	extras: Record<string, unknown> = {},
 ): (() => void) => {
@@ -1344,7 +1342,6 @@ const iosDownloadStoryArgs: Story["args"] = {
 	]),
 };
 
-/** In an iOS standalone PWA the download click hands the file to the share sheet. */
 export const DownloadInIOSStandaloneSharesFile: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
@@ -1372,7 +1369,6 @@ export const DownloadInIOSStandaloneSharesFile: Story = {
 	},
 };
 
-/** When user activation expires before share(), the error toast's Save action retries with a fresh gesture. */
 export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
 	decorators: [withToaster],
 	args: iosDownloadStoryArgs,
@@ -1406,7 +1402,6 @@ export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
 	},
 };
 
-/** Without file sharing, an iOS standalone PWA gets a dismissible tab instead of QuickLook. */
 export const DownloadInIOSStandaloneWithoutShareOpensTab: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
@@ -1432,7 +1427,6 @@ export const DownloadInIOSStandaloneWithoutShareOpensTab: Story = {
 	},
 };
 
-/** Outside iOS standalone the anchor keeps its native download behavior. */
 export const DownloadOutsideIOSKeepsNativeAnchor: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
@@ -1443,9 +1437,7 @@ export const DownloadOutsideIOSKeepsNativeAnchor: Story = {
 			configurable: true,
 		});
 		const open = spyOn(window, "open").mockReturnValue(null);
-		// Block the real download navigation the test browser would start;
-		// capture phase runs before the component's handler and does not
-		// affect whether that handler intercepts the click.
+		// Prevent the test browser's native download without stopping the component handler.
 		const blockDownload = (event: Event) => event.preventDefault();
 		document.addEventListener("click", blockDownload, { capture: true });
 		try {

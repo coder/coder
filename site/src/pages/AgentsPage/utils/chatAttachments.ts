@@ -88,8 +88,8 @@ type AttachmentDownloadTarget = {
 	mediaType: string;
 };
 
-// Share failures are DOMExceptions, which are not Error subclasses in
-// every engine, so match names structurally instead of instanceof.
+// Web Share failures are DOMExceptions, which are not Error subclasses
+// in jsdom, so match names structurally instead of via instanceof.
 const errorHasName = (error: unknown, name: string): boolean =>
 	typeof error === "object" &&
 	error !== null &&
@@ -102,11 +102,8 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 		if (errorHasName(error, "AbortError")) {
 			return;
 		}
-		// A slow fetch can outlive iOS's transient user activation, making
-		// share() reject with NotAllowedError. The toast action click is a
-		// fresh gesture, so retrying from it shares the already-fetched
-		// file. Other rejections would fail a retry identically, so they
-		// get no action.
+		// iOS transient activation can expire while the file is fetched.
+		// The toast action provides a fresh gesture, so only NotAllowedError gets a retry.
 		if (errorHasName(error, "NotAllowedError")) {
 			toast.error(`Couldn't download ${fileName}`, {
 				description: "The file is ready to save.",
@@ -157,12 +154,9 @@ const shareAttachmentFile = async ({
 };
 
 /**
- * iOS home-screen web apps open `<a download>` targets in a QuickLook
- * preview with no dismiss chrome, leaving the app stuck until it is
- * killed. Intercept those clicks and hand the file to the native share
- * sheet (Save to Files / Save Image) instead; when file sharing is
- * unavailable, open a dismissible in-app browser tab. Everywhere else
- * the anchor's native download behavior is kept.
+ * Avoids iOS standalone PWA QuickLook, which can leave no way back to the app.
+ * Uses the share sheet when possible, or a dismissible tab when file sharing
+ * is unavailable. Other environments keep native download behavior.
  */
 export const handleAttachmentDownloadClick = (
 	event: { preventDefault: () => void },
