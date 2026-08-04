@@ -154,6 +154,42 @@ describe("handleAttachmentDownloadClick", () => {
 		);
 	});
 
+	it("offers a fresh-gesture retry when user activation expired during the fetch", async () => {
+		enterIOSStandalonePWA();
+		const share = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new DOMException("activation expired", "NotAllowedError"),
+			)
+			.mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" })),
+		);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target);
+
+		expect(toast.error).toHaveBeenCalledWith(
+			"Couldn't download 01-agents-list.png",
+			expect.objectContaining({
+				description: "The file is ready to save.",
+				action: expect.objectContaining({ label: "Save" }),
+			}),
+		);
+		const action = vi.mocked(toast.error).mock.calls[0][1]?.action;
+		if (!action || typeof action !== "object" || !("onClick" in action)) {
+			throw new Error("expected the toast to carry a retry action");
+		}
+		// The handler ignores the click event, so an empty stand-in works.
+		action.onClick({} as React.MouseEvent<HTMLButtonElement, MouseEvent>);
+		expect(share).toHaveBeenCalledTimes(2);
+		expect(share).toHaveBeenLastCalledWith({
+			files: [expect.objectContaining({ name: "01-agents-list.png" })],
+		});
+	});
+
 	it("skips sharing when the fetched file turns out unshareable", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);

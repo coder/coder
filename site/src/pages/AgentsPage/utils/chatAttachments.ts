@@ -88,11 +88,42 @@ type AttachmentDownloadTarget = {
 	mediaType: string;
 };
 
+// Share failures are DOMExceptions, which are not Error subclasses in
+// every engine, so match names structurally instead of instanceof.
+const errorHasName = (error: unknown, name: string): boolean =>
+	typeof error === "object" &&
+	error !== null &&
+	"name" in error &&
+	error.name === name;
+
+const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
+	navigator.share({ files: [file] }).catch((error: unknown) => {
+		// A dismissed share sheet rejects with AbortError.
+		if (errorHasName(error, "AbortError")) {
+			return;
+		}
+		// A slow fetch can outlive iOS's transient user activation, making
+		// share() reject with NotAllowedError. The toast action click is a
+		// fresh gesture, so retrying from it shares the already-fetched file.
+		toast.error(`Couldn't download ${fileName}`, {
+			description: errorHasName(error, "NotAllowedError")
+				? "The file is ready to save."
+				: error instanceof Error
+					? error.message
+					: undefined,
+			action: {
+				label: "Save",
+				onClick: () => void shareFileViaSheet(file, fileName),
+			},
+		});
+	});
+
 const shareAttachmentFile = async ({
 	href,
 	fileName,
 	mediaType,
 }: AttachmentDownloadTarget): Promise<void> => {
+	let file: File;
 	try {
 		const response = await fetch(href);
 		if (!response.ok) {
@@ -103,32 +134,22 @@ const shareAttachmentFile = async ({
 			);
 		}
 		const blob = await response.blob();
-		const file = new File([blob], fileName, {
+		file = new File([blob], fileName, {
 			type: blob.type || mediaType || "application/octet-stream",
 		});
-		if (!canShareFiles([file])) {
-			toast.error(`Couldn't download ${fileName}`, {
-				description: "This file cannot be shared on this device.",
-			});
-			return;
-		}
-		await navigator.share({ files: [file] });
 	} catch (error) {
-		// A dismissed share sheet rejects with an AbortError DOMException,
-		// which is not an Error subclass in every engine, so match the
-		// name structurally instead of using isAbortError.
-		if (
-			typeof error === "object" &&
-			error !== null &&
-			"name" in error &&
-			error.name === "AbortError"
-		) {
-			return;
-		}
 		toast.error(`Couldn't download ${fileName}`, {
-			description: error instanceof Error ? error.message : "Tap to try again.",
+			description: error instanceof Error ? error.message : undefined,
 		});
+		return;
 	}
+	if (!canShareFiles([file])) {
+		toast.error(`Couldn't download ${fileName}`, {
+			description: "This file cannot be shared on this device.",
+		});
+		return;
+	}
+	await shareFileViaSheet(file, fileName);
 };
 
 /**
