@@ -935,6 +935,10 @@ const StickyUserMessage = memo<{
 				// pinning: they would cover the reply they belong to.
 				const tooTall = fullHeight > scrollerHeight * 0.75;
 				container.style.position = tooTall ? "relative" : "";
+				// A prompt that is not pinned never covers a sibling, and the
+				// stacking context the raised prompt opens changes how its text is
+				// antialiased, so it is given up along with the pinning.
+				container.style.zIndex = tooTall ? "auto" : "";
 				if (tooTall) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
