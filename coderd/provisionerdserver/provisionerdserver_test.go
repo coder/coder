@@ -5630,6 +5630,103 @@ func TestCompleteJobSubagentExecutionInvalidAssociationID(t *testing.T) {
 	require.Empty(t, resources)
 }
 
+func TestCompleteJobSubagentExecutionAITaskMapping(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSubagentExecutionWorkspaceFixture(t)
+	task := dbgen.Task(t, fixture.db, database.TaskTable{
+		OwnerID:           fixture.user.ID,
+		OrganizationID:    fixture.organizationID,
+		WorkspaceID:       uuid.NullUUID{UUID: fixture.workspace.ID, Valid: true},
+		TemplateVersionID: fixture.version.ID,
+	})
+	job, build := fixture.newBuildJob(t, 1)
+	declarationID := uuid.New()
+	associationID := uuid.New()
+	appID := uuid.New()
+	execution := &sdkproto.SubagentExecution{
+		Id:                    declarationID.String(),
+		SubagentId:            associationID.String(),
+		Name:                  "isolated-child",
+		DriverProtocol:        1,
+		SharedHostPath:        "/home/coder/project",
+		SharedChildPath:       "/workspace/project",
+		StartupTimeoutSeconds: 60,
+		RestartPolicy:         "on-failure",
+		Apps: []*sdkproto.App{{
+			Id:          appID.String(),
+			Slug:        "child-task-app",
+			DisplayName: "Child Task App",
+			Url:         "http://localhost:8080",
+		}},
+	}
+
+	_, err := fixture.server.CompleteJob(fixture.ctx, &proto.CompletedJob{
+		JobId: job.ID.String(),
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				State: []byte{},
+				Resources: []*sdkproto.Resource{{
+					Name: "subagent-task-mapping",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Name:                     "parent",
+						Architecture:             "amd64",
+						OperatingSystem:          "linux",
+						ConnectionTimeoutSeconds: 30,
+						SubagentExecutions:       []*sdkproto.SubagentExecution{execution},
+					}},
+				}},
+				AiTasks: []*sdkproto.AITask{{
+					Id:    task.ID.String(),
+					AppId: appID.String(),
+				}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	runtimeChildID, err := uuid.Parse(execution.SubagentId)
+	require.NoError(t, err)
+	require.NotEqual(t, associationID, runtimeChildID)
+
+	resources, err := fixture.db.GetWorkspaceResourcesByJobID(fixture.ctx, job.ID)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	agents, err := fixture.db.GetWorkspaceAgentsByResourceIDs(fixture.ctx, []uuid.UUID{resources[0].ID})
+	require.NoError(t, err)
+	parent, children := splitWorkspaceAgents(agents)
+	require.NotEqual(t, uuid.Nil, parent.ID)
+	require.Len(t, children, 1)
+	child := children[0]
+	require.Equal(t, runtimeChildID, child.ID)
+	require.NotEqual(t, parent.ID, runtimeChildID)
+	require.True(t, child.ExecutionIsolation)
+	require.Equal(t, uuid.NullUUID{UUID: parent.ID, Valid: true}, child.ParentID)
+
+	apps, err := fixture.db.GetWorkspaceAppsByAgentID(fixture.ctx, runtimeChildID)
+	require.NoError(t, err)
+	require.Len(t, apps, 1)
+	require.Equal(t, appID, apps[0].ID)
+	require.Equal(t, runtimeChildID, apps[0].AgentID)
+	require.NotEqual(t, parent.ID, apps[0].AgentID)
+	require.NotEqual(t, associationID, apps[0].AgentID)
+
+	persistedTask, err := fixture.db.GetTaskByID(fixture.ctx, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: runtimeChildID, Valid: true}, persistedTask.WorkspaceAgentID)
+	require.Equal(t, uuid.NullUUID{UUID: appID, Valid: true}, persistedTask.WorkspaceAppID)
+	require.NotEqual(t, parent.ID, persistedTask.WorkspaceAgentID.UUID)
+	require.NotEqual(t, associationID, persistedTask.WorkspaceAgentID.UUID)
+
+	declarations, err := fixture.db.GetWorkspaceAgentSubagentExecutionsByParentAgentID(fixture.ctx, parent.ID)
+	require.NoError(t, err)
+	require.Len(t, declarations, 1)
+	require.Equal(t, build.ID, declarations[0].WorkspaceBuildID)
+	require.Equal(t, declarationID, declarations[0].DeclarationID)
+	require.Equal(t, runtimeChildID, declarations[0].ChildAgentID)
+}
+
 func TestCompleteJobSubagentExecutionRebuildLifecycle(t *testing.T) {
 	t.Parallel()
 
