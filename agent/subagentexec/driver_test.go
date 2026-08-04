@@ -54,12 +54,66 @@ func newTestDriver(t *testing.T, mutate func(*ScriptDriverConfig)) *ScriptDriver
 	return driver
 }
 
+// driverStateRoot returns the canonical state root Start resolves the
+// configured one to. It falls back to the configured path when the root does
+// not exist, which is what a rejected launch leaves behind.
+func driverStateRoot(t *testing.T, d *ScriptDriver) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(d.stateRoot)
+	if err != nil {
+		return d.stateRoot
+	}
+	return filepath.Clean(resolved)
+}
+
+// driverPaths returns the execution layout the driver uses, resolved the
+// same way Start resolves it.
+func driverPaths(t *testing.T, d *ScriptDriver, executionID uuid.UUID) executionPaths {
+	t.Helper()
+
+	return d.paths(driverStateRoot(t, d), executionID)
+}
+
+// requireNoTokenOnDisk fails when the child's token, or any private file the
+// launcher writes, survived under any of roots. It is how a rejected launch
+// is shown to have left no credentials behind.
+func requireNoTokenOnDisk(t *testing.T, roots ...string) {
+	t.Helper()
+
+	for _, root := range roots {
+		require.NoError(t, filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			require.NotEqual(t, tokenFileName, entry.Name(), "token file left behind at %s", path)
+			if !entry.Type().IsRegular() {
+				return nil
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			require.NotContains(t, string(content), testAuthToken, "token value left behind in %s", path)
+			return nil
+		}), "walk %s", root)
+	}
+}
+
 // testDriverLaunch builds a launch whose declaration carries script as its
-// driver body, which is what the manifest holds for protocol v1.
-func testDriverLaunch(script string) Launch {
+// driver body, which is what the manifest holds for protocol v1. The
+// declared shared path is a real directory outside the driver's state root,
+// because the launcher resolves it before it writes anything.
+func testDriverLaunch(t *testing.T, script string) Launch {
+	t.Helper()
+
 	decl := testDeclaration()
 	decl.Name = testDeclaredName
 	decl.Driver = script
+	decl.SharedHostPath = t.TempDir()
 	return Launch{
 		Declaration:        decl,
 		ChildAgentID:       uuid.New(),
@@ -141,16 +195,16 @@ func TestScriptDriver_PrivateStateLayoutAndModes(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(readyScript(outDir))
+	launch := testDriverLaunch(t, readyScript(outDir))
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
 	requireEventuallyExists(t, filepath.Join(outDir, "ready"))
 
-	paths := driver.paths(launch.Declaration.ExecutionID)
+	paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 
 	// The layout is state-root/agent-scope/execution-id, all UUIDs.
-	require.Equal(t, filepath.Join(driver.stateRoot, driver.agentScope, launch.Declaration.ExecutionID.String()), paths.dir)
+	require.Equal(t, filepath.Join(driverStateRoot(t, driver), driver.agentScope, launch.Declaration.ExecutionID.String()), paths.dir)
 	require.NotContains(t, paths.dir, testDeclaredName)
 	require.DirExists(t, paths.dir)
 
@@ -186,13 +240,13 @@ func TestScriptDriver_ProtocolInputOmitsToken(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(recordingScript(outDir, "exit 0"))
+	launch := testDriverLaunch(t, recordingScript(outDir, "exit 0"))
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
 	require.NoError(t, proc.Wait())
 
-	paths := driver.paths(launch.Declaration.ExecutionID)
+	paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 	for _, op := range []Operation{OperationRun, OperationCleanup} {
 		raw := readFileString(t, filepath.Join(outDir, fmt.Sprintf("input-%s.json", op)))
 		require.NotContains(t, raw, testAuthToken, "%s input must not carry the token value", op)
@@ -208,7 +262,11 @@ func TestScriptDriver_ProtocolInputOmitsToken(t *testing.T) {
 		require.Equal(t, "https://coder.example.com", input.CoderURL)
 		require.Equal(t, "/opt/coder/bin/coder", input.CoderBinaryPath)
 		require.Equal(t, paths.token, input.TokenFilePath)
-		require.Equal(t, launch.Declaration.SharedHostPath, input.SharedHostPath)
+		// The document carries the resolved shared path, which is what the
+		// launcher validated the private state against.
+		resolvedShared, err := filepath.EvalSymlinks(launch.Declaration.SharedHostPath)
+		require.NoError(t, err)
+		require.Equal(t, filepath.Clean(resolvedShared), input.SharedHostPath)
 		require.Equal(t, launch.Declaration.SharedChildPath, input.SharedChildPath)
 		require.Equal(t, paths.dir, input.StatePath)
 		require.Equal(t, paths.home, input.HomePath)
@@ -229,13 +287,13 @@ func TestScriptDriver_ArgvContract(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(recordingScript(outDir, "exit 0"))
+	launch := testDriverLaunch(t, recordingScript(outDir, "exit 0"))
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
 	require.NoError(t, proc.Wait())
 
-	paths := driver.paths(launch.Declaration.ExecutionID)
+	paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 	for op, inputPath := range map[Operation]string{
 		OperationRun:     paths.runInput,
 		OperationCleanup: paths.cleanupInput,
@@ -269,13 +327,13 @@ func TestScriptDriver_EnvironmentIsBuiltFromScratch(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(recordingScript(outDir, "exit 0"))
+	launch := testDriverLaunch(t, recordingScript(outDir, "exit 0"))
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
 	require.NoError(t, proc.Wait())
 
-	paths := driver.paths(launch.Declaration.ExecutionID)
+	paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 
 	// The allowlist itself is exact: only the four controlled variables
 	// are ever handed to a driver.
@@ -319,7 +377,7 @@ func TestScriptDriver_ForegroundRunResult(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		driver := newTestDriver(t, nil)
-		launch := testDriverLaunch("#!/bin/sh\nexit 0\n")
+		launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
 
 		proc, err := driver.Start(ctx, launch)
 		require.NoError(t, err)
@@ -331,7 +389,7 @@ func TestScriptDriver_ForegroundRunResult(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		driver := newTestDriver(t, nil)
-		launch := testDriverLaunch("#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 0; fi\nexit 3\n")
+		launch := testDriverLaunch(t, "#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 0; fi\nexit 3\n")
 
 		proc, err := driver.Start(ctx, launch)
 		require.NoError(t, err)
@@ -352,13 +410,13 @@ func TestScriptDriver_TokenFileLifetime(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		driver := newTestDriver(t, nil)
-		launch := testDriverLaunch("#!/bin/sh\nexit 0\n")
+		launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
 
 		proc, err := driver.Start(ctx, launch)
 		require.NoError(t, err)
 		require.NoError(t, proc.Wait())
 
-		paths := driver.paths(launch.Declaration.ExecutionID)
+		paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 		require.NoFileExists(t, paths.token)
 		require.NoDirExists(t, paths.dir)
 	})
@@ -371,12 +429,12 @@ func TestScriptDriver_TokenFileLifetime(t *testing.T) {
 		// An absolute but nonexistent interpreter passes validation and
 		// fails at exec time, which is the failure path that must not
 		// leave a token file behind.
-		launch := testDriverLaunch("#!/nonexistent/interpreter\n")
+		launch := testDriverLaunch(t, "#!/nonexistent/interpreter\n")
 
 		_, err := driver.Start(ctx, launch)
 		require.Error(t, err)
 
-		paths := driver.paths(launch.Declaration.ExecutionID)
+		paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 		require.NoFileExists(t, paths.token)
 		require.NoDirExists(t, paths.dir)
 	})
@@ -387,13 +445,13 @@ func TestScriptDriver_TokenFileLifetime(t *testing.T) {
 
 		outDir := t.TempDir()
 		driver := newTestDriver(t, nil)
-		launch := testDriverLaunch(readyScript(outDir))
+		launch := testDriverLaunch(t, readyScript(outDir))
 
 		proc, err := driver.Start(ctx, launch)
 		require.NoError(t, err)
 		requireEventuallyExists(t, filepath.Join(outDir, "ready"))
 
-		paths := driver.paths(launch.Declaration.ExecutionID)
+		paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 		require.FileExists(t, paths.token)
 
 		require.NoError(t, proc.Stop(ctx))
@@ -424,14 +482,14 @@ func TestScriptDriver_RejectsInvalidDriverBody(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			driver := newTestDriver(t, nil)
-			launch := testDriverLaunch(tc.body)
+			launch := testDriverLaunch(t, tc.body)
 			launch.Declaration.DriverProtocol = tc.protocol
 
 			_, err := driver.Start(ctx, launch)
 			require.ErrorContains(t, err, tc.contains)
 
 			// A rejected declaration never reaches the filesystem.
-			require.NoDirExists(t, driver.paths(launch.Declaration.ExecutionID).dir)
+			require.NoDirExists(t, driverPaths(t, driver, launch.Declaration.ExecutionID).dir)
 		})
 	}
 }
@@ -445,7 +503,7 @@ func TestScriptDriver_StopTerminatesGracefully(t *testing.T) {
 	// honoring SIGTERM, not about scheduling latency.
 	gracePeriod := testutil.WaitShort
 	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) { cfg.StopGracePeriod = gracePeriod })
-	launch := testDriverLaunch(fmt.Sprintf(`#!/bin/sh
+	launch := testDriverLaunch(t, fmt.Sprintf(`#!/bin/sh
 if [ "$1" = cleanup ]; then
 	printf 'cleanup\n' >> %[1]q/operations.txt
 	exit 0
@@ -475,7 +533,7 @@ func TestScriptDriver_StopEscalatesToKill(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(fmt.Sprintf(`#!/bin/sh
+	launch := testDriverLaunch(t, fmt.Sprintf(`#!/bin/sh
 if [ "$1" = cleanup ]; then exit 0; fi
 trap '' TERM
 touch %[1]q/ready
@@ -497,7 +555,7 @@ while true; do sleep 0.05; done
 	require.ErrorAs(t, err, &exitErr)
 	require.Contains(t, exitErr.ProcessState.String(), "killed")
 
-	require.NoDirExists(t, driver.paths(launch.Declaration.ExecutionID).dir)
+	require.NoDirExists(t, driverPaths(t, driver, launch.Declaration.ExecutionID).dir)
 }
 
 func TestScriptDriver_CleanupRunsExactlyOnce(t *testing.T) {
@@ -506,7 +564,7 @@ func TestScriptDriver_CleanupRunsExactlyOnce(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(fmt.Sprintf(`#!/bin/sh
+	launch := testDriverLaunch(t, fmt.Sprintf(`#!/bin/sh
 printf '%%s\n' "$1" >> %[1]q/operations.txt
 exit 0
 `, outDir))
@@ -530,13 +588,13 @@ func TestScriptDriver_CleanupFailureStillRemovesState(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch("#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 9; fi\nexit 0\n")
+	launch := testDriverLaunch(t, "#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 9; fi\nexit 0\n")
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
 	require.NoError(t, proc.Wait())
 
-	paths := driver.paths(launch.Declaration.ExecutionID)
+	paths := driverPaths(t, driver, launch.Declaration.ExecutionID)
 	require.NoFileExists(t, paths.token)
 	require.NoDirExists(t, paths.dir)
 }
@@ -552,7 +610,7 @@ func TestScriptDriver_RedactsTokenFromOutput(t *testing.T) {
 	// The script finds its token file through the protocol document and
 	// prints it to both streams, which is exactly what must not reach the
 	// parent agent's log.
-	launch := testDriverLaunch(`#!/bin/sh
+	launch := testDriverLaunch(t, `#!/bin/sh
 if [ "$1" = cleanup ]; then exit 0; fi
 token_file="$(sed -n 's/.*"token_file_path":"\([^"]*\)".*/\1/p' "$2")"
 printf 'stdout token: %s\n' "$(cat "$token_file")"
@@ -618,14 +676,178 @@ func TestScriptDriver_RejectsStateInsideSharedPath(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch("#!/bin/sh\nexit 0\n")
+	launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
 	// A declaration that shares the directory holding the token file, or
 	// any parent of it, must not launch at all.
 	launch.Declaration.SharedHostPath = filepath.Dir(driver.stateRoot)
 
 	_, err := driver.Start(ctx, launch)
 	require.ErrorContains(t, err, "is inside the declared shared path")
-	require.NoDirExists(t, driver.paths(launch.Declaration.ExecutionID).dir)
+	require.NoDirExists(t, driverPaths(t, driver, launch.Declaration.ExecutionID).dir)
+}
+
+func TestScriptDriver_RejectsSharedPathInsideState(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	driver := newTestDriver(t, nil)
+	launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
+	// A state root that contains the shared path would let the owner of the
+	// shared tree walk up into the private state.
+	shared := filepath.Join(driver.stateRoot, "project")
+	require.NoError(t, os.MkdirAll(shared, 0o700))
+	launch.Declaration.SharedHostPath = shared
+
+	_, err := driver.Start(ctx, launch)
+	require.ErrorContains(t, err, "contains the declared shared path")
+	requireNoTokenOnDisk(t, driver.stateRoot)
+}
+
+func TestScriptDriver_RejectsUnresolvableSharedPath(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	for _, tc := range []struct {
+		name     string
+		shared   func(t *testing.T) string
+		contains string
+	}{
+		{
+			name:     "Empty",
+			shared:   func(*testing.T) string { return "" },
+			contains: "no shared host path",
+		},
+		{
+			name:     "Relative",
+			shared:   func(*testing.T) string { return "project" },
+			contains: "must be absolute",
+		},
+		{
+			name:     "Missing",
+			shared:   func(t *testing.T) string { return filepath.Join(t.TempDir(), "missing") },
+			contains: "resolve declared shared path",
+		},
+		{
+			name: "NotADirectory",
+			shared: func(t *testing.T) string {
+				file := filepath.Join(t.TempDir(), "file")
+				require.NoError(t, os.WriteFile(file, []byte("x"), 0o600))
+				return file
+			},
+			contains: "is not a directory",
+		},
+		{
+			name: "DanglingSymlink",
+			shared: func(t *testing.T) string {
+				link := filepath.Join(t.TempDir(), "link")
+				require.NoError(t, os.Symlink(filepath.Join(t.TempDir(), "missing"), link))
+				return link
+			},
+			contains: "resolve declared shared path",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := newTestDriver(t, nil)
+			launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
+			launch.Declaration.SharedHostPath = tc.shared(t)
+
+			_, err := driver.Start(ctx, launch)
+			require.ErrorContains(t, err, tc.contains)
+			require.NoDirExists(t, driver.stateRoot)
+		})
+	}
+}
+
+func TestScriptDriver_RejectsSymlinkedSharedPath(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// The declared shared path is a symlink whose target holds the state
+	// root, so a lexical comparison sees two unrelated directories.
+	target := t.TempDir()
+	linkDir := t.TempDir()
+	shared := filepath.Join(linkDir, "project")
+	require.NoError(t, os.Symlink(target, shared))
+
+	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) {
+		cfg.StateRoot = filepath.Join(target, "subagentexec")
+	})
+	launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
+	launch.Declaration.SharedHostPath = shared
+
+	_, err := driver.Start(ctx, launch)
+	require.ErrorContains(t, err, "is inside the declared shared path")
+	// The rejection happens before anything is created, so not even an
+	// empty state directory is left inside the shared tree.
+	require.NoDirExists(t, driver.stateRoot)
+	requireNoTokenOnDisk(t, target, linkDir)
+}
+
+func TestScriptDriver_RejectsSymlinkedStateRootAncestor(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// An ancestor of the state root is a symlink into the shared tree, so
+	// the private state would really be created inside it.
+	shared := t.TempDir()
+	base := t.TempDir()
+	link := filepath.Join(base, "link")
+	require.NoError(t, os.Symlink(shared, link))
+
+	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) {
+		cfg.StateRoot = filepath.Join(link, "state", "subagentexec")
+	})
+	launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
+	launch.Declaration.SharedHostPath = shared
+
+	_, err := driver.Start(ctx, launch)
+	require.ErrorContains(t, err, "is inside the declared shared path")
+	require.NoDirExists(t, filepath.Join(shared, "state"))
+	requireNoTokenOnDisk(t, shared, base)
+}
+
+func TestScriptDriver_LaunchesWithDisjointSymlinkedPaths(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Both sides are reached through symlinks, but their canonical
+	// locations are disjoint, so the launch is legitimate.
+	sharedTarget := t.TempDir()
+	shared := filepath.Join(t.TempDir(), "project")
+	require.NoError(t, os.Symlink(sharedTarget, shared))
+
+	stateTarget := t.TempDir()
+	stateLink := filepath.Join(t.TempDir(), "state")
+	require.NoError(t, os.Symlink(stateTarget, stateLink))
+
+	outDir := t.TempDir()
+	driver := newTestDriver(t, func(cfg *ScriptDriverConfig) {
+		cfg.StateRoot = filepath.Join(stateLink, "subagentexec")
+	})
+	launch := testDriverLaunch(t, readyScript(outDir))
+	launch.Declaration.SharedHostPath = shared
+
+	proc, err := driver.Start(ctx, launch)
+	require.NoError(t, err)
+	requireEventuallyExists(t, filepath.Join(outDir, "ready"))
+
+	// The state lives under the canonical state root, not under the
+	// symlink, and stays outside the canonical shared directory.
+	paths := driver.paths(filepath.Join(stateTarget, "subagentexec"), launch.Declaration.ExecutionID)
+	require.FileExists(t, paths.token)
+	require.Equal(t, testAuthToken, readFileString(t, paths.token))
+	require.False(t, isWithin(paths.dir, sharedTarget))
+
+	input := readFileString(t, filepath.Join(outDir, "input-run.json"))
+	var document DriverInput
+	require.NoError(t, json.Unmarshal([]byte(input), &document))
+	require.Equal(t, sharedTarget, document.SharedHostPath)
+	require.Equal(t, paths.dir, document.StatePath)
+
+	require.NoError(t, proc.Stop(ctx))
+	require.NoDirExists(t, paths.dir)
+	requireNoTokenOnDisk(t, stateTarget, sharedTarget)
 }
 
 func TestIsWithin(t *testing.T) {
@@ -645,12 +867,12 @@ func TestScriptDriver_RejectsLaunchWithoutToken(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch("#!/bin/sh\nexit 0\n")
+	launch := testDriverLaunch(t, "#!/bin/sh\nexit 0\n")
 	launch.authToken = ""
 
 	_, err := driver.Start(ctx, launch)
 	require.ErrorContains(t, err, "no child auth token")
-	require.NoDirExists(t, driver.paths(launch.Declaration.ExecutionID).dir)
+	require.NoDirExists(t, driverPaths(t, driver, launch.Declaration.ExecutionID).dir)
 }
 
 func TestScriptDriver_ReusesExecutionDirectoryAcrossGenerations(t *testing.T) {
@@ -659,7 +881,7 @@ func TestScriptDriver_ReusesExecutionDirectoryAcrossGenerations(t *testing.T) {
 
 	outDir := t.TempDir()
 	driver := newTestDriver(t, nil)
-	launch := testDriverLaunch(recordingScript(outDir, "exit 0"))
+	launch := testDriverLaunch(t, recordingScript(outDir, "exit 0"))
 
 	proc, err := driver.Start(ctx, launch)
 	require.NoError(t, err)
@@ -693,13 +915,16 @@ func TestManager_ScriptDriverLifecycle(t *testing.T) {
 	decl := testDeclaration()
 	decl.Name = testDeclaredName
 	decl.Driver = readyScript(outDir)
+	// The concrete driver resolves the declared shared path, so it has to be
+	// a real directory here.
+	decl.SharedHostPath = t.TempDir()
 	m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
 
 	report := testutil.RequireReceive(ctx, t, controller.reportCh)
 	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
 	requireEventuallyExists(t, filepath.Join(outDir, "ready"))
 
-	paths := driver.paths(decl.ExecutionID)
+	paths := driverPaths(t, driver, decl.ExecutionID)
 	require.FileExists(t, paths.token)
 	require.Equal(t, testAuthToken, readFileString(t, paths.token))
 
@@ -728,6 +953,7 @@ func TestManager_ScriptDriverReportsFailure(t *testing.T) {
 
 		decl := testDeclaration()
 		decl.Driver = "#!/bin/sh\nif [ \"$1\" = cleanup ]; then exit 0; fi\nexit 5\n"
+		decl.SharedHostPath = t.TempDir()
 		m.Reconcile(controller, []agentsdk.SubagentExecution{decl})
 
 		// RUNNING is reported when the foreground driver starts, then the

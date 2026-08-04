@@ -229,6 +229,9 @@ func TestAgent_SubagentExecution_DefaultDriverLaunches(t *testing.T) {
 	const childToken = "child-auth-token"
 
 	decl := testSubagentExecution()
+	// The concrete driver resolves the declared shared path before it writes
+	// any private state, so it has to be a real directory here.
+	decl.SharedHostPath = t.TempDir()
 	decl.Driver = fmt.Sprintf(`#!/bin/sh
 if [ "$1" = cleanup ]; then exit 0; fi
 cp "$2" %[1]q/input.json
@@ -267,7 +270,11 @@ while true; do sleep 0.05; done
 
 	// The private state uses UUID paths and holds the token in a 0600 file
 	// that the protocol document only points at.
-	executionDir := filepath.Join(stateRoot, "agent", decl.ExecutionID.String())
+	// The driver writes to the canonical state root, which is what the
+	// configured one resolves to once it exists.
+	canonicalStateRoot, err := filepath.EvalSymlinks(stateRoot)
+	require.NoError(t, err)
+	executionDir := filepath.Join(canonicalStateRoot, "agent", decl.ExecutionID.String())
 	tokenPath := filepath.Join(executionDir, "token")
 	tokenContent, err := os.ReadFile(tokenPath)
 	require.NoError(t, err)

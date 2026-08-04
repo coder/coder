@@ -261,8 +261,11 @@ type executionPaths struct {
 	runtime      string
 }
 
-func (d *ScriptDriver) paths(executionID uuid.UUID) executionPaths {
-	dir := filepath.Join(d.stateRoot, d.agentScope, executionID.String())
+// paths lays one execution out under root, which is the canonical state
+// root resolved by Start rather than the configured one, so every path the
+// launcher writes to is already free of symlinked components.
+func (d *ScriptDriver) paths(root string, executionID uuid.UUID) executionPaths {
+	dir := filepath.Join(root, d.agentScope, executionID.String())
 	return executionPaths{
 		dir:          dir,
 		driver:       filepath.Join(dir, driverFileName),
@@ -292,17 +295,23 @@ func (d *ScriptDriver) Start(_ context.Context, launch Launch) (Process, error) 
 		slog.F("generation", decl.Generation),
 		slog.F("child_agent_id", launch.ChildAgentID),
 	)
-	paths := d.paths(decl.ExecutionID)
 	// The token, protocol document, driver script, and the child's private
 	// home, temporary, and runtime directories must never be reachable
 	// from the shared project directory the child and the owner both write
-	// to.
-	if isWithin(paths.dir, decl.SharedHostPath) {
-		return nil, xerrors.Errorf("private execution state %s is inside the declared shared path %s",
-			paths.dir, decl.SharedHostPath)
+	// to. Both sides are resolved through symlinks before they are
+	// compared, so neither a symlinked shared path nor a symlinked ancestor
+	// of the state root can place private state inside the shared tree.
+	sharedHost, err := canonicalSharedPath(decl.SharedHostPath)
+	if err != nil {
+		return nil, err
 	}
+	stateRoot, err := canonicalStateRoot(d.stateRoot, sharedHost)
+	if err != nil {
+		return nil, err
+	}
+	paths := d.paths(stateRoot, decl.ExecutionID)
 
-	if err := d.prepare(paths, launch); err != nil {
+	if err := d.prepare(paths, stateRoot, sharedHost, launch); err != nil {
 		removeState(logger, paths)
 		return nil, err
 	}
@@ -318,10 +327,7 @@ func (d *ScriptDriver) Start(_ context.Context, launch Launch) (Process, error) 
 // prepare creates the private per-execution state: the driver script, the
 // token file, both protocol documents, and the private home, temporary,
 // and runtime directories.
-func (d *ScriptDriver) prepare(paths executionPaths, launch Launch) error {
-	if err := mkdirPrivate(d.stateRoot); err != nil {
-		return err
-	}
+func (d *ScriptDriver) prepare(paths executionPaths, stateRoot, sharedHost string, launch Launch) error {
 	if err := mkdirPrivate(filepath.Dir(paths.dir)); err != nil {
 		return err
 	}
@@ -340,6 +346,14 @@ func (d *ScriptDriver) prepare(paths executionPaths, launch Launch) error {
 		}
 	}
 
+	// Nothing secret has been written yet. The directory that now exists on
+	// disk is canonicalized again here, so a component swapped for a
+	// symlink between the state root check and this point cannot redirect
+	// the token file into the shared tree.
+	if err := validatePrivateDir(paths.dir, stateRoot, sharedHost); err != nil {
+		return err
+	}
+
 	if err := writePrivateFile(paths.driver, []byte(launch.Declaration.Driver), executableFileMode); err != nil {
 		return xerrors.Errorf("write driver script: %w", err)
 	}
@@ -352,7 +366,7 @@ func (d *ScriptDriver) prepare(paths executionPaths, launch Launch) error {
 		OperationRun:     paths.runInput,
 		OperationCleanup: paths.cleanupInput,
 	} {
-		document, err := json.Marshal(d.input(op, launch, paths))
+		document, err := json.Marshal(d.input(op, launch, paths, sharedHost))
 		if err != nil {
 			return xerrors.Errorf("marshal %s input: %w", op, err)
 		}
@@ -363,7 +377,10 @@ func (d *ScriptDriver) prepare(paths executionPaths, launch Launch) error {
 	return nil
 }
 
-func (d *ScriptDriver) input(op Operation, launch Launch, paths executionPaths) DriverInput {
+// input builds the protocol document. sharedHost is the canonical shared
+// project directory, so the driver mounts exactly the path the launcher
+// validated against the private state rather than a symlink to it.
+func (d *ScriptDriver) input(op Operation, launch Launch, paths executionPaths, sharedHost string) DriverInput {
 	decl := launch.Declaration
 	return DriverInput{
 		Operation:       op,
@@ -375,7 +392,7 @@ func (d *ScriptDriver) input(op Operation, launch Launch, paths executionPaths) 
 		CoderURL:        d.coderURL,
 		CoderBinaryPath: d.coderBinaryPath,
 		TokenFilePath:   paths.token,
-		SharedHostPath:  decl.SharedHostPath,
+		SharedHostPath:  sharedHost,
 		SharedChildPath: decl.SharedChildPath,
 		StatePath:       paths.dir,
 		HomePath:        paths.home,
@@ -596,6 +613,142 @@ func validateDriverBody(decl agentsdk.SubagentExecution) error {
 		return xerrors.Errorf("driver shebang %q must name an absolute interpreter path", shebang)
 	}
 	return nil
+}
+
+// canonicalSharedPath resolves the declared shared project directory. It
+// must already exist as a directory: the launcher cannot decide whether a
+// path it would have to create is really the owner's project directory, and
+// a path it cannot resolve cannot be compared with the private state
+// safely. Comparing the resolved path is what makes a symlinked shared path
+// unable to hide the fact that it contains the private state.
+func canonicalSharedPath(path string) (string, error) {
+	if path == "" {
+		return "", xerrors.New("declaration has no shared host path")
+	}
+	if !filepath.IsAbs(path) {
+		return "", xerrors.Errorf("declared shared path %q must be absolute", path)
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", xerrors.Errorf("resolve declared shared path %s: %w", path, err)
+	}
+	resolved = filepath.Clean(resolved)
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", xerrors.Errorf("stat declared shared path %s: %w", resolved, err)
+	}
+	if !info.IsDir() {
+		return "", xerrors.Errorf("declared shared path %s is not a directory", resolved)
+	}
+	return resolved, nil
+}
+
+// canonicalStateRoot resolves the configured state root, creating it if
+// necessary, and returns the canonical directory the launcher may write
+// private state to.
+//
+// The prospective location is judged before anything is created, so a
+// rejected launch never leaves directories inside the shared tree, and the
+// created root is resolved again afterwards, so the path that is actually
+// used is the one that was validated.
+func canonicalStateRoot(root, sharedHost string) (string, error) {
+	root = filepath.Clean(root)
+	prospective, err := prospectivePath(root)
+	if err != nil {
+		return "", xerrors.Errorf("resolve state root %s: %w", root, err)
+	}
+	if err := requireDisjoint(prospective, sharedHost); err != nil {
+		return "", err
+	}
+	if err := mkdirPrivate(root); err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", xerrors.Errorf("resolve state root %s: %w", root, err)
+	}
+	resolved = filepath.Clean(resolved)
+	if resolved != prospective {
+		return "", xerrors.Errorf("state root %s resolves to %s, expected %s", root, resolved, prospective)
+	}
+	if err := requireDisjoint(resolved, sharedHost); err != nil {
+		return "", err
+	}
+	return resolved, nil
+}
+
+// validatePrivateDir rechecks a private directory that now exists on disk:
+// it must be its own canonical form, live under the canonical state root,
+// and be disjoint from the canonical shared path. It runs before any secret
+// is written into the directory.
+func validatePrivateDir(dir, stateRoot, sharedHost string) error {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return xerrors.Errorf("resolve execution state %s: %w", dir, err)
+	}
+	if resolved = filepath.Clean(resolved); resolved != dir {
+		return xerrors.Errorf("execution state %s resolves to %s", dir, resolved)
+	}
+	if !isWithin(resolved, stateRoot) {
+		return xerrors.Errorf("execution state %s is outside the state root %s", resolved, stateRoot)
+	}
+	return requireDisjoint(resolved, sharedHost)
+}
+
+// requireDisjoint rejects a private directory that is the shared project
+// directory, lives inside it, or contains it. All three would expose the
+// token file to whoever can write the shared tree. Both arguments must
+// already be canonical.
+func requireDisjoint(private, shared string) error {
+	if isWithin(private, shared) {
+		return xerrors.Errorf("private execution state %s is inside the declared shared path %s",
+			private, shared)
+	}
+	if isWithin(shared, private) {
+		return xerrors.Errorf("private execution state %s contains the declared shared path %s",
+			private, shared)
+	}
+	return nil
+}
+
+// prospectivePath reports where path will really live once it exists: the
+// canonical form of its nearest existing ancestor with the still missing
+// components appended. It lets the launcher judge a path it has to create
+// without creating it first.
+func prospectivePath(path string) (string, error) {
+	// missing collects the components below the nearest existing ancestor,
+	// leaf first.
+	var missing []string
+	current := filepath.Clean(path)
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			info, err := os.Stat(resolved)
+			if err != nil {
+				return "", xerrors.Errorf("stat %s: %w", resolved, err)
+			}
+			if !info.IsDir() {
+				return "", xerrors.Errorf("%s is not a directory", resolved)
+			}
+			out := filepath.Clean(resolved)
+			for i := len(missing) - 1; i >= 0; i-- {
+				out = filepath.Join(out, missing[i])
+			}
+			return out, nil
+		}
+		// Anything other than a missing component, including a component
+		// that is not a directory or a symlink loop, is ambiguous and is
+		// rejected rather than guessed at.
+		if !os.IsNotExist(err) {
+			return "", xerrors.Errorf("resolve %s: %w", current, err)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", xerrors.Errorf("no existing ancestor of %s", path)
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
 }
 
 // isWithin reports whether path is dir itself or lives inside it.
