@@ -144,6 +144,8 @@ type Chat struct {
 	Context *ChatContext `json:"context,omitempty"`
 	// QueuedForCapacityAt is when the chat began waiting for a
 	// concurrent-agent capacity slot. Nil unless the chat is queued.
+	// Status may be running or interrupting while queued, so clients must
+	// check this field.
 	QueuedForCapacityAt *time.Time     `json:"queued_for_capacity_at,omitempty" format:"date-time"`
 	Warnings            []string       `json:"warnings,omitempty"`
 	ClientType          ChatClientType `json:"client_type"`

@@ -17326,7 +17326,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
                 "queued_for_capacity_at": {
-                    "description": "QueuedForCapacityAt is when the chat began waiting for a\nconcurrent-agent capacity slot. Nil unless the chat is queued.",
+                    "description": "QueuedForCapacityAt is when the chat began waiting for a\nconcurrent-agent capacity slot. Nil unless the chat is queued.\nStatus may be running or interrupting while queued, so clients must\ncheck this field.",
                     "type": "string",
                     "format": "date-time"
                 },
