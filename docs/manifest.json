@@ -1194,7 +1194,7 @@
 						},
 						{
 							"title": "AI Gateway",
-							"description": "Govern and observe AI coding traffic with AI Gateway, an LLM proxy built into the Coder control plane.",
+							"description": "Govern and observe AI coding traffic with AI Gateway.",
 							"path": "./ai-coder/ai-gateway/index.md",
 							"icon_path": "./images/icons/api.svg",
 							"state": ["ai governance add-on"],
@@ -1203,6 +1203,12 @@
 									"title": "Setup",
 									"description": "Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.",
 									"path": "./ai-coder/ai-gateway/setup.md",
+									"state": ["ai governance add-on"]
+								},
+								{
+									"title": "Standalone Deployment",
+									"description": "Deploy and operate AI Gateway as a standalone service",
+									"path": "./ai-coder/ai-gateway/standalone.md",
 									"state": ["ai governance add-on"]
 								},
 								{
@@ -1330,7 +1336,7 @@
 								},
 								{
 									"title": "Reference",
-									"description": "Technical reference for AI Gateway, including the aibridged component that runs inside coderd.",
+									"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
 									"path": "./ai-coder/ai-gateway/reference.md",
 									"state": ["ai governance add-on"]
 								},

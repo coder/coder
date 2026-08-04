@@ -54,7 +54,8 @@ All other traffic is tunneled through without decryption.
 Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server.md#--ai-gateway-proxy-target).
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
-To forward intercepted requests to an AI Gateway that is not embedded in this Coder deployment, set:
+AI Gateway Proxy remains part of the `coder server` process when you [deploy AI Gateway as a standalone service](../standalone.md).
+To forward intercepted requests to the standalone Gateway, set:
 
 ```sh
 CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
