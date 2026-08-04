@@ -16165,6 +16165,10 @@
 				"file_name": {
 					"type": "string"
 				},
+				"hook_rewritten": {
+					"description": "HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.",
+					"type": "boolean"
+				},
 				"is_error": {
 					"type": "boolean"
 				},
@@ -18482,7 +18486,6 @@
 				"mcp-server-http",
 				"workspace-build-updates",
 				"nats_pubsub",
-				"minimum-implicit-member",
 				"workspace-capable-licensing",
 				"ai-gateway-seat-exclusion",
 				"chat-advisor",
@@ -18497,7 +18500,6 @@
 				"ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-				"ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
 				"ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -18514,7 +18516,6 @@
 				"Enables the MCP HTTP server functionality.",
 				"Enables publishing workspace build updates to the all builds pubsub channel.",
 				"Enables embedded NATS pubsub.",
-				"Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
 				"Counts only users holding the workspace-create permission toward the license seat limit.",
 				"Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
 				"Enables the advisor tool for root agent chats.",
@@ -18530,7 +18531,6 @@
 				"ExperimentMCPServerHTTP",
 				"ExperimentWorkspaceBuildUpdates",
 				"ExperimentNATSPubsub",
-				"ExperimentMinimumImplicitMember",
 				"ExperimentWorkspaceCapableLicensing",
 				"ExperimentAIGatewaySeatExclusion",
 				"ExperimentChatAdvisor",
@@ -27671,7 +27671,7 @@
 		},
 		"Authorization": {
 			"type": "apiKey",
-			"name": "Authorizaiton",
+			"name": "Authorization",
 			"in": "header"
 		},
 		"CoderSessionToken": {

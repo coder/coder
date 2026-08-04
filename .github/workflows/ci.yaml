@@ -368,7 +368,8 @@ jobs:
         run: helm version --short
 
       - name: make lint
-        run: make --output-sync=line -j lint
+        # Bound concurrent lint targets to keep peak memory below the runner limit.
+        run: make --output-sync=line -j"$(nproc)" lint
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR

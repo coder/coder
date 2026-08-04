@@ -418,9 +418,11 @@ export const EditSecretClearValue: Story = {
 		await user.click(dialog.getByRole("button", { name: "Clear" }));
 		await expect(valueField).toHaveValue("");
 		await expect(valueField).toBeDisabled();
-		await expect(
-			dialog.getByText("Saved value will be cleared when you update."),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				dialog.getByText("Saved value will be cleared when you update."),
+			).toBeVisible(),
+		);
 		await expect(updateButton).toBeEnabled();
 
 		await user.click(dialog.getByRole("button", { name: "Undo" }));
