@@ -112,7 +112,12 @@ connectLoop:
 				switch sdkErr.StatusCode() {
 				// These statuses are terminal failures from the /api/v2/ai-gateway/serve
 				// handshake: wrong gateway key, incompatible API version, or entitlement failure.
-				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
+				//
+				// 404 means this coderd does not expose the AI Gateway serve
+				// endpoint (older version); retrying cannot succeed. The URL is
+				// expected to point directly at coderd, so a 404 from an
+				// intermediary is not distinguished.
+				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
 					err = xerrors.Errorf("dial coderd: %w", err)
 					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))
 					s.cancelFn(err)
