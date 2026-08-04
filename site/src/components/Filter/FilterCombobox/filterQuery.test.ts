@@ -1,29 +1,52 @@
 import { describe, expect, it } from "vitest";
 import {
-	chipsToValues,
 	collectValueSuggestions,
 	composeFilterQuery,
+	dedupeChips,
 	extractFreeText,
-	filterValuesToChips,
 	matchCategories,
 	parseChipToken,
 	parseTypedCategoryPrefix,
 	queryToChips,
-	stringifyChipValues,
 } from "./filterQuery";
 
 const CHIP_KEYS = ["owner", "status", "template"] as const;
 
 describe("filterQuery", () => {
-	it("round-trips chip values through the query string", () => {
-		const values = { owner: "me", status: "running", template: undefined };
-		const query = composeFilterQuery(values, CHIP_KEYS, "devbox");
+	it("round-trips chip tokens through the query string", () => {
+		const tokens = ["owner:me", "status:running"];
+		const query = composeFilterQuery(tokens, CHIP_KEYS, "devbox");
 		expect(query).toBe("owner:me status:running devbox");
 		expect(extractFreeText(query, CHIP_KEYS)).toBe("devbox");
-		expect(filterValuesToChips(values, CHIP_KEYS)).toEqual([
+		expect(queryToChips(query, CHIP_KEYS)).toEqual([
 			"owner:me",
 			"status:running",
 		]);
+	});
+
+	it("preserves the order chips were added when composing", () => {
+		// Insertion order must survive, not the CHIP_KEYS category order
+		// (owner, status, template).
+		expect(
+			composeFilterQuery(
+				["template:docker", "owner:me", "status:running"],
+				CHIP_KEYS,
+				"",
+			),
+		).toBe("template:docker owner:me status:running");
+	});
+
+	it("appends a newly added chip to the end of the query", () => {
+		const existing = ["owner:me", "status:running"];
+		expect(
+			composeFilterQuery([...existing, "template:docker"], CHIP_KEYS, ""),
+		).toBe("owner:me status:running template:docker");
+	});
+
+	it("preserves chip appearance order when parsing a query", () => {
+		expect(
+			queryToChips("template:docker owner:me status:running", CHIP_KEYS),
+		).toEqual(["template:docker", "owner:me", "status:running"]);
 	});
 
 	it("preserves unrecognized key:value tokens as free text", () => {
@@ -45,13 +68,13 @@ describe("filterQuery", () => {
 		const query = "owner:me dormant:true";
 		const chips = queryToChips(query, CHIP_KEYS);
 		const freeText = extractFreeText(query, CHIP_KEYS);
-		expect(
-			composeFilterQuery(chipsToValues(chips, CHIP_KEYS), CHIP_KEYS, freeText),
-		).toBe("owner:me dormant:true");
+		expect(composeFilterQuery(chips, CHIP_KEYS, freeText)).toBe(
+			"owner:me dormant:true",
+		);
 	});
 
 	it("quotes chip values that contain spaces", () => {
-		expect(stringifyChipValues({ template: "my template" }, ["template"])).toBe(
+		expect(composeFilterQuery(["template:my template"], CHIP_KEYS, "")).toBe(
 			'template:"my template"',
 		);
 	});
@@ -64,14 +87,12 @@ describe("filterQuery", () => {
 		expect(parseChipToken("unknown:x", CHIP_KEYS)).toBeNull();
 	});
 
-	it("keeps one value per category when converting chips", () => {
+	it("keeps one value per category, first position and last value win", () => {
+		// A repeated category keeps its first-seen position but takes the
+		// latest value provided for it.
 		expect(
-			chipsToValues(["owner:me", "owner:alice", "status:running"], CHIP_KEYS),
-		).toEqual({
-			owner: "alice",
-			status: "running",
-			template: undefined,
-		});
+			dedupeChips(["owner:me", "status:running", "owner:alice"], CHIP_KEYS),
+		).toEqual(["owner:alice", "status:running"]);
 	});
 
 	it("matches typed category prefixes by key, label, and alias", () => {

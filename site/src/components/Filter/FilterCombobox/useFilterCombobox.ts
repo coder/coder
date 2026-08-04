@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
-	chipsToValues,
 	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
@@ -359,14 +358,7 @@ export const useFilterCombobox = ({
 		if (freeText !== undefined) {
 			setCommittedNameSearch(freeText);
 		}
-		emitQuery(
-			composeFilterQuery(
-				chipsToValues(tokens, chipKeys),
-				chipKeys,
-				nextFreeText,
-			),
-			true,
-		);
+		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
 	};
 
 	const selectCategory = (
@@ -375,20 +367,10 @@ export const useFilterCombobox = ({
 	) => {
 		if (options?.clearMatchedQuery) {
 			setCommittedNameSearch("");
-			emitQuery(
-				composeFilterQuery(chipsToValues(chipValues, chipKeys), chipKeys, ""),
-				true,
-			);
+			emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
 		} else if (activeCategoryKey === null) {
 			setCommittedNameSearch(inputValue);
-			emitQuery(
-				composeFilterQuery(
-					chipsToValues(chipValues, chipKeys),
-					chipKeys,
-					inputValue,
-				),
-				true,
-			);
+			emitQuery(composeFilterQuery(chipValues, chipKeys, inputValue), true);
 		}
 		enterCategoryMode(categoryKey);
 	};
@@ -434,11 +416,7 @@ export const useFilterCombobox = ({
 		if (typedCategory) {
 			setCommittedNameSearch(typedCategory.freeText);
 			emitQuery(
-				composeFilterQuery(
-					chipsToValues(chipValues, chipKeys),
-					chipKeys,
-					typedCategory.freeText,
-				),
+				composeFilterQuery(chipValues, chipKeys, typedCategory.freeText),
 				true,
 			);
 			enterCategoryMode(typedCategory.categoryKey, typedCategory.query);
@@ -455,14 +433,7 @@ export const useFilterCombobox = ({
 
 		setCommittedNameSearch(nextValue);
 		setInputValue(nextValue);
-		emitQuery(
-			composeFilterQuery(
-				chipsToValues(chipValues, chipKeys),
-				chipKeys,
-				nextValue,
-			),
-			false,
-		);
+		emitQuery(composeFilterQuery(chipValues, chipKeys, nextValue), false);
 		openCategorySuggestions();
 	};
 

@@ -136,9 +136,9 @@ export const BackspaceRemovesLastChip: Story = {
 		await userEvent.click(input);
 		await userEvent.keyboard("{Backspace}");
 		await waitFor(() =>
-			expect(canvas.queryByText("owner:me")).not.toBeInTheDocument(),
+			expect(canvas.queryByText("status:running")).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("status:running")).toBeVisible();
+		await expect(canvas.getByText("owner:me")).toBeVisible();
 	},
 };
 
@@ -300,6 +300,50 @@ export const LiveResourcePreviews: Story = {
 		);
 		await expect(body.getByText("Workspaces")).toBeVisible();
 		await expect(body.getByText("alice · docker")).toBeVisible();
+	},
+};
+
+// Regression: chips must render in the order they were added, not in the
+// configured category order. Categories are status, template, owner; starting
+// from owner:me and adding template then status must keep the visible order
+// owner:me, template:docker, status:running.
+export const PreservesChipInsertionOrder: Story = {
+	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+
+		const chipTexts = () =>
+			Array.from(
+				canvasElement.querySelectorAll('[data-slot="combobox-chip"]'),
+			).map((chip) => chip.textContent?.replace(/\s+/g, "") ?? "");
+
+		await userEvent.click(input);
+		await userEvent.type(input, "template:");
+		await waitFor(() => expect(body.getByText("docker")).toBeVisible());
+		await userEvent.click(body.getByRole("option", { name: /docker/i }));
+		await waitFor(() =>
+			expect(canvas.getByText("template:docker")).toBeVisible(),
+		);
+
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+		await userEvent.click(body.getByRole("option", { name: /Running/i }));
+		await waitFor(() =>
+			expect(canvas.getByText("status:running")).toBeVisible(),
+		);
+
+		await waitFor(() =>
+			expect(chipTexts()).toEqual([
+				"owner:me",
+				"template:docker",
+				"status:running",
+			]),
+		);
 	},
 };
 

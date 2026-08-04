@@ -23,83 +23,52 @@ export const parseChipToken = (
 	return { key, value };
 };
 
-/** Structured `key:value` tokens from a query string for known chip keys. */
-const parseFilterValues = (
+/**
+ * Chip tokens from a query string for known chip categories, in the order they
+ * appear. One chip per category; if a category repeats, the last value wins but
+ * the chip keeps its first-seen position.
+ */
+export const queryToChips = (
 	query: string,
 	chipKeys: readonly string[],
-): Record<string, string | undefined> => {
-	const values: Record<string, string | undefined> = {};
-	for (const key of chipKeys) {
-		values[key] = undefined;
-	}
-
+): string[] => {
+	const order: string[] = [];
+	const byKey = new Map<string, string>();
 	for (const match of query.matchAll(FILTER_TOKEN_RE)) {
 		const key = match[1] ?? match[3];
 		const value = match[2] ?? match[4];
 		if (!key || !value || !chipKeys.includes(key)) {
 			continue;
 		}
-		values[key] = value;
-	}
-
-	return values;
-};
-
-export const filterValuesToChips = (
-	values: Record<string, string | undefined>,
-	chipKeys: readonly string[],
-): string[] => {
-	const chips: string[] = [];
-	for (const key of chipKeys) {
-		const value = values[key];
-		if (value) {
-			chips.push(chipToken(key, value));
+		if (!byKey.has(key)) {
+			order.push(key);
 		}
+		byKey.set(key, value);
 	}
-	return chips;
+	return order.map((key) => chipToken(key, byKey.get(key) as string));
 };
 
-export const queryToChips = (
-	query: string,
-	chipKeys: readonly string[],
-): string[] => {
-	return filterValuesToChips(parseFilterValues(query, chipKeys), chipKeys);
-};
-
-const dedupeChipsByFacet = (
+/**
+ * De-duplicates chip tokens by category, preserving the first-seen position of
+ * each category and taking the last value provided for it.
+ */
+export const dedupeChips = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
 ): string[] => {
+	const order: string[] = [];
 	const byKey = new Map<string, string>();
 	for (const token of tokens) {
 		const parsed = parseChipToken(token, chipKeys);
 		if (!parsed) {
 			continue;
 		}
+		if (!byKey.has(parsed.key)) {
+			order.push(parsed.key);
+		}
 		byKey.set(parsed.key, parsed.value);
 	}
-	return chipKeys.flatMap((key) => {
-		const value = byKey.get(key);
-		return value ? [chipToken(key, value)] : [];
-	});
-};
-
-export const chipsToValues = (
-	tokens: readonly string[],
-	chipKeys: readonly string[],
-): Record<string, string | undefined> => {
-	const next: Record<string, string | undefined> = {};
-	for (const key of chipKeys) {
-		next[key] = undefined;
-	}
-	for (const token of dedupeChipsByFacet(tokens, chipKeys)) {
-		const parsed = parseChipToken(token, chipKeys);
-		if (!parsed) {
-			continue;
-		}
-		next[parsed.key] = parsed.value;
-	}
-	return next;
+	return order.map((key) => chipToken(key, byKey.get(key) as string));
 };
 
 /**
@@ -123,29 +92,23 @@ export const extractFreeText = (
 		.trim();
 };
 
-export const stringifyChipValues = (
-	values: Record<string, string | undefined>,
-	chipKeys: readonly string[],
-): string => {
-	const parts: string[] = [];
-	for (const key of chipKeys) {
-		const value = values[key];
-		if (!value) {
-			continue;
-		}
-		parts.push(value.includes(" ") ? `${key}:"${value}"` : `${key}:${value}`);
-	}
-	return parts.join(" ");
-};
-
 export const composeFilterQuery = (
-	values: Record<string, string | undefined>,
+	tokens: readonly string[],
 	chipKeys: readonly string[],
 	freeText: string,
 ): string => {
-	return [stringifyChipValues(values, chipKeys), freeText.trim()]
-		.filter((part) => part.length > 0)
-		.join(" ");
+	const parts = dedupeChips(tokens, chipKeys).map((token) => {
+		const separatorIndex = token.indexOf(":");
+		const key = token.slice(0, separatorIndex);
+		const value = token.slice(separatorIndex + 1);
+		return value.includes(" ") ? `${key}:"${value}"` : `${key}:${value}`;
+	});
+
+	const trimmedFreeText = freeText.trim();
+	if (trimmedFreeText.length > 0) {
+		parts.push(trimmedFreeText);
+	}
+	return parts.join(" ");
 };
 
 type CategoryMatchSource = {
