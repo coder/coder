@@ -19,6 +19,14 @@ export function formatSpendPeriodLabel(
 }
 
 /**
+ * Formats an AI budget window's exclusive period_end in UTC, e.g.
+ * "Aug 1, 2026", matching formatSpendPeriodLabel's convention.
+ */
+export function formatSpendResetLabel(periodEnd: string): string {
+	return dayjs.utc(periodEnd).format("MMM D, YYYY");
+}
+
+/**
  * Classifies usage against a budget. Returns "warning" once usage reaches 85%
  * of the budget and "exceeded" once it meets or passes the budget. A budget of
  * 0 is treated as exceeded as soon as anything is used.

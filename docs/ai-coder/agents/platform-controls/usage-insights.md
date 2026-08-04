@@ -1,20 +1,17 @@
 # Spend Management
 
-Coder provides usage reporting for Coder Agents and two independent ways to
-limit spend on release 2.36: existing native chat usage limits and AI Gateway
-budgets.
+Coder provides usage reporting for Coder Agents and enforces spend through AI
+Gateway budgets on release 2.36.
 
 ## Native chat usage limits
 
-The native usage-limit configuration UI has been removed from release 2.36.
-Values configured before upgrading remain stored and enforced. Coder checks the
-user's current spend before processing each chat message and returns a **409
-Conflict** response when the applicable limit is reached.
+As of release 2.36, native chat usage limits are no longer configurable or
+enforced. Coder does not check previously configured values when processing
+chat messages. Values configured before upgrading remain stored, have no
+effect, and are not migrated to AI Gateway budgets.
 
-Existing native values are not migrated to AI Gateway budgets. To change spend
-controls after upgrading, configure new AI Gateway budgets. Native limits remain
-in effect until they are changed through the existing experimental API or
-removed in a later release.
+To limit spend, configure AI Gateway budgets. They are the only enforcement
+mechanism.
 
 ## AI Gateway budgets
 
@@ -49,3 +46,7 @@ for each user. It supports date range filtering, search, and pagination.
 
 Select a user to view summary cards and per-model and per-chat breakdowns. The
 Spend page does not configure native usage limits or AI Gateway budgets.
+
+> [!NOTE]
+> Automatic title generation uses lightweight models. Its token usage is not
+> included in usage reporting.

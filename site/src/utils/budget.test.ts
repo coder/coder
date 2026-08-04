@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
 	clampPercentage,
 	formatSpendPeriodLabel,
+	formatSpendResetLabel,
 	getSeverity,
 	usageProgressPercentage,
 } from "./budget";
+
+// Pin a non-UTC zone so the UTC assertions fail if formatting falls back
+// to local time. Under UTC runners both implementations agree.
+process.env.TZ = "America/Los_Angeles";
 
 describe("formatSpendPeriodLabel", () => {
 	it("renders API timestamps in UTC with the year on the exclusive end", () => {
@@ -17,6 +22,12 @@ describe("formatSpendPeriodLabel", () => {
 		expect(
 			formatSpendPeriodLabel("2026-12-01T00:00:00Z", "2027-01-01T00:00:00Z"),
 		).toBe("December 1 - January 1, 2027");
+	});
+});
+
+describe("formatSpendResetLabel", () => {
+	it("renders the exclusive period_end in UTC", () => {
+		expect(formatSpendResetLabel("2026-08-01T00:00:00Z")).toBe("Aug 1, 2026");
 	});
 });
 
