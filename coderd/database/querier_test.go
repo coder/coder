@@ -9851,9 +9851,11 @@ func TestWorkspaceAgentSubagentExecutions(t *testing.T) {
 			secondDone <- acquireResult{row: row, err: err}
 		}()
 		testutil.TryReceive(fixture.ctx, t, secondStarted)
-		// The second acquisition must wait on the first transaction's row lock
-		// instead of computing a duplicate acquisition version.
-		requireQueryBlocked(t, fixture, "AcquireWorkspaceAgentSubagentExecution")
+		// The second acquisition must wait on the first transaction instead of
+		// computing a duplicate acquisition version. It blocks on the workspace
+		// build publication lock, which is the first lock the acquisition
+		// sequence takes and which the first transaction still holds.
+		requireQueryBlocked(t, fixture, "AcquireWorkspaceBuildPublicationLock")
 
 		release()
 		first := testutil.TryReceive(fixture.ctx, t, firstDone)
