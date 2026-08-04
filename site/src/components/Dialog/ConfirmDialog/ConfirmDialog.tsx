@@ -53,6 +53,13 @@ export interface ConfirmDialogProps {
 	 * Defaults to shown for "delete", hidden for "info"/"success".
 	 */
 	readonly hideCancel?: boolean;
+	/**
+	 * Forwarded to Radix. This dialog renders no `DialogTrigger`, so Radix has
+	 * nothing to return focus to on close and it lands on `<body>`. Callers that
+	 * open it from a control the user should return to can preventDefault here
+	 * and focus that control instead.
+	 */
+	readonly onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -66,6 +73,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	disabled = false,
 	hideCancel,
 	onClose,
+	onCloseAutoFocus,
 	onConfirm,
 	open = false,
 	title,
@@ -88,6 +96,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>

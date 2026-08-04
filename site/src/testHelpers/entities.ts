@@ -4867,6 +4867,10 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
+	dynamic_client_registration_enabled: false,
+};
+
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{
