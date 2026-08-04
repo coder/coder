@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/subagentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
@@ -124,6 +125,11 @@ type Options struct {
 	// StatsReportInterval is the interval for the connstats callback
 	// installed at statsReporter creation.
 	StatsReportInterval time.Duration
+	// SubagentExecDriver launches the nested executions the manifest
+	// declares. Only tests set this. Nil installs a driver that fails
+	// every launch; an agent whose manifest declares no executions never
+	// invokes it.
+	SubagentExecDriver subagentexec.Driver
 }
 
 type Client interface {
@@ -270,6 +276,7 @@ func New(options Options) Agent {
 		agentFirewallLogProxySocketPath: options.AgentFirewallLogProxySocketPath,
 		contextConfig:                   options.ContextConfig,
 		derpTLSConfig:                   options.DERPTLSConfig,
+		subagentExecDriver:              options.SubagentExecDriver,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -376,6 +383,12 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
+
+	// subagentExecManager owns the nested executions the manifest
+	// declares. It is constructed once and outlives every DRPC
+	// connection: reconnecting only replaces its controller.
+	subagentExecManager *subagentexec.Manager
+	subagentExecDriver  subagentexec.Driver
 
 	derpTLSConfig *tls.Config
 }
@@ -547,6 +560,14 @@ func (a *agent) init() {
 			s.ExperimentalContainers = a.devcontainers
 		},
 	)
+
+	// The subagent execution manager is constructed once, before the main
+	// loop, so that it survives DRPC reconnects. Each connection hands it
+	// a fresh controller through handleManifest.
+	a.subagentExecManager = subagentexec.New(subagentexec.Options{
+		Logger: a.logger.Named("subagentexec"),
+		Driver: a.subagentExecDriver,
+	})
 
 	a.initSocketServer()
 	a.startAgentFirewallLogProxyServer()
@@ -1185,8 +1206,33 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
-	if err != nil {
+	//
+	// v2.11 is attempted first because it carries the subagent execution
+	// RPCs. Deployments that predate it answer with a version rejection,
+	// and only that answer justifies retrying at v2.10: on an older
+	// coderd there is nothing to declare, so the manager simply gets a
+	// nil controller. The rest of the routines stay typed at v2.10
+	// because v2.11 embeds it.
+	var (
+		aAPI proto.DRPCAgentClient210
+		tAPI tailnetproto.DRPCTailnetClient28
+		// execController is nil when this deployment does not implement
+		// the subagent execution API, which keeps declarations from
+		// launching.
+		execController subagentexec.Controller
+	)
+	aAPI211, tAPI211, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
+	switch {
+	case err == nil:
+		aAPI, tAPI, execController = aAPI211, tAPI211, aAPI211
+	case isUnsupportedAPIVersionError(err):
+		a.logger.Info(a.hardCtx, "coderd does not support agent API v2.11, falling back to v2.10",
+			slog.Error(err))
+		aAPI, tAPI, err = a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+		if err != nil {
+			return err
+		}
+	default:
 		return err
 	}
 	defer func() {
@@ -1314,7 +1360,7 @@ func (a *agent) run() (retErr error) {
 	networkOK := newCheckpoint(a.logger)
 	manifestOK := newCheckpoint(a.logger)
 
-	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
+	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK, execController))
 
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
@@ -1364,8 +1410,25 @@ func (a *agent) run() (retErr error) {
 	return err
 }
 
+// isUnsupportedAPIVersionError reports whether err is coderd rejecting an
+// Agent API version it does not implement. Only that answer justifies
+// retrying at an older version. An authentication failure, a transport
+// error, or any other status has nothing to do with the API version, so it
+// must surface and let the agent redial rather than silently give up
+// features the deployment does support.
+func isUnsupportedAPIVersionError(err error) bool {
+	var sdkErr *codersdk.Error
+	if !errors.As(err, &sdkErr) {
+		return false
+	}
+	if sdkErr.StatusCode() != http.StatusBadRequest {
+		return false
+	}
+	return strings.Contains(sdkErr.Message, workspacesdk.AgentAPIMismatchMessage)
+}
+
 // handleManifest returns a function that fetches and processes the manifest
-func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
+func (a *agent) handleManifest(manifestOK *checkpoint, execController subagentexec.Controller) func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
 	return func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
 		var (
 			sentResult = false
@@ -1457,6 +1520,20 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			return manifest.Directory
 		}))
 		a.contextManager.Trigger()
+
+		// Hand the newly declared executions to the manager, along with
+		// this connection's controller so reports reach the live
+		// connection. Reconcile is asynchronous: acquiring a child's
+		// credentials and launching it must not delay manifest handling.
+		//
+		// Only top-level agents launch nested executions, so a child
+		// agent always reconciles to an empty set, which also tears down
+		// anything an earlier manifest declared.
+		declaredExecutions := manifest.SubagentExecutions
+		if manifest.ParentID != uuid.Nil {
+			declaredExecutions = nil
+		}
+		a.subagentExecManager.Reconcile(execController, declaredExecutions)
 
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as
@@ -2370,6 +2447,13 @@ func (a *agent) Close() error {
 		} else {
 			a.logger.Error(sshShutdownCtx, "ssh server shutdown", slog.Error(err))
 		}
+	}
+
+	// Stop the declared nested executions before graceful cancellation, so
+	// the still-active controller can report STOPPED over the live DRPC
+	// connection instead of leaving them running in coderd's view.
+	if err := a.subagentExecManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "subagent execution manager close", slog.Error(err))
 	}
 
 	// wait for SSH to shut down before the general graceful cancel, because
