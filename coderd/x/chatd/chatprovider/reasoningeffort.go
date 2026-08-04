@@ -92,6 +92,7 @@ func ApplyReasoningEffort(
 	model fantasy.LanguageModel,
 	options fantasy.ProviderOptions,
 	effort *string,
+	openAIResponsesOverride *bool,
 ) fantasy.ProviderOptions {
 	if effort == nil || model == nil {
 		return options
@@ -109,7 +110,7 @@ func ApplyReasoningEffort(
 		case *fantasyopenai.ProviderOptions:
 			opts.ReasoningEffort = &providerEffort
 		default:
-			if chatopenai.UsesResponsesOptions(model) {
+			if chatopenai.UsesResponsesOptions(model, openAIResponsesOverride) {
 				options[fantasyopenai.Name] = &fantasyopenai.ResponsesProviderOptions{
 					ReasoningEffort: &providerEffort,
 				}

@@ -4,6 +4,7 @@ import {
 	getGeneralFields,
 	getProviderFields,
 	getProviderNames,
+	isFieldVisibleForProvider,
 	resolveProvider,
 	snakeToCamel,
 } from "#/api/chatModelOptions";
@@ -542,8 +543,9 @@ export const buildModelConfigFromForm = (
 		fieldErrors,
 	);
 
+	const rawProvider = (provider ?? "").trim().toLowerCase();
 	// Resolve the canonical provider name through the alias table.
-	const resolved = resolveProvider((provider ?? "").trim().toLowerCase());
+	const resolved = resolveProvider(rawProvider);
 
 	// Validate provider-specific fields.
 	const providerFormState = form[resolved];
@@ -564,6 +566,9 @@ export const buildModelConfigFromForm = (
 	const modelConfig: Record<string, unknown> = {};
 
 	for (const field of getGeneralFields()) {
+		// Skip fields scoped to other providers so stale values left in form
+		// state are not serialized.
+		if (!isFieldVisibleForProvider(field, rawProvider)) continue;
 		const camelSegments = field.json_name.split(".").map(snakeToCamel);
 		const formValue = deepGet(form, camelSegments);
 		if (typeof formValue !== "string") continue;

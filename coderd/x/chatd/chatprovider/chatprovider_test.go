@@ -394,7 +394,7 @@ func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
 			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
 		},
-	})
+	}, nil)
 
 	require.NotNil(t, providerOptions)
 	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
@@ -915,6 +915,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			chatprovider.UserAgent(),
 			nil,
 			nil,
+			nil,
 		)
 		require.NoError(t, err)
 		require.NotNil(t, model)
@@ -929,6 +930,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			modelID,
 			chatprovider.ProviderAPIKeys{},
 			chatprovider.UserAgent(),
+			nil,
 			nil,
 			nil,
 		)
@@ -971,6 +973,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 				},
 			},
 			chatprovider.UserAgent(),
+			nil,
 			nil,
 			nil,
 		)
@@ -1027,6 +1030,7 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 					tt.model,
 					chatprovider.ProviderAPIKeys{},
 					chatprovider.UserAgent(),
+					nil,
 					nil,
 					nil,
 				)
@@ -1094,6 +1098,7 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 			},
 		},
 		chatprovider.UserAgent(),
+		nil,
 		nil,
 		nil,
 	)
@@ -1178,6 +1183,7 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 			},
 		},
 		chatprovider.UserAgent(),
+		nil,
 		nil,
 		nil,
 	)
@@ -1329,7 +1335,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"openai": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers, nil)
+		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers, nil, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -1360,7 +1366,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"anthropic": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers, nil)
+		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers, nil, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -1446,7 +1452,7 @@ func TestModelFromConfig_AnthropicBetaExtraHeader(t *testing.T) {
 	betaHeaders := map[string]string{
 		chatprovider.HeaderAnthropicBeta: chatprovider.AnthropicBetaContext1M,
 	}
-	model, err := chatprovider.ModelFromConfig(fantasyanthropic.Name, "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), betaHeaders, nil)
+	model, err := chatprovider.ModelFromConfig(fantasyanthropic.Name, "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), betaHeaders, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, generateHello(ctx, model))
@@ -1497,6 +1503,7 @@ func TestModelFromConfig_BedrockBetaExtraHeader(t *testing.T) {
 		map[string]string{
 			chatprovider.HeaderAnthropicBeta: chatprovider.AnthropicBetaContext1M,
 		},
+		nil,
 		nil,
 	)
 	require.NoError(t, err)
@@ -1574,7 +1581,7 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 		BaseURLByProvider: map[string]string{"anthropic": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil)
+	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil, nil)
 	require.NoError(t, err)
 
 	_, err = model.Generate(ctx, fantasy.Call{
@@ -1615,7 +1622,7 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 		BaseURLByProvider: map[string]string{"openai": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil, nil)
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil, nil, nil)
 	require.NoError(t, err)
 
 	_, err = model.Generate(ctx, fantasy.Call{
@@ -1659,6 +1666,7 @@ func TestModelFromConfig_HTTPClient(t *testing.T) {
 		chatprovider.UserAgent(),
 		nil,
 		client,
+		nil,
 	)
 	require.NoError(t, err)
 

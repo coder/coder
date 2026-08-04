@@ -101,6 +101,45 @@ func (server *Server) prepareGeneration(
 		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
+	// Computer-use turns swap in a specialized model, so the substitution
+	// must happen before anything model-sensitive runs: file-part
+	// classification, history sanitization, and provider option preparation
+	// must all agree with the client actually used for the turn.
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
+	var computerUseProvider codersdk.ChatComputerUseProvider
+	if isComputerUse {
+		var cuModelProvider, cuModelName string
+		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
+		if err != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
+		}
+		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
+		if keyErr != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
+		}
+		modelRoute = computerUseRoute
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
+			ctx,
+			chat,
+			computerUseRoute,
+			computerUseProvider,
+			cuModelProvider,
+			cuModelName,
+			modelOpts,
+		)
+		if cuErr != nil {
+			return generationPrepared{}, cuErr
+		}
+		model = cuModel
+		debugEnabled = cuDebugEnabled
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
+		// The computer-use client is built without ConfigOptions, so the
+		// chat model's transport override must not follow the substituted
+		// model into provider option preparation.
+		callConfig.OpenAIConfig = nil
+	}
+
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
@@ -259,7 +298,12 @@ func (server *Server) prepareGeneration(
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
+			return chatprovider.AcceptsFilePartMediaType(
+				model.Provider(),
+				model.Model(),
+				mediaType,
+				chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig),
+			)
 		}
 		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
@@ -480,36 +524,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	if isComputerUse {
-		computerUseProvider, computerUseModelProvider, computerUseModelName, err := server.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
-		if keyErr != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			computerUseModelProvider,
-			computerUseModelName,
-			modelOpts,
-		)
-		if cuErr != nil {
-			cleanup()
-			return generationPrepared{}, cuErr
-		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -542,8 +557,18 @@ func (server *Server) prepareGeneration(
 		requestedEffort,
 		callConfig.ReasoningEffort,
 	)
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
-	providerOptions = chatprovider.ApplyReasoningEffort(model, providerOptions, reasoningEffort)
+	responsesOverride := chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig)
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+		model,
+		callConfig.ProviderOptions,
+		responsesOverride,
+	)
+	providerOptions = chatprovider.ApplyReasoningEffort(
+		model,
+		providerOptions,
+		reasoningEffort,
+		responsesOverride,
+	)
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
@@ -768,7 +793,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
 		// generic label when StatusLabelModel is nil.
@@ -787,6 +812,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		FallbackRoute:       modelRoute,
 		FallbackModel:       resolvedModel,
 		ModelBuildOptions:   modelOpts,
+		StatusLabelOptions:  dbConfig.Options,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

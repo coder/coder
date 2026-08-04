@@ -1362,3 +1362,26 @@ describe("isFieldConflictDisabled", () => {
 		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
 	});
 });
+
+describe("provider-scoped general fields", () => {
+	const form = formWith({ openaiConfig: { useResponsesApi: "true" } });
+
+	it("serializes a scoped general field for its provider", () => {
+		const result = buildModelConfigFromForm("openai", form);
+		expect(result.modelConfig?.openai_config).toEqual({
+			use_responses_api: true,
+		});
+	});
+
+	it("omits a scoped general field for another provider", () => {
+		const result = buildModelConfigFromForm("anthropic", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+
+	// azure resolves to the openai option schema, so scoping must gate on the
+	// raw provider type.
+	it("omits a scoped general field for an aliased provider", () => {
+		const result = buildModelConfigFromForm("azure", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+});

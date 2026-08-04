@@ -167,10 +167,11 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
-	extraHeaders, err := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.ConfigOptions)
+	callConfig, err := parseModelConfigOptions(req.ConfigOptions)
 	if err != nil {
 		return nil, err
 	}
+	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, callConfig)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -178,7 +179,19 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
+		chatprovider.OpenAIResponsesAPIOverride(callConfig.OpenAIConfig),
 	)
+}
+
+func parseModelConfigOptions(configOptions json.RawMessage) (codersdk.ChatModelCallConfig, error) {
+	var callConfig codersdk.ChatModelCallConfig
+	if len(configOptions) == 0 {
+		return callConfig, nil
+	}
+	if err := json.Unmarshal(configOptions, &callConfig); err != nil {
+		return codersdk.ChatModelCallConfig{}, xerrors.Errorf("parse model config options: %w", err)
+	}
+	return callConfig, nil
 }
 
 // mergeConfigBetaHeaders never mutates extraHeaders; existing entries win
@@ -186,18 +199,11 @@ func (p *Server) newModel(
 func mergeConfigBetaHeaders(
 	extraHeaders map[string]string,
 	providerHint string,
-	configOptions json.RawMessage,
-) (map[string]string, error) {
-	if len(configOptions) == 0 {
-		return extraHeaders, nil
-	}
-	var callConfig codersdk.ChatModelCallConfig
-	if err := json.Unmarshal(configOptions, &callConfig); err != nil {
-		return nil, xerrors.Errorf("parse model config options: %w", err)
-	}
+	callConfig codersdk.ChatModelCallConfig,
+) map[string]string {
 	betaHeaders := chatprovider.BetaHeadersFromCallConfig(providerHint, &callConfig)
 	if len(betaHeaders) == 0 {
-		return extraHeaders, nil
+		return extraHeaders
 	}
 	merged := make(map[string]string, len(extraHeaders)+len(betaHeaders))
 	for name, value := range betaHeaders {
@@ -206,7 +212,7 @@ func mergeConfigBetaHeaders(
 	for name, value := range extraHeaders {
 		merged[name] = value
 	}
-	return merged, nil
+	return merged
 }
 
 type aibridgeFantasyConfig struct {

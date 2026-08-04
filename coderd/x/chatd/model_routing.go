@@ -46,6 +46,7 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
+	openAIResponsesOverride *bool,
 ) (fantasy.LanguageModel, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
@@ -54,6 +55,7 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
+		openAIResponsesOverride,
 	)
 	if err != nil {
 		return nil, err
