@@ -15,6 +15,11 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 
+// Family roots and shared prefixes. These have no single owning
+// factory; many factories and cache helpers build on them, so they
+// live together at the top. Per-factory key helpers are co-located
+// with the options factory or mutation that uses them.
+
 // Collections
 const chatCollectionsKey = ["chats", "collections"] as const;
 
@@ -26,6 +31,20 @@ export const chatsByWorkspaceFamilyKey = [
 	...chatCollectionsKey,
 	"by-workspace",
 ] as const;
+
+// Entities. chatEntityKey doubles as the family root for per-chat
+// descendant keys and as the detail key used by the chat factory.
+export const chatEntityKey = (chatId: string) =>
+	["chats", "entities", chatId] as const;
+
+// Files
+export const chatFilesKey = ["chats", "files"] as const;
+
+// Analytics
+const chatAnalyticsKey = ["chats", "analytics"] as const;
+
+// Config
+const chatConfigKey = ["chats", "config"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
@@ -46,45 +65,8 @@ export type ChatListInput = Readonly<{
 
 type ChatSearchParams = Readonly<{ q: string }>;
 
-export const chatListKey = (params: ChatListParams) =>
-	[...chatListFamilyKey, params] as const;
-
-const chatSearchKey = (params: ChatSearchParams) =>
-	[...chatSearchFamilyKey, params] as const;
-
 const chatsByWorkspaceKey = (workspaceIds: readonly string[]) =>
 	[...chatsByWorkspaceFamilyKey, workspaceIds] as const;
-
-// Entities
-export const chatEntityKey = (chatId: string) =>
-	["chats", "entities", chatId] as const;
-
-export const chatMessagesKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "messages"] as const;
-
-const chatQueueConvergenceKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "queue-convergence"] as const;
-
-export const chatPromptsKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "prompts"] as const;
-
-export const chatACLKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "acl"] as const;
-
-// Files
-export const chatFilesKey = ["chats", "files"] as const;
-
-export const chatFileTextKey = (fileId: string) =>
-	[...chatFilesKey, fileId, "text"] as const;
-
-// Analytics
-const chatAnalyticsKey = ["chats", "analytics"] as const;
-
-export const chatCostTreeKey = (rootChatId: string) =>
-	[...chatAnalyticsKey, "cost", "tree", rootChatId] as const;
-
-// Config
-const chatConfigKey = ["chats", "config"] as const;
 
 export const CHAT_LIST_PR_STATUS_ORDER = [
 	"draft",
@@ -761,6 +743,9 @@ const getChatListQueryString = (params: ChatListParams): string | undefined => {
 	return qParts.length > 0 ? qParts.join(" ") : undefined;
 };
 
+export const chatListKey = (params: ChatListParams) =>
+	[...chatListFamilyKey, params] as const;
+
 export const infiniteChats = (input?: ChatListInput) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 	const params = toChatListParams(input);
@@ -790,6 +775,9 @@ export const infiniteChats = (input?: ChatListInput) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
+const chatSearchKey = (params: ChatSearchParams) =>
+	[...chatSearchFamilyKey, params] as const;
+
 export const chatSearch = (params: ChatSearchParams) =>
 	queryOptions({
 		queryKey: chatSearchKey(params),
@@ -805,12 +793,21 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.experimental.getChat(chatId),
 });
 
+export const chatACLKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "acl"] as const;
+
 export const chatACL = (chatId: string) => ({
 	queryKey: chatACLKey(chatId),
 	queryFn: () => API.experimental.getChatACL(chatId),
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+
+export const chatMessagesKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "messages"] as const;
+
+const chatQueueConvergenceKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "queue-convergence"] as const;
 
 // The queued messages ride on the uncursored page of the messages endpoint,
 // so settling the queue after a promote needs its own request. Refetching
@@ -844,6 +841,9 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 const PROMPT_HISTORY_LIMIT = 500;
 
 const PROMPTS_STALE_MS = 30_000;
+
+export const chatPromptsKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "prompts"] as const;
 
 export const chatPromptsQuery = (chatId: string) => ({
 	queryKey: chatPromptsKey(chatId),
@@ -1326,7 +1326,7 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 export const chatDebugRunsKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "debug-runs"] as const;
 
-const chatDebugRunKey = (chatId: string, runId: string) =>
+export const chatDebugRunKey = (chatId: string, runId: string) =>
 	[...chatDebugRunsKey(chatId), runId] as const;
 
 // Foreground poll cadence when the Debug tab is open. The error cadence
@@ -2082,7 +2082,13 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+export const chatFileTextKey = (fileId: string) =>
+	[...chatFilesKey, fileId, "text"] as const;
+
 const GATEWAY_REQUEST_STALE_MS = 30_000;
+
+export const chatCostTreeKey = (rootChatId: string) =>
+	[...chatAnalyticsKey, "cost", "tree", rootChatId] as const;
 
 export const chatCost = (rootChatId: string) => ({
 	queryKey: chatCostTreeKey(rootChatId),
