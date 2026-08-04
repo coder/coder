@@ -1,6 +1,5 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
@@ -8,7 +7,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
@@ -515,14 +513,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isApiError(createError) &&
 						createError.response?.status === 409 &&
 						isChatUsageLimitExceededResponse(createError.response.data) ? (
-							<Alert
-								severity="info"
-								actions={
-									<Button asChild size="sm">
-										<Link to="/agents/analytics">View usage</Link>
-									</Button>
-								}
-							>
+							<Alert severity="info">
 								<AlertDescription>
 									{formatUsageLimitMessage(createError.response.data)}
 								</AlertDescription>

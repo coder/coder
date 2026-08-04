@@ -116,12 +116,13 @@ none, if the template does not define any).
 
 ### Spend management
 
-Administrators can set spend limits to cap LLM usage per user within a rolling
-time period, with per-user and per-group overrides. The cost tracking dashboard
-provides visibility into per-user spending, token consumption, and per-model
-breakdowns.
+The Spend page provides usage-only reporting for Coder Agents chats. The native
+usage-limit configuration UI has been removed from release 2.36, but values
+configured before upgrading remain stored and enforced. Existing native values
+are not migrated to AI Gateway budgets.
 
-See [Spend Management](./usage-insights.md) for details.
+Configure new AI Gateway budgets from group settings or through the generated
+group budget API. See [Spend Management](./usage-insights.md) for details.
 
 ### Git providers
 

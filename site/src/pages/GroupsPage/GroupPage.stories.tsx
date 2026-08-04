@@ -348,9 +348,8 @@ export const WithMemberAIBudget: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
 		await expect(await canvas.findByText("Budget group")).toBeInTheDocument();
-		// Dates depend on the runner's timezone; match loosely.
 		await expect(
-			await canvas.findByText(/^AI budget period: \w+ \d+ - \w+ \d+, 2026$/),
+			await canvas.findByText("AI budget period: June 1 - July 1, 2026"),
 		).toBeInTheDocument();
 
 		await expect(

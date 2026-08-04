@@ -1,5 +1,4 @@
-import dayjs from "dayjs";
-import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -31,25 +30,6 @@ interface ChatCostSummaryViewProps {
 	loadingLabel: string;
 	emptyMessage: string;
 }
-
-export const getUsageLimitPeriodLabel = (
-	period: TypesGen.ChatUsageLimitPeriod | undefined,
-): string => {
-	if (!period) {
-		return "";
-	}
-
-	switch (period) {
-		case "day":
-			return "Daily";
-		case "week":
-			return "Weekly";
-		case "month":
-			return "Monthly";
-		default:
-			return "";
-	}
-};
 
 export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	summary,
@@ -110,41 +90,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		hasNextPage: hasChatNext,
 	} = paginateItems(summary.by_chat, chatPageSize, chatPage);
 
-	const usageLimit = summary.usage_limit;
-	const showUsageLimitCard = usageLimit?.is_limited === true;
-	const usageLimitCurrentSpend = usageLimit?.current_spend ?? 0;
-	const usageLimitSpendMicros = usageLimit?.spend_limit_micros ?? 0;
-	const usageLimitPeriodLabel = usageLimit
-		? getUsageLimitPeriodLabel(usageLimit.period)
-		: "";
-	const usageProgressPercentage =
-		showUsageLimitCard && usageLimitSpendMicros > 0
-			? Math.min((usageLimitCurrentSpend / usageLimitSpendMicros) * 100, 100)
-			: 0;
-	const usageProgressBarClass =
-		usageProgressPercentage > 90
-			? "bg-content-destructive"
-			: usageProgressPercentage >= 75
-				? "bg-content-warning"
-				: "bg-content-success";
-	const usageLimitExceeded =
-		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
-	const usageLimitStatusText = usageLimitExceeded
-		? "Limit exceeded"
-		: `${formatCostMicros(
-				Math.max(usageLimitSpendMicros - usageLimitCurrentSpend, 0),
-			)} remaining`;
-	const usageLimitCurrentPeriod =
-		showUsageLimitCard && usageLimit?.period_start && usageLimit?.period_end
-			? `Current period: ${dayjs(usageLimit.period_start).format("MMM D")} to ${dayjs(
-					usageLimit.period_end,
-				).format("MMM D")}`
-			: "";
-	const usageLimitResetAt =
-		showUsageLimitCard && usageLimit?.period_end
-			? dayjs(usageLimit.period_end).format("MMM D, YYYY h:mm A")
-			: "";
-
 	return (
 		<div className="space-y-6">
 			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -201,59 +146,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 			</div>
 
-			{showUsageLimitCard && usageLimit && (
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<div className="flex flex-col gap-4">
-						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-							<div>
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									{usageLimitPeriodLabel} spend limit
-								</p>
-								{usageLimitCurrentPeriod && (
-									<p className="mt-1 text-sm text-content-secondary">
-										{usageLimitCurrentPeriod}
-									</p>
-								)}
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{formatCostMicros(usageLimitCurrentSpend)} /{" "}
-									{formatCostMicros(usageLimitSpendMicros)}
-								</p>
-							</div>
-							<p className="text-sm text-content-secondary">
-								{Math.round(usageProgressPercentage)}% used
-							</p>
-						</div>
-						<div
-							role="progressbar"
-							aria-label={`${usageLimitPeriodLabel} spend usage`}
-							aria-valuemin={0}
-							aria-valuemax={100}
-							aria-valuenow={Math.round(usageProgressPercentage)}
-							className="h-2 overflow-hidden rounded-full bg-surface-tertiary"
-						>
-							<div
-								className={`h-full rounded-full ${usageProgressBarClass}`}
-								style={{ width: `${usageProgressPercentage}%` }}
-							/>
-						</div>
-						<div className="flex flex-col gap-1 text-sm md:flex-row md:items-center md:justify-between">
-							<p
-								className={
-									usageLimitExceeded
-										? "text-content-destructive"
-										: "text-content-secondary"
-								}
-							>
-								{usageLimitStatusText}
-							</p>
-							<p className="text-content-secondary">
-								Resets {usageLimitResetAt}
-							</p>
-						</div>
-					</div>
-				</div>
-			)}
-
 			{summary.unpriced_messages_having_usage_count > 0 && (
 				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
 					<TriangleAlertIcon className="size-5 shrink-0 text-content-warning" />
@@ -265,14 +157,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</span>
 				</div>
 			)}
-
-			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
-				<InfoIcon className="size-5 shrink-0" />
-				<span>
-					Automatic title generation uses lightweight models and is not counted
-					towards usage limits.
-				</span>
-			</div>
 
 			{summary.by_model.length === 0 && summary.by_chat.length === 0 ? (
 				<p className="py-12 text-center text-content-secondary">

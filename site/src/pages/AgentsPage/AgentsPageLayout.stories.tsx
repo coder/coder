@@ -500,14 +500,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			retention_days: 30,
 		});
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
-		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
-			spend_limit_micros: null,
-			period: "month",
-			updated_at: "2026-02-18T00:00:00.000Z",
-			unpriced_model_count: 0,
-			overrides: [],
-			group_overrides: [],
-		});
 		spyOn(API, "getGroups").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue({
 			start_date: "2026-02-10T00:00:00Z",

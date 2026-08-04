@@ -1079,7 +1079,7 @@
 								},
 								{
 									"title": "Spend Management",
-									"description": "Set spend limits and track AI costs for Coder Agents with admin-only controls.",
+									"description": "Track Coder Agents usage and configure new spend controls with AI Gateway budgets.",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["beta"]
 								},

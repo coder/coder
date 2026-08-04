@@ -1,90 +1,51 @@
 # Spend Management
 
-Coder provides admin-only controls for monitoring and controlling agent
-spend: usage limits and cost tracking.
+Coder provides usage reporting for Coder Agents and two independent ways to
+limit spend on release 2.36: existing native chat usage limits and AI Gateway
+budgets.
 
-## Usage limits
+## Native chat usage limits
 
-Navigate to **Agents** > **Settings** > **Manage Agents** > **Spend**.
+The native usage-limit configuration UI has been removed from release 2.36.
+Values configured before upgrading remain stored and enforced. Coder checks the
+user's current spend before processing each chat message and returns a **409
+Conflict** response when the applicable limit is reached.
 
-Usage limits cap how much each user can spend on LLM usage within a rolling
-time period. When enabled, the system checks the user's current spend before
-processing each chat message.
+Existing native values are not migrated to AI Gateway budgets. To change spend
+controls after upgrading, configure new AI Gateway budgets. Native limits remain
+in effect until they are changed through the existing experimental API or
+removed in a later release.
 
-### Configuration
+## AI Gateway budgets
 
-- **Enable/disable toggle** — master on/off for the entire limit system.
-- **Period** — `day`, `week`, or `month`. Periods are UTC-aligned: midnight
-  UTC for daily, Monday start for weekly, first of the month for monthly.
-- **Default limit** — deployment-wide default in dollars. Applies to all
-  users who do not have a more specific override. Leave unset for no limit.
-- **Per-user overrides** — set a custom dollar limit for an individual user.
-  Takes highest priority.
-- **Per-group overrides** — set a limit for a group. When a user belongs to
-  multiple groups, the lowest group limit applies.
+AI Gateway budgets cap each user's AI Gateway spend, including Coder Agents
+chats, over a monthly period.
 
-### Priority hierarchy
+- Set a group budget from the group's settings page.
+- When a user belongs to several budgeted groups, the deployment budget policy
+  selects the applicable group. The default policy selects the highest budget.
+- A per-user override takes priority over group budgets.
 
-The system resolves a user's effective limit in this order:
+Budget controls require a license that includes AI Gateway. Existing native
+usage-limit values and recorded spend are not migrated when you configure a
+budget.
 
-1. Individual user override (highest priority)
-1. Minimum group limit across all of the user's groups
-1. Global default limit
-1. No limit (if limits are disabled or no value is configured)
+The API reference documents how to
+[get](../../../reference/api/enterprise.md#get-group-ai-budget),
+[upsert](../../../reference/api/enterprise.md#upsert-group-ai-budget), and
+[delete](../../../reference/api/enterprise.md#delete-group-ai-budget) a group
+budget.
 
-### Enforcement
+The Agents page shows the signed-in user's current AI Gateway spend and budget
+when AI Gateway is available.
 
-- Checked before each chat message is processed.
-- When current spend meets or exceeds the limit, the chat returns a
-  **409 Conflict** response and the message is blocked.
-- Fail-open: if the limit query itself fails, the message is allowed
-  through.
-- Brief overage is possible when concurrent messages are in flight, because
-  cost is determined only after the LLM returns.
+## Spend visibility
 
-### User-facing status
+Navigate to **Agents** > **Settings** > **Manage Agents** > **Spend** to view
+usage-only reporting for deployment-wide Coder Agents chat costs.
 
-Users can view their own spend status, including whether a limit is active,
-their effective limit, current spend, and when the current period resets.
+The top-level table includes total cost, message and chat counts, and token usage
+for each user. It supports date range filtering, search, and pagination.
 
-> [!NOTE]
-> The admin configuration page shows the count of models without pricing
-> data. Models missing pricing cannot be tracked accurately against limits.
-
-## Cost tracking
-
-Navigate to **Agents** > **Settings** > **Manage Agents** > **Spend**.
-
-This view shows deployment-wide LLM chat costs with per-user drill-down.
-
-### Top-level view
-
-A per-user rollup table with the following columns:
-
-| Column             | Description                         |
-|--------------------|-------------------------------------|
-| Total cost         | Aggregate dollar spend for the user |
-| Messages           | Number of chat messages sent        |
-| Chats              | Number of distinct chat sessions    |
-| Input tokens       | Total input tokens consumed         |
-| Output tokens      | Total output tokens consumed        |
-| Cache read tokens  | Tokens served from cache            |
-| Cache write tokens | Tokens written to cache             |
-
-The table supports date range filtering (default: last 30 days), search by
-name or username, and pagination.
-
-### Per-user detail view
-
-Select a user to see:
-
-- **Summary cards** — total cost, token breakdowns, and message counts.
-- **Usage limit progress** — if a limit is active, a color-coded progress
-  bar shows current spend relative to the limit.
-- **Per-model breakdown** — table of costs and token usage by model.
-- **Per-chat breakdown** — table of costs and token usage by chat session.
-
-> [!NOTE]
-> Automatic title generation uses lightweight models, such as Claude Haiku or GPT-4o
-> Mini. Its token usage is not counted towards usage limits or shown in usage
-> summaries.
+Select a user to view summary cards and per-model and per-chat breakdowns. The
+Spend page does not configure native usage limits or AI Gateway budgets.

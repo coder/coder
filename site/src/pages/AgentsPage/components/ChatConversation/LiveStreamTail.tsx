@@ -1,8 +1,6 @@
-import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -94,14 +92,7 @@ export const LiveStreamTailContent = ({
 				/>
 			)}
 			{usageLimitStatus && !usageLimitStatus.provider ? (
-				<Alert
-					severity="info"
-					actions={
-						<Button asChild size="sm">
-							<Link to="/agents/analytics">View usage</Link>
-						</Button>
-					}
-				>
+				<Alert severity="info">
 					<AlertDescription>{usageLimitStatus.message}</AlertDescription>
 				</Alert>
 			) : terminalStatus ? (
