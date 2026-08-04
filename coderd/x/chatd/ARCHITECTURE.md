@@ -962,7 +962,7 @@ Generation tasks acquire the gate outside retry timeouts, so queue waits do not 
 
 ### Subagents
 
-Subagent chats count against the cap. The generation context carries a lease that yields the parent's slot while `wait_agent` blocks. Reference counting shares that yield across concurrent waits. Resume acquires a slot again or queues if capacity is full.
+Subagent chats count against the cap. The generation context carries a lease that yields the parent's slot while `wait_agent` blocks. Reference counting shares that yield across concurrent waits. A failed yield fails the `wait_agent` call rather than blocking while the parent still holds the slot. Resume acquires a slot again or queues if capacity is full.
 
 ### Entitlement bypass
 

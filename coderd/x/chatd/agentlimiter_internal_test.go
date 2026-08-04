@@ -19,8 +19,9 @@ import (
 )
 
 type fakeAgentGate struct {
-	mu    sync.Mutex
-	chats map[uuid.UUID]*fakeGateChat
+	mu       sync.Mutex
+	chats    map[uuid.UUID]*fakeGateChat
+	yieldErr error
 }
 
 type fakeGateChat struct {
@@ -70,7 +71,9 @@ func (f *fakeAgentGate) Acquire(ctx context.Context, chatID uuid.UUID) error {
 
 func (f *fakeAgentGate) Yield(_ context.Context, chatID uuid.UUID) error {
 	f.chat(chatID).record("yield")
-	return nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.yieldErr
 }
 
 func (c *fakeGateChat) record(event string) {
@@ -169,7 +172,9 @@ func (s *waitAgentStarter) StartGeneration(ctx context.Context, input chatWorker
 	if !ok {
 		return errors.Join(errTaskExpectedExit, xerrors.New("no agent slot lease in generation context"))
 	}
-	lease.Pause(ctx)
+	if err := lease.Pause(ctx); err != nil {
+		return err
+	}
 	s.resumeErr <- lease.Resume(ctx)
 	return s.recordingTaskStarter.StartGeneration(ctx, input)
 }
@@ -193,6 +198,30 @@ func TestWorker_AgentGateWaitAgentPauseResume(t *testing.T) {
 	require.GreaterOrEqual(t, countEvents(events, "acquire"), 2)
 }
 
+func TestAgentSlotLease_PauseYieldFailure(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	gate := newFakeAgentGate()
+	chatID := uuid.New()
+	gate.admit(chatID)
+	lease := newAgentSlotLease(gate, chatID)
+	require.NoError(t, lease.EnsureHeld(ctx))
+
+	gate.mu.Lock()
+	gate.yieldErr = xerrors.New("yield unavailable")
+	gate.mu.Unlock()
+	require.ErrorContains(t, lease.Pause(ctx), "yield unavailable")
+
+	// The failed pause restored the refcount, so the next pause yields again.
+	gate.mu.Lock()
+	gate.yieldErr = nil
+	gate.mu.Unlock()
+	require.NoError(t, lease.Pause(ctx))
+	require.Equal(t, 2, countEvents(gate.chat(chatID).snapshot(), "yield"))
+	require.NoError(t, lease.Resume(ctx))
+}
+
 func TestWorker_NoGateLeavesGenerationUncapped(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -213,10 +242,10 @@ func TestAgentSlotLease_PauseRefCounting(t *testing.T) {
 	gate := newFakeAgentGate()
 	chatID := uuid.New()
 	gate.admit(chatID)
-	lease := newAgentSlotLease(gate, chatID, testutil.Logger(t))
+	lease := newAgentSlotLease(gate, chatID)
 
-	lease.Pause(ctx)
-	lease.Pause(ctx)
+	require.NoError(t, lease.Pause(ctx))
+	require.NoError(t, lease.Pause(ctx))
 	require.NoError(t, lease.Resume(ctx))
 	require.NoError(t, lease.Resume(ctx))
 

@@ -1475,7 +1475,9 @@ func (p *Server) awaitSubagentCompletion(
 
 	// Yield the parent slot while wait_agent blocks so subagent chats can run.
 	if lease, ok := agentSlotLeaseFromContext(ctx); ok {
-		lease.Pause(ctx)
+		if pauseErr := lease.Pause(ctx); pauseErr != nil {
+			return database.Chat{}, "", pauseErr
+		}
 		defer func() {
 			if resumeErr := lease.Resume(ctx); resumeErr != nil && err == nil {
 				err = resumeErr

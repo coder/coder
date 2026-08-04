@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -45,15 +46,14 @@ type AgentConcurrencyGateFactory func(AgentConcurrencyGateOptions) AgentConcurre
 type agentSlotLease struct {
 	gate   AgentConcurrencyGate
 	chatID uuid.UUID
-	logger slog.Logger
 
 	// mu protects pauseRefs and serializes Yield with re-acquisition.
 	mu        sync.Mutex
 	pauseRefs int
 }
 
-func newAgentSlotLease(gate AgentConcurrencyGate, chatID uuid.UUID, logger slog.Logger) *agentSlotLease {
-	return &agentSlotLease{gate: gate, chatID: chatID, logger: logger}
+func newAgentSlotLease(gate AgentConcurrencyGate, chatID uuid.UUID) *agentSlotLease {
+	return &agentSlotLease{gate: gate, chatID: chatID}
 }
 
 // EnsureHeld acquires the slot or waits until ctx is canceled. Calls are
@@ -68,20 +68,23 @@ func (l *agentSlotLease) EnsureHeld(ctx context.Context) error {
 }
 
 // Pause yields on the first concurrent wait_agent pause. A failed yield
-// leaves the claim held.
-func (l *agentSlotLease) Pause(ctx context.Context) {
+// leaves the claim held and is returned so the caller aborts instead of
+// blocking while holding capacity.
+func (l *agentSlotLease) Pause(ctx context.Context) error {
 	if l.gate == nil {
-		return
+		return nil
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.pauseRefs++
 	if l.pauseRefs != 1 {
-		return
+		return nil
 	}
 	if err := l.gate.Yield(ctx, l.chatID); err != nil {
-		l.logger.Warn(ctx, "yield agent capacity slot", slog.F("chat_id", l.chatID), slog.Error(err))
+		l.pauseRefs--
+		return xerrors.Errorf("yield agent capacity slot: %w", err)
 	}
+	return nil
 }
 
 // Resume re-acquires on the final matching pause. If canceled, the next
