@@ -172,9 +172,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"one_time_passcode_expires_at": ActionTrack,
 		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 		"is_service_account":           ActionTrack, // Should never change, but track it anyway.
-		// Retained until the deferred migration drops the column. entry()
-		// exits the process for any JSON-tagged field without an action.
-		"chat_spend_limit_micros": ActionTrack,
+		"chat_spend_limit_micros":      ActionTrack,
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
@@ -219,15 +217,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},
 	&database.AuditableGroup{}: {
-		"id":              ActionTrack,
-		"name":            ActionTrack,
-		"display_name":    ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"avatar_url":      ActionTrack,
-		"quota_allowance": ActionTrack,
-		"members":         ActionTrack,
-		"source":          ActionIgnore,
-		// Retained until the deferred migration drops the column.
+		"id":                      ActionTrack,
+		"name":                    ActionTrack,
+		"display_name":            ActionTrack,
+		"organization_id":         ActionIgnore, // Never changes.
+		"avatar_url":              ActionTrack,
+		"quota_allowance":         ActionTrack,
+		"members":                 ActionTrack,
+		"source":                  ActionIgnore,
 		"chat_spend_limit_micros": ActionTrack,
 	},
 	&database.AuditableGroupAIBudget{}: {
