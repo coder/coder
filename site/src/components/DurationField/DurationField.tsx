@@ -86,10 +86,12 @@ export const DurationField: FC<DurationFieldProps> = ({
 	}
 
 	const handleTextChange = (raw: string) => {
-		const digits = raw.replace(/\D/g, "");
-		setText(digits);
+		// Preserve exactly what the user typed rather than silently stripping
+		// non-digits (which surprisingly turned "ABC123DEF" into "123"). The
+		// pattern constraint on the Input surfaces invalid entries instead.
+		setText(raw);
 
-		const ms = toMs(digits, unit);
+		const ms = toMs(raw, unit);
 		if (ms !== valueMs) {
 			onChange(ms);
 		}
@@ -123,6 +125,8 @@ export const DurationField: FC<DurationFieldProps> = ({
 					value={text}
 					onChange={(e) => handleTextChange(e.currentTarget.value)}
 					disabled={disabled}
+					inputMode="numeric"
+					pattern="[0-9]*"
 					aria-invalid={error}
 					aria-describedby={helperText ? helperId : undefined}
 					className="w-full min-w-0"
