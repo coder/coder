@@ -11,24 +11,26 @@ import (
 const executeToolName = "execute"
 
 func (s *Server) buildOpenAIChoice(req llmRequest) openAIResponseChoice {
-	if !s.needsOpenAIToolCall(req) || !slices.ContainsFunc(req.Tools, func(tool openAITool) bool {
+	executeToolIncluded := slices.ContainsFunc(req.Tools, func(tool openAITool) bool {
 		return tool.Function.Name == executeToolName
-	}) {
+	})
+
+	if s.needsOpenAIToolCall(req) && executeToolIncluded {
 		return openAIResponseChoice{
 			Message: openAIMessage{
-				Role:    "assistant",
-				Content: s.responseText(openAIDefaultResponseText),
+				Role:      "assistant",
+				ToolCalls: []openAIToolCall{executeToolCall(s.toolCallCommand)},
 			},
-			FinishReason: openAIStopFinishReason,
+			FinishReason: openAIToolCallFinishReason,
 		}
 	}
 
 	return openAIResponseChoice{
 		Message: openAIMessage{
-			Role:      "assistant",
-			ToolCalls: []openAIToolCall{executeToolCall(s.toolCallCommand)},
+			Role:    "assistant",
+			Content: s.responseText(openAIDefaultResponseText),
 		},
-		FinishReason: openAIToolCallFinishReason,
+		FinishReason: openAIStopFinishReason,
 	}
 }
 
