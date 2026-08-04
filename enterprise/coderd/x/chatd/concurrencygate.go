@@ -90,7 +90,6 @@ type gate struct {
 	queuedGauge prometheus.Gauge
 	queueTotal  prometheus.Counter
 	waitSeconds prometheus.Histogram
-	metricsOn   bool
 }
 
 func newGate(opts gateOptions) *gate {
@@ -144,10 +143,9 @@ func newGate(opts gateOptions) *gate {
 	})
 	if opts.Registerer != nil {
 		opts.Registerer.MustRegister(g.activeGauge, g.queuedGauge, g.queueTotal, g.waitSeconds)
-		g.metricsOn = true
-	}
-	if opts.LifetimeCtx != nil && g.metricsOn {
-		go g.refreshGauges(opts.LifetimeCtx)
+		if opts.LifetimeCtx != nil {
+			go g.refreshGauges(opts.LifetimeCtx)
+		}
 	}
 	return g
 }
