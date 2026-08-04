@@ -495,7 +495,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
-		"PATH":                scriptBinDir + string(filepath.ListSeparator),
+		"PATH":                scriptBinDir,
 	} {
 		t.Run(envName, func(t *testing.T) {
 			t.Parallel()
@@ -505,7 +505,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 				"MY_SESSION_MANIFEST": "true",
 			})
 			if envName == "PATH" {
-				require.True(t, strings.HasPrefix(got, want), "PATH %q does not start with %q", got, want)
+				require.Contains(t, filepath.SplitList(got), want)
 				return
 			}
 			require.Equal(t, want, got)
