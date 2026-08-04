@@ -564,6 +564,11 @@ func TestManager_QueuedReconcilesAcquireSequentially(t *testing.T) {
 	next := m.declaration()
 	m.reconcile(controller, decl, next)
 	testutil.RequireReceive(ctx, t, driver.startCh)
+	// The RUNNING report is made after the manager records the state, so
+	// waiting for it is what makes the second execution's state observable.
+	// The driver's own start channel fires while Start is still running.
+	report = testutil.RequireReceive(ctx, t, controller.reportCh)
+	require.Equal(t, proto.ReportSubagentExecutionStatusRequest_RUNNING, report.GetStatus())
 
 	// Exactly one retry: the first queued reconcile launched the
 	// declaration and the rest found it already launched.
