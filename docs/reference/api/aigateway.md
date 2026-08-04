@@ -195,6 +195,31 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "models": [
     "string"
   ],
+  "network_call_logs": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
+  "network_domain_count": 0,
+  "network_top_domains": [
+    {
+      "count": 0,
+      "domain": "string"
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [

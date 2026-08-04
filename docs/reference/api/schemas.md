@@ -622,22 +622,22 @@
 
 ### Properties
 
-| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
-|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
-| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
-| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
-| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
-| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                       |
+| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                              |
+|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                          |
+| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
+| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
+| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
+| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
+| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                          |
 
 ## codersdk.AIBridgeSessionNetworkCallSummary
 
@@ -654,6 +654,22 @@
 |-----------|---------|----------|--------------|-------------|
 | `blocked` | integer | false    |              |             |
 | `total`   | integer | false    |              |             |
+
+## codersdk.AIBridgeSessionNetworkDomain
+
+```json
+{
+  "count": 0,
+  "domain": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `count`  | integer | false    |              |             |
+| `domain` | string  | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -674,6 +690,31 @@
   },
   "models": [
     "string"
+  ],
+  "network_call_logs": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
+  "network_domain_count": 0,
+  "network_top_domains": [
+    {
+      "count": 0,
+      "domain": "string"
+    }
   ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
@@ -758,21 +799,25 @@
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `client`              | string                                                                                 | false    |              |             |
-| `ended_at`            | string                                                                                 | false    |              |             |
-| `id`                  | string                                                                                 | false    |              |             |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
-| `metadata`            | object                                                                                 | false    |              |             |
-| » `[any property]`    | any                                                                                    | false    |              |             |
-| `models`              | array of string                                                                        | false    |              |             |
-| `page_ended_at`       | string                                                                                 | false    |              |             |
-| `page_started_at`     | string                                                                                 | false    |              |             |
-| `providers`           | array of string                                                                        | false    |              |             |
-| `started_at`          | string                                                                                 | false    |              |             |
-| `threads`             | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                            | false    |              |             |
-| `token_usage_summary` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                           |
+|------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_call_logs`    | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog)                          | false    |              | Network call logs is the chronological list of individual network calls made during the session, holding the earliest calls up to a server-side cap. NetworkCalls remains authoritative for whole-session totals, so a shorter list than NetworkCalls.Total means the list was truncated. Empty when the session did not pass through Agent Firewall. |
+| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
+| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.AIBridgeSessionThreadsTokenUsage
 
