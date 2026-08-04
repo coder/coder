@@ -36223,46 +36223,61 @@ INSERT INTO workspace_agent_subagent_executions (
 	shared_child_path,
 	startup_timeout_seconds,
 	restart_policy
-) VALUES (
+)
+SELECT
+	workspace_builds.id,
 	$1,
+	parent.id,
+	child.id,
 	$2,
 	$3,
 	$4,
 	$5,
 	$6,
-	$7,
-	$8,
-	$9,
-	$10
-)
+	$7
+FROM workspace_agents AS parent
+JOIN workspace_resources
+	ON workspace_resources.id = parent.resource_id
+JOIN workspace_builds
+	ON workspace_builds.job_id = workspace_resources.job_id
+JOIN workspace_agents AS child
+	ON child.id = $8
+	AND child.parent_id = parent.id
+	AND child.resource_id = parent.resource_id
+WHERE parent.id = $9
+	AND parent.parent_id IS NULL
+	AND parent.deleted = FALSE
+	AND workspace_builds.id = $10
+	AND child.deleted = FALSE
+	AND child.execution_isolation = TRUE
 RETURNING workspace_build_id, declaration_id, parent_agent_id, child_agent_id, created_at, driver, driver_protocol, shared_host_path, shared_child_path, startup_timeout_seconds, restart_policy
 `
 
 type InsertWorkspaceAgentSubagentExecutionParams struct {
-	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	DeclarationID         uuid.UUID `db:"declaration_id" json:"declaration_id"`
-	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
-	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
 	Driver                string    `db:"driver" json:"driver"`
 	DriverProtocol        int32     `db:"driver_protocol" json:"driver_protocol"`
 	SharedHostPath        string    `db:"shared_host_path" json:"shared_host_path"`
 	SharedChildPath       string    `db:"shared_child_path" json:"shared_child_path"`
 	StartupTimeoutSeconds int32     `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
 	RestartPolicy         string    `db:"restart_policy" json:"restart_policy"`
+	ChildAgentID          uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	ParentAgentID         uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	WorkspaceBuildID      uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentSubagentExecution(ctx context.Context, arg InsertWorkspaceAgentSubagentExecutionParams) (WorkspaceAgentSubagentExecution, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentSubagentExecution,
-		arg.WorkspaceBuildID,
 		arg.DeclarationID,
-		arg.ParentAgentID,
-		arg.ChildAgentID,
 		arg.Driver,
 		arg.DriverProtocol,
 		arg.SharedHostPath,
 		arg.SharedChildPath,
 		arg.StartupTimeoutSeconds,
 		arg.RestartPolicy,
+		arg.ChildAgentID,
+		arg.ParentAgentID,
+		arg.WorkspaceBuildID,
 	)
 	var i WorkspaceAgentSubagentExecution
 	err := row.Scan(
