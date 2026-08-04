@@ -197,7 +197,7 @@ const OrganizationMembersPage: FC = () => {
 				}}
 				description={
 					<div className="flex flex-col gap-4">
-						<p>
+						<div>
 							Removing this member will:
 							<ul>
 								<li>Remove the member from all groups in this organization</li>
@@ -207,7 +207,7 @@ const OrganizationMembersPage: FC = () => {
 									organization
 								</li>
 							</ul>
-						</p>
+						</div>
 
 						<p className="pb-5">Are you sure you want to remove this member?</p>
 					</div>
