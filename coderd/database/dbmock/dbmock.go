@@ -1655,6 +1655,34 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentChildByIDAndParentIDExcludi
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned), ctx, arg)
 }
 
+// DeleteWorkspaceAgentContextResourcesByAgentID mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentContextResourcesByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentContextResourcesByAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceAgentContextResourcesByAgentID indicates an expected call of DeleteWorkspaceAgentContextResourcesByAgentID.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentContextResourcesByAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentContextResourcesByAgentID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentContextResourcesByAgentID), ctx, workspaceAgentID)
+}
+
+// DeleteWorkspaceAgentContextSnapshotByAgentID mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentContextSnapshotByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentContextSnapshotByAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceAgentContextSnapshotByAgentID indicates an expected call of DeleteWorkspaceAgentContextSnapshotByAgentID.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentContextSnapshotByAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentContextSnapshotByAgentID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentContextSnapshotByAgentID), ctx, workspaceAgentID)
+}
+
 // DeleteWorkspaceAgentPortShare mocks base method.
 func (m *MockStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	m.ctrl.T.Helper()
@@ -9780,6 +9808,21 @@ func (m *MockStore) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) SoftDeletePriorWorkspaceAgents(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeletePriorWorkspaceAgents", reflect.TypeOf((*MockStore)(nil).SoftDeletePriorWorkspaceAgents), ctx, arg)
+}
+
+// SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned mocks base method.
+func (m *MockStore) SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned indicates an expected call of SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned.
+func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned), ctx, arg)
 }
 
 // SoftDeleteWorkspaceAgentsByWorkspaceID mocks base method.

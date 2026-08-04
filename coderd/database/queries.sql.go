@@ -32631,6 +32631,26 @@ func (q *sqlQuerier) DeleteStaleWorkspaceAgentContextResources(ctx context.Conte
 	return err
 }
 
+const deleteWorkspaceAgentContextResourcesByAgentID = `-- name: DeleteWorkspaceAgentContextResourcesByAgentID :exec
+DELETE FROM workspace_agent_context_resources
+WHERE workspace_agent_id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceAgentContextResourcesByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentContextResourcesByAgentID, workspaceAgentID)
+	return err
+}
+
+const deleteWorkspaceAgentContextSnapshotByAgentID = `-- name: DeleteWorkspaceAgentContextSnapshotByAgentID :exec
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceAgentContextSnapshotByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentContextSnapshotByAgentID, workspaceAgentID)
+	return err
+}
+
 const getLatestWorkspaceAgentContextSnapshot = `-- name: GetLatestWorkspaceAgentContextSnapshot :one
 SELECT workspace_agent_id, version, aggregate_hash, snapshot_error, received_at FROM workspace_agent_context_snapshots
 WHERE workspace_agent_id = $1
@@ -33519,60 +33539,6 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
-WITH candidate_child AS MATERIALIZED (
-	SELECT
-		workspace_agents.id,
-		workspace_agents.subagent_state_version AS candidate_state_version
-	FROM workspace_agents
-	WHERE workspace_agents.id = $1
-		AND workspace_agents.parent_id = $2::uuid
-		AND workspace_agents.deleted = FALSE
-		AND NOT EXISTS (
-			SELECT 1
-			FROM workspace_agent_subagent_executions
-			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
-		)
-), soft_deleted_child AS (
-	UPDATE workspace_agents
-	SET deleted = TRUE
-	FROM candidate_child
-	WHERE workspace_agents.id = $1
-		AND workspace_agents.id = candidate_child.id
-		AND workspace_agents.parent_id = $2::uuid
-		AND workspace_agents.deleted = FALSE
-		AND workspace_agents.subagent_state_version = candidate_child.candidate_state_version
-	RETURNING workspace_agents.id
-), purged_context_resources AS (
-	DELETE FROM workspace_agent_context_resources
-	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
-	RETURNING workspace_agent_id
-), purged_context_snapshots AS (
-	DELETE FROM workspace_agent_context_snapshots
-	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
-		AND (SELECT COUNT(*) FROM purged_context_resources) >= 0
-	RETURNING workspace_agent_id
-)
-SELECT COUNT(*)
-FROM soft_deleted_child
-WHERE (SELECT COUNT(*) FROM purged_context_resources) >= 0
-	AND (SELECT COUNT(*) FROM purged_context_snapshots) >= 0
-`
-
-type DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	ParentID uuid.UUID `db:"parent_id" json:"parent_id"`
-}
-
-// Soft-deletes one exact child agent while preserving immutable execution-owned
-// agents for the execution-specific control path.
-func (q *sqlQuerier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
@@ -35478,6 +35444,49 @@ type SoftDeletePriorWorkspaceAgentsParams struct {
 func (q *sqlQuerier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error {
 	_, err := q.db.ExecContext(ctx, softDeletePriorWorkspaceAgents, arg.WorkspaceID, arg.CurrentBuildID)
 	return err
+}
+
+const softDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned = `-- name: SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+WITH candidate_child AS MATERIALIZED (
+	SELECT
+		workspace_agents.id,
+		workspace_agents.subagent_state_version AS candidate_state_version
+	FROM workspace_agents
+	WHERE workspace_agents.id = $1
+		AND workspace_agents.parent_id = $2::uuid
+		AND workspace_agents.deleted = FALSE
+		AND NOT EXISTS (
+			SELECT 1
+			FROM workspace_agent_subagent_executions
+			WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
+		)
+), soft_deleted_child AS (
+	UPDATE workspace_agents
+	SET deleted = TRUE
+	FROM candidate_child
+	WHERE workspace_agents.id = $1
+		AND workspace_agents.id = candidate_child.id
+		AND workspace_agents.parent_id = $2::uuid
+		AND workspace_agents.deleted = FALSE
+		AND workspace_agents.subagent_state_version = candidate_child.candidate_state_version
+	RETURNING workspace_agents.id
+)
+SELECT COUNT(*)
+FROM soft_deleted_child
+`
+
+type SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	ParentID uuid.UUID `db:"parent_id" json:"parent_id"`
+}
+
+// Soft-deletes one exact child agent while preserving immutable execution-owned
+// agents for the execution-specific control path.
+func (q *sqlQuerier) SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, softDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned, arg.ID, arg.ParentID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const softDeleteWorkspaceAgentsByWorkspaceID = `-- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec

@@ -243,9 +243,8 @@ type sqlcQuerier interface {
 	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error
 	DeleteWorkspaceACLsByOrganization(ctx context.Context, arg DeleteWorkspaceACLsByOrganizationParams) error
-	// Soft-deletes one exact child agent while preserving immutable execution-owned
-	// agents for the execution-specific control path.
-	DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error)
+	DeleteWorkspaceAgentContextResourcesByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error
+	DeleteWorkspaceAgentContextSnapshotByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
 	// Soft-deletes a single sub-agent (a child agent such as a devcontainer
@@ -1411,6 +1410,9 @@ type sqlcQuerier interface {
 	// agents are never un-deleted, so they are hard-deleted here instead
 	// of accumulating alongside the soft-deleted agent rows.
 	SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error
+	// Soft-deletes one exact child agent while preserving immutable execution-owned
+	// agents for the execution-specific control path.
+	SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error)
 	// Marks every non-deleted agent belonging to the given workspace as
 	// deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
 	// itself is soft-deleted, so the agent instance-identity auth path

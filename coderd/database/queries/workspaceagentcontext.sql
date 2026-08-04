@@ -72,6 +72,14 @@ ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     updated_at = EXCLUDED.updated_at
 RETURNING *;
 
+-- name: DeleteWorkspaceAgentContextResourcesByAgentID :exec
+DELETE FROM workspace_agent_context_resources
+WHERE workspace_agent_id = @workspace_agent_id;
+
+-- name: DeleteWorkspaceAgentContextSnapshotByAgentID :exec
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id = @workspace_agent_id;
+
 -- name: DeleteStaleWorkspaceAgentContextResources :exec
 -- Deletes any resources for the agent whose source is not in the
 -- supplied active set. Atomic alongside the snapshot upsert so the

@@ -5272,6 +5272,18 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionDeleteAgent).Returns(int64(1))
 	}))
+	s.Run("SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		parentID := uuid.MustParse("10000000-0000-0000-0000-000000000001")
+		childID := uuid.MustParse("10000000-0000-0000-0000-000000000002")
+		ws := database.Workspace{ID: uuid.MustParse("10000000-0000-0000-0000-000000000003")}
+		arg := database.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams{
+			ID:       childID,
+			ParentID: parentID,
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionDeleteAgent).Returns(int64(1))
+	}))
 	s.Run("GetWorkspaceAgentSubagentExecutionStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		parentID := uuid.New()
@@ -6459,6 +6471,20 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 }
 
 func (s *MethodTestSuite) TestWorkspaceAgentContext() {
+	s.Run("DeleteWorkspaceAgentContextResourcesByAgentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		agentID := uuid.MustParse("20000000-0000-0000-0000-000000000001")
+		ws := database.Workspace{ID: uuid.MustParse("20000000-0000-0000-0000-000000000002")}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceAgentContextResourcesByAgentID(gomock.Any(), agentID).Return(nil).AnyTimes()
+		check.Args(agentID).Asserts(ws, policy.ActionDeleteAgent)
+	}))
+	s.Run("DeleteWorkspaceAgentContextSnapshotByAgentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		agentID := uuid.MustParse("30000000-0000-0000-0000-000000000001")
+		ws := database.Workspace{ID: uuid.MustParse("30000000-0000-0000-0000-000000000002")}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceAgentContextSnapshotByAgentID(gomock.Any(), agentID).Return(nil).AnyTimes()
+		check.Args(agentID).Asserts(ws, policy.ActionDeleteAgent)
+	}))
 	s.Run("UpsertWorkspaceAgentContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})

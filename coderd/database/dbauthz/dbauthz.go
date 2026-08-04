@@ -2658,11 +2658,18 @@ func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params 
 	return q.db.DeleteWorkspaceACLsByOrganization(ctx, params)
 }
 
-func (q *querier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
-	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
-		return 0, err
+func (q *querier) DeleteWorkspaceAgentContextResourcesByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, workspaceAgentID, policy.ActionDeleteAgent); err != nil {
+		return err
 	}
-	return q.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	return q.db.DeleteWorkspaceAgentContextResourcesByAgentID(ctx, workspaceAgentID)
+}
+
+func (q *querier) DeleteWorkspaceAgentContextSnapshotByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, workspaceAgentID, policy.ActionDeleteAgent); err != nil {
+		return err
+	}
+	return q.db.DeleteWorkspaceAgentContextSnapshotByAgentID(ctx, workspaceAgentID)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -7289,6 +7296,13 @@ func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg databa
 	return q.db.SoftDeletePriorWorkspaceAgents(ctx, arg)
 }
 
+func (q *querier) SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
+		return 0, err
+	}
+	return q.db.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+}
+
 func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
 	// Internal bookkeeping called from wsbuilder (orphan-delete) and
 	// provisionerdserver.CompleteJob (normal delete) inside the same
@@ -9455,6 +9469,13 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)
+}
+
+func (q *querier) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	if err := q.authorizeWorkspaceByExactAgentID(ctx, arg.ParentID, policy.ActionDeleteAgent); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {

@@ -563,7 +563,7 @@ WHERE workspace_agents.id = @id
 		WHERE workspace_agent_subagent_executions.child_agent_id = workspace_agents.id
 	);
 
--- name: DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
+-- name: SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned :one
 -- Soft-deletes one exact child agent while preserving immutable execution-owned
 -- agents for the execution-specific control path.
 WITH candidate_child AS MATERIALIZED (
@@ -589,20 +589,9 @@ WITH candidate_child AS MATERIALIZED (
 		AND workspace_agents.deleted = FALSE
 		AND workspace_agents.subagent_state_version = candidate_child.candidate_state_version
 	RETURNING workspace_agents.id
-), purged_context_resources AS (
-	DELETE FROM workspace_agent_context_resources
-	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
-	RETURNING workspace_agent_id
-), purged_context_snapshots AS (
-	DELETE FROM workspace_agent_context_snapshots
-	WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_child)
-		AND (SELECT COUNT(*) FROM purged_context_resources) >= 0
-	RETURNING workspace_agent_id
 )
 SELECT COUNT(*)
-FROM soft_deleted_child
-WHERE (SELECT COUNT(*) FROM purged_context_resources) >= 0
-	AND (SELECT COUNT(*) FROM purged_context_snapshots) >= 0;
+FROM soft_deleted_child;
 
 -- name: DeleteWorkspaceSubAgentByID :exec
 -- Soft-deletes a single sub-agent (a child agent such as a devcontainer

@@ -961,12 +961,20 @@ func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context
 	return r0
 }
 
-func (m queryMetricsStore) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+func (m queryMetricsStore) DeleteWorkspaceAgentContextResourcesByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
 	start := time.Now()
-	r0, r1 := m.s.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
-	return r0, r1
+	r0 := m.s.DeleteWorkspaceAgentContextResourcesByAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentContextResourcesByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceAgentContextResourcesByAgentID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteWorkspaceAgentContextSnapshotByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentContextSnapshotByAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentContextSnapshotByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceAgentContextSnapshotByAgentID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -5185,6 +5193,14 @@ func (m queryMetricsStore) SoftDeletePriorWorkspaceAgents(ctx context.Context, a
 	return r0
 }
 
+func (m queryMetricsStore) SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
@@ -6814,6 +6830,14 @@ func (m queryMetricsStore) GetTemplateUserRoles(ctx context.Context, id uuid.UUI
 	r0, r1 := m.s.GetTemplateUserRoles(ctx, id)
 	m.queryLatencies.WithLabelValues("GetTemplateUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateUserRoles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx context.Context, arg database.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwnedParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceAgentChildByIDAndParentIDExcludingExecutionOwned").Inc()
 	return r0, r1
 }
 
