@@ -407,3 +407,23 @@ func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 		})
 	}
 }
+
+// The descriptor's settings method must panic on an unknown key rather
+// than silently return an all-zero struct, which would suppress the audit
+// entry for a setting whose handler was wired without a descriptor.
+func TestChatOperationalSettingPanicsOnUnknownKey(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t,
+		`unknown chat operational setting key "not_a_real_key"`,
+		func() {
+			chatOperationalSetting{"not_a_real_key", "Unused", 0}.settings("1", uuid.Nil)
+		})
+
+	// Every supported descriptor populates its own field and the target
+	// name, so a change to one setting diffs exactly one field and the row
+	// names the setting.
+	require.Equal(t,
+		database.ChatOperationalSettings{Name: "Chat retention days", ChatRetentionDays: "90"},
+		chatOperationalSettingChatRetentionDays.settings("90", uuid.Nil))
+}

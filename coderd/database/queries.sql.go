@@ -25646,6 +25646,24 @@ func (q *sqlQuerier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	return retention_days, err
 }
 
+const getChatSiteConfigValue = `-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = $1 AND key LIKE 'agents\_%'), '') :: text AS value
+`
+
+// GetChatSiteConfigValue returns the raw stored text of a chat-related
+// site_configs key, or an empty string when the key has no row. Unlike
+// the typed per-key getters it performs no cast, so it cannot fail on
+// malformed stored text; audit change-detection uses it to capture the
+// exact stored value a write replaced. It only reads keys in the agents_
+// namespace so it cannot be used to read unrelated site_configs secrets.
+func (q *sqlQuerier) GetChatSiteConfigValue(ctx context.Context, configKey string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatSiteConfigValue, configKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt

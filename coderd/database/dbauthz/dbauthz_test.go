@@ -1212,6 +1212,10 @@ func (s *MethodTestSuite) TestChats() {
 		}, nil).AnyTimes()
 		check.Args().Asserts()
 	}))
+	s.Run("GetChatSiteConfigValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatSiteConfigValue(gomock.Any(), "agents_chat_retention_days").Return("30", nil).AnyTimes()
+		check.Args("agents_chat_retention_days").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("GetChatSystemPrompt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatSystemPrompt(gomock.Any()).Return("prompt", nil).AnyTimes()
 		check.Args().Asserts()

@@ -19,6 +19,22 @@ const (
 	LockIDChatModelConfigWrites
 )
 
+// Per-setting advisory lock IDs for the chat operational settings. These
+// derive from the exact site_configs key with GenLockID (FNV-1a 64) instead
+// of the sequential LockID* block above, so writers of different settings
+// never contend and the IDs cannot collide with any sequentially allocated
+// lock ID (different derivation space) or with another subsystem's
+// GenLockID output (the key strings are unique to these settings).
+var (
+	LockIDChatOperationalChatRetentionDays             = GenLockID("agents_chat_retention_days")
+	LockIDChatOperationalChatDebugRetentionDays        = GenLockID("agents_chat_debug_retention_days")
+	LockIDChatOperationalChatAutoArchiveDays           = GenLockID("agents_chat_auto_archive_days")
+	LockIDChatOperationalWorkspaceTTL                  = GenLockID("agents_workspace_ttl")
+	LockIDChatOperationalComputerUseProvider           = GenLockID("agents_computer_use_provider")
+	LockIDChatOperationalDebugLoggingAllowUsers        = GenLockID("agents_chat_debug_logging_allow_users")
+	LockIDChatOperationalPersonalModelOverridesEnabled = GenLockID("agents_chat_personal_model_overrides_enabled")
+)
+
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {
 	hash := fnv.New64()
