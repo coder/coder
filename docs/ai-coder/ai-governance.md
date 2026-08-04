@@ -103,14 +103,14 @@ and coding assistants.
 
 ### Scenarios
 
-| Scenario                                                                        | Consumes Agent Workspace Build |
-|---------------------------------------------------------------------------------|--------------------------------|
-| Autonomous agent workspace is started to write end-to-end tests                 | Yes                            |
-| Automated pipeline starts an agent workspace (with Claude Code) to review a PR  | Yes                            |
-| Agent workspace is resumed to continue prototyping                              | Yes                            |
-| Developer starts a workspace for use with VS Code and Jupyter                   | No                             |
-| Developer creates a workspace for use with Cursor and Claude Code CLI           | No                             |
-| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall  | No                             |
+| Scenario                                                                       | Consumes Agent Workspace Build |
+|--------------------------------------------------------------------------------|--------------------------------|
+| Autonomous agent workspace is started to write end-to-end tests                | Yes                            |
+| Automated pipeline starts an agent workspace (with Claude Code) to review a PR | Yes                            |
+| Agent workspace is resumed to continue prototyping                             | Yes                            |
+| Developer starts a workspace for use with VS Code and Jupyter                  | No                             |
+| Developer creates a workspace for use with Cursor and Claude Code CLI          | No                             |
+| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall | No                             |
 
 ### Agent Workspace Build Limits
 
