@@ -2083,39 +2083,10 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// new token to be issued!
 	listen := query.Has("listen")
 
-	var externalAuthConfig *externalauth.Config
-	for _, extAuth := range api.ExternalAuthConfigs {
-		if extAuth.ID == id {
-			externalAuthConfig = extAuth
-			break
-		}
-		if match == "" || extAuth.Regex == nil {
-			continue
-		}
-		matches := extAuth.Regex.MatchString(match)
-		if !matches {
-			continue
-		}
-		externalAuthConfig = extAuth
-	}
-	if externalAuthConfig == nil {
-		detail := "External auth provider not found."
-		if len(api.ExternalAuthConfigs) > 0 {
-			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
-			for _, extAuth := range api.ExternalAuthConfigs {
-				if extAuth.Regex == nil {
-					continue
-				}
-				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
-			}
-			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
-		}
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
-			Detail:  detail,
-		})
-		return
-	}
+	// Resolve the calling agent's own workspace/build before selecting a
+	// provider below, so the match-only (GIT_ASKPASS) path can be scoped to
+	// this workspace's own template-declared providers instead of scanning
+	// every provider configured on the deployment.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	// We must get the workspace to get the owner ID!
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -2139,6 +2110,67 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var externalAuthConfig *externalauth.Config
+	if id != "" {
+		// Explicit ID path: exact match only. Deterministic, and deliberately
+		// unaffected by the template-scoped narrowing below.
+		for _, extAuth := range api.ExternalAuthConfigs {
+			if extAuth.ID == id {
+				externalAuthConfig = extAuth
+				break
+			}
+		}
+	} else {
+		// match-only path (GIT_ASKPASS supplies a hostname, never an ID):
+		// narrow to the workspace's own template-declared providers first.
+		// Fall back to the full deployment-wide scan when none of them match
+		// this hostname (e.g. a host the template never declared), and fail
+		// with a clear error rather than guess when several of the template's
+		// own declared providers match this hostname.
+		declaredConfig, matchedProviderIDs, err := api.workspaceAgentsExternalAuthDeclaredCandidate(ctx, build, match)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve the workspace's template-declared external auth providers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(matchedProviderIDs) > 1 {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Multiple external auth providers declared by this workspace's template match %q: %s.", match, strings.Join(matchedProviderIDs, ", ")),
+				Detail:  "Use a build script with an explicit provider ID (`coder external-auth access-token <id>`) instead of relying on automatic git credential resolution to disambiguate between these providers.",
+			})
+			return
+		}
+		externalAuthConfig = declaredConfig
+		if externalAuthConfig == nil {
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+					continue
+				}
+				externalAuthConfig = extAuth
+			}
+		}
+	}
+	if externalAuthConfig == nil {
+		detail := "External auth provider not found."
+		if len(api.ExternalAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil {
+					continue
+				}
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
+			}
+			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
+		}
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
+			Detail:  detail,
 		})
 		return
 	}
@@ -2237,6 +2269,62 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// workspaceAgentsExternalAuthDeclaredCandidate resolves which configured
+// external auth provider should service a hostname-only (GIT_ASKPASS) request,
+// scoped to the given build's template version's declared providers.
+//
+// matchedProviderIDs lists the ID of every declared provider whose regex
+// matches the hostname. config is set only when exactly one matched, so:
+//   - one match: config is that provider; the caller should use it.
+//   - no matches (including when the template declares none): the caller
+//     should fall back to a deployment-wide scan.
+//   - several matches: config is nil and the caller should surface an error
+//     naming matchedProviderIDs rather than guess between them.
+func (api *API) workspaceAgentsExternalAuthDeclaredCandidate(ctx context.Context, build database.WorkspaceBuild, match string) (config *externalauth.Config, matchedProviderIDs []string, err error) {
+	// Template reads authorize through the template's ACL, which the owner may
+	// no longer have. The version ID is server-derived from the agent's token.
+	//nolint:gocritic // Agent needs system access to read its own template version's declared providers.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	templateVersion, err := api.Database.GetTemplateVersionByID(sysCtx, build.TemplateVersionID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("get template version: %w", err)
+	}
+
+	var declared []database.ExternalAuthProvider
+	if err := json.Unmarshal(templateVersion.ExternalAuthProviders, &declared); err != nil {
+		return nil, nil, xerrors.Errorf("unmarshal template version external auth providers: %w", err)
+	}
+	if len(declared) == 0 {
+		return nil, nil, nil
+	}
+	declaredIDs := make([]string, len(declared))
+	for i, provider := range declared {
+		declaredIDs[i] = provider.ID
+	}
+
+	var candidates []*externalauth.Config
+	for _, extAuth := range api.ExternalAuthConfigs {
+		if !slices.Contains(declaredIDs, extAuth.ID) {
+			continue
+		}
+		if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+			continue
+		}
+		candidates = append(candidates, extAuth)
+	}
+
+	matchedProviderIDs = make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		matchedProviderIDs = append(matchedProviderIDs, candidate.ID)
+	}
+	// Only a single match is actionable. Leave config nil when several match so
+	// the caller reports the collision instead of picking one arbitrarily.
+	if len(candidates) == 1 {
+		return candidates[0], matchedProviderIDs, nil
+	}
+	return nil, matchedProviderIDs, nil
 }
 
 func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, gitRef chatGitRef) {
