@@ -296,12 +296,25 @@ const SegmentedField: FC<
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
 	return (
-		<div className="flex min-w-0 flex-wrap items-center gap-2 self-stretch">
+		<div className="flex min-w-0 flex-col gap-1.5 self-stretch">
+			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
+				<span>{label}</span>
+				{description && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<InfoIcon className="size-3 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-[240px]">
+							{description}
+						</TooltipContent>
+					</Tooltip>
+				)}
+			</div>
 			<div
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex items-center gap-0.75 rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center gap-0.75 rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -315,7 +328,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
@@ -327,19 +340,6 @@ const SegmentedField: FC<
 						</button>
 					);
 				})}
-			</div>
-			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
-				<span>{label}</span>
-				{description && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="size-3 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-[240px]">
-							{description}
-						</TooltipContent>
-					</Tooltip>
-				)}
 			</div>
 			{fieldError && (
 				<p id={errorId} className="m-0 w-full text-xs text-content-destructive">
@@ -439,6 +439,8 @@ const SchemaField: FC<SchemaFieldProps> = ({
 				/>
 			);
 		case "select": {
+			// Booleans keep the on/off/default segmented switch; every string
+			// enum renders as a dropdown so the switch stays a tri-state control.
 			if (field.type === "boolean") {
 				return (
 					<SegmentedField
@@ -452,22 +454,6 @@ const SchemaField: FC<SchemaFieldProps> = ({
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
-			const maxSegmented = 6;
-			if (options.length > 0 && options.length <= maxSegmented) {
-				return (
-					<SegmentedField
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={errorKey}
-						label={label}
-						description={field.description}
-						options={options.map((value) => ({
-							label: capitalize(value),
-							value,
-						}))}
-					/>
-				);
-			}
 			return (
 				<SelectField
 					{...ctx}
@@ -499,14 +485,11 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, small enums)
- *   3 = full-width (booleans, large enums, json textareas)
+ *   1 = default (inputs, selects, boolean switches)
+ *   3 = full-width (json textareas, which need room for multi-line content)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
-	if (field.type === "boolean" || field.input_type === "json") {
-		return 3;
-	}
-	if (field.input_type === "select" && (field.enum?.length ?? 0) > 3) {
+	if (field.input_type === "json") {
 		return 3;
 	}
 	return 1;
