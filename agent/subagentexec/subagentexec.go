@@ -70,9 +70,11 @@ type Process interface {
 // Launch is everything a driver needs to start one acquired execution.
 //
 // The child's auth token is deliberately unexported: only this package
-// can read it, so a driver cannot copy it into a log line, an argument
-// list, or an environment variable by accident. A later slice replaces
-// this direct handoff with a manager-owned token file path.
+// can read it, so an out-of-tree driver cannot copy it into a log line, an
+// argument list, or an environment variable by accident. The in-package
+// ScriptDriver reads it exactly once, to write the private 0600 token file
+// the sandboxed child reads through CODER_AGENT_TOKEN_FILE, and the
+// manager drops its own reference as soon as Start returns.
 type Launch struct {
 	// Declaration is the manifest declaration being launched.
 	Declaration agentsdk.SubagentExecution

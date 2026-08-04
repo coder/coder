@@ -52,10 +52,6 @@ type execution struct {
 	declaration        agentsdk.SubagentExecution
 	childAgentID       uuid.UUID
 	acquisitionVersion int64
-	// authToken is the child's credential, retained privately so a later
-	// slice can materialize it as a token file. It is never reported,
-	// logged, or exposed through Status.
-	authToken string
 	// done is closed by the supervision goroutine when the process exits.
 	// It is nil when no process was ever started.
 	done chan struct{}
@@ -383,7 +379,6 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 		declaration:        decl,
 		childAgentID:       childAgentID,
 		acquisitionVersion: resp.GetAcquisitionVersion(),
-		authToken:          resp.GetAuthToken(),
 		done:               make(chan struct{}),
 		state:              StateStarting,
 	}
@@ -398,12 +393,7 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 
 	// The driver gets the manager's run context so the process outlives
 	// this reconciliation.
-	proc, err := m.driver.Start(ctx, Launch{
-		Declaration:        decl,
-		ChildAgentID:       childAgentID,
-		AcquisitionVersion: ex.acquisitionVersion,
-		authToken:          ex.authToken,
-	})
+	proc, err := m.startDriver(ctx, ex, resp.GetAuthToken())
 	if err != nil {
 		// No process exists, so this acquisition is spent. The record stays
 		// unlaunched: the next reconcile of the same declaration acquires a
@@ -430,6 +420,25 @@ func (m *Manager) start(ctx context.Context, controller Controller, decl agentsd
 
 	m.wg.Add(1)
 	go m.supervise(ex)
+}
+
+// startDriver hands the child's auth token to the driver just long enough
+// for the driver to materialize it as a private 0600 token file, then drops
+// the launcher's reference to it. Nothing the manager retains afterwards
+// carries the token: the execution record does not hold it, and the
+// sandboxed child reads it from the file the driver created.
+//
+// Go cannot guarantee the string's bytes are wiped from memory, so this is
+// a lifetime boundary rather than a scrubbing guarantee.
+func (m *Manager) startDriver(ctx context.Context, ex *execution, authToken string) (Process, error) {
+	launch := Launch{
+		Declaration:        ex.declaration,
+		ChildAgentID:       ex.childAgentID,
+		AcquisitionVersion: ex.acquisitionVersion,
+		authToken:          authToken,
+	}
+	defer func() { launch.authToken = "" }()
+	return m.driver.Start(ctx, launch)
 }
 
 // supervise waits for a launched process and reports the outcome. An exit
