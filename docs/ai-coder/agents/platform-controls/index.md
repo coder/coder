@@ -79,14 +79,15 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents
-using each template's **Allow Coder Agents** setting, either on the
-template's settings page or at **Agents** > **Settings** >
-**Manage Agents** > **Templates**. Templates allow agents by default; when
-the setting is disabled, the agent cannot see or provision workspaces from
-that template. This is separate from what developers see when manually
-creating workspaces, so you can apply stricter policies to agent-created
-workspaces without affecting the manual workspace experience.
+Administrators can also restrict which templates are available to agents at
+**Agents** > **Settings** > **Manage Agents** > **Templates**. Use the switches
+in the **New workspaces** column. The same control is available on each
+individual template's settings page as **Allow Coder Agents to create
+workspaces with this template**. Templates allow agents by default. When you
+disable the control, the agent cannot see or provision workspaces from that
+template. This is separate from what developers see when manually creating
+workspaces, so you can apply stricter policies to agent-created workspaces
+without affecting the manual workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network

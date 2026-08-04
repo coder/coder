@@ -6,9 +6,8 @@ execute builds.
 
 When a workspace is needed, the agent reads the available templates, selects
 the appropriate one based on its name and description, and provisions a
-workspace automatically. Administrators can restrict which templates the agent
-can see using each template's
-[**Allow Coder Agents** setting](#restrict-available-templates).
+workspace automatically. Administrators can
+[restrict which templates the agent can see](#restrict-available-templates).
 
 This guide covers best practices for creating templates that are discoverable
 and useful to Coder Agents.
@@ -16,15 +15,16 @@ and useful to Coder Agents.
 ## Restrict available templates
 
 By default, every template allows Coder Agents. Administrators can block
-individual templates with the per-template **Allow Coder Agents** setting.
+individual templates from the **New workspaces** column or from each template's
+settings page.
 
 To change which templates agents can use:
 
 1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
-2. Toggle **Agents allowed** for each template.
+2. Toggle the switch for each template.
 
-The setting is also available on each template's settings page as
-**Allow Coder Agents to use this template**.
+The same control is available on each template's settings page as
+**Allow Coder Agents to create workspaces with this template**.
 
 When a template does not allow agents, the agent's `list_templates`,
 `read_template`, and `create_workspace` tools exclude it. The agent cannot

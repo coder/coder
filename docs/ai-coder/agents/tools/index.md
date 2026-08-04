@@ -44,9 +44,9 @@ code), it provisions a workspace using three tools:
 | `read_template`    | Read a template's parameters and presets                  |
 | `create_workspace` | Create the workspace from a chosen template               |
 
-Administrators can restrict which templates these tools can see with each
-template's [**Allow Coder Agents**
-setting](../platform-controls/template-optimization.md#restrict-available-templates).
+Administrators can restrict which templates these tools can see with the
+switches in the [**New workspaces**
+column](../platform-controls/template-optimization.md#restrict-available-templates).
 
 ### list_templates
 
