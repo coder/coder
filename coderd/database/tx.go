@@ -29,6 +29,11 @@ const maxRetries = 5
 // fail.  Let's say the transaction that sets A=2 succeeds.  Then the first B=2
 // transaction fails, but here we retry.  The second attempt we read A=2, B=1,
 // then write A=2, B=2 as desired, and this succeeds.
+//
+// A deadlock is retried the same way: it also means PostgreSQL aborted this
+// transaction to resolve a conflict, and callers of this helper reach the rows
+// they write in whatever order their read produced, so two callers can lock the
+// same rows in opposite orders.
 func ReadModifyUpdate(db Store, f func(tx Store) error,
 ) error {
 	var err error
@@ -38,8 +43,11 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 		})
 		var pqe *pq.Error
 		if xerrors.As(err, &pqe) {
-			if pqe.Code == "40001" {
-				// serialization error, retry
+			// 40001 is serialization_failure and 40P01 is deadlock_detected.
+			// Both mean PostgreSQL aborted this transaction to break a
+			// conflict with another one, and both are resolved by running the
+			// read-modify-update cycle again on a fresh snapshot.
+			if pqe.Code == "40001" || pqe.Code == "40P01" {
 				continue
 			}
 		}
