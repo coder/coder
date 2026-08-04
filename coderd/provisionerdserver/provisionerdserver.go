@@ -737,6 +737,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					slog.F("workspace_id", workspace.ID), slog.Error(err))
 			}
 			for _, agent := range agents {
+				if agent.ParentID.Valid && agent.ExecutionIsolation {
+					// Isolated child tokens are execution-specific and must not be
+					// reused through Terraform metadata.
+					continue
+				}
 				runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
 					AgentId: agent.ID.String(),
 					Token:   agent.AuthToken.String(),

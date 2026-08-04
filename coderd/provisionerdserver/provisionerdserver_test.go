@@ -482,6 +482,117 @@ func TestAcquireJobExecutionIsolationCredentials(t *testing.T) {
 	}
 }
 
+func TestAcquireJobPrebuildClaimRunningAgentAuthTokens(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	srv, db, ps, pd := setup(t, false, nil)
+
+	owner := dbgen.User(t, db, database.User{})
+	file := dbgen.File(t, db, database.File{CreatedBy: owner.ID})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      owner.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      owner.ID,
+		OrganizationID: pd.OrganizationID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+	})
+	require.NoError(t, db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+		JobID:                 version.JobID,
+		ExternalAuthProviders: json.RawMessage("[]"),
+		UpdatedAt:             dbtime.Now(),
+	}))
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: pd.OrganizationID,
+		TemplateID:     template.ID,
+	})
+
+	previousBuildID := uuid.New()
+	previousJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: pd.OrganizationID,
+		InitiatorID:    owner.ID,
+		FileID:         file.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID: previousBuildID,
+		})),
+		StartedAt:   sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
+		CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		ID:                previousBuildID,
+		WorkspaceID:       workspace.ID,
+		BuildNumber:       1,
+		JobID:             previousJob.ID,
+		TemplateVersionID: version.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       owner.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: previousJob.ID,
+	})
+	parentToken := uuid.New()
+	parent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:         resource.ID,
+		AuthToken:          parentToken,
+		ExecutionIsolation: true,
+	})
+	ordinaryChildToken := uuid.New()
+	ordinaryChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+		AuthToken: ordinaryChildToken,
+	})
+	isolatedChildToken := uuid.New()
+	isolatedChild := dbgen.WorkspaceSubAgent(t, db, parent, database.WorkspaceAgent{
+		AuthToken:          isolatedChildToken,
+		ExecutionIsolation: true,
+	})
+
+	claimBuildID := uuid.New()
+	claimJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: pd.OrganizationID,
+		InitiatorID:    owner.ID,
+		FileID:         file.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID:            claimBuildID,
+			PrebuiltWorkspaceBuildStage: sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
+		})),
+		Tags: pd.Tags,
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		ID:                claimBuildID,
+		WorkspaceID:       workspace.ID,
+		BuildNumber:       2,
+		JobID:             claimJob.ID,
+		TemplateVersionID: version.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       owner.ID,
+	})
+
+	acquired, err := srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	workspaceBuild := acquired.GetWorkspaceBuild()
+	require.NotNil(t, workspaceBuild)
+	require.Equal(t, claimBuildID.String(), workspaceBuild.WorkspaceBuildId)
+
+	agentIDs := make([]string, 0, len(workspaceBuild.Metadata.RunningAgentAuthTokens))
+	authTokens := make([]string, 0, len(workspaceBuild.Metadata.RunningAgentAuthTokens))
+	for _, token := range workspaceBuild.Metadata.RunningAgentAuthTokens {
+		agentIDs = append(agentIDs, token.AgentId)
+		authTokens = append(authTokens, token.Token)
+	}
+	require.Len(t, agentIDs, 2)
+	require.Contains(t, agentIDs, parent.ID.String())
+	require.Contains(t, authTokens, parentToken.String())
+	require.Contains(t, agentIDs, ordinaryChild.ID.String())
+	require.Contains(t, authTokens, ordinaryChildToken.String())
+	require.NotContains(t, agentIDs, isolatedChild.ID.String())
+	require.NotContains(t, authTokens, isolatedChildToken.String())
+}
+
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 
