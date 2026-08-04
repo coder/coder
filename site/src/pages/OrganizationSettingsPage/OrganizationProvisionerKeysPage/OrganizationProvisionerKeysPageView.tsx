@@ -8,7 +8,6 @@ import {
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
@@ -23,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -109,11 +109,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 								</TableCell>
 							</TableRow>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>

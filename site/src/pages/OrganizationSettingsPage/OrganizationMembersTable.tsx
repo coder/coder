@@ -15,7 +15,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Loader } from "#/components/Loader/Loader";
 import {
 	Table,
 	TableBody,
@@ -24,6 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
@@ -111,13 +111,7 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 	canViewActivity,
 }) => {
 	if (!members) {
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<Loader />
-				</TableCell>
-			</TableRow>
-		);
+		return <TableLoader />;
 	}
 
 	return (

@@ -9,7 +9,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import {
 	Select,
 	SelectContent,
@@ -36,6 +35,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -211,11 +211,7 @@ const OrganizationProvisionerJobsPageView: FC<
 								</TableCell>
 							</TableRow>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>
