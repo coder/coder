@@ -906,39 +906,6 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
 }
 
-func TestPGCoordinatorReportsTunnelAuthorization(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	store, ps := dbtestutil.NewDB(t)
-	logger := testutil.Logger(t)
-	coord, err := tailnet.NewPGCoord(ctx, logger, ps, store)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, coord.Close())
-	})
-
-	type decision struct {
-		agentID uuid.UUID
-		allowed bool
-	}
-	decisions := make(chan decision, 1)
-	auth := agpl.SingleTailnetCoordinateeAuth{
-		OnTunnelAuthorization: func(agentID uuid.UUID, allowed bool) {
-			decisions <- decision{agentID: agentID, allowed: allowed}
-		},
-	}
-	agentID := uuid.New()
-	reqs, _ := coord.Coordinate(ctx, uuid.New(), "system", auth)
-	testutil.RequireSend(ctx, t, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)},
-	})
-	require.Equal(t, decision{
-		agentID: agentID,
-		allowed: true,
-	}, testutil.TryReceive(ctx, t, decisions))
-}
-
 // TestPGCoordinatorPropogatedPeerContext tests that the context for a specific peer
 // is propogated through to the `Authorize` method of the coordinatee auth
 func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {

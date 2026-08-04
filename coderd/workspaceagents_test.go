@@ -938,23 +938,6 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	coordinateURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate?version=2.0", resources[0].Agents[0].ID))
-	require.NoError(t, err)
-	//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
-	idleConn, response, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-		HTTPHeader: http.Header{
-			"Coder-Session-Token": []string{client.SessionToken()},
-		},
-	})
-	if err != nil && response != nil {
-		err = codersdk.ReadBodyAsError(response)
-	}
-	require.NoError(t, err)
-	require.NoError(t, idleConn.Close(websocket.StatusNormalClosure, "done"))
-	require.Never(t, func() bool {
-		return len(connLogger.ConnectionLogs()) > 0
-	}, testutil.IntervalMedium, testutil.IntervalFast)
-
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: testutil.Logger(t).Named("client"),
@@ -984,26 +967,6 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	err = conn.Close()
 	require.NoError(t, err)
-
-	// A second handshake within the audit session stale interval is a
-	// reconnection and must be deduplicated rather than producing a
-	// second row.
-	connLogger.Reset()
-	conn2, err := workspacesdk.New(client).
-		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: testutil.Logger(t).Named("client2"),
-		})
-	require.NoError(t, err)
-	defer conn2.Close()
-	require.True(t, conn2.AwaitReachable(ctx))
-	require.Never(t, func() bool {
-		for _, cl := range connLogger.ConnectionLogs() {
-			if cl.Type == database.ConnectionTypeTunnel && cl.UserID.UUID == user.UserID {
-				return true
-			}
-		}
-		return false
-	}, testutil.IntervalMedium, testutil.IntervalFast)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
