@@ -105,9 +105,7 @@ export const ToggleParentCheckbox: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const checkbox = await canvas
-			.getByTestId("audit_log")
-			.getElementsByTagName("input")[0];
+		const checkbox = canvas.getByRole("checkbox", { name: "audit_log" });
 		await user.click(checkbox);
 		await expect(checkbox).toBeChecked();
 		await user.click(checkbox);
