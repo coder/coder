@@ -2634,7 +2634,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				_, err = db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				// The file becomes purgeable only after its last chat link is removed.
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", chat.ID)
 				require.NoError(t, err)
 				deleted, err = db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
