@@ -36,6 +36,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	Tooltip,
 	TooltipContent,
@@ -191,25 +192,17 @@ const OrganizationProvisionerJobsPageView: FC<
 									/>
 								))
 							) : (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState message="No provisioner jobs found" />
-									</TableCell>
-								</TableRow>
+								<TableEmpty message="No provisioner jobs found" />
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="Error loading the provisioner jobs"
-										cta={
-											<Button size="sm" onClick={onRetry}>
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading the provisioner jobs"
+								cta={
+									<Button size="sm" onClick={onRetry}>
+										Retry
+									</Button>
+								}
+							/>
 						) : (
 							<TableRow>
 								<TableCell colSpan={999}>

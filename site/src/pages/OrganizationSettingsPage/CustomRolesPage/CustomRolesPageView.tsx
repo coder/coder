@@ -10,7 +10,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -21,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -282,31 +282,27 @@ const RoleTableBody: FC<RoleTableProps> = ({
 	}
 	if (roles.length === 0) {
 		return (
-			<TableRow className="h-14">
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No custom roles yet"
-						description={
-							canCreateOrgRole && isCustomRolesEnabled
-								? "Create your first custom role"
-								: !isCustomRolesEnabled
-									? "Upgrade to a premium license to create a custom role"
-									: "You don't have permission to create a custom role"
-						}
-						cta={
-							canCreateOrgRole &&
-							isCustomRolesEnabled && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon />
-										Create custom role
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No custom roles yet"
+				description={
+					canCreateOrgRole && isCustomRolesEnabled
+						? "Create your first custom role"
+						: !isCustomRolesEnabled
+							? "Upgrade to a premium license to create a custom role"
+							: "You don't have permission to create a custom role"
+				}
+				cta={
+					canCreateOrgRole &&
+					isCustomRolesEnabled && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon />
+								Create custom role
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (
