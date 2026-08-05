@@ -81,10 +81,7 @@ func TestOAuth2ProviderSettingsAuditDiff(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "expected exactly two rows")
-	// Both settings updates audit as "write" actions, so the rows cannot be
-	// distinguished by action. GetAuditLogsOffset orders by time only, and
-	// the rows can come back in either order when their timestamps tie, so
-	// identify them by the new value recorded in the diff.
+	// Both updates use the same action, so identify them by the new value.
 	var enableDiff, disableDiff audit.Map
 	for _, row := range rows {
 		var diff audit.Map

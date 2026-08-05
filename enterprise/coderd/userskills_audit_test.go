@@ -71,20 +71,9 @@ func TestUserSkillAuditDiffTracksContent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "expected exactly two rows")
-	// Identify rows by action instead of position. GetAuditLogsOffset orders
-	// by time only, so the create and update rows can come back in either
-	// order when their timestamps tie.
-	var createLog, updateLog database.AuditLog
-	for _, row := range rows {
-		switch row.AuditLog.Action {
-		case database.AuditActionCreate:
-			createLog = row.AuditLog
-		case database.AuditActionWrite:
-			updateLog = row.AuditLog
-		default:
-			t.Fatalf("unexpected audit action %q", row.AuditLog.Action)
-		}
-	}
+	byAction := auditLogsByAction(t, rows)
+	createLog := byAction[database.AuditActionCreate]
+	updateLog := byAction[database.AuditActionWrite]
 	require.Equal(t, database.AuditActionCreate, createLog.Action, "missing create audit log")
 	require.Equal(t, database.AuditActionWrite, updateLog.Action, "missing update audit log")
 

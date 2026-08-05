@@ -82,15 +82,8 @@ func TestAIProviderAuditDiff(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "expected one create and one update audit row")
 
-	// Identify the update row by action instead of position. GetAuditLogsOffset
-	// orders by time only, so the create and update rows can come back in
-	// either order when their timestamps tie.
-	var updateLog database.AuditLog
-	for _, row := range rows {
-		if row.AuditLog.Action == database.AuditActionWrite {
-			updateLog = row.AuditLog
-		}
-	}
+	byAction := auditLogsByAction(t, rows)
+	updateLog := byAction[database.AuditActionWrite]
 	require.Equal(t, database.AuditActionWrite, updateLog.Action, "missing update audit log")
 
 	var updateDiff audit.Map
