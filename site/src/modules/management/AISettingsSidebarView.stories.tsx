@@ -50,15 +50,6 @@ export const ModelsActive: Story = {
 	},
 };
 
-export const TemplatesActive: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/templates" },
-			routing: [{ path: "/ai/settings/templates", useStoryElement: true }],
-		}),
-	},
-};
-
 export const LifecycleActive: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({

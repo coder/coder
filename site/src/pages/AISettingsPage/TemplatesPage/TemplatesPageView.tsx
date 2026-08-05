@@ -113,7 +113,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	onToggleAgentsAllowed,
 	pendingTemplateIDs,
 }) => {
-	const hasValidationError = hasError(error) && isApiValidationError(error);
+	const hasValidationError = isApiValidationError(error);
 	const hasLoadError = hasError(error) && !hasValidationError;
 
 	return (

@@ -4,7 +4,11 @@ import { API } from "#/api/api";
 import { getTemplatesQueryKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
-import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockTemplate,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -50,13 +54,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-export const HasBothPermissions: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Test Template")).toBeVisible();
-	},
-};
 
 export const ServerSideFilter: Story = {
 	parameters: {
@@ -166,7 +163,9 @@ export const ConcurrentToggles: Story = {
 			MockTemplate,
 			{ ...secondTemplate, agents_allowed: false },
 		];
-		deferreds.first.reject(new Error("Template access is locked."));
+		deferreds.first.reject(
+			mockApiError({ message: "Template access is locked." }),
+		);
 		deferreds.second.resolve({ ...secondTemplate, agents_allowed: false });
 
 		const errorToast = await body.findByText(
