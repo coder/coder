@@ -1,10 +1,10 @@
 import type { FC } from "react";
+import { useInfiniteQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { paginatedSessions } from "#/api/queries/aiBridge";
+import { infiniteSessions } from "#/api/queries/aiBridge";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -27,15 +27,14 @@ const AISessionListPage: FC = () => {
 	const canViewSessions = isEntitled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const sessionsQuery = usePaginatedQuery({
-		...paginatedSessions(searchParams),
-		enabled: canViewSessions,
-	});
-
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onUpdate: sessionsQuery.goToFirstPage,
+	});
+
+	const sessionsQuery = useInfiniteQuery({
+		...infiniteSessions(filter.query),
+		enabled: canViewSessions,
 	});
 
 	const userMenu = useUserFilterMenu({
@@ -80,11 +79,12 @@ const AISessionListPage: FC = () => {
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
-				isFetching={sessionsQuery.isFetching}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
-				sessions={sessionsQuery.data?.sessions}
-				sessionsQuery={sessionsQuery}
+				sessions={sessionsQuery.data?.pages.flatMap((page) => page.sessions)}
+				hasNextPage={sessionsQuery.hasNextPage}
+				isFetchingNextPage={sessionsQuery.isFetchingNextPage}
+				onFetchNextPage={sessionsQuery.fetchNextPage}
 				onSessionRowClick={(sessionId) =>
 					navigate(`/ai-gateway/sessions/${sessionId}`)
 				}

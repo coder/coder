@@ -1,14 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
-import {
-	mockInitialRenderResult,
-	mockSuccessResult,
-} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
@@ -33,11 +29,12 @@ const meta: Meta<typeof ListSessionsPageView> = {
 	component: ListSessionsPageView,
 	args: {
 		isLoading: false,
-		isFetching: false,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
 		filterProps: defaultFilterProps,
-		sessionsQuery: mockSuccessResult,
+		hasNextPage: false,
+		isFetchingNextPage: false,
+		onFetchNextPage: fn(),
 		onSessionRowClick: fn(),
 	},
 };
@@ -63,7 +60,6 @@ export const Loading: Story = {
 	args: {
 		isLoading: true,
 		sessions: undefined,
-		sessionsQuery: mockInitialRenderResult,
 	},
 };
 
@@ -79,10 +75,26 @@ export const Loaded: Story = {
 	},
 };
 
-export const Fetching: Story = {
+export const LoadsMoreWhenSentinelVisible: Story = {
 	args: {
-		isFetching: true,
 		sessions: [MockSession],
+		hasNextPage: true,
+	},
+	play: async ({ args }) => {
+		await waitFor(() => expect(args.onFetchNextPage).toHaveBeenCalled());
+	},
+};
+
+export const FetchingNextPage: Story = {
+	args: {
+		sessions: [MockSession],
+		hasNextPage: true,
+		isFetchingNextPage: true,
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			await canvas.findByTitle("Loading spinner"),
+		).toBeInTheDocument();
 	},
 };
 
