@@ -1693,11 +1693,6 @@ const agentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	apps: [...MockWorkspaceAgent.apps, agentBrowserApp],
 };
 
-/**
- * A healthy agent-browser app on the bound agent surfaces as the built-in
- * Browser tab, ordered with the other built-ins, and selecting it renders
- * the embedded app frame.
- */
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -1728,11 +1723,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 	},
 };
 
-/**
- * The Browser tab only appears while the agent-browser app reports
- * "healthy" (or "disabled"); an unhealthy daemon must not surface a tab
- * wrapping a troubleshooting screen.
- */
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -1753,10 +1743,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 	},
 };
 
-/**
- * The Browser tab is bound-agent-only: an agent-browser app on another
- * agent in the same workspace does not surface a tab for this chat.
- */
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -1792,11 +1778,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 	},
 };
 
-/**
- * When localStorage holds "browser" but the agent-browser app is not
- * available, the sidebar falls back to Summary while preserving the
- * stored value so the tab restores when the app becomes healthy again.
- */
 export const PreservesUnavailableBrowserTab: Story = {
 	beforeEach: () => {
 		localStorage.setItem(sidebarTabStorageKey, "browser");

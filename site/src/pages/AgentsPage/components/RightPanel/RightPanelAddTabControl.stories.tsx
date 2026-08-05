@@ -134,10 +134,6 @@ export const Default: Story = {
 	},
 };
 
-/**
- * The agent-browser app is surfaced as the built-in Browser tab, so the
- * add menu must not offer it while still listing the other apps.
- */
 export const ExcludesAgentBrowserApp: Story = {
 	args: {
 		agent: {

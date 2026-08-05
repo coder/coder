@@ -424,9 +424,8 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 	return nextWorkspaceOptions;
 };
 
-// Fields of the bound agent's apps that the UI renders from: the right
-// panel derives tabs (including the built-in Browser tab) and their
-// iframe URLs from these.
+// Keep this list in sync with app fields consumed by the chat UI, or live
+// updates to those fields can retain stale query data.
 const watchedAgentAppFields = [
 	"id",
 	"slug",
@@ -439,13 +438,7 @@ const watchedAgentAppFields = [
 	"display_name",
 ] as const;
 
-/**
- * True when a watched workspace update changes nothing the chat UI reads,
- * so the previous object reference can be kept to avoid re-renders on
- * every heartbeat.
- *
- * @internal Exported for testing.
- */
+/** @internal Exported for testing. */
 export const isWatchedWorkspaceViewUnchanged = (
 	prev: TypesGen.Workspace,
 	next: TypesGen.Workspace,

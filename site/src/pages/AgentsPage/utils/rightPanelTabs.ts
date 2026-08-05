@@ -117,8 +117,8 @@ export function validateUserRightPanelTabs(
 
 		if (tab.kind === "workspace_app") {
 			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			// Persisted agent-browser tabs collapse into the built-in
-			// Browser tab instead of duplicating it.
+			// Agent-browser uses the built-in Browser tab, so persisted workspace app
+			// tabs for it are omitted.
 			return (
 				app !== undefined &&
 				app.slug !== AGENT_BROWSER_APP_SLUG &&

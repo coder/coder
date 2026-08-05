@@ -503,9 +503,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
-	// Browser mirrors the Desktop availability semantics: when the
-	// agent-browser app stops being healthy the tab drops out, and the
-	// stored active-tab ID restores it when health returns.
 	const availableBrowserApp = workspace
 		? getAgentBrowserApp(workspaceAgent)
 		: undefined;

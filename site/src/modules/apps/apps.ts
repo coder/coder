@@ -181,17 +181,13 @@ export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 
 export const AGENT_BROWSER_APP_SLUG = "agent-browser";
 
-/**
- * The agent's agent-browser dashboard app when it can back the built-in
- * Browser tab: embeddable and reporting "healthy", or "disabled" when the
- * template declares no healthcheck.
- */
 export const getAgentBrowserApp = (
 	agent: WorkspaceAgent | undefined,
 ): WorkspaceApp | undefined => {
 	const app = agent?.apps.find(
 		(agentApp) => agentApp.slug === AGENT_BROWSER_APP_SLUG,
 	);
+	// "disabled" means the template does not configure a health check.
 	if (
 		app &&
 		isWorkspaceAppEmbeddable(app) &&
