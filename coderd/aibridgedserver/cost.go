@@ -174,12 +174,21 @@ func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheRe
 		Add(tokenCost(cacheReadTokens, price.CacheReadPrice)).
 		Add(tokenCost(cacheWriteTokens, price.CacheWritePrice))
 
-	// Rejecting the negative case here keeps it from reaching the
-	// cost_micros >= 0 check constraint, which would discard the whole record.
-	if total.IsNegative() || total.GreaterThan(maxCostMicros) {
-		return 0, xerrors.Errorf("cost %s micro-units: %w", total.String(), errCostOutOfRange)
+	if err := validateTotalCost(total); err != nil {
+		return 0, err
 	}
 	return total.IntPart(), nil
+}
+
+// validateTotalCost rejects a computed cost outside [0, maxCostMicros].
+//
+// Rejecting the negative case early keeps it from reaching the
+// cost_micros >= 0 check constraint, which would discard the whole record.
+func validateTotalCost(total decimal.Decimal) error {
+	if total.IsNegative() || total.GreaterThan(maxCostMicros) {
+		return xerrors.Errorf("cost %s micro-units: %w", total.String(), errCostOutOfRange)
+	}
+	return nil
 }
 
 // tokenCost returns tokens * price / 1,000,000, treating a NULL price as zero.
