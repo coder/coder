@@ -1211,7 +1211,7 @@ func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UU
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, last_prompt_at
 FROM
 	aibridge_interceptions
 WHERE
@@ -1242,6 +1242,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.LastPromptAt,
 	)
 	return i, err
 }
@@ -1276,7 +1277,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, last_prompt_at
 FROM
 	aibridge_interceptions
 `
@@ -1311,6 +1312,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.AgentFirewallSequenceNumber,
 			&i.ErrorType,
 			&i.ErrorMessage,
+			&i.LastPromptAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1565,7 +1567,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, last_prompt_at
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -1628,6 +1630,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.LastPromptAt,
 	)
 	return i, err
 }
@@ -1791,10 +1794,16 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 }
 
 const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :one
+WITH bump AS (
+	UPDATE aibridge_interceptions
+	SET last_prompt_at = GREATEST(last_prompt_at, $6::timestamptz)
+	WHERE id = $2
+	RETURNING 1
+)
 INSERT INTO aibridge_user_prompts (
-  id, interception_id, provider_response_id, prompt, metadata, created_at
+	id, interception_id, provider_response_id, prompt, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+	$1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
 RETURNING id, interception_id, provider_response_id, prompt, metadata, created_at
 `
@@ -1808,6 +1817,11 @@ type InsertAIBridgeUserPromptParams struct {
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 }
 
+// Inserts a user prompt and monotonically bumps the owning interception's
+// denormalized last_prompt_at cache in a single atomic statement. The bump is a
+// data-modifying CTE, which Postgres always runs to completion regardless of
+// whether the primary query reads its output. GREATEST is NULL-safe, so retries
+// or out-of-order records never regress the cached value.
 func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error) {
 	row := q.db.QueryRowContext(ctx, insertAIBridgeUserPrompt,
 		arg.ID,
@@ -2137,7 +2151,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.last_prompt_at
 FROM
 	aibridge_interceptions
 JOIN
@@ -2205,6 +2219,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
+			&i.AIBridgeInterception.LastPromptAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2222,42 +2237,32 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
 WITH cursor_pos AS (
 	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group. Direct
-	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
-	-- affected by fan-out from multiple prompts per interception).
-	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
+	-- so the planner cannot accidentally re-evaluate it per group.
+	-- last_active_at is the session's most recent prompt time, read from the
+	-- denormalized aibridge_interceptions.last_prompt_at cache (no prompts
+	-- join). COALESCE falls back to MIN(ai.started_at) so the cursor value is
 	-- never NULL, which would silently drop rows from the HAVING comparison.
-	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
+	SELECT COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at)) AS last_active_at
 	FROM aibridge_interceptions ai
-	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
 	WHERE ai.session_id = $1 AND ai.ended_at IS NOT NULL
 ),
 session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
-	-- A lateral correlated subquery for prompts keeps the join one-to-one
-	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
-	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
-	-- index makes this an index-only lookup per interception row rather than
-	-- a full-table-scan GROUP BY over all prompts.
-	-- last_active_at is the latest prompt timestamp, falling back to
-	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
+	-- last_active_at is the latest prompt timestamp read from the
+	-- denormalized aibridge_interceptions.last_prompt_at cache, falling back
+	-- to MIN(started_at) for sessions with no prompts. The COALESCE ensures
 	-- it is never NULL so the HAVING row-value cursor comparison is safe.
+	-- Sorting on stored columns avoids the per-interception prompts lateral
+	-- that previously ran across the whole filtered set.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
 		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
+		COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
 	FROM
 		aibridge_interceptions ai
-	LEFT JOIN LATERAL (
-		SELECT created_at AS latest_prompt_at
-		FROM aibridge_user_prompts
-		WHERE interception_id = ai.id
-		ORDER BY created_at DESC
-		LIMIT 1
-	) latest_prompt ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
@@ -2311,7 +2316,7 @@ session_page AS (
 		-- value comes from cursor_pos to guarantee single evaluation.
 		CASE
 			WHEN $1::text != '' THEN (
-				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+				(COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at)), ai.session_id) < (
 					(SELECT last_active_at FROM cursor_pos),
 					$1::text
 				)
@@ -2681,7 +2686,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $5::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, last_prompt_at
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2722,6 +2727,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.LastPromptAt,
 	)
 	return i, err
 }

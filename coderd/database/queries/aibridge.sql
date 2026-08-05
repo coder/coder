@@ -51,10 +51,21 @@ INSERT INTO aibridge_token_usages (
 RETURNING *;
 
 -- name: InsertAIBridgeUserPrompt :one
+-- Inserts a user prompt and monotonically bumps the owning interception's
+-- denormalized last_prompt_at cache in a single atomic statement. The bump is a
+-- data-modifying CTE, which Postgres always runs to completion regardless of
+-- whether the primary query reads its output. GREATEST is NULL-safe, so retries
+-- or out-of-order records never regress the cached value.
+WITH bump AS (
+	UPDATE aibridge_interceptions
+	SET last_prompt_at = GREATEST(last_prompt_at, @created_at::timestamptz)
+	WHERE id = @interception_id
+	RETURNING 1
+)
 INSERT INTO aibridge_user_prompts (
-  id, interception_id, provider_response_id, prompt, metadata, created_at
+	id, interception_id, provider_response_id, prompt, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @prompt, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+	@id, @interception_id, @provider_response_id, @prompt, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 
@@ -359,42 +370,32 @@ WHERE
 -- first-interception metadata) only for the ~page-size result set.
 WITH cursor_pos AS (
 	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group. Direct
-	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
-	-- affected by fan-out from multiple prompts per interception).
-	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
+	-- so the planner cannot accidentally re-evaluate it per group.
+	-- last_active_at is the session's most recent prompt time, read from the
+	-- denormalized aibridge_interceptions.last_prompt_at cache (no prompts
+	-- join). COALESCE falls back to MIN(ai.started_at) so the cursor value is
 	-- never NULL, which would silently drop rows from the HAVING comparison.
-	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
+	SELECT COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at)) AS last_active_at
 	FROM aibridge_interceptions ai
-	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
 	WHERE ai.session_id = @after_session_id AND ai.ended_at IS NOT NULL
 ),
 session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
-	-- A lateral correlated subquery for prompts keeps the join one-to-one
-	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
-	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
-	-- index makes this an index-only lookup per interception row rather than
-	-- a full-table-scan GROUP BY over all prompts.
-	-- last_active_at is the latest prompt timestamp, falling back to
-	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
+	-- last_active_at is the latest prompt timestamp read from the
+	-- denormalized aibridge_interceptions.last_prompt_at cache, falling back
+	-- to MIN(started_at) for sessions with no prompts. The COALESCE ensures
 	-- it is never NULL so the HAVING row-value cursor comparison is safe.
+	-- Sorting on stored columns avoids the per-interception prompts lateral
+	-- that previously ran across the whole filtered set.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
 		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
+		COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
 	FROM
 		aibridge_interceptions ai
-	LEFT JOIN LATERAL (
-		SELECT created_at AS latest_prompt_at
-		FROM aibridge_user_prompts
-		WHERE interception_id = ai.id
-		ORDER BY created_at DESC
-		LIMIT 1
-	) latest_prompt ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
@@ -448,7 +449,7 @@ session_page AS (
 		-- value comes from cursor_pos to guarantee single evaluation.
 		CASE
 			WHEN @after_session_id::text != '' THEN (
-				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+				(COALESCE(MAX(ai.last_prompt_at), MIN(ai.started_at)), ai.session_id) < (
 					(SELECT last_active_at FROM cursor_pos),
 					@after_session_id::text
 				)
