@@ -31,7 +31,7 @@ Set the following deployment options on `coder server`.
 
 | Environment variable             | CLI flag                     | Default | Requirement                                                                                                                                                      |
 |----------------------------------|------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_CHAT_HOOK_URL`            | `--chat-hook-url`            | Empty   | Use an `https` URL. Hooks are inactive when this value is empty.                                                                                                 |
+| `CODER_CHAT_HOOK_URL`            | `--chat-hook-url`            | Empty   | Use an `https` URL, or an `http` URL with `CODER_CHAT_HOOK_ALLOW_INSECURE`. Hooks are inactive when this value is empty.                                         |
 | `CODER_CHAT_HOOK_SECRET`         | `--chat-hook-secret`         | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs.                         |
 | `CODER_CHAT_HOOK_TIMEOUT`        | `--chat-hook-timeout`        | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                                             |
 | `CODER_CHAT_HOOK_ENABLED`        | `--chat-hook-enabled`        | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                                           |

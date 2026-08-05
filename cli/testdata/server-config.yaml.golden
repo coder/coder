@@ -803,8 +803,9 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-  # HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when
-  # unset. Requires the agent-lifecycle-hooks experiment.
+  # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
+  # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
+  # agent-lifecycle-hooks experiment.
   # (default: <unset>, type: url)
   hookURL:
   # Maximum time to wait for a chat agent lifecycle hook response.

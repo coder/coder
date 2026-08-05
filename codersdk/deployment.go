@@ -4334,7 +4334,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook URL",
-			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
 			Hidden:      true,
 			Env:         "CODER_CHAT_HOOK_URL",
