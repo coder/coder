@@ -7,8 +7,8 @@ ALTER TABLE chats
 CREATE INDEX idx_chats_capacity_queued_at ON chats (capacity_queued_at)
     WHERE capacity_queued_at IS NOT NULL;
 
--- Keeps the capacity slot count an index-only scan over the handful of
--- generating chats instead of a walk over all historical chats.
+-- Narrows the capacity slot count to the handful of generating chats
+-- instead of a walk over all historical chats.
 CREATE INDEX idx_chats_capacity_active ON chats (parent_chat_id)
     WHERE archived = false
       AND status IN ('running', 'interrupting')
