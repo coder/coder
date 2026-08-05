@@ -187,9 +187,6 @@ export const MobileActionsExcludeAnalytics: Story = {
 	parameters: {
 		layout: "fullscreen",
 		viewport: { defaultViewport: "mobile1" },
-		// Pixel ignores Storybook viewport params. Without phone width,
-		// `sm:hidden` keeps "More options" out of the a11y tree even when
-		// matchMedia is mocked as mobile.
 		pixel: { matrix: pixelWithPhone },
 		reactRouter: {
 			location: {
