@@ -11067,7 +11067,6 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 			len(toolResults["create_workspace"]) >= 1
 	}, testutil.IntervalFast)
 
-	// list_templates: only the allowed template should appear.
 	require.Contains(t, toolResults["list_templates"][0], tplAllowed.ID.String(),
 		"allowed template should appear in list_templates result")
 	require.NotContains(t, toolResults["list_templates"][0], tplBlocked.ID.String(),
