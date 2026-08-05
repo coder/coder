@@ -55,10 +55,7 @@ const TemplateSchedulePage: FC = () => {
 					navigate(getLink(linkToTemplate(organizationName, templateName)));
 				}}
 				onSubmit={(templateScheduleSettings) => {
-					updateTemplate({
-						...template,
-						...templateScheduleSettings,
-					});
+					updateTemplate(templateScheduleSettings);
 				}}
 			/>
 		</>
