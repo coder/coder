@@ -1030,49 +1030,50 @@ func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.
 
 const countAIBridgeSessions = `-- name: CountAIBridgeSessions :one
 SELECT
-	COUNT(DISTINCT (aibridge_interceptions.session_id, aibridge_interceptions.initiator_id))
+	COUNT(*)
 FROM
-	aibridge_interceptions
+	aibridge_sessions s
 WHERE
-	-- Remove inflight interceptions (ones which lack an ended_at value).
-	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter by time frame
-	AND CASE
-		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
+	-- Filter by time frame. A session matches when its interceptions overlap
+	-- the window, so the bounds are compared against opposite ends of the
+	-- session's range.
+	CASE
+		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.last_active_at >= $1::timestamptz
 		ELSE true
 	END
 	AND CASE
-		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $2::timestamptz
+		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.started_at <= $2::timestamptz
 		ELSE true
 	END
 	-- Filter initiator_id
 	AND CASE
-		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN s.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider
+	-- Filter provider. A session can span several providers and models, so
+	-- these are array membership tests answered by GIN indexes.
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $4::text != '' THEN s.providers @> ARRAY[$4::text]
 		ELSE true
 	END
 	-- Filter provider_name
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		WHEN $5::text != '' THEN s.provider_names @> ARRAY[$5::text]
 		ELSE true
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $6::text != '' THEN s.models @> ARRAY[$6::text]
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $7::text != '' THEN s.client = $7::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
+		WHEN $8::text != '' THEN s.session_id = $8::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -1090,6 +1091,9 @@ type CountAIBridgeSessionsParams struct {
 	SessionID     string    `db:"session_id" json:"session_id"`
 }
 
+// Counts the sessions ListAIBridgeSessions would return for the same filters.
+// Reads aibridge_sessions so the filters are answered by indexes, rather than
+// counting distinct groups across every interception.
 func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countAIBridgeSessions,
 		arg.StartedAfter,
@@ -2221,106 +2225,83 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
 WITH cursor_pos AS (
-	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group. Direct
-	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
-	-- affected by fan-out from multiple prompts per interception).
-	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
-	-- never NULL, which would silently drop rows from the HAVING comparison.
-	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
-	FROM aibridge_interceptions ai
-	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
-	WHERE ai.session_id = $1 AND ai.ended_at IS NOT NULL
+	-- Resolve the cursor's last_active_at once so the planner cannot
+	-- re-evaluate it per row. MAX collapses the rare case of one session_id
+	-- belonging to two initiators into a single value, and guarantees exactly
+	-- one row so the scalar subquery below is always valid.
+	SELECT MAX(s.last_active_at) AS last_active_at
+	FROM aibridge_sessions s
+	WHERE s.session_id = $1
 ),
 session_page AS (
-	-- Paginate at the session level first; only cheap aggregates here.
-	-- A lateral correlated subquery for prompts keeps the join one-to-one
-	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
-	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
-	-- index makes this an index-only lookup per interception row rather than
-	-- a full-table-scan GROUP BY over all prompts.
-	-- last_active_at is the latest prompt timestamp, falling back to
-	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
-	-- it is never NULL so the HAVING row-value cursor comparison is safe.
 	SELECT
-		ai.session_id,
-		ai.initiator_id,
-		MIN(ai.started_at) AS started_at,
-		MAX(ai.ended_at) AS ended_at,
-		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
+		s.session_id,
+		s.initiator_id,
+		s.last_active_at
 	FROM
-		aibridge_interceptions ai
-	LEFT JOIN LATERAL (
-		SELECT created_at AS latest_prompt_at
-		FROM aibridge_user_prompts
-		WHERE interception_id = ai.id
-		ORDER BY created_at DESC
-		LIMIT 1
-	) latest_prompt ON true
+		aibridge_sessions s
 	WHERE
-		-- Remove inflight interceptions (ones which lack an ended_at value).
-		ai.ended_at IS NOT NULL
-		-- Filter by time frame
-		AND CASE
-			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= $2::timestamptz
+		-- Filter by time frame. A session matches when its interceptions
+		-- overlap the window, so the bounds are compared against opposite
+		-- ends of the session's range.
+		CASE
+			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.last_active_at >= $2::timestamptz
 			ELSE true
 		END
 		AND CASE
-			WHEN $3::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= $3::timestamptz
+			WHEN $3::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.started_at <= $3::timestamptz
 			ELSE true
 		END
 		-- Filter initiator_id
 		AND CASE
-			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
+			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN s.initiator_id = $4::uuid
 			ELSE true
 		END
-		-- Filter provider
+		-- Filter provider. A session can span several providers and models,
+		-- so these are array membership tests answered by GIN indexes.
 		AND CASE
-			WHEN $5::text != '' THEN ai.provider = $5::text
+			WHEN $5::text != '' THEN s.providers @> ARRAY[$5::text]
 			ELSE true
 		END
 		-- Filter provider_name
 		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			WHEN $6::text != '' THEN s.provider_names @> ARRAY[$6::text]
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN $7::text != '' THEN ai.model = $7::text
+			WHEN $7::text != '' THEN s.models @> ARRAY[$7::text]
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $8::text != '' THEN s.client = $8::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $9::text != '' THEN ai.session_id = $9::text
+			WHEN $9::text != '' THEN s.session_id = $9::text
 			ELSE true
 		END
-		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
-		-- @authorize_filter
-	GROUP BY
-		ai.session_id, ai.initiator_id
-	HAVING
-		-- Cursor pagination: uses a composite (last_active_at, session_id) cursor to
-		-- support keyset pagination. The less-than comparison matches the DESC
-		-- sort order so rows after the cursor come later in results. The cursor
-		-- value comes from cursor_pos to guarantee single evaluation.
-		CASE
+		-- Cursor pagination: uses a composite (last_active_at, session_id)
+		-- cursor to support keyset pagination. The less-than comparison
+		-- matches the DESC sort order so rows after the cursor come later in
+		-- results. In WHERE rather than HAVING, the index seeks straight to
+		-- the cursor position instead of ranking every session first.
+		AND CASE
 			WHEN $1::text != '' THEN (
-				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+				(s.last_active_at, s.session_id) < (
 					(SELECT last_active_at FROM cursor_pos),
 					$1::text
 				)
 			)
 			ELSE true
 		END
+		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
+		-- @authorize_filter
 	ORDER BY
-		last_active_at DESC,
-		ai.session_id DESC
+		s.last_active_at DESC,
+		s.session_id DESC
 	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
 	OFFSET $10
 )
@@ -2334,9 +2315,9 @@ SELECT
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
 	sr.metadata::jsonb AS metadata,
-	sp.started_at::timestamptz AS started_at,
-	sp.ended_at::timestamptz AS ended_at,
-	sp.threads,
+	sr.started_at::timestamptz AS started_at,
+	sr.ended_at::timestamptz AS ended_at,
+	sr.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
@@ -2351,13 +2332,21 @@ FROM
 JOIN
 	visible_users ON visible_users.id = sp.initiator_id
 LEFT JOIN LATERAL (
+	-- Per-session aggregates over the page's sessions only. started_at,
+	-- ended_at and threads are computed here rather than stored on
+	-- aibridge_sessions because this scan already reads exactly the rows they
+	-- summarize, so they cost nothing extra and stay consistent with the
+	-- provider and model arrays alongside them.
 	SELECT
 		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids,
-		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active,
+		MIN(ai.started_at) AS started_at,
+		MAX(ai.ended_at) AS ended_at,
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -2457,9 +2446,14 @@ type ListAIBridgeSessionsRow struct {
 // the most recent user prompt. A "session" is a logical grouping of
 // interceptions that share the same session_id (set by the client).
 //
-// Pagination-first strategy: identify the page of sessions cheaply via a
-// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
-// first-interception metadata) only for the ~page-size result set.
+// Pagination-first strategy: identify the page of sessions from the
+// aibridge_sessions index, then do expensive lateral joins (tokens, prompts,
+// per-session aggregates) only for the ~page-size result set.
+//
+// aibridge_sessions carries the ordering key and the filterable attributes,
+// so both ORDER BY and the filters are answered by indexes. Deriving them
+// from aibridge_interceptions instead meant grouping every interception on
+// every request, which grew linearly with the table.
 // The last interception in a session has no next row, so next_seq uses
 // the largest sequence_number instead of NULL. The lookup stays a plain
 // range, so the (session_id, sequence_number) index answers it alone.

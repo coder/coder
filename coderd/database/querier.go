@@ -94,6 +94,9 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	// Counts the sessions ListAIBridgeSessions would return for the same filters.
+	// Reads aibridge_sessions so the filters are answered by indexes, rather than
+	// counting distinct groups across every interception.
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
@@ -1245,9 +1248,14 @@ type sqlcQuerier interface {
 	// the most recent user prompt. A "session" is a logical grouping of
 	// interceptions that share the same session_id (set by the client).
 	//
-	// Pagination-first strategy: identify the page of sessions cheaply via a
-	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
-	// first-interception metadata) only for the ~page-size result set.
+	// Pagination-first strategy: identify the page of sessions from the
+	// aibridge_sessions index, then do expensive lateral joins (tokens, prompts,
+	// per-session aggregates) only for the ~page-size result set.
+	//
+	// aibridge_sessions carries the ordering key and the filterable attributes,
+	// so both ORDER BY and the filters are answered by indexes. Deriving them
+	// from aibridge_interceptions instead meant grouping every interception on
+	// every request, which grew linearly with the table.
 	// The last interception in a session has no next row, so next_seq uses
 	// the largest sequence_number instead of NULL. The lookup stays a plain
 	// range, so the (session_id, sequence_number) index answers it alone.

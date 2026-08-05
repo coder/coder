@@ -769,6 +769,58 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION aibridge_session_merge_value(arr text[], value text) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT CASE
+        WHEN value IS NULL THEN arr
+        WHEN arr @> ARRAY[value] THEN arr
+        ELSE arr || value
+    END;
+$$;
+
+CREATE FUNCTION aibridge_session_track_interception() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO aibridge_sessions (
+        session_id, initiator_id, started_at, last_active_at,
+        providers, provider_names, models, client
+    )
+    VALUES (
+        NEW.session_id, NEW.initiator_id, NEW.started_at, NEW.started_at,
+        ARRAY[NEW.provider], ARRAY[NEW.provider_name], ARRAY[NEW.model],
+        COALESCE(NEW.client, 'Unknown')
+    )
+    ON CONFLICT (session_id, initiator_id) DO UPDATE SET
+        started_at = LEAST(aibridge_sessions.started_at, EXCLUDED.started_at),
+        last_active_at = GREATEST(aibridge_sessions.last_active_at, EXCLUDED.last_active_at),
+        providers = aibridge_session_merge_value(aibridge_sessions.providers, NEW.provider),
+        provider_names = aibridge_session_merge_value(aibridge_sessions.provider_names, NEW.provider_name),
+        models = aibridge_session_merge_value(aibridge_sessions.models, NEW.model);
+        -- client is deliberately absent: the first interception to complete
+        -- sets it and later ones leave it alone, since a session_id comes from
+        -- a single client.
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION aibridge_session_track_prompt() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE aibridge_sessions s
+    SET last_active_at = GREATEST(s.last_active_at, NEW.created_at)
+    -- Join aibridge_user_prompts with aibridge_interceptions to enrich the
+    -- prompt with session_id and initiator_id, then filter the session by them.
+    FROM aibridge_interceptions ai
+    WHERE ai.id = NEW.interception_id
+        AND s.session_id = ai.session_id
+        AND s.initiator_id = ai.initiator_id;
+    RETURN NULL;
+END;
+$$;
+
 CREATE FUNCTION bump_chat_queue_version_on_queued_message_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1643,6 +1695,25 @@ CREATE TABLE aibridge_model_thoughts (
 );
 
 COMMENT ON TABLE aibridge_model_thoughts IS 'Audit log of model thinking in intercepted requests in AI Bridge';
+
+CREATE TABLE aibridge_sessions (
+    session_id text NOT NULL,
+    initiator_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    last_active_at timestamp with time zone NOT NULL,
+    providers text[] DEFAULT '{}'::text[] NOT NULL,
+    provider_names text[] DEFAULT '{}'::text[] NOT NULL,
+    models text[] DEFAULT '{}'::text[] NOT NULL,
+    client text DEFAULT 'Unknown'::text NOT NULL
+);
+
+COMMENT ON TABLE aibridge_sessions IS 'Materialized view of AI Bridge sessions, maintained by triggers on aibridge_interceptions and aibridge_user_prompts. Each row summarizes the interceptions sharing same session_id and initiator.';
+
+COMMENT ON COLUMN aibridge_sessions.started_at IS 'Earliest started_at across the session''s interceptions. Paired with last_active_at so time-range filters can test whether the session overlaps the requested window.';
+
+COMMENT ON COLUMN aibridge_sessions.last_active_at IS 'Timestamp of the latest event in the session: the most recent user prompt or interception start, whichever is later. Sort key for the sessions list, and the upper bound for time-range filters.';
+
+COMMENT ON COLUMN aibridge_sessions.client IS 'The client that issued the session. Scalar rather than an array because a session_id originates from one client.';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
@@ -4267,6 +4338,9 @@ ALTER TABLE ONLY ai_user_daily_spend
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY aibridge_sessions
+    ADD CONSTRAINT aibridge_sessions_pkey PRIMARY KEY (session_id, initiator_id);
+
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
 
@@ -4711,6 +4785,18 @@ CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
 
+CREATE INDEX idx_aibridge_sessions_client ON aibridge_sessions USING btree (client);
+
+CREATE INDEX idx_aibridge_sessions_initiator ON aibridge_sessions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_sessions_last_active ON aibridge_sessions USING btree (last_active_at DESC, session_id DESC);
+
+CREATE INDEX idx_aibridge_sessions_models ON aibridge_sessions USING gin (models);
+
+CREATE INDEX idx_aibridge_sessions_provider_names ON aibridge_sessions USING gin (provider_names);
+
+CREATE INDEX idx_aibridge_sessions_providers ON aibridge_sessions USING gin (providers);
+
 CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
@@ -5043,6 +5129,10 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
 
+CREATE TRIGGER aibridge_interceptions_track_session AFTER INSERT OR UPDATE ON aibridge_interceptions FOR EACH ROW WHEN ((new.ended_at IS NOT NULL)) EXECUTE FUNCTION aibridge_session_track_interception();
+
+CREATE TRIGGER aibridge_user_prompts_track_session AFTER INSERT ON aibridge_user_prompts FOR EACH ROW EXECUTE FUNCTION aibridge_session_track_prompt();
+
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
@@ -5125,6 +5215,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY aibridge_sessions
+    ADD CONSTRAINT aibridge_sessions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
