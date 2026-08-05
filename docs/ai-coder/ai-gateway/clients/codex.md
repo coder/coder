@@ -98,9 +98,9 @@ For the centralized API key flow, set `enable_ai_gateway`:
 ```tf
 module "codex" {
   source            = "registry.coder.com/coder-labs/codex/coder"
-  version           = "~> 5.0"
+  version           = "~> 5.3"
   agent_id          = coder_agent.main.id
-  workdir           = "/path/to/project"  # Set to your project directory
+  workdir           = "/path/to/project" # Set to your project directory
   enable_ai_gateway = true
 }
 ```
@@ -119,7 +119,7 @@ resource "coder_env" "coder_api_token" {
 
 module "codex" {
   source   = "registry.coder.com/coder-labs/codex/coder"
-  version  = "~> 5.0"
+  version  = "~> 5.3"
   agent_id = coder_agent.main.id
   workdir  = "/path/to/project" # Set to your project directory
 

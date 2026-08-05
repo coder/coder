@@ -74,6 +74,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("after"),
+			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
 			{Type: codersdk.ChatMessagePartTypeHookContext, Text: "model only"},
 			{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "user only"},
 		}, parts)
@@ -120,6 +121,7 @@ func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
+		false,
 		"test-hook-secret-32-bytes-minimum!!",
 		time.Second,
 		"test-deployment",
@@ -475,17 +477,25 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	t.Cleanup(consumer.Close)
 	server := newHookTestServer(t, db, ps, consumer)
 
+	upload := codersdk.ChatMessageFile(uuid.New(), "image/png", "edited.png")
+	reference := codersdk.ChatMessageFileReference("main.go", 1, 3, "package main")
 	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       user.ID,
 		EditedMessageID: inserted[0].ID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+		Content: []codersdk.ChatMessagePart{
+			reference,
+			codersdk.ChatMessageText("edited original"),
+			upload,
+		},
 	})
 	require.NoError(t, err)
 	parts, err := chatprompt.ParseContent(result.Message)
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.ChatMessagePart{
+		reference,
 		codersdk.ChatMessageText("edited override"),
+		upload,
 		{Type: codersdk.ChatMessagePartTypeHookContext, Text: "edit context"},
 		{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "edit notice"},
 	}, parts)

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { test } from "@playwright/test";
+import { oldestSupportedAgentVersion } from "../constants";
 import {
 	createTemplate,
 	createWorkspace,
@@ -12,15 +13,12 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-// we no longer support versions w/o DRPC
-const agentVersion = "v2.12.1";
-
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page);
 });
 
-test.skip(`ssh with agent ${agentVersion}`, async ({ page }) => {
+test.skip(`ssh with agent ${oldestSupportedAgentVersion}`, async ({ page }) => {
 	test.setTimeout(60_000);
 
 	const token = randomUUID();
@@ -43,7 +41,7 @@ test.skip(`ssh with agent ${agentVersion}`, async ({ page }) => {
 		],
 	});
 	const workspaceName = await createWorkspace(page, template);
-	const binaryPath = await downloadCoderVersion(agentVersion);
+	const binaryPath = await downloadCoderVersion(oldestSupportedAgentVersion);
 	const agent = await startAgentWithCommand(page, token, binaryPath);
 
 	const client = await sshIntoWorkspace(page, workspaceName);

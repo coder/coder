@@ -32,9 +32,11 @@ SELECT
 FROM
 	groups
 WHERE
-	organization_id = $1
+	organization_id = @organization_id
 AND
-	name = $2
+	-- Match group name case-insensitively, consistent with organization and
+	-- workspace name lookups.
+	LOWER("name") = LOWER(@name)
 LIMIT
 	1;
 

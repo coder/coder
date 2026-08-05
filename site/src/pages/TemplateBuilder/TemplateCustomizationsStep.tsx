@@ -181,7 +181,7 @@ const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
 	return (
 		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
 			{base.iconUrl && <Avatar src={base.iconUrl} size="lg" variant="icon" />}
-			<p className="text-sm font-medium text-content-primary">{base.name}</p>
+			<p className="text-sm font-bold text-content-primary">{base.name}</p>
 			<p className="text-xs text-content-secondary mt-1">
 				Preset based on base template
 			</p>

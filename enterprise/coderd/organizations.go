@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -58,18 +57,6 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	if req.Name == codersdk.DefaultOrganization {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
-		})
-		return
-	}
-
-	// Deviations from rbac.DefaultOrgMemberRoles require the
-	// minimum-implicit-member experiment.
-	if req.DefaultOrgMemberRoles != nil &&
-		!slices.Equal(*req.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()) &&
-		!api.AGPL.Experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Changing default organization roles is not enabled on this deployment.",
-			Detail:  fmt.Sprintf("Setting default_org_member_roles to anything other than %v requires the %q experiment.", rbac.DefaultOrgMemberRoles(), codersdk.ExperimentMinimumImplicitMember),
 		})
 		return
 	}

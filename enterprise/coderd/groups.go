@@ -199,11 +199,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name != "" && req.Name != group.Name {
-		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+		existing, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
 			Name:           req.Name,
 		})
-		if err == nil {
+		// GetGroupByOrgAndName matches names case-insensitively, so exclude the
+		// group being renamed. This allows changing only the casing of a name
+		// while still rejecting a name already taken by a different group.
+		if err == nil && existing.ID != group.ID {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
 			})
