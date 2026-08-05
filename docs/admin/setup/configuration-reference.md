@@ -355,7 +355,7 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 
 ### Bedrock region
 
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
 
 - Environment variable: `CODER_AI_GATEWAY_BEDROCK_REGION`
 - CLI flag: [`--ai-gateway-bedrock-region`](../../reference/cli/server.md#--ai-gateway-bedrock-region)
