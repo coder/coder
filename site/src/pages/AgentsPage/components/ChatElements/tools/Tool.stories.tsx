@@ -703,6 +703,34 @@ export const ProcessOutputLocalhostLinkRewritten: Story = {
 	},
 };
 
+export const ProcessOutputClippedLinkNotTabbable: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		result: {
+			output: [
+				...Array.from({ length: 20 }, (_, index) => `line ${index + 1}`),
+				"Server at http://localhost:3000/",
+			].join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: "http://localhost:3000/",
+		});
+		expect(link).toHaveAttribute("tabindex", "-1");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand full process output" }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "http://localhost:3000/" }),
+			).not.toHaveAttribute("tabindex");
+		});
+	},
+};
+
 export const ProcessOutputStringError: Story = {
 	args: {
 		name: "process_output",

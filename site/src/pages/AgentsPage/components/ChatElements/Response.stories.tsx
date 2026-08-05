@@ -304,6 +304,27 @@ export const LocalhostLinkRetargetsOnWorkspaceChange: Story = {
 	},
 };
 
+export const LocalhostImageRewrittenFromChatContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children: "![preview shot](http://localhost:3000/screenshot.png)",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = await canvas.findByRole("img", { name: "preview shot" });
+		expect(image).toHaveAttribute(
+			"src",
+			"http://3000--main--my-ws--alice.proxy.example.com/screenshot.png",
+		);
+	},
+};
+
 export const ExplicitUrlTransformWinsOverContext: Story = {
 	decorators: [
 		(Story) => (

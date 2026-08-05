@@ -145,7 +145,10 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
-						<LinkifiedText text={output} />
+						<LinkifiedText
+							text={output}
+							tabbable={outputFullyExpanded || !overflows}
+						/>
 					</pre>
 				</ScrollArea>
 				{overflows && (

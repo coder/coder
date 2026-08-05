@@ -44,6 +44,8 @@ type HastNode = {
 
 type MarkdownComponentProps = {
 	href?: string;
+	src?: string;
+	alt?: string;
 	children?: ReactNode;
 	node?: HastNode;
 	type?: string;
@@ -117,12 +119,25 @@ const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
 	);
 };
 
+// Same render-time context read as MarkdownAnchor, for image sources.
+const MarkdownImage = ({ src, alt }: MarkdownComponentProps) => {
+	const transform = useChatUrlTransform();
+	return (
+		<img
+			src={src && transform ? transform(src) : src}
+			alt={alt ?? ""}
+			className="my-4 max-w-full rounded-lg"
+		/>
+	);
+};
+
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
 	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
 ): Components => {
 	return {
 		a: MarkdownAnchor,
+		img: MarkdownImage,
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
 		h1: ({ children }: MarkdownComponentProps) => (
@@ -277,23 +292,16 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
-	const chatUrlTransform = useChatUrlTransform();
-	const effectiveUrlTransform = urlTransform ?? chatUrlTransform;
-	// Streamdown must see raw hrefs: it caches rendered blocks by
-	// content, so a parse-time rewrite would freeze the first
-	// workspace's URL in the cache. MarkdownAnchor rewrites hrefs at
-	// render time instead; only img src, which has no render-time
-	// consumer, is rewritten here at parse time.
-	const srcUrlTransform = effectiveUrlTransform
-		? (url: string, key: string) =>
-				key === "src" ? effectiveUrlTransform(url) : url
-		: undefined;
 
+	// Streamdown must see raw URLs: it caches rendered blocks by
+	// content, so a parse-time rewrite would freeze the first
+	// workspace's URL in the cache. MarkdownAnchor and MarkdownImage
+	// rewrite at render time via context, and Streamdown keeps its
+	// default URL sanitizer.
 	const markdown = (
 		<Streamdown
 			controls={false}
 			components={components}
-			urlTransform={srcUrlTransform}
 			rehypePlugins={chatRehypePlugins}
 			mode={streaming ? "streaming" : "static"}
 			parseIncompleteMarkdown={streaming}
