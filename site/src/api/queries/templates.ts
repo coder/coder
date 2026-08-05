@@ -55,7 +55,10 @@ export const templates = (
 };
 
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
-	queryClient.invalidateQueries({ queryKey: templateListsKey });
+	queryClient.invalidateQueries({
+		queryKey: templateListsKey,
+		refetchType: "all",
+	});
 
 export const updateTemplateMeta = (
 	queryClient: QueryClient,
