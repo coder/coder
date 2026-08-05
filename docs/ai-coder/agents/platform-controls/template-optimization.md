@@ -20,7 +20,7 @@ To change which templates agents can use:
 1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
 2. Toggle the switch for each template.
 
-The same control is available on each template's settings page as **Allow Coder Agents to create workspaces with this template**.
+The same control is available on each template's settings page as **Allow Coder Agents to create workspaces using this template**.
 
 When a template does not allow agents, the agent's `list_templates`, `read_template`, and `create_workspace` tools exclude it.
 The agent cannot see or provision workspaces from that template.

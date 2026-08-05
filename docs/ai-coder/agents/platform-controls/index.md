@@ -81,7 +81,7 @@ understand template selection at all.
 
 Administrators can also restrict which templates are available to agents at **Agents** > **Settings** > **Manage Agents** > **Templates**.
 Use the switch for each template in the list.
-The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces with this template**.
+The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces using this template**.
 Templates allow agents by default.
 When you disable the control, the agent cannot see or provision workspaces from that template.
 This is separate from what developers see when manually creating workspaces, so you can apply stricter policies to agent-created workspaces without affecting the manual workspace experience.
