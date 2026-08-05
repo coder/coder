@@ -14976,7 +14976,9 @@ FROM
 WHERE
 	organization_id = $1
 AND
-	name = $2
+	-- Match group name case-insensitively, consistent with organization and
+	-- workspace name lookups.
+	LOWER("name") = LOWER($2)
 LIMIT
 	1
 `
