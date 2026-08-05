@@ -328,6 +328,12 @@ CREATE TYPE chat_client_type AS ENUM (
     'api'
 );
 
+CREATE TYPE chat_concurrency_state AS ENUM (
+    'active',
+    'queued',
+    'yielded'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -2108,6 +2114,8 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    concurrency_state chat_concurrency_state,
+    concurrency_queued_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2231,7 +2239,9 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.concurrency_state,
+    c.concurrency_queued_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4804,6 +4814,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
 CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
+
+CREATE INDEX idx_chats_concurrency_state ON chats USING btree (concurrency_state, concurrency_queued_at) WHERE ((archived = false) AND (concurrency_state IS NOT NULL));
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 

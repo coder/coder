@@ -321,6 +321,14 @@ func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountActiveConcurrencyChats(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountActiveConcurrencyChats(ctx)
+	m.queryLatencies.WithLabelValues("CountActiveConcurrencyChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountActiveConcurrencyChats").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAuditLogs(ctx, arg)
@@ -366,6 +374,14 @@ func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) (
 	r0, r1 := m.s.CountPendingNonActivePrebuilds(ctx)
 	m.queryLatencies.WithLabelValues("CountPendingNonActivePrebuilds").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountPendingNonActivePrebuilds").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountQueuedConcurrencyChats(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountQueuedConcurrencyChats(ctx)
+	m.queryLatencies.WithLabelValues("CountQueuedConcurrencyChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountQueuedConcurrencyChats").Inc()
 	return r0, r1
 }
 
@@ -2486,6 +2502,14 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	r0, r1 := m.s.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppsByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOldestQueuedConcurrencyChats(ctx, limitCount)
+	m.queryLatencies.WithLabelValues("GetOldestQueuedConcurrencyChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOldestQueuedConcurrencyChats").Inc()
 	return r0, r1
 }
 
@@ -4966,6 +4990,14 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, now)
 	m.queryLatencies.WithLabelValues("SelectUsageEventsForPublishing").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SelectUsageEventsForPublishing").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) SetChatConcurrencyState(ctx context.Context, arg database.SetChatConcurrencyStateParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.SetChatConcurrencyState(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetChatConcurrencyState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetChatConcurrencyState").Inc()
 	return r0, r1
 }
 

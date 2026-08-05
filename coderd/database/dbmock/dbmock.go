@@ -438,6 +438,21 @@ func (mr *MockStoreMockRecorder) CountAIBridgeSessions(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAIBridgeSessions", reflect.TypeOf((*MockStore)(nil).CountAIBridgeSessions), ctx, arg)
 }
 
+// CountActiveConcurrencyChats mocks base method.
+func (m *MockStore) CountActiveConcurrencyChats(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountActiveConcurrencyChats", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountActiveConcurrencyChats indicates an expected call of CountActiveConcurrencyChats.
+func (mr *MockStoreMockRecorder) CountActiveConcurrencyChats(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveConcurrencyChats", reflect.TypeOf((*MockStore)(nil).CountActiveConcurrencyChats), ctx)
+}
+
 // CountAuditLogs mocks base method.
 func (m *MockStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -571,6 +586,21 @@ func (m *MockStore) CountPendingNonActivePrebuilds(ctx context.Context) ([]datab
 func (mr *MockStoreMockRecorder) CountPendingNonActivePrebuilds(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingNonActivePrebuilds", reflect.TypeOf((*MockStore)(nil).CountPendingNonActivePrebuilds), ctx)
+}
+
+// CountQueuedConcurrencyChats mocks base method.
+func (m *MockStore) CountQueuedConcurrencyChats(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountQueuedConcurrencyChats", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountQueuedConcurrencyChats indicates an expected call of CountQueuedConcurrencyChats.
+func (mr *MockStoreMockRecorder) CountQueuedConcurrencyChats(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountQueuedConcurrencyChats", reflect.TypeOf((*MockStore)(nil).CountQueuedConcurrencyChats), ctx)
 }
 
 // CountUnreadInboxNotificationsByUserID mocks base method.
@@ -4618,6 +4648,21 @@ func (m *MockStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uu
 func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppsByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppsByUserID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppsByUserID), ctx, userID)
+}
+
+// GetOldestQueuedConcurrencyChats mocks base method.
+func (m *MockStore) GetOldestQueuedConcurrencyChats(ctx context.Context, limitCount int64) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOldestQueuedConcurrencyChats", ctx, limitCount)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOldestQueuedConcurrencyChats indicates an expected call of GetOldestQueuedConcurrencyChats.
+func (mr *MockStoreMockRecorder) GetOldestQueuedConcurrencyChats(ctx, limitCount any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOldestQueuedConcurrencyChats", reflect.TypeOf((*MockStore)(nil).GetOldestQueuedConcurrencyChats), ctx, limitCount)
 }
 
 // GetOrganizationByID mocks base method.
@@ -9382,6 +9427,21 @@ func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time
 func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectUsageEventsForPublishing", reflect.TypeOf((*MockStore)(nil).SelectUsageEventsForPublishing), ctx, now)
+}
+
+// SetChatConcurrencyState mocks base method.
+func (m *MockStore) SetChatConcurrencyState(ctx context.Context, arg database.SetChatConcurrencyStateParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChatConcurrencyState", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetChatConcurrencyState indicates an expected call of SetChatConcurrencyState.
+func (mr *MockStoreMockRecorder) SetChatConcurrencyState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatConcurrencyState", reflect.TypeOf((*MockStore)(nil).SetChatConcurrencyState), ctx, arg)
 }
 
 // SetChatContextSnapshot mocks base method.

@@ -3027,6 +3027,10 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
+	// AgentConcurrencyGateFactory builds the chat worker capacity gate.
+	// Nil leaves capacity uncapped.
+	AgentConcurrencyGateFactory AgentConcurrencyGateFactory
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -3165,6 +3169,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
+		AgentGate:             agentGateFromFactory(ctx, p, cfg, clk, ps),
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,

@@ -935,6 +935,47 @@ The dynamic tools timeout goroutine is responsible for waiting for the dynamic t
 
 The abandon chat goroutine is responsible for abandoning the chat. It is spawned whenever the event processing logic determines that the chat no longer needs to be owned by the runner. It applies the `Abandon` transition on the core state machine after checking that the chat is still owned by the runner.
 
+## Concurrent-agent gate
+
+When the deployment has no remaining agent runtime hours (`FeatureAgentRuntimeHours` is disabled, or recorded usage has reached the licensed allocation), chatd limits a deployment to `MaxConcurrentAgents` concurrent generation loops. The cap is license enforcement, so the gate lives in the enterprise-licensed `enterprise/coderd/x/chatd` package; this package only defines the contract and calls it. If no factory is configured, generation remains uncapped.
+
+Capacity denial does not reject chat creation or message sends. The generation task records a durable queued state and retries when capacity becomes available.
+
+### Capacity state
+
+Capacity accounting uses two nullable columns on `chats`:
+
+- `concurrency_state`: `active` holds a slot, `queued` waits, and `yielded` gives up a parent slot while `wait_agent` blocks. Only queued chats expose `Chat.QueuedForCapacityAt`; queue entry and admission publish `capacity_change` watch events. `NULL` excludes the chat from accounting.
+- `concurrency_queued_at` is set on first queue entry using the database clock, so ordering and wait metrics are consistent across replicas. It is preserved across running and interrupting status changes and orders queued claims.
+
+Capacity queries ignore archived chats. Status transitions and archival, including the auto-archive cascade, clear markers when chats leave `running` or `interrupting`, and stale-heartbeat recovery makes a replacement runner check the gate again.
+
+### Claim algorithm
+
+Claims serialize on `LockIDChatConcurrency` before counting and writing, so replicas cannot over-admit. Existing active claims are idempotent. Queued chats receive free slots oldest first, before new claimants. Marker writes are fenced to the chat's current `runner_id`, so a stale runner surviving heartbeat recovery cannot alter the replacement runner's claim.
+
+Waiters subscribe before re-checking and retry after a capacity nudge or a jittered 15-second poll. `ChatMachine.Update` and `Yield` publish release nudges. Polling covers missed delivery, entitlement changes, and release paths without a publisher.
+
+### Runner integration
+
+Generation tasks acquire the gate outside retry timeouts, so queue waits do not consume task attempts. Interrupt, requires-action timeout, and abandon tasks do not acquire it. Tool-result resumes acquire it again. Promoting a queued message keeps the running chat's existing slot.
+
+### Subagents
+
+Subagent chats count against the cap. The generation context carries a lease that yields the parent's slot while `wait_agent` blocks. Reference counting shares that yield across concurrent waits. A failed yield fails the `wait_agent` call rather than blocking while the parent still holds the slot. Resume acquires a slot again or queues if capacity is full.
+
+### Entitlement bypass
+
+The gate bypasses the cap only while the license has remaining agent runtime hours: `FeatureAgentRuntimeHours` is enabled and the feature's recorded usage (`Actual`) is below the allocation (`Limit`). The gate never queries usage itself; it reads the entitlements snapshot. Two cases fail open to enabled-only semantics: a nil allocation (the license decoder always sets `Limit` for this feature) and a nil usage reading. Entitlements do not populate `Actual` for this feature yet, so until they do every enabled deployment takes the nil-usage path and capping on a missing reading would be worse than bounded over-admission.
+
+The gate checks this before each claim and during fallback polling. A newly uncapped queued chat proceeds on the next poll if no nudge arrives, so purchased or renewed hours admit queued chats automatically. Bypassed claims clear any leftover marker so a running chat is not reported as queued; that cleanup is best effort.
+
+Known windows remain: a chat running when the bypass ends can finish without a marker; a rollout does not mark existing chats until their next claim; queue ordering is oldest first per claim, not strict FIFO across replicas. Recorded usage reaches the snapshot only after usage rollup and an entitlements refresh, so a deployment can briefly over-admit after consuming its last hours. Capacity watch events carry no freshness ordering, so overlapping claims for one chat can deliver them out of order; the database state stays correct and the UI corrects at the next status transition.
+
+### Observability
+
+The gate exports deployment-wide, database-derived `coderd_chatd_agents_active` and `coderd_chatd_agents_queued_for_capacity` gauges, refreshed every 30 seconds and aggregated with max rather than sum. It also exports per-replica `coderd_chatd_agent_capacity_queue_total` and `coderd_chatd_agent_capacity_wait_seconds` metrics. Queued chats expose `Chat.QueuedForCapacityAt` in the API and a banner in the chat UI.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

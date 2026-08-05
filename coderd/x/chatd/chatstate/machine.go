@@ -162,7 +162,8 @@ func (m *ChatMachine) Update(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		before, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
@@ -185,6 +186,15 @@ func (m *ChatMachine) Update(
 			buildChatUpdateMessage(chat),
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
+		}
+		// Publish a nudge when a status transition clears an active claim.
+		// The gate owns capacity admission.
+		if before.ConcurrencyState.Valid &&
+			before.ConcurrencyState.ChatConcurrencyState == database.ChatConcurrencyStateActive &&
+			!chat.ConcurrencyState.Valid {
+			if err := buffer.Publish(coderdpubsub.ChatCapacityChannel, []byte("{}")); err != nil {
+				return xerrors.Errorf("buffer capacity nudge: %w", err)
+			}
 		}
 		if state.IsRunnable() {
 			stale, err := ownershipStaleOrMissing(ctx, store, chat, HeartbeatStaleSeconds)

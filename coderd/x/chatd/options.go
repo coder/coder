@@ -187,6 +187,7 @@ type chatWorkerOptions struct {
 	Clock             quartz.Clock
 	TaskStarter       chatWorkerTaskStarter
 	MessagePartBuffer *messagepartbuffer.Buffer
+	AgentGate         AgentConcurrencyGate
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
