@@ -2466,6 +2466,46 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("applies a capacity mark with an unchanged updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: undefined,
+		});
+		// Queue marks do not bump updated_at, so the event carries the same
+		// timestamp as the cache.
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+			}).queued_for_capacity_at,
+		).toBe("2025-01-01T00:00:05.000Z");
+	});
+
+	it("rejects a stale capacity mark reordered after a fresher clear", () => {
+		// Admission cleared the marker inside the acquisition transaction,
+		// which bumps updated_at; the cache already saw that clear event.
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity_at: undefined,
+		});
+		// A delayed mark event from another worker carries the pre-acquisition
+		// snapshot and must not restore the banner on a running chat.
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+			}).queued_for_capacity_at,
+		).toBeUndefined();
+	});
+
 	it("leaves context untouched for non-context events", () => {
 		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
 		const cachedChat = makeChat("chat-1", {
