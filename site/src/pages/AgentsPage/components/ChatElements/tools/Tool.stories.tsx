@@ -703,7 +703,7 @@ export const ProcessOutputLocalhostLinkRewritten: Story = {
 	},
 };
 
-export const ProcessOutputClippedLinkNotTabbable: Story = {
+export const ProcessOutputFocusExpandsClippedLink: Story = {
 	args: {
 		name: "process_output",
 		status: "completed",
@@ -719,15 +719,16 @@ export const ProcessOutputClippedLinkNotTabbable: Story = {
 		const link = await canvas.findByRole("link", {
 			name: "http://localhost:3000/",
 		});
-		expect(link).toHaveAttribute("tabindex", "-1");
-		await userEvent.click(
+		expect(
 			canvas.getByRole("button", { name: "Expand full process output" }),
-		);
+		).toHaveAttribute("aria-expanded", "false");
+		link.focus();
 		await waitFor(() => {
 			expect(
-				canvas.getByRole("link", { name: "http://localhost:3000/" }),
-			).not.toHaveAttribute("tabindex");
+				canvas.getByRole("button", { name: "Collapse full process output" }),
+			).toHaveAttribute("aria-expanded", "true");
 		});
+		expect(link.checkVisibility()).toBe(true);
 	},
 };
 

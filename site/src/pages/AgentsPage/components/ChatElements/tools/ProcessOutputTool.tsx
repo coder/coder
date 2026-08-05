@@ -79,6 +79,24 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const toggleOutputExpansion = () => {
 		setOutputFullyExpanded((expanded) => !expanded);
 	};
+	// The collapsed preview clips with overflow:hidden but its links stay
+	// focusable, so expand when focus lands in the clipped remainder.
+	// Browsers scroll clipped containers to reveal a focused element,
+	// hence the scrollTop check.
+	const handleTranscriptFocus = (event: React.FocusEvent<HTMLPreElement>) => {
+		if (outputFullyExpanded || !overflows) {
+			return;
+		}
+		const pre = event.currentTarget;
+		const focusInClippedArea =
+			pre.scrollTop > 0 ||
+			event.target.getBoundingClientRect().bottom >
+				pre.getBoundingClientRect().bottom;
+		if (focusInClippedArea) {
+			pre.scrollTop = 0;
+			setOutputFullyExpanded(true);
+		}
+	};
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
@@ -135,6 +153,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 				>
 					<pre
 						ref={measureRef}
+						onFocus={handleTranscriptFocus}
 						style={
 							outputFullyExpanded
 								? undefined
@@ -145,10 +164,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
-						<LinkifiedText
-							text={output}
-							tabbable={outputFullyExpanded || !overflows}
-						/>
+						<LinkifiedText text={output} />
 					</pre>
 				</ScrollArea>
 				{overflows && (
