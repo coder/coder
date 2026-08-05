@@ -1919,6 +1919,15 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 			},
 		},
 		{
+			name:    "JSON null",
+			value:   "null",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
 			name:    "invalid JSON",
 			value:   "{",
 			present: true,

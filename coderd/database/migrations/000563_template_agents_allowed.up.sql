@@ -18,6 +18,9 @@ BEGIN
 
 	BEGIN
 		parsed := raw::jsonb;
+		IF parsed = 'null'::jsonb THEN
+			RETURN;
+		END IF;
 		IF jsonb_typeof(parsed) <> 'array' THEN
 			RAISE EXCEPTION 'value is not a JSON array';
 		END IF;
@@ -37,8 +40,8 @@ BEGIN
 		parsed_ids := ARRAY[]::uuid[];
 	END;
 
-	-- A valid nonempty list allows matching existing templates only. Missing or
-	-- empty data leaves templates allowed. Corrupt data blocks all templates.
+	-- A valid nonempty list allows matching existing templates only. Missing, null,
+	-- or empty data leaves templates allowed. Corrupt data blocks all templates.
 	UPDATE templates
 	SET agents_allowed = (id = ANY(parsed_ids));
 END $$;
