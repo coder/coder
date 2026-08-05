@@ -2330,6 +2330,12 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-groups`
 
+Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+which authorizes each group individually via its ACL, this endpoint requires
+organization-wide group read permission and does no per-group filtering. It is
+therefore not a drop-in replacement: callers without org-wide group read receive
+an error rather than a filtered subset.
+
 ### Parameters
 
 | Name           | In    | Type    | Required | Description             |

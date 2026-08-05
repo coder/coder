@@ -557,6 +557,11 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
+// @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+// @Description which authorizes each group individually via its ACL, this endpoint requires
+// @Description organization-wide group read permission and does no per-group filtering. It is
+// @Description therefore not a drop-in replacement: callers without org-wide group read receive
+// @Description an error rather than a filtered subset.
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

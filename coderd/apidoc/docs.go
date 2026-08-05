@@ -5763,6 +5763,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-groups": {
             "get": {
+                "description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.",
                 "produces": [
                     "application/json"
                 ],
