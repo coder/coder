@@ -196,12 +196,7 @@ export const isAppUrlValid = (app: WorkspaceApp): boolean => {
 	if (!isExternalApp(app)) {
 		return true;
 	}
-	try {
-		new URL(app.url);
-		return true;
-	} catch {
-		return false;
-	}
+	return URL.canParse(app.url);
 };
 
 /**
