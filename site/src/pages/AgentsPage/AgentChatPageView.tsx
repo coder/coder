@@ -19,7 +19,10 @@ import type {
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
-import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import {
+	getAgentBrowserApp,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
@@ -500,6 +503,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
+	// Browser mirrors the Desktop availability semantics: when the
+	// agent-browser app stops being healthy the tab drops out, and the
+	// stored active-tab ID restores it when health returns.
+	const availableBrowserApp = workspace
+		? getAgentBrowserApp(workspaceAgent)
+		: undefined;
+
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
 		{ workspace, workspaceAgent, wildcardHostname },
@@ -516,6 +526,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+		...(availableBrowserApp ? [{ id: "browser", label: "Browser" }] : []),
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
@@ -708,6 +719,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
+			case "browser":
+				return workspace && workspaceAgent && availableBrowserApp ? (
+					<WorkspaceAppFrame
+						workspace={workspace}
+						app={{ ...availableBrowserApp, agent: workspaceAgent }}
+						active={effectiveSidebarTabId === "browser"}
+					/>
+				) : null;
 			case "desktop":
 				return availableDesktopChatId ? (
 					<DesktopPanel

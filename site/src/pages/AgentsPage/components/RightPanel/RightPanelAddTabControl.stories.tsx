@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -130,6 +131,38 @@ export const Default: Story = {
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
 			expect.objectContaining({ port: 8080 }),
 		);
+	},
+};
+
+/**
+ * The agent-browser app is surfaced as the built-in Browser tab, so the
+ * add menu must not offer it while still listing the other apps.
+ */
+export const ExcludesAgentBrowserApp: Story = {
+	args: {
+		agent: {
+			...MockWorkspaceAgent,
+			apps: [
+				embeddableApp,
+				{
+					...MockWorkspaceApp,
+					id: "agent-browser-app",
+					slug: AGENT_BROWSER_APP_SLUG,
+					display_name: "agent-browser",
+					health: "healthy",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Preview")).toBeInTheDocument();
+		});
+		expect(body.queryByText("agent-browser")).toBeNull();
 	},
 };
 

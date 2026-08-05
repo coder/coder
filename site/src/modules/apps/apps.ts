@@ -179,6 +179,29 @@ export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 	return !app.hidden && !isExternalApp(app) && !app.command;
 };
 
+export const AGENT_BROWSER_APP_SLUG = "agent-browser";
+
+/**
+ * The agent's agent-browser dashboard app when it can back the built-in
+ * Browser tab: embeddable and reporting "healthy", or "disabled" when the
+ * template declares no healthcheck.
+ */
+export const getAgentBrowserApp = (
+	agent: WorkspaceAgent | undefined,
+): WorkspaceApp | undefined => {
+	const app = agent?.apps.find(
+		(agentApp) => agentApp.slug === AGENT_BROWSER_APP_SLUG,
+	);
+	if (
+		app &&
+		isWorkspaceAppEmbeddable(app) &&
+		(app.health === "healthy" || app.health === "disabled")
+	) {
+		return app;
+	}
+	return undefined;
+};
+
 /**
  * True when an app requires subdomain access but the deployment has no wildcard
  * access URL configured, so the app cannot be launched or embedded.
