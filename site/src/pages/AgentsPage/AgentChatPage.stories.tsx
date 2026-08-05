@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
+import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -22,6 +23,7 @@ import {
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
@@ -32,6 +34,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -3059,55 +3062,39 @@ export const SendResponseAfterChatSwitch: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// Query failure states: a transport failure must render an error view with
-// retry, never "Chat not found". Only a 404 from the detail endpoint means
-// the chat is genuinely absent.
-// ---------------------------------------------------------------------------
-
-const minimalChat: TypesGen.Chat = {
+const queryErrorChat: TypesGen.Chat = {
+	...MockChat,
 	id: CHAT_ID,
 	...baseChatFields,
 	title: "Failing chat",
-	status: "waiting",
 };
 
-const minimalMessages: TypesGen.ChatMessagesResponse = {
+const queryErrorMessages: TypesGen.ChatMessagesResponse = {
 	messages: [],
 	queued_messages: [],
 	has_more: false,
 };
 
 const serverError = {
-	isAxiosError: true,
-	response: {
-		status: 500,
-		data: { message: "Internal server error." },
-	},
+	...mockApiError({ message: "Internal server error." }),
+	status: 500,
 };
 
-// Spy cleanup matters here: an invalidated query from an earlier story's
-// play function can refetch after that story unmounted, through whatever
-// spy is still registered. Returning restore functions from beforeEach
-// keeps each story's mocks scoped to that story.
-const mockChatFetchError = (error: unknown) => {
-	const getChatSpy = spyOn(API.experimental, "getChat").mockImplementation(
-		(chatId) =>
-			chatId === CHAT_ID ? Promise.reject(error) : Promise.resolve(minimalChat),
-	);
-	const getChatMessagesSpy = spyOn(
-		API.experimental,
-		"getChatMessages",
-	).mockResolvedValue(minimalMessages);
-	return () => {
-		getChatSpy.mockRestore();
-		getChatMessagesSpy.mockRestore();
-	};
-};
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
-/** The detail query fails with a 500: error view, not "Chat not found". */
 export const DetailQueryError: Story = {
-	beforeEach: () => mockChatFetchError(serverError),
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(queryErrorChat, queryErrorMessages),
+			chatKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(serverError);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
@@ -3118,24 +3105,15 @@ export const DetailQueryError: Story = {
 	},
 };
 
-/** The initial messages query fails: error view, not "Chat not found". */
 export const InitialMessagesError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(queryErrorChat, queryErrorMessages),
+			chatMessagesKey(CHAT_ID),
+		),
+	},
 	beforeEach: () => {
-		const getChatSpy = spyOn(API.experimental, "getChat").mockResolvedValue(
-			minimalChat,
-		);
-		const getChatMessagesSpy = spyOn(
-			API.experimental,
-			"getChatMessages",
-		).mockImplementation((chatId) =>
-			chatId === CHAT_ID
-				? Promise.reject(serverError)
-				: Promise.resolve(minimalMessages),
-		);
-		return () => {
-			getChatSpy.mockRestore();
-			getChatMessagesSpy.mockRestore();
-		};
+		spyOn(API.experimental, "getChatMessages").mockRejectedValue(serverError);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3144,29 +3122,19 @@ export const InitialMessagesError: Story = {
 	},
 };
 
-/** Clicking retry refetches both queries and recovers the chat. */
 export const ErrorRetryRecovers: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(queryErrorChat, queryErrorMessages),
+			chatKey(CHAT_ID),
+		),
+	},
 	beforeEach: ({ parameters }) => {
-		let shouldFail = true;
-		const getChatSpy = spyOn(API.experimental, "getChat").mockImplementation(
-			(chatId) => {
-				if (chatId === CHAT_ID && shouldFail) {
-					shouldFail = false;
-					return Promise.reject(serverError);
-				}
-				return Promise.resolve(minimalChat);
-			},
-		);
+		const getChatSpy = spyOn(API.experimental, "getChat")
+			.mockRejectedValueOnce(serverError)
+			.mockResolvedValue(queryErrorChat);
 		parameters.getChatCallsForChat = () =>
 			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
-		const getChatMessagesSpy = spyOn(
-			API.experimental,
-			"getChatMessages",
-		).mockResolvedValue(minimalMessages);
-		return () => {
-			getChatSpy.mockRestore();
-			getChatMessagesSpy.mockRestore();
-		};
 	},
 	play: async ({ canvasElement, parameters }) => {
 		const canvas = within(canvasElement);
@@ -3180,16 +3148,19 @@ export const ErrorRetryRecovers: Story = {
 	},
 };
 
-/** A genuine 404 from the detail endpoint still renders "Chat not found". */
 export const ChatNotFound: Story = {
-	beforeEach: () =>
-		mockChatFetchError({
-			isAxiosError: true,
-			response: {
-				status: 404,
-				data: { message: "Chat not found." },
-			},
-		}),
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(queryErrorChat, queryErrorMessages),
+			chatKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Chat not found." }),
+			status: 404,
+		});
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Chat not found")).toBeVisible();

@@ -1,5 +1,3 @@
-import { isAxiosError } from "axios";
-
 import {
 	type FC,
 	useEffect,
@@ -24,7 +22,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
 } from "#/api/api";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -70,8 +68,8 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
-	AgentChatPageErrorView,
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
@@ -1884,18 +1882,8 @@ const AgentChatPage: FC = () => {
 		);
 	}
 
-	// The detail endpoint throws on 404, so only treat a query failure as
-	// "not found" when the server actually said the chat is gone. Anything
-	// else (network, 5xx, timeout) is a retriable transport failure. This
-	// only applies when the query has no data to show; a background refetch
-	// that fails after content already rendered must not blank the page.
-	if (
-		(chatQuery.isError && chatQuery.data === undefined) ||
-		(chatMessagesQuery.isError && chatMessagesQuery.data === undefined)
-	) {
-		const chatNotFoundError =
-			isAxiosError(chatQuery.error) && chatQuery.error.response?.status === 404;
-		if (chatNotFoundError) {
+	if (chatQuery.isLoadingError || chatMessagesQuery.isLoadingError) {
+		if (getErrorStatus(chatQuery.error) === 404) {
 			return (
 				<AgentChatPageNotFoundView
 					titleElement={titleElement}
@@ -1904,15 +1892,22 @@ const AgentChatPage: FC = () => {
 				/>
 			);
 		}
+
 		return (
 			<AgentChatPageErrorView
 				titleElement={titleElement}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				error={chatQuery.error ?? chatMessagesQuery.error}
+				error={
+					chatQuery.isLoadingError ? chatQuery.error : chatMessagesQuery.error
+				}
 				onRetry={() => {
-					void chatQuery.refetch();
-					void chatMessagesQuery.refetch();
+					if (chatQuery.isLoadingError) {
+						void chatQuery.refetch();
+					}
+					if (chatMessagesQuery.isLoadingError) {
+						void chatMessagesQuery.refetch();
+					}
 				}}
 			/>
 		);

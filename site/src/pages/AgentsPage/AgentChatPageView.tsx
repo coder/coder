@@ -18,7 +18,6 @@ import type {
 	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { useProxy } from "#/contexts/ProxyContext";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
@@ -1154,18 +1153,16 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	);
 };
 
-interface AgentChatPageStatusViewProps {
+interface AgentChatPageNotFoundViewProps {
 	titleElement: React.ReactNode;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-	children: React.ReactNode;
 }
 
-const AgentChatPageStatusView: FC<AgentChatPageStatusViewProps> = ({
+export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 	titleElement,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
-	children,
 }) => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -1183,54 +1180,8 @@ const AgentChatPageStatusView: FC<AgentChatPageStatusViewProps> = ({
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
-				{children}
+				Chat not found
 			</div>
 		</div>
-	);
-};
-
-interface AgentChatPageNotFoundViewProps {
-	titleElement: React.ReactNode;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-}
-
-export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = (
-	props,
-) => {
-	return (
-		<AgentChatPageStatusView {...props}>Chat not found</AgentChatPageStatusView>
-	);
-};
-
-interface AgentChatPageErrorViewProps {
-	titleElement: React.ReactNode;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-	error: unknown;
-	onRetry: () => void;
-}
-
-export const AgentChatPageErrorView: FC<AgentChatPageErrorViewProps> = ({
-	error,
-	onRetry,
-	...statusViewProps
-}) => {
-	const message =
-		error instanceof Error ? error.message : "The chat could not be loaded.";
-	return (
-		<AgentChatPageStatusView {...statusViewProps}>
-			<div className="flex flex-col items-center gap-4 px-6 text-center">
-				<div className="space-y-2">
-					<p className="font-semibold text-content-primary">
-						Failed to load chat
-					</p>
-					<p className="max-w-md text-sm">{message}</p>
-				</div>
-				<Button variant="outline" onClick={onRetry}>
-					Try again
-				</Button>
-			</div>
-		</AgentChatPageStatusView>
 	);
 };
