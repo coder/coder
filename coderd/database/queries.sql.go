@@ -18777,11 +18777,8 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id u
 const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
 DELETE FROM
   oauth2_provider_app_tokens
-USING
-  oauth2_provider_app_secrets
 WHERE
-  oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND oauth2_provider_app_secrets.app_id = $1
+  oauth2_provider_app_tokens.app_id = $1
   AND oauth2_provider_app_tokens.user_id = $2
 `
 
@@ -18790,6 +18787,9 @@ type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
+// Filters directly on app_id rather than joining through app_secret_id,
+// since app_secret_id is NULL for public (secretless) clients and would
+// silently exclude their tokens from this delete.
 func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppTokensByAppAndUserID, arg.AppID, arg.UserID)
 	return err
@@ -18995,7 +18995,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
@@ -19011,12 +19011,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, ap
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -19032,6 +19033,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }
@@ -19095,10 +19097,8 @@ SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
   oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri
 FROM oauth2_provider_app_tokens
-  INNER JOIN oauth2_provider_app_secrets
-    ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
-    ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
+    ON oauth2_provider_apps.id = oauth2_provider_app_tokens.app_id
 WHERE
   oauth2_provider_app_tokens.user_id = $1
 GROUP BY
@@ -19110,6 +19110,9 @@ type GetOAuth2ProviderAppsByUserIDRow struct {
 	OAuth2ProviderApp OAuth2ProviderApp `db:"oauth2_provider_app" json:"oauth2_provider_app"`
 }
 
+// Joins directly on oauth2_provider_app_tokens.app_id rather than through
+// app_secret_id, since app_secret_id is NULL for public (secretless) clients
+// and would silently exclude their tokens from this listing.
 func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderAppsByUserID, userID)
 	if err != nil {
@@ -19443,6 +19446,7 @@ INSERT INTO oauth2_provider_app_tokens (
     expires_at,
     hash_prefix,
     refresh_hash,
+    app_id,
     app_secret_id,
     api_key_id,
     user_id,
@@ -19456,8 +19460,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $6,
     $7,
     $8,
-    $9
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id
+    $9,
+    $10
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -19466,7 +19471,8 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	ExpiresAt   time.Time      `db:"expires_at" json:"expires_at"`
 	HashPrefix  []byte         `db:"hash_prefix" json:"hash_prefix"`
 	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
+	AppID       uuid.UUID      `db:"app_id" json:"app_id"`
+	AppSecretID uuid.NullUUID  `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
 	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
@@ -19479,6 +19485,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.ExpiresAt,
 		arg.HashPrefix,
 		arg.RefreshHash,
+		arg.AppID,
 		arg.AppSecretID,
 		arg.APIKeyID,
 		arg.UserID,
@@ -19495,6 +19502,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }

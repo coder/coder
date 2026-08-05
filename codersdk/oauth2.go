@@ -527,13 +527,14 @@ func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrat
 	return req
 }
 
-// DetermineClientType determines if client is public or confidential
-func (*OAuth2ClientRegistrationRequest) DetermineClientType() string {
-	// For now, default to confidential
-	// In the future, we might detect based on:
-	// - token_endpoint_auth_method == "none" -> public
-	// - application_type == "native" -> might be public
-	// - Other heuristics
+// DetermineClientType determines if client is public or confidential, based
+// on the requested token_endpoint_auth_method (RFC 7591 §2, OAuth 2.1 §2.1).
+// Call after ApplyDefaults() so an omitted token_endpoint_auth_method has
+// already defaulted to "client_secret_basic" and is not misread as public.
+func (req *OAuth2ClientRegistrationRequest) DetermineClientType() string {
+	if req.TokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone {
+		return "public"
+	}
 	return "confidential"
 }
 

@@ -824,9 +824,15 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Invalid Bearer token test successful: %s", wwwAuth)
 	})
 
-	// Test 5: Dynamic Client Registration with Unauthenticated MCP Access
-	t.Run("DynamicClientRegistrationWithMCPFlow", func(t *testing.T) {
-		t.Parallel()
+	// runDynamicClientRegistrationFlow drives the full MCP client journey:
+	// unauthenticated access, dynamic registration (RFC 7591) with the given
+	// token_endpoint_auth_method, PKCE authorization, MCP tool use, token
+	// refresh, and MCP tool use again. Shared between the confidential and
+	// public client subtests below since they differ only in whether a
+	// client_secret is minted and ever sent.
+	runDynamicClientRegistrationFlow := func(t *testing.T, tokenEndpointAuthMethod string) {
+		isPublic := tokenEndpointAuthMethod == "none"
+
 		// Step 1: Attempt unauthenticated MCP access
 		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 		req := &http.Request{
@@ -858,7 +864,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			"redirect_uris":              []string{"http://localhost:3000/callback"},
 			"grant_types":                []string{"authorization_code", "refresh_token"},
 			"response_types":             []string{"code"},
-			"token_endpoint_auth_method": "client_secret_basic",
+			"token_endpoint_auth_method": tokenEndpointAuthMethod,
 		}
 
 		regBody, err := json.Marshal(registrationRequest)
@@ -884,9 +890,17 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.True(t, ok, "Registration response should contain client_id")
 		require.NotEmpty(t, clientID)
 
-		clientSecret, ok := regResponse["client_secret"].(string)
-		require.True(t, ok, "Registration response should contain client_secret")
-		require.NotEmpty(t, clientSecret)
+		var clientSecret string
+		if isPublic {
+			// RFC 7591 §3.2.1: client_secret is CONDITIONAL, not REQUIRED.
+			// A public client must not receive one at all.
+			_, hasSecret := regResponse["client_secret"]
+			require.False(t, hasSecret, "public client registration response must not include client_secret")
+		} else {
+			clientSecret, ok = regResponse["client_secret"].(string)
+			require.True(t, ok, "Registration response should contain client_secret")
+			require.NotEmpty(t, clientSecret)
+		}
 
 		t.Logf("Successfully registered dynamic client: %s", clientID)
 
@@ -948,14 +962,17 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully obtained authorization code: %s", authCode[:10]+"...")
 
-		// Step 4: Exchange authorization code for access token.
+		// Step 4: Exchange authorization code for access token. A public
+		// client never sends client_secret at all, relying on PKCE alone.
 		tokenRequestBody := url.Values{
 			"grant_type":    {"authorization_code"},
 			"client_id":     {clientID},
-			"client_secret": {clientSecret},
 			"code":          {authCode},
 			"redirect_uri":  {"http://localhost:3000/callback"},
 			"code_verifier": {dynamicVerifier},
+		}
+		if !isPublic {
+			tokenRequestBody.Set("client_secret", clientSecret)
 		}
 
 		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
@@ -1050,12 +1067,15 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully retrieved user info with first token")
 
-		// Step 6: Refresh the token
+		// Step 6: Refresh the token. A public client never sends
+		// client_secret here either.
 		refreshRequestBody := url.Values{
 			"grant_type":    {"refresh_token"},
 			"client_id":     {clientID},
-			"client_secret": {clientSecret},
 			"refresh_token": {refreshToken},
+		}
+		if !isPublic {
+			refreshRequestBody.Set("client_secret", clientSecret)
 		}
 
 		refreshReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
@@ -1151,6 +1171,20 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Dynamic client registration flow test successful: " +
 			"unauthenticated access → WWW-Authenticate → dynamic registration → OAuth2 flow → " +
 			"MCP usage → token refresh → MCP usage with consistent user info")
+	}
+
+	// Test 5: Dynamic Client Registration with Unauthenticated MCP Access
+	t.Run("DynamicClientRegistrationWithMCPFlow", func(t *testing.T) {
+		t.Parallel()
+		runDynamicClientRegistrationFlow(t, "client_secret_basic")
+	})
+
+	// Test 5b: Same flow for a public (secretless, PKCE-only) client, e.g.
+	// what a real MCP client, CLI, or IDE plugin does in practice, since none
+	// of them can hold a client_secret they could keep confidential.
+	t.Run("DynamicClientRegistrationWithMCPFlowPublicClient", func(t *testing.T) {
+		t.Parallel()
+		runDynamicClientRegistrationFlow(t, "none")
 	})
 
 	// Test 6: Verify duplicate client names are allowed (RFC 7591 compliance)

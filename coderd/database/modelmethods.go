@@ -685,6 +685,12 @@ func (OAuth2ProviderApp) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2App
 }
 
+// IsPublic reports whether the app is a public (secretless, PKCE-only)
+// OAuth2 client per RFC 7591 §2 / OAuth 2.1 §2.1, as opposed to confidential.
+func (a OAuth2ProviderApp) IsPublic() bool {
+	return a.ClientType.String == "public"
+}
+
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }

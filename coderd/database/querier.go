@@ -166,6 +166,9 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
+	// Filters directly on app_id rather than joining through app_secret_id,
+	// since app_secret_id is NULL for public (secretless) clients and would
+	// silently exclude their tokens from this delete.
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Cumulative count.
 	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
@@ -685,6 +688,9 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
+	// Joins directly on oauth2_provider_app_tokens.app_id rather than through
+	// app_secret_id, since app_secret_id is NULL for public (secretless) clients
+	// and would silently exclude their tokens from this listing.
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)

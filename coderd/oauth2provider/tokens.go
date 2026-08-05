@@ -39,7 +39,9 @@ var (
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 )
 
-func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+	isPublic := app.IsPublic()
+
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -91,7 +93,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 				Detail: "Parameter \"client_id\" is required and cannot be empty",
 			})
 		}
-		if req.ClientSecret == "" {
+		if !isPublic && req.ClientSecret == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_secret",
 				Detail: "Parameter \"client_secret\" is required and cannot be empty",
@@ -134,7 +136,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL)
+		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
@@ -212,23 +214,30 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// Validate the client secret.
-	secret, err := ParseFormattedSecret(req.ClientSecret)
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
-	}
-	//nolint:gocritic // OAuth2 system context — users cannot read secrets
-	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
-	if errors.Is(err, sql.ErrNoRows) {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
-	}
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, err
-	}
+	isPublic := app.IsPublic()
 
-	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
-	if !equalSecret {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
+	// Validate the client secret. Public clients have none to validate;
+	// PKCE (checked below) is their only client authentication.
+	var dbSecret database.OAuth2ProviderAppSecret
+	if !isPublic {
+		secret, err := ParseFormattedSecret(req.ClientSecret)
+		if err != nil {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
+		var err2 error
+		//nolint:gocritic // OAuth2 system context, users cannot read secrets
+		dbSecret, err2 = db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
+		if errors.Is(err2, sql.ErrNoRows) {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
+		if err2 != nil {
+			return codersdk.OAuth2TokenResponse{}, err2
+		}
+
+		equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
+		if !equalSecret {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
 	}
 
 	// Validate the authorization code.
@@ -349,13 +358,18 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			return xerrors.Errorf("insert oauth2 access token: %w", err)
 		}
 
+		var appSecretID uuid.NullUUID
+		if !isPublic {
+			appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
+		}
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
-			AppSecretID: dbSecret.ID,
+			AppID:       app.ID,
+			AppSecretID: appSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
@@ -468,6 +482,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
+			AppID:       app.ID,
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,

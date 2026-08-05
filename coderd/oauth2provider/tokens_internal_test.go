@@ -1,13 +1,16 @@
 package oauth2provider
 
 import (
+	"database/sql"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -123,7 +126,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, database.OAuth2ProviderApp{})
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -186,7 +189,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, database.OAuth2ProviderApp{})
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -266,7 +269,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, database.OAuth2ProviderApp{})
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -370,6 +373,98 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
+// TestExtractTokenRequest_ClientSecretRequirement verifies that
+// client_secret is only required for the authorization_code grant when the
+// app is confidential. Public clients authenticate with PKCE alone.
+// client_id is always required, regardless of client type.
+func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
+	t.Parallel()
+
+	confidential := database.OAuth2ProviderApp{ClientType: sql.NullString{String: "confidential", Valid: true}}
+	public := database.OAuth2ProviderApp{ClientType: sql.NullString{String: "public", Valid: true}}
+
+	testCases := []struct {
+		name string
+		app  database.OAuth2ProviderApp
+		// clientID/clientSecret are omitted from the form entirely when empty,
+		// rather than sent as empty strings, to match how a real client
+		// request is built.
+		clientID       string
+		clientSecret   string
+		wantErrorField string // Empty means no validation error is expected.
+	}{
+		{
+			name:           "ConfidentialClientMissingSecretIsRejected",
+			app:            confidential,
+			clientID:       "test-client",
+			wantErrorField: "client_secret",
+		},
+		{
+			name:         "ConfidentialClientWithSecretIsAccepted",
+			app:          confidential,
+			clientID:     "test-client",
+			clientSecret: "test-secret",
+		},
+		{
+			name:     "PublicClientMissingSecretIsAccepted",
+			app:      public,
+			clientID: "test-client",
+		},
+		{
+			name:           "PublicClientMissingClientIDIsRejected",
+			app:            public,
+			wantErrorField: "client_id",
+		},
+		{
+			name: "ZeroValueClientTypeDefaultsToRequiringSecret",
+			// A zero-value app (ClientType.String == "") must be treated as
+			// confidential, not public, so a bug can't accidentally widen
+			// which apps skip the secret check.
+			app:            database.OAuth2ProviderApp{},
+			clientID:       "test-client",
+			wantErrorField: "client_secret",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("code", "test-code")
+			if tc.clientID != "" {
+				form.Set("client_id", tc.clientID)
+			}
+			if tc.clientSecret != "" {
+				form.Set("client_secret", tc.clientSecret)
+			}
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			_, validationErrs, err := extractTokenRequest(req, callbackURL, tc.app)
+
+			if tc.wantErrorField == "" {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+				return
+			}
+
+			require.Error(t, err)
+			require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+				return v.Field == tc.wantErrorField
+			}), "expected a validation error for field %q, got: %+v", tc.wantErrorField, validationErrs)
+		})
+	}
+}
+
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
 func TestRefreshTokenGrant_Scopes(t *testing.T) {
 	t.Parallel()
@@ -390,7 +485,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, database.OAuth2ProviderApp{})
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)
