@@ -7,19 +7,13 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { pixelWithTablet } from "#/testHelpers/pixel";
+import { pixelWithDesktop, pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const tasksFilter: TasksFilter = {
 	owner: MockUserOwner.username,
 };
-
-// The admin settings dropdown is hidden below the `md` breakpoint, where the
-// navbar collapses into `MobileMenu`, so stories that open the dropdown can
-// only be snapshotted at desktop width. `MobileMenu.stories.tsx` covers the
-// collapsed menu.
-const desktopOnly = { pixel: { matrix: { viewports: ["desktop"] } } };
 
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
@@ -54,8 +48,11 @@ const meta: Meta<typeof NavbarView> = {
 export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
+// Admin settings is `hidden md:block`; Pixel tablet (744px) is below Tailwind
+// `md` (768px), so these play functions only run at desktop. Mobile coverage
+// lives in `MobileMenu.stories.tsx`.
 export const ForAdmin: Story = {
-	parameters: desktopOnly,
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -65,7 +62,7 @@ export const ForAdmin: Story = {
 };
 
 export const ForAuditor: Story = {
-	parameters: desktopOnly,
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -81,7 +78,7 @@ export const ForAuditor: Story = {
 };
 
 export const ForOrgAdmin: Story = {
-	parameters: desktopOnly,
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -98,7 +95,7 @@ export const ForOrgAdmin: Story = {
 };
 
 export const ForSingleOrgOSSAdmin: Story = {
-	parameters: desktopOnly,
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		adminPermissions: {
 			canViewDeployment: true,
