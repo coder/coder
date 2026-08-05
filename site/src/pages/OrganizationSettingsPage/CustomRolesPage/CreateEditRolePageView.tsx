@@ -172,11 +172,19 @@ const DEFAULT_RESOURCES = [
 
 const resources = new Set(DEFAULT_RESOURCES);
 
-const filteredRBACResourceActions = Object.fromEntries(
+const filteredRBACResourceActions: Partial<
+	Record<RBACResource, Partial<Record<RBACAction, string>>>
+> = Object.fromEntries(
 	Object.entries(RBACResourceActions).filter(([resource]) =>
 		resources.has(resource),
 	),
 );
+
+// Object.entries widens keys to `string`. typedEntries preserves the key type
+// of Partial<Record<...>> maps so resource keys stay RBACResource.
+const typedEntries = Object.entries as <K extends PropertyKey, V>(
+	object: Partial<Record<K, V>>,
+) => [K, V][];
 
 interface ActionCheckboxesProps {
 	permissions: readonly Permission[];
@@ -259,12 +267,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{(
-						Object.entries(resourceActions) as [
-							RBACResource,
-							Partial<Record<RBACAction, string>>,
-						][]
-					).map(([resourceKey, value]) => {
+					{typedEntries(resourceActions).map(([resourceKey, value]) => {
 						return (
 							<PermissionCheckboxGroup
 								key={resourceKey}
