@@ -17,7 +17,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { API } from "#/api/api";
 import { templateVersion } from "#/api/queries/templates";
 import {
@@ -63,6 +63,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -184,13 +185,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					return (
 						<WorkspacesRow
 							workspace={workspace}
+							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
 						>
 							<TableCell>
 								<div className="flex items-center gap-5">
 									<Checkbox
-										className="relative z-10"
 										data-testid={`checkbox-${workspace.id}`}
 										disabled={cantBeChecked(workspace)}
 										checked={checked}
@@ -215,15 +216,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											<div className="flex items-center gap-1">
 												<Link
 													to={workspacePageLink}
-													className={cn(
-														"whitespace-nowrap text-inherit no-underline hover:underline",
-														// Stretch the anchor across the whole row so the
-														// entire row supports real link interactions such
-														// as right-click "Open in new tab" and Cmd/Ctrl
-														// click. The row is positioned relative so the
-														// overlay resolves to the row bounds.
-														"after:content-[''] after:absolute after:inset-0",
-													)}
+													onClick={(e) => e.stopPropagation()}
+													className="whitespace-nowrap text-inherit no-underline"
 												>
 													{workspace.name}
 												</Link>
@@ -231,9 +225,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													<StarIcon className="size-icon-xs" />
 												)}
 												{workspace.outdated && (
-													<span className="relative z-10 inline-flex">
-														<WorkspaceOutdatedTooltip workspace={workspace} />
-													</span>
+													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 												{workspace.task_id && (
 													<Badge size="xs" variant="default">
@@ -241,15 +233,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge
-														size="xs"
-														variant="info"
-														hover
-														asChild
-														className="relative z-10"
-													>
+													<Badge size="xs" variant="info" hover asChild>
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
+															onClick={(e) => e.stopPropagation()}
 															aria-label={`View agent conversation for ${workspace.name}`}
 														>
 															Agent
@@ -265,12 +252,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													{workspace.owner_name}
 													{workspace.shared_with &&
 														workspace.shared_with.length > 0 && (
-															<span className="relative z-10 inline-flex">
-																<WorkspaceSharingIndicator
-																	sharedWith={workspace.shared_with}
-																	settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-																/>
-															</span>
+															<WorkspaceSharingIndicator
+																sharedWith={workspace.shared_with}
+																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+															/>
 														)}
 												</div>
 											</div>
@@ -331,25 +316,44 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 interface WorkspacesRowProps {
 	workspace: Workspace;
+	workspacePageLink: string;
 	children?: ReactNode;
 	checked: boolean;
 }
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspace,
+	workspacePageLink,
 	children,
 	checked,
 }) => {
+	const navigate = useNavigate();
+
+	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
+	const { role, hover, ...clickableProps } = useClickableTableRow({
+		onMiddleClick: openLinkInNewTab,
+		onClick: (event) => {
+			// Order of booleans actually matters here for Windows-Mac compatibility;
+			// meta key is Cmd on Macs, but on Windows, it's either the Windows key,
+			// or the key does nothing at all (depends on the browser)
+			const shouldOpenInNewTab =
+				event.shiftKey || event.metaKey || event.ctrlKey;
+
+			if (shouldOpenInNewTab) {
+				openLinkInNewTab();
+			} else {
+				navigate(workspacePageLink);
+			}
+		},
+	});
+
 	return (
 		<TableRow
+			{...clickableProps}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
-				// The row is the positioning context for the stretched anchor
-				// rendered on the workspace name. `focus-within` keeps the row
-				// outline in sync with keyboard focus on that anchor.
-				"relative cursor-pointer hover:outline focus-within:outline outline-1 -outline-offset-1 outline-border-secondary",
-				"first:rounded-t-md last:rounded-b-md",
 				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
+				clickableProps.className,
 			])}
 		>
 			{children}
@@ -484,7 +488,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 	return (
 		<TableCell
-			className="relative z-10"
 			onClick={(e) => {
 				// Prevent the click in the actions to trigger the row click
 				e.stopPropagation();
