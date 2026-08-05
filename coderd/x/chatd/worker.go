@@ -309,12 +309,16 @@ func (w *chatWorker) acquireCandidate(
 				// worker into an immediate retry of this unowned chat.
 				return errCapacityRefused
 			}
-			if chat.CapacityQueuedAt.Valid {
-				if _, err := store.ClearChatCapacityQueued(ctx, chat.ID); err != nil {
-					return xerrors.Errorf("clear capacity queue marker: %w", err)
-				}
-				admittedFromQueue = true
+		}
+		// Clear independently of the admission hook: a persisted marker
+		// must not survive acquisition on a deployment that later runs
+		// without admission (for example an AGPL build over an
+		// enterprise database).
+		if chat.CapacityQueuedAt.Valid {
+			if _, err := store.ClearChatCapacityQueued(ctx, chat.ID); err != nil {
+				return xerrors.Errorf("clear capacity queue marker: %w", err)
 			}
+			admittedFromQueue = true
 		}
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
