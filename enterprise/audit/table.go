@@ -219,7 +219,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"chat_spend_limit_micros": ActionTrack,
 	},
 	&database.APIKey{}: {
-		"id":               ActionIgnore,
+		"id":               ActionTrack, // The ID is the public token prefix; not a secret.
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionTrack,
 		"last_used":        ActionTrack,
