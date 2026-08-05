@@ -1336,6 +1336,83 @@ func TestNotifications(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		require.Equal(t, "line with your template's auto-deletion policy", sent[0].Labels["timeTilDormant"])
+		require.Equal(t, workspace.Name, sent[0].Labels["name"])
+		require.Equal(t, "inactivity exceeded the dormancy threshold", sent[0].Labels["reason"])
+	})
+
+	t.Run("DormancyAutoDelete", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker    = make(chan time.Time)
+			statCh    = make(chan autobuild.Stats)
+			notifyEnq = notificationstest.FakeEnqueuer{}
+			// 35 days keeps humanize.Time deterministically in its "1 month" bucket.
+			timeTilDormant           = time.Minute
+			timeTilDormantAutoDelete = 35 * 24 * time.Hour
+			client, db               = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				AutobuildStats:           statCh,
+				IncludeProvisionerDaemon: true,
+				NotificationsEnqueuer:    &notifyEnq,
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						template.TimeTilDormant = int64(options.TimeTilDormant)
+						template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)
+						return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+					},
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+						return schedule.TemplateScheduleOptions{
+							UserAutostartEnabled:     false,
+							UserAutostopEnabled:      true,
+							DefaultTTL:               0,
+							AutostopRequirement:      schedule.TemplateAutostopRequirement{},
+							TimeTilDormant:           timeTilDormant,
+							TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+						}, nil
+					},
+				},
+			})
+			admin   = coderdtest.CreateFirstUser(t, client)
+			version = coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		)
+
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilDormantMillis = ptr.Ref(timeTilDormant.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(timeTilDormantAutoDelete.Milliseconds())
+		})
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+
+		notifyEnq.Clear()
+		tickTime := workspace.LastUsedAt.Add(timeTilDormant * 3)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NotNil(t, workspace.DormantAt)
+
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1)
+		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+		require.Contains(t, sent[0].Labels, "timeTilDormant")
+		require.Contains(t, sent[0].Labels["timeTilDormant"], "1 month",
+			"timeTilDormant must humanize TimeTilDormantAutoDelete, got %q",
+			sent[0].Labels["timeTilDormant"])
+		require.NotContains(t, sent[0].Labels["timeTilDormant"], "ago",
+			"timeTilDormant must be a future timestamp, got %q",
+			sent[0].Labels["timeTilDormant"])
 	})
 }
 
