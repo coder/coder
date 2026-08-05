@@ -1559,7 +1559,7 @@ func (p *Server) SendMessage(
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 
-		// Link queued files before promotion to protect them from purge.
+		// Link files in this transaction so failures roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
 			return err
 		}

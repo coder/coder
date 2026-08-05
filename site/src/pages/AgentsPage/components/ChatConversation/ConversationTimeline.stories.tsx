@@ -734,7 +734,10 @@ export const UserMessageWithExpiredImage: Story = {
 
 		// The tooltip explains the retention policy generically so the
 		// copy survives any operator-chosen retention window.
-		await hoverAndExpectTooltip(expiredTile, /kept while their chat exists/i);
+		await hoverAndExpectTooltip(
+			expiredTile,
+			/kept while any chat references them/i,
+		);
 	},
 };
 
@@ -1052,7 +1055,10 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			canvas.queryByRole("button", { name: "View text attachment" }),
 		).not.toBeInTheDocument();
 
-		await hoverAndExpectTooltip(expiredTile, /kept while their chat exists/i);
+		await hoverAndExpectTooltip(
+			expiredTile,
+			/kept while any chat references them/i,
+		);
 	},
 };
 

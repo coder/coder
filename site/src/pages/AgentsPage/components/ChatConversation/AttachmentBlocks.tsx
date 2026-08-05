@@ -221,7 +221,7 @@ const AttachmentFallbackTile: FC<{
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
 		state.kind === "expired"
-			? "Attachments are kept while their chat exists and are deleted after the chat has been archived for longer than this deployment's retention window."
+			? "Attachments are kept while any chat references them. After all references are removed, they are deleted once they are older than this deployment's retention window."
 			: state.detail;
 	if (!tooltipBody) {
 		return tile;

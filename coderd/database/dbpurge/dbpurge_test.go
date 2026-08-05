@@ -2725,10 +2725,8 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			},
 		},
 		{
-			name: "UnarchiveAfterFilePurge",
+			name: "DirectFileDeletionCascadesLinks",
 			run: func(t *testing.T) {
-				// Deleting chat files cascades their links, so unarchiving
-				// exposes only surviving attachments.
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				deps := setupChatDeps(t, db)
@@ -2750,7 +2748,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				// Direct file deletion must cascade the corresponding link rows.
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
 				require.NoError(t, err)
 

@@ -11,7 +11,7 @@ import (
 )
 
 // LinkFiles links files without exceeding the chat attachment cap.
-// Call it in the message transaction so link failures roll back the message.
+// Call it in the transaction that persists their references so failures roll back.
 // Existing links do not consume additional cap slots.
 func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, fileIDs []uuid.UUID) error {
 	if len(fileIDs) == 0 {
