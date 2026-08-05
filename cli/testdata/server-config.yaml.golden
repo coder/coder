@@ -839,7 +839,7 @@ aibridge:
   bedrock_base_url: ""
   # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
   # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
-  # AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
@@ -943,7 +943,7 @@ ai_gateway:
   # option seeds provider configuration at startup only exactly once. It will not be
   # used in service runtime. The AWS Bedrock API region to use. Constructs a base
   # URL to use for the AWS Bedrock API in the form of
-  # 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this

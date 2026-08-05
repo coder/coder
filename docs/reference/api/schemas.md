@@ -2596,7 +2596,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name          | Type   | Required | Restrictions | Description                                                                                                       |
 |---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
-| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+| `name`        | string | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it. |
 
 ## codersdk.ChatCost
 

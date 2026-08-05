@@ -1954,7 +1954,7 @@ communicating directly.`,
 	}
 	aiGatewayBedrockRegion := serpent.Option{
 		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.",
 		Flag:        "ai-gateway-bedrock-region",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -4471,7 +4471,7 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name: "AI Bridge Bedrock Region",
 			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+				"`https://bedrock-runtime.<region>.amazonaws.com`.",
 			Flag:       "aibridge-bedrock-region",
 			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
 			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,

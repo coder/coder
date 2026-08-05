@@ -736,7 +736,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -779,6 +779,15 @@ lint/bootstrap:
 lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
+
+# Fails when docs Markdown contains invalid inline HTML the docs site drops or
+# mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
+# end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
+# and unclosed container tags.
+lint/docs-html:
+	echo "--- check for invalid inline HTML in docs"
+	go run ./scripts/docshtmlcheck
+.PHONY: lint/docs-html
 
 lint/architecture:
 	./scripts/check_architecture.sh
