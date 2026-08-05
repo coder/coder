@@ -23,6 +23,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// newSignedConsumer starts a hook-consumer server whose handler is wrapped
+// in agenthooks.SignResponses, using the server's own URL as the audience
+// the test dispatcher signs into each request.
+func newSignedConsumer(t testing.TB, secret []byte, handler http.Handler) *httptest.Server {
+	t.Helper()
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.SignResponses(secret, "http://"+server.Listener.Addr().String(), handler)
+	server.Start()
+	return server
+}
+
 func TestSessionStartDispatchSources(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +44,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		data    agenthooks.SessionStartData
 	}
 	receivedCh := make(chan received, 2)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(secret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(secret))
@@ -57,7 +68,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		"test-version",
 		prometheus.NewRegistry(),
 	)
-	trigger := NewTrigger(dispatcher)
+	trigger := NewTrigger(dispatcher, nil)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
@@ -96,7 +107,12 @@ func TestRejectDuplicateToolUseIDs(t *testing.T) {
 
 func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 	t.Helper()
-	consumer := httptest.NewServer(handler)
+	return newTestTriggerWithAliases(t, handler, nil)
+}
+
+func newTestTriggerWithAliases(t *testing.T, handler http.Handler, toolNameAliases map[string]string) *Trigger {
+	t.Helper()
+	consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), handler)
 	t.Cleanup(consumer.Close)
 	return NewTrigger(dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -107,7 +123,7 @@ func newTestTrigger(t *testing.T, handler http.Handler) *Trigger {
 		"test-deployment",
 		"test-version",
 		prometheus.NewRegistry(),
-	))
+	), toolNameAliases)
 }
 
 func TestHookTriggerDisabled(t *testing.T) {
@@ -115,7 +131,7 @@ func TestHookTriggerDisabled(t *testing.T) {
 
 	for name, trigger := range map[string]*Trigger{
 		"NilTrigger":    nil,
-		"NilDispatcher": NewTrigger(nil),
+		"NilDispatcher": NewTrigger(nil, nil),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -217,6 +233,48 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 
 	_, err := trigger.Trigger(ctx, chat, Message{}, agenthooks.EventType("bogus"), dispatch.CapacityClassGeneration)
 	require.ErrorContains(t, err, "unsupported hook event")
+}
+
+func TestHookTriggerToolNameCanonicalization(t *testing.T) {
+	t.Parallel()
+
+	requests := make(chan agenthooks.Request, 1)
+	trigger := newTestTriggerWithAliases(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requests <- request
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}), map[string]string{"close_agent": "interrupt_agent"})
+	chat := Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	reportedToolName := func(t *testing.T, toolName string, event agenthooks.EventType) string {
+		t.Helper()
+		_, err := trigger.Trigger(ctx, chat, Message{ToolUseID: "call_1", ToolName: toolName, ToolInput: json.RawMessage(`{}`)}, event, dispatch.CapacityClassGeneration)
+		require.NoError(t, err)
+		request := <-requests
+		switch event {
+		case agenthooks.EventPreToolUse:
+			var data agenthooks.PreToolUseData
+			require.NoError(t, json.Unmarshal(request.Data, &data))
+			return data.ToolName
+		default:
+			var data agenthooks.PostToolUseData
+			require.NoError(t, json.Unmarshal(request.Data, &data))
+			return data.ToolName
+		}
+	}
+
+	// A call through a deprecated alias executes the canonical builtin,
+	// so events report the canonical name.
+	require.Equal(t, "interrupt_agent", reportedToolName(t, "close_agent", agenthooks.EventPreToolUse))
+	require.Equal(t, "interrupt_agent", reportedToolName(t, "close_agent", agenthooks.EventPostToolUse))
+	// Dynamic tool names cannot collide with an alias (appendDynamicTools
+	// reserves alias names), so any other name reports verbatim: the
+	// event names the tool that actually executes.
+	require.Equal(t, "my_dynamic_tool", reportedToolName(t, "my_dynamic_tool", agenthooks.EventPreToolUse))
+	require.Equal(t, "my_dynamic_tool", reportedToolName(t, "my_dynamic_tool", agenthooks.EventPostToolUse))
 }
 
 func TestRestoreToolCallOrder(t *testing.T) {

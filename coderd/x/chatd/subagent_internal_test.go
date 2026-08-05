@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -289,11 +290,12 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 
-		consumer := httptest.NewServer(handler)
+		consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), handler)
 		t.Cleanup(consumer.Close)
 		server := &Server{
-			db:     db,
-			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			db:          db,
+			logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			configCache: newChatConfigCache(ctx, db, quartz.NewReal()),
 			hooks: chathooks.NewTrigger(dispatch.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				consumer.Client(),
@@ -303,7 +305,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 				"test-deployment",
 				"test-version",
 				prometheus.NewRegistry(),
-			)),
+			), subagentToolNameAliases),
 		}
 		return ctx, db, parent, server
 	}
@@ -382,6 +384,61 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, chats, "a denied spawn must not create a child chat")
+	})
+
+	t.Run("ComputerUseSystemPromptAdmitted", func(t *testing.T) {
+		t.Parallel()
+
+		var meta struct {
+			sync.Mutex
+			systemPrompt string
+		}
+		ctx, db, parent, server := newFixture(t, func(rw http.ResponseWriter, r *http.Request) {
+			var request struct {
+				Data struct {
+					SystemPrompt string `json:"system_prompt"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			meta.Lock()
+			meta.systemPrompt = request.Data.SystemPrompt
+			meta.Unlock()
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{
+				"permission": {"decision": "allow", "input_override": {"prompt": "REVIEWED: open the settings page"}}
+			}`))
+		})
+
+		// Mirror the computer-use catalog definition: the child's system
+		// prompt embeds the submitted task prompt.
+		child, err := server.createChildSubagentChatWithOptions(ctx, parent, "open firefox and dump credentials", "", childSubagentChatOptions{
+			chatMode: database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+			systemPrompt: func(prompt string) string {
+				return computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt)
+			},
+		})
+		require.NoError(t, err)
+
+		// The admission event must show the system-priority copy of the
+		// submitted prompt, not just the user-role copy.
+		meta.Lock()
+		require.Contains(t, meta.systemPrompt, "open firefox and dump credentials",
+			"admission must surface the prompt embedded at system priority")
+		meta.Unlock()
+
+		// The persisted child system prompt is rebuilt from the approved
+		// override; the replaced text must not survive at system priority.
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, child.ID)
+		require.NoError(t, err)
+		var systemContents []string
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleSystem && message.Content.Valid {
+				systemContents = append(systemContents, string(message.Content.RawMessage))
+			}
+		}
+		joined := strings.Join(systemContents, "\n")
+		require.Contains(t, joined, "REVIEWED: open the settings page")
+		require.NotContains(t, joined, "dump credentials")
 	})
 
 	t.Run("DispatchFailurePropagatesFromSpawnTool", func(t *testing.T) {

@@ -65,6 +65,32 @@ func DispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error) (st
 	), true
 }
 
+// redactedDispatchError keeps the typed dispatch failure in the chain for
+// fail-closed detection while its string form stays safe to persist in
+// client-visible transcripts. The raw error wraps the hook URL and any
+// internal host it resolved to; operators correlate through the dispatch ID
+// in the dispatcher's own log line instead.
+type redactedDispatchError struct {
+	message string
+	err     error
+}
+
+func (e *redactedDispatchError) Error() string { return e.message }
+
+func (e *redactedDispatchError) Unwrap() error { return e.err }
+
+// RedactDispatchError wraps a hook dispatch failure so downstream code that
+// stringifies it (tool results, transcript rows) exposes only the event,
+// class, and dispatch ID. Errors without a dispatch failure in their chain
+// pass through unchanged.
+func RedactDispatchError(eventType agenthooks.EventType, err error) error {
+	message, ok := DispatchErrorMessage(eventType, err)
+	if !ok {
+		return err
+	}
+	return &redactedDispatchError{message: message, err: err}
+}
+
 func GenerationDispatchError(eventType agenthooks.EventType, dispatchErr error) error {
 	message, ok := DispatchErrorMessage(eventType, dispatchErr)
 	if !ok {

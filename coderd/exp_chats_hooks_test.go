@@ -25,6 +25,18 @@ import (
 	"github.com/coder/serpent"
 )
 
+// newSignedConsumer starts a hook-consumer server whose handler is wrapped
+// in agenthooks.SignResponses, using the server's own URL as the audience.
+// Tests point CODER_AI_CHAT_HOOK_URL at this server, so the dispatcher
+// signs that same URL into each request's aud claim.
+func newSignedConsumer(t testing.TB, secret []byte, handler http.Handler) *httptest.Server {
+	t.Helper()
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.SignResponses(secret, "http://"+server.Listener.Addr().String(), handler)
+	server.Start()
+	return server
+}
+
 func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +67,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			requests := make(chan agenthooks.Request, 2)
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				requests <- request
@@ -112,7 +124,7 @@ func TestChatLifecycleHooksExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
 	var hookRequests atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := newSignedConsumer(t, []byte("test-hook-secret-32-bytes-minimum!!"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hookRequests.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))

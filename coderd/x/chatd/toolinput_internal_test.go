@@ -9,13 +9,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
@@ -54,6 +59,65 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 		allowed, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Empty(t, rejected)
 		require.Len(t, allowed, 2)
+	})
+
+	// coderd executes provider tools with a local runner itself, so their
+	// input is guarded like a builtin even though the provider defines
+	// the schema server-side.
+	t.Run("locally run provider tool", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := generationPrepared{
+			ProviderTools: []chatloop.ProviderTool{{
+				Runner: chattool.NewComputerUseTool(
+					codersdk.ChatComputerUseProviderAnthropic,
+					1024, 768,
+					nil, nil,
+					quartz.NewMock(t),
+					slog.Make(),
+				),
+			}},
+		}
+		smuggled := fantasy.ToolCallContent{
+			ToolCallID: "call_computer_smuggled",
+			ToolName:   "computer",
+			Input:      `{"action":"screenshot","ACTION":"key","text":"ctrl+alt+delete"}`,
+		}
+		nested := fantasy.ToolCallContent{
+			ToolCallID: "call_computer_nested",
+			ToolName:   "computer",
+			Input:      `{"call_id":"c","actions":[{"type":"click","TYPE":"keypress","keys":["ctrl","alt","delete"]}]}`,
+		}
+		cleanComputer := fantasy.ToolCallContent{
+			ToolCallID: "call_computer_clean",
+			ToolName:   "computer",
+			Input:      `{"action":"screenshot"}`,
+		}
+		allowed, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{smuggled, nested, cleanComputer})
+		require.Len(t, rejected, 2)
+		require.Equal(t, "call_computer_smuggled", rejected[0].ToolCallID)
+		require.Equal(t, "call_computer_nested", rejected[1].ToolCallID)
+		require.Len(t, allowed, 1)
+		require.Equal(t, "call_computer_clean", allowed[0].ToolCallID)
+	})
+
+	// A tokenizer failure mid-walk must reject the call: json.Unmarshal
+	// tolerates values (such as huge exponents) inside ignored fields
+	// that abort a Token walk, so acceptance would skip later keys.
+	t.Run("poisoned value fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := generationPrepared{
+			Tools:            []fantasy.AgentTool{fetch},
+			BuiltinToolNames: map[string]bool{"fetch": true},
+		}
+		poisoned := fantasy.ToolCallContent{
+			ToolCallID: "call_poisoned",
+			ToolName:   "fetch",
+			Input:      `{"_x":1e999,"URL":"https://attacker.test"}`,
+		}
+		_, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{poisoned})
+		require.Len(t, rejected, 1)
 	})
 
 	// Execution resolves a deprecated name to its canonical tool, so

@@ -61,7 +61,7 @@ Handle the events your policy needs, using the data Coder sends with each one:
 | Event                | When Coder sends it                                                 | Decision-relevant data                                                 |
 |----------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
 | `session_start`      | A chat session starts, resumes, or clears                           | `source` (`startup`, `resume`, or `clear`)                             |
-| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt` and `parts`                                                   |
+| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt`, `parts`, `system_prompt`, `custom_prompt`, `dynamic_tools`   |
 | `pre_tool_use`       | Before a non-provider-executed tool runs                            | `tool_use_id`, `tool_name`, and `tool_input`                           |
 | `post_tool_use`      | After a non-provider-executed tool returns                          | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
 | `pre_compact`        | Before Coder compacts chat context                                  | No event-specific fields                                               |
@@ -73,6 +73,7 @@ Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events b
 For `pre_tool_use`, `tool_input` carries the model's JSON bytes with key spelling and order preserved, so a policy can read them exactly as the model wrote them.
 Coder's built-in tools decode that JSON with Go, which matches property names case-insensitively and keeps the last match, so `{"path":"/allowed","PATH":"/secret"}` could make a policy approve `/allowed` while the tool opens `/secret`.
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
+The same check covers provider tools that Coder executes locally (computer-use), including the keys of each action in a batched OpenAI `actions` array.
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than coderd.
 A policy that gates them must validate their input itself.
 `edit_files` also reads the deprecated `search` and `replace` aliases when `old_text` and `new_text` are absent, so a policy that gates edit content must inspect both spellings.
@@ -80,6 +81,16 @@ A policy that gates them must validate their input itself.
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
 A consumer that gates prompt content must inspect `parts`.
+
+The prompt isn't the only caller-controlled channel that reaches the model, so the event also carries the other instruction channels in effect for the admitted turn:
+
+- `system_prompt` is the per-chat system prompt, present on the admission for a chat create or subagent spawn and immutable afterward. Subagent types that embed the submitted prompt at system priority (computer-use) carry the built value here, and a prompt override rebuilds it from the approved prompt.
+- `custom_prompt` is the chat owner's stored custom prompt as it will be injected into the turn's system prompt. It's stored through its own API without a lifecycle event, so this field is where a policy sees it, on every prompt admission. The admitted value is snapshotted with the turn and injected verbatim at generation, so rewriting the stored prompt after admission can't put unreviewed instructions in front of an already-admitted turn. A turn whose admission hooks didn't observe has no snapshot and generates without the custom prompt; [Plan failure recovery](#plan-failure-recovery) covers the operator-visible consequences.
+- `dynamic_tools` carries the caller-declared tool definitions admitted with a chat create. Their names and descriptions reach the model as instructions.
+
+A prompt policy that inspects only `prompt` admits these channels sight unseen.
+
+For `pre_tool_use` and `post_tool_use`, `tool_name` is always the canonical tool name: when the model calls a deprecated alias, Coder reports the tool it actually executes.
 
 ### Verify each request
 
@@ -108,11 +119,22 @@ An empty JSON object has the same effect.
 If the response has a body, return a JSON object with these optional fields.
 Coder rejects a response body with unknown fields, duplicate JSON keys, or trailing data as malformed, so the dispatch fails closed instead of misreading the decision.
 
-| Field           | Effect                                                                                                                                                                         |
-|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                               |
-| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB. The text is absent from the user-visible transcript, but users may infer its effects from model behavior. |
-| `user_message`  | Adds a message visible to the user.                                                                                                                                            |
+Every `2xx` response must also carry a `Coder-Hook-Signature` header: an `HS256` JWT signed with the shared secret that echoes the request's claims (`jti`, `type`, `sub`, `aud`) with `body_sha256` recomputed over the exact response body bytes and a fresh validity window.
+Responses steer chats, so Coder rejects an unsigned or mismatched response as a protocol error and fails the dispatch closed; without this requirement, anyone able to inject traffic on the return path could allow, deny, or rewrite tool input without knowing the secret.
+`agenthooks.NewHTTPHandler` signs responses automatically, and `agenthooks.SignResponses` wraps any other `http.Handler` to do the same; both take the consumer's own URL and fully authenticate each request (bearer token, audience, and the claims' binding to the exact body bytes) before any handler logic runs, so neither can be used as a signing oracle for a replayed token with a different body.
+Consumers not using the Go SDK must apply the same discipline: verify the request token against the exact body before acting on it, and mint the response token with the same claim set they verified.
+Coder validates the response token with the same claim requirements as a request token: a non-empty `iss`, the request's `jti`, `sub`, `aud`, and event `type` echoed exactly (`sub` keeps the `coder:chat:<chat ID>` form), `iat`, `nbf`, and `exp` forming a window that is valid when Coder reads the response, and a hex-encoded SHA-256 `body_sha256`.
+The SDK signs a 2-minute validity window with `nbf` backdated 30&nbsp;seconds to absorb clock skew.
+The signature is required even for the no-op response: a `2xx` with an empty body must sign the hash of the empty byte string, and an unsigned `204` fails the dispatch closed.
+Coder requests the `identity` content encoding; respond with the exact bytes the signature was computed over, without applying a content encoding, or the body hash will not match.
+
+| Field           | Effect                                                                                                                                                           |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only. `reason` is capped at 4&nbsp;KiB and `input_override` at 256&nbsp;KiB.          |
+| `model_context` | Adds text visible to the model, capped at 16&nbsp;KiB. The text is absent from the user-visible transcript, but users may infer its effects from model behavior. |
+| `user_message`  | Adds a message visible to the user, capped at 16&nbsp;KiB.                                                                                                       |
+
+A value over its cap isn't truncated: Coder rejects the response as a protocol error and the dispatch fails closed.
 
 The `permission.decision` value supports `allow` and `deny`.
 Any other value causes the dispatch to fail closed.
@@ -125,7 +147,7 @@ Permission rules depend on the event:
   Attachments and file references remain in `parts`, so consumers that must block them should inspect `parts` and return `deny`.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
-  An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
+  An override for a built-in tool, or for a provider tool Coder executes locally, must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
   The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
   The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.
@@ -136,6 +158,8 @@ Permission rules depend on the event:
 For `user_prompt_submit`, `model_context` and `user_message` are stored as typed parts of the prompt message itself: the model-context part goes to the model but never to clients, and the user-message part is shown to the user attached to the prompt but never sent to the model.
 For a denied `pre_tool_use`, the synthetic denied tool result stays visible to both audiences, while `model_context` becomes a model-only transcript message so it never reaches clients.
 Other hook effects become ordinary transcript messages with audience-specific visibility, except that a `pre_compact` `model_context` guides the compaction summary instead of entering the transcript.
+The model-only rows that `session_start`, `pre_tool_use`, `post_tool_use`, and `stop` responses create are hidden from clients end to end: the messages API omits them, and the message edit API rejects their IDs with the same `404 Chat message not found` response a nonexistent ID gets, so a client can't probe for, read, or edit hook-injected context.
+A `user_prompt_submit` `model_context` isn't a separate row: it's folded into the submitted prompt message as the model-only part described above, and only the hook-created rows are unprobeable this way.
 Coder dispatches `user_prompt_submit` exactly once per submission, when the prompt is admitted (sent, queued, edited, or used to create a chat or subagent), and applies the response effects to the final stored prompt content.
 
 ### When tool calls are admitted
@@ -156,16 +180,17 @@ The per-chat debug endpoint records what the model proposed, including tool inpu
 Lifecycle hooks are fail closed.
 Coder treats a timeout, connection failure, non-`2xx` response, malformed response, or unsupported response field combination as a hook dispatch failure.
 A failure during generation moves the chat to the error state and records the dispatch ID in its error details.
+Client-visible error details are redacted to the event, failure class, and dispatch ID, in the form `hook dispatch failed: user_prompt_submit: http_error (dispatch <id>)`; the hook URL and response specifics stay in the dispatcher's own log line, correlated by that dispatch ID.
 A failed prompt dispatch for an existing idle chat can also move that chat to the error state even though the API request is rejected.
 If the first `user_prompt_submit` dispatch fails during chat creation, Coder rejects the request and doesn't create the chat.
 If `post_tool_use` fails for a client-submitted tool result, Coder rejects the submission without committing the results, and the client can resubmit them after the consumer recovers.
 If a hook dispatch fails after Coder has already executed one or more tools in a batch, Coder commits the tool results first so the transcript reflects the completed side effects, then moves the chat to the error state.
-This covers a failed `post_tool_use` for an executed tool and a failed `user_prompt_submit` for a subagent spawn, where the spawn is refused but the tools that ran alongside it keep their results.
+This covers a failed `post_tool_use` for an executed tool and a failed `user_prompt_submit` for a subagent spawn or a `message_agent` delivery: the spawn or delivery is refused and the turn fails closed, but the tools that ran alongside it keep their results.
 
 Dispatch precedes persistence, so a delivered event doesn't guarantee that the operation commits.
 Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
-Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
+Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id` together with a hash of the tool input.
 
 Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot; a dispatch that waits out that limit fails as over capacity.
 The limit is per replica rather than deployment-wide, so size the consumer for 256 concurrent requests per replica.
@@ -185,7 +210,7 @@ Use event-specific identifiers for logical duplicates:
 
 | Events                                | Deduplication guidance                                                                                                                     |
 |---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `pre_tool_use`, `post_tool_use`       | Key by `chat_id`, event type, and `tool_use_id`.                                                                                           |
+| `pre_tool_use`, `post_tool_use`       | Key by `chat_id`, event type, `tool_use_id`, and a hash of `tool_input`, because a provider may reuse a tool-use ID with different input.  |
 | `session_start`                       | Response effects can repeat after runner or process replacement. Make them safe to apply more than once.                                   |
 | `user_prompt_submit`                  | Dispatch occurs before a message ID exists. Avoid non-idempotent external effects because identical prompt content can be submitted twice. |
 | `pre_compact`, `post_compact`, `stop` | Don't rely on `turn_id` surviving recovery. Make external effects safe to repeat.                                                          |
@@ -195,6 +220,10 @@ Rejecting duplicates breaks Coder's retries. Return the same decision whenever t
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` when the agent loop starts again, with `source` set to `resume` when the chat already contains an assistant reply and `startup` otherwise.
 If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=false` and roll out the Coder deployment configuration before users retry.
+
+Toggling hooks also affects the custom-prompt snapshot that prompt admission records.
+While hooks are disabled, admission stamps an empty snapshot and generation injects the owner's live custom prompt, but a turn admitted in that window and run after hooks are re-enabled, such as a queued message promoted later, generates without the owner's custom prompt.
+A turn admitted before hooks were configured has no snapshot either, so after enabling hooks, retried or recovered turns in existing chats generate without the custom prompt until the next admission that hooks observe.
 
 ## Roll out enforcement in stages
 

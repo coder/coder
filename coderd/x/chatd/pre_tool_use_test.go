@@ -602,7 +602,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 				return chattest.OpenAIStreamingResponse(chunk)
 			})
 			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				if request.Type != agenthooks.EventPreToolUse {
@@ -675,7 +675,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	var secondCalls atomic.Int32
 	var failSecond atomic.Bool
 	failSecond.Store(true)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -1159,7 +1159,7 @@ func requireModelOnlyTextCount(ctx context.Context, t *testing.T, db database.St
 
 func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
 	t.Helper()
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newSignedConsumer(t, []byte(hookTestSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {

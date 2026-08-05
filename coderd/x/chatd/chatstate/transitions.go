@@ -35,6 +35,12 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// AdmittedCustomPrompt is the owner's custom prompt exactly as a
+	// lifecycle hook policy admitted it with the creating
+	// user_prompt_submit event. Invalid when hooks are disabled; hook
+	// dispatch happens before the create, so persisting it here keeps the
+	// snapshot atomic with the admission it records.
+	AdmittedCustomPrompt sql.NullString
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -103,23 +109,24 @@ func insertChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			ID:                chatID,
-			OrganizationID:    input.OrganizationID,
-			OwnerID:           input.OwnerID,
-			WorkspaceID:       input.WorkspaceID,
-			BuildID:           input.BuildID,
-			AgentID:           input.AgentID,
-			ParentChatID:      input.ParentChatID,
-			RootChatID:        input.RootChatID,
-			LastModelConfigID: input.LastModelConfigID,
-			Title:             input.Title,
-			Mode:              input.Mode,
-			PlanMode:          input.PlanMode,
-			Status:            database.ChatStatusRunning,
-			MCPServerIDs:      input.MCPServerIDs,
-			Labels:            input.Labels,
-			DynamicTools:      input.DynamicTools,
-			ClientType:        input.ClientType,
+			ID:                   chatID,
+			OrganizationID:       input.OrganizationID,
+			OwnerID:              input.OwnerID,
+			WorkspaceID:          input.WorkspaceID,
+			BuildID:              input.BuildID,
+			AgentID:              input.AgentID,
+			ParentChatID:         input.ParentChatID,
+			RootChatID:           input.RootChatID,
+			LastModelConfigID:    input.LastModelConfigID,
+			Title:                input.Title,
+			Mode:                 input.Mode,
+			PlanMode:             input.PlanMode,
+			Status:               database.ChatStatusRunning,
+			MCPServerIDs:         input.MCPServerIDs,
+			Labels:               input.Labels,
+			DynamicTools:         input.DynamicTools,
+			ClientType:           input.ClientType,
+			AdmittedCustomPrompt: input.AdmittedCustomPrompt,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -253,7 +260,7 @@ func (tx *Tx) requireQueueCapacity() error {
 
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, admittedCustomPrompt sql.NullString) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -266,12 +273,30 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:          tx.chatID,
-		Content:         rawContent,
-		ModelConfigID:   m.ModelConfigID,
-		ReasoningEffort: m.ReasoningEffort,
-		CreatedBy:       createdBy,
+		ChatID:               tx.chatID,
+		Content:              rawContent,
+		ModelConfigID:        m.ModelConfigID,
+		ReasoningEffort:      m.ReasoningEffort,
+		CreatedBy:            createdBy,
+		AdmittedCustomPrompt: admittedCustomPrompt,
 	})
+}
+
+// recordAdmittedCustomPrompt stamps the chat row with the custom prompt
+// admitted for the turn that is entering active history, so generation
+// injects the value this turn's own admission event was shown. A NULL
+// value is stamped too: it records that the entering turn was admitted
+// without a custom prompt (or before one existed), and hook-enabled
+// generation then injects nothing rather than a leftover snapshot from an
+// earlier turn.
+func (tx *Tx) recordAdmittedCustomPrompt(admittedCustomPrompt sql.NullString) error {
+	if err := tx.store.UpdateChatAdmittedCustomPrompt(tx.ctx, database.UpdateChatAdmittedCustomPromptParams{
+		ID:                   tx.chatID,
+		AdmittedCustomPrompt: admittedCustomPrompt,
+	}); err != nil {
+		return xerrors.Errorf("record admitted custom prompt: %w", err)
+	}
+	return nil
 }
 
 // messageFromQueuedRow synthesizes a Message from a stored queued row,
@@ -341,6 +366,14 @@ const (
 type SendMessageInput struct {
 	Message      Message
 	BusyBehavior BusyBehavior
+	// AdmittedCustomPrompt is the owner's custom prompt exactly as this
+	// send's user_prompt_submit admission showed it to the lifecycle hook
+	// policy. Invalid when hooks are disabled. A direct send records it on
+	// the chat row; a queued send stores it on the queued row so the value
+	// follows the message and is copied to the chat row only when the row
+	// is promoted into history, keeping each turn paired with its own
+	// admission.
+	AdmittedCustomPrompt sql.NullString
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -426,6 +459,14 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
+	// The message enters history now, so its admission snapshot becomes
+	// the chat-level value the next generation injects. Stamped
+	// unconditionally: a send admitted without hooks records NULL, so a
+	// snapshot from an earlier admitted turn cannot leak into this turn
+	// if hooks are re-enabled before it generates.
+	if err := tx.recordAdmittedCustomPrompt(input.AdmittedCustomPrompt); err != nil {
+		return SendMessageResult{}, err
+	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
@@ -442,7 +483,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.AdmittedCustomPrompt)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -458,6 +499,11 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	inserted, err := tx.insertMessages(append(cancels, promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
+	}
+	// The head enters history: its own admission snapshot (not the new
+	// send's) becomes the chat-level value for the turn it starts.
+	if err := tx.recordAdmittedCustomPrompt(head.AdmittedCustomPrompt); err != nil {
+		return SendMessageResult{}, err
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,
@@ -488,7 +534,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.AdmittedCustomPrompt)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -570,6 +616,14 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		return EditMessageResult{}, ErrMessageNotFound
 	}
 	if target.Deleted {
+		return EditMessageResult{}, ErrMessageNotFound
+	}
+	// Hook-injected model context persists as user-role rows with model
+	// visibility. They are not readable through the messages API, so they
+	// are not editable through it either; otherwise the chat owner could
+	// overwrite policy context the model still trusts. Not-found keeps
+	// hidden row IDs unprobeable.
+	if target.Visibility != database.ChatMessageVisibilityBoth {
 		return EditMessageResult{}, ErrMessageNotFound
 	}
 	if target.Role != database.ChatMessageRoleUser {
@@ -823,6 +877,11 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			"insert promoted queued message: expected %d rows, got %d",
 			len(cancels)+1, len(inserted),
 		)
+	}
+	// The promoted message's own admission snapshot governs the turn it
+	// starts.
+	if err := tx.recordAdmittedCustomPrompt(target.AdmittedCustomPrompt); err != nil {
+		return PromoteQueuedMessageResult{}, err
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     target.ID,
@@ -1309,6 +1368,11 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
+	// The promoted head's own admission snapshot governs the turn it
+	// starts.
+	if err := tx.recordAdmittedCustomPrompt(head.AdmittedCustomPrompt); err != nil {
+		return FinishInterruptionResult{}, err
+	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,
 		ChatID: tx.chatID,
@@ -1378,6 +1442,11 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
+	}
+	// The promoted head's own admission snapshot governs the turn it
+	// starts.
+	if err := tx.recordAdmittedCustomPrompt(head.AdmittedCustomPrompt); err != nil {
+		return FinishTurnResult{}, err
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,

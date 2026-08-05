@@ -10,7 +10,9 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 const (
@@ -142,7 +144,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -162,7 +164,11 @@ func allSubagentDefinitions() []subagentDefinition {
 						ChatMode: database.ChatModeComputerUse,
 						Valid:    true,
 					},
-					systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
+					// The child system prompt embeds the task prompt, so it
+					// is built from the policy-approved prompt at create.
+					systemPrompt: func(prompt string) string {
+						return computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt)
+					},
 				}, nil
 			},
 		},
@@ -280,6 +286,12 @@ func withSubagentType(result map[string]any, chat database.Chat) map[string]any 
 }
 
 func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse {
+	// Dispatch failures normally fail the tool closed before reaching
+	// here; this redaction is a backstop so no code path stringifies the
+	// operator's hook URL into a client-visible tool result.
+	if message, ok := chathooks.DispatchErrorMessage(agenthooks.EventUserPromptSubmit, err); ok {
+		err = xerrors.New(message)
+	}
 	if chat == nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}

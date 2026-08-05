@@ -24,6 +24,15 @@ import (
 // SchemaVersion is the current lifecycle hook request schema version.
 const SchemaVersion = 1
 
+// SignatureHeader carries the consumer's response token: a compact HS256
+// JWT echoing the request claims with body_sha256 recomputed over the exact
+// response body bytes. Responses can allow, deny, rewrite tool input, and
+// inject prompt content, so coderd rejects any 2xx response without a valid
+// token; otherwise anyone able to inject traffic on the return path (the
+// loopback plain-HTTP hop, or any hop past a TLS terminator) could steer
+// chats without knowing the secret.
+const SignatureHeader = "Coder-Hook-Signature"
+
 // EventType names a lifecycle event carried by a hook request.
 type EventType string
 
@@ -69,10 +78,30 @@ type SessionStartData struct {
 }
 
 // UserPromptSubmitData includes concatenated text and persisted parts.
-// Inspect Parts when structure matters.
+// Inspect Parts when structure matters. The prompt is not the only
+// caller-controlled channel that reaches the model, so the event also
+// carries every other instruction channel in effect for the admitted turn;
+// a policy that inspects only Prompt admits the others sight unseen.
 type UserPromptSubmitData struct {
 	Prompt string          `json:"prompt"`
 	Parts  json.RawMessage `json:"parts,omitempty"`
+	// SystemPrompt is the per-chat system prompt admitted with a chat
+	// create or subagent spawn, as it will be injected. Subagent types
+	// that embed the submitted prompt at system priority (computer-use)
+	// carry the built value here, and a prompt override rebuilds it from
+	// the approved prompt. Later turns omit it; it is immutable after
+	// creation.
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	// CustomPrompt is the chat owner's stored custom prompt as it will be
+	// injected into this turn's system prompt. It is set through its own
+	// API without a lifecycle event, so this is where a policy sees it.
+	// The admitted value is snapshotted with the turn and injected
+	// verbatim; changing the stored prompt after admission does not
+	// change what the admitted turn's model receives.
+	CustomPrompt string `json:"custom_prompt,omitempty"`
+	// DynamicTools carries the caller-declared tool definitions admitted
+	// with a chat create. Their names and descriptions reach the model.
+	DynamicTools json.RawMessage `json:"dynamic_tools,omitempty"`
 }
 
 // PreToolUseData describes a tool call before execution.

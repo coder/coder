@@ -772,9 +772,11 @@ func (p *Server) subagentTools(
 				)
 				if err != nil {
 					// A failed hook dispatch must fail closed instead of
-					// degrading into a tool error the model can ignore.
+					// degrading into a tool error the model can ignore. The
+					// redaction keeps the operator's hook URL out of the
+					// committed tool result row.
 					if _, ok := errors.AsType[*dispatch.Error](err); ok {
-						return fantasy.ToolResponse{}, err
+						return fantasy.ToolResponse{}, chathooks.RedactDispatchError(agenthooks.EventUserPromptSubmit, err)
 					}
 					// chathooks.UserPromptDeniedError.Error() carries the user-facing
 					// denial message, so the model can adjust its prompt.
@@ -1010,6 +1012,14 @@ func (p *Server) subagentTools(
 					busyBehavior,
 				)
 				if err != nil {
+					// A failed hook dispatch must fail closed instead of
+					// degrading into a tool error the model can ignore,
+					// matching spawn admission. The redaction keeps the
+					// operator's hook URL out of the committed tool
+					// result row.
+					if _, ok := errors.AsType[*dispatch.Error](err); ok {
+						return fantasy.ToolResponse{}, chathooks.RedactDispatchError(agenthooks.EventUserPromptSubmit, err)
+					}
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
@@ -1181,8 +1191,16 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 // entitlement. resolveExploreToolSnapshot computes and persists it on the
 // child chat. Non-Explore children ignore this field.
 type childSubagentChatOptions struct {
-	chatMode                database.NullChatMode
-	systemPrompt            string
+	chatMode database.NullChatMode
+	// systemPrompt builds the child's system prompt from the submitted
+	// user prompt. It is a function rather than a string because a
+	// definition may embed the prompt (computer-use does), and the
+	// admission policy can replace the prompt: the create path shows the
+	// built value on the user_prompt_submit event and rebuilds it from
+	// the approved override, so no copy of caller text reaches the child
+	// at system priority without the policy seeing it. Nil means the
+	// child gets no per-child system prompt.
+	systemPrompt            func(prompt string) string
 	modelConfigIDOverride   *uuid.UUID
 	reasoningEffortOverride *string
 	planModeOverride        *database.NullChatPlanMode
@@ -1284,7 +1302,13 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
-	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	buildChildSystemPrompt := func(userPrompt string) string {
+		if opts.systemPrompt == nil {
+			return ""
+		}
+		return SanitizePromptText(opts.systemPrompt(userPrompt))
+	}
+	childSystemPrompt := buildChildSystemPrompt(prompt)
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
@@ -1295,13 +1319,27 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
-	var promptResult *chathooks.Result
+	var (
+		promptResult         *chathooks.Result
+		admittedCustomPrompt sql.NullString
+	)
 	if p.hooks.Enabled() {
 		mintedTurnID := uuid.New()
 		promptMessage, err := chathooks.UserPromptMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
 		if err != nil {
 			return database.Chat{}, err
 		}
+		// Subagent turns inject the owner's custom prompt like any other
+		// chat, so the admission event carries it too. Resolve it once and
+		// persist the same bytes on the child chat so its generation
+		// injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, parent.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
+		// The child's system prompt can embed the submitted prompt
+		// (computer-use), so the event carries it like a chat create;
+		// a policy shown only the user-role copy would admit the
+		// system-priority copy sight unseen.
+		promptMessage.SystemPrompt = childSystemPrompt
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,
@@ -1320,6 +1358,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 		if overridden {
 			// The overridden prompt also feeds the fallback title below.
 			prompt = override
+			// Rebuild any prompt-embedding system prompt from the
+			// approved override so the replaced text cannot survive at
+			// system priority.
+			childSystemPrompt = buildChildSystemPrompt(prompt)
 		}
 	}
 	if title == "" {
@@ -1391,9 +1433,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 			RawMessage: labelsJSON,
 			Valid:      true,
 		},
-		DynamicTools:    pqtype.NullRawMessage{},
-		ClientType:      parent.ClientType,
-		InitialMessages: initialMessages,
+		DynamicTools:         pqtype.NullRawMessage{},
+		ClientType:           parent.ClientType,
+		InitialMessages:      initialMessages,
+		AdmittedCustomPrompt: admittedCustomPrompt,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)

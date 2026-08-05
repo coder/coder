@@ -9670,6 +9670,20 @@ func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
 }
 
+// UpdateChatAdmittedCustomPrompt mocks base method.
+func (m *MockStore) UpdateChatAdmittedCustomPrompt(ctx context.Context, arg database.UpdateChatAdmittedCustomPromptParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAdmittedCustomPrompt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatAdmittedCustomPrompt indicates an expected call of UpdateChatAdmittedCustomPrompt.
+func (mr *MockStoreMockRecorder) UpdateChatAdmittedCustomPrompt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAdmittedCustomPrompt", reflect.TypeOf((*MockStore)(nil).UpdateChatAdmittedCustomPrompt), ctx, arg)
+}
+
 // UpdateChatBuildAgentBinding mocks base method.
 func (m *MockStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

@@ -1280,6 +1280,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
+	userPrompt := SanitizePromptText(opts.SystemPrompt)
+	var admittedCustomPrompt sql.NullString
 	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
@@ -1290,6 +1292,17 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if err != nil {
 			return database.Chat{}, err
 		}
+		// The prompt is one of several caller-controlled instruction
+		// channels this create admits; a policy shown only the prompt
+		// would admit the others sight unseen.
+		promptMessage.SystemPrompt = userPrompt
+		// Resolve the owner's custom prompt once: the event and the
+		// persisted admission snapshot must carry the same bytes, and
+		// generation injects the snapshot, so the policy always sees
+		// exactly what the model will receive.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, opts.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
+		promptMessage.DynamicTools = opts.DynamicTools
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
 			OwnerID:     opts.OwnerID,
@@ -1310,7 +1323,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1369,8 +1381,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:      opts.ClientType,
-		InitialMessages: initialMessages,
+		ClientType:           opts.ClientType,
+		InitialMessages:      initialMessages,
+		AdmittedCustomPrompt: admittedCustomPrompt,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1419,6 +1432,7 @@ func (p *Server) SendMessage(
 	}
 
 	contentParts := opts.Content
+	var admittedCustomPrompt sql.NullString
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -1445,6 +1459,13 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, err
 		}
+		// The owner's custom prompt is injected into this turn's system
+		// prompt but is stored through its own API without a lifecycle
+		// event, so this event is where a policy sees it. Resolve it once
+		// and persist the same bytes with the send below so generation
+		// injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, chat.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1522,9 +1543,13 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		// The admission snapshot rides the transition: a direct send
+		// stamps the chat row, a queued send stores it on the queued row
+		// so promotion pairs each turn with its own admitted value.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			Message:              message,
+			BusyBehavior:         busyBehaviorToChatState(busyBehavior),
+			AdmittedCustomPrompt: admittedCustomPrompt,
 		})
 		if err != nil {
 			return err
@@ -1693,6 +1718,11 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 	if target.ChatID != chatID || target.Deleted {
 		return ErrEditedMessageNotFound
 	}
+	// Hidden rows (hook-injected model context) are invisible to the
+	// messages API, so not-found keeps their IDs unprobeable.
+	if target.Visibility != database.ChatMessageVisibilityBoth {
+		return ErrEditedMessageNotFound
+	}
 	if target.Role != database.ChatMessageRoleUser {
 		return ErrEditedMessageNotUser
 	}
@@ -1718,7 +1748,10 @@ func (p *Server) EditMessage(
 	}
 
 	contentParts := opts.Content
-	var sessionStartHookResult *chathooks.Result
+	var (
+		sessionStartHookResult *chathooks.Result
+		admittedCustomPrompt   sql.NullString
+	)
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -1743,6 +1776,13 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, err
 		}
+		// The owner's custom prompt is injected into the regenerated
+		// turn's system prompt but is stored through its own API without
+		// a lifecycle event, so this event is where a policy sees it.
+		// Resolve it once and persist the same bytes with the edit below
+		// so generation injects exactly the admitted value.
+		admittedCustomPrompt = sql.NullString{String: p.resolveUserPrompt(ctx, chat.OwnerID), Valid: true}
+		promptMessage.CustomPrompt = admittedCustomPrompt.String
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
@@ -1785,6 +1825,11 @@ func (p *Server) EditMessage(
 			return ErrEditedMessageNotFound
 		}
 		if target.Deleted {
+			return ErrEditedMessageNotFound
+		}
+		// Hidden rows (hook-injected model context) are invisible to the
+		// messages API, so not-found keeps their IDs unprobeable.
+		if target.Visibility != database.ChatMessageVisibilityBoth {
 			return ErrEditedMessageNotFound
 		}
 		if target.Role != database.ChatMessageRoleUser {
@@ -1852,6 +1897,18 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
+		// Commit the admitted custom prompt with the edit it was admitted
+		// for so the regenerated turn injects the value the policy saw.
+		// Stamped unconditionally: an edit made while hooks are disabled
+		// records NULL, so an earlier admitted turn's snapshot cannot
+		// leak into the regenerated turn if hooks are re-enabled before
+		// it generates.
+		if err := store.UpdateChatAdmittedCustomPrompt(ctx, database.UpdateChatAdmittedCustomPromptParams{
+			ID:                   opts.ChatID,
+			AdmittedCustomPrompt: admittedCustomPrompt,
+		}); err != nil {
+			return xerrors.Errorf("update admitted custom prompt: %w", err)
+		}
 		// Capture the post-edit chat inside the same transaction so
 		// the returned chat and the debug-cleanup cutoff use the
 		// snapshot bump and updated_at stamped by the transition.
@@ -3109,7 +3166,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
-		hooks:                          chathooks.NewTrigger(hookDispatcher),
+		hooks:                          chathooks.NewTrigger(hookDispatcher, subagentToolNameAliases),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
@@ -3956,6 +4013,17 @@ func appendDynamicTools(
 			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
 				slog.F("tool_name", info.Name))
 			delete(dynamicToolNames, info.Name)
+		}
+	}
+	// Deprecated alias names are reserved too: hook events and input
+	// validation resolve an alias to its canonical builtin
+	// unconditionally, so a dynamic tool named after one would execute
+	// client-side while being reported and validated as the builtin.
+	for alias := range subagentToolNameAliases {
+		if dynamicToolNames[alias] {
+			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+				slog.F("tool_name", alias))
+			delete(dynamicToolNames, alias)
 		}
 	}
 

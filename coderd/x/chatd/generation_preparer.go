@@ -305,10 +305,20 @@ func (server *Server) prepareGeneration(
 		personalSkills = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
 		return nil
 	})
-	g2.Go(func() error {
-		resolvedUserPrompt = server.resolveUserPrompt(ctx, chat.OwnerID)
-		return nil
-	})
+	if server.hooks.Enabled() {
+		// Inject the snapshot a user_prompt_submit admission persisted, not
+		// the live per-user config: the owner can change the config between
+		// admission and generation (queued sends stretch that window
+		// arbitrarily), and the policy only saw the admitted bytes. A chat
+		// with no recorded admission injects nothing rather than smuggling
+		// an unreviewed value into the turn.
+		resolvedUserPrompt = chat.AdmittedCustomPrompt.String
+	} else {
+		g2.Go(func() error {
+			resolvedUserPrompt = server.resolveUserPrompt(ctx, chat.OwnerID)
+			return nil
+		})
+	}
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)

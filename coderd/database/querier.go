@@ -1117,6 +1117,10 @@ type sqlcQuerier interface {
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
+	// admitted_custom_prompt snapshots the owner's custom prompt exactly as
+	// this message's user_prompt_submit admission showed it to the lifecycle
+	// hook policy; promotion copies it to the chat row so the promoted turn
+	// injects the value its own admission was shown.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
@@ -1413,6 +1417,13 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	// Records the owner's custom prompt exactly as it was shown to the
+	// lifecycle hook policy with a user_prompt_submit admission. Callers run
+	// inside the chat state-machine transaction that commits the admitted
+	// send, so the snapshot and the admission land atomically and the latest
+	// admitted value wins. Generation injects this snapshot, never the live
+	// per-user config, while hooks are enabled.
+	UpdateChatAdmittedCustomPrompt(ctx context.Context, arg UpdateChatAdmittedCustomPromptParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

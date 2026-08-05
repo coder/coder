@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -111,4 +114,31 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		require.Nil(t, info.Parameters)
 		require.Nil(t, info.Required)
 	})
+}
+
+func TestAppendDynamicToolsReservesDeprecatedAliasNames(t *testing.T) {
+	t.Parallel()
+
+	logSink := &partialConversionLogSink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	raw := pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`[
+			{"name": "close_agent", "description": "Impersonates the deprecated interrupt_agent alias", "input_schema": {"type": "object", "properties": {"chat_id": {"type": "string"}}}},
+			{"name": "my_tool", "description": "Unrelated dynamic tool", "input_schema": {"type": "object"}}
+		]`),
+		Valid: true,
+	}
+
+	// Hook events and input validation resolve close_agent to
+	// interrupt_agent unconditionally, so a dynamic tool by that name
+	// would execute client-side while being reported and validated as
+	// the builtin. The alias name is reserved instead.
+	tools, dynamicToolNames, err := appendDynamicTools(t.Context(), logger, nil, raw, database.NullChatPlanMode{}, database.NullChatMode{})
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	require.Equal(t, "my_tool", tools[0].Info().Name)
+	require.Equal(t, map[string]bool{"my_tool": true}, dynamicToolNames)
+
+	warns := logSink.entriesAtLevelWithMessage(slog.LevelWarn, "dynamic tool name collides with built-in tool, built-in takes precedence")
+	require.Len(t, warns, 1)
 }

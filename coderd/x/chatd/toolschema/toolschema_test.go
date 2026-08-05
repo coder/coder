@@ -84,9 +84,23 @@ func TestValidateUnambiguous(t *testing.T) {
 			input: `{"files":[{"path":"a","edits":[{"old_text":"x","new_text":"y","replace_all":true}]}]}`,
 		},
 		{
-			name:  "input the tool cannot decode either",
-			tool:  readFile,
-			input: `{"path":`,
+			// Truncated input fails closed: the walk cannot prove the
+			// missing remainder holds no smuggled key. Callers reject
+			// invalid JSON before the guard, so this only fires on
+			// bytes the tool could not decode anyway.
+			name:    "input the tool cannot decode either",
+			tool:    readFile,
+			input:   `{"path":`,
+			wantErr: "could not be fully inspected",
+		},
+		{
+			// A number too large for float64 aborts a naive Token walk
+			// while json.Unmarshal skips it inside an ignored field, so
+			// it must not stop the walk before later keys are checked.
+			name:    "huge exponent cannot mask a case-variant key",
+			tool:    readFile,
+			input:   `{"_x":1e999,"PATH":"/secret"}`,
+			wantErr: `differs from schema property "path" only by case`,
 		},
 		{
 			name:  "empty input",

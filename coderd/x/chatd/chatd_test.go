@@ -2054,6 +2054,51 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
+// TestEditMessageRejectsHiddenMessage pins that hook-injected model
+// context (a user-role row with model visibility) cannot be targeted by
+// the edit API, and that the rejection is indistinguishable from a
+// missing row so hidden IDs cannot be probed.
+func TestEditMessageRejectsHiddenMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "hidden-edited-message",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	hiddenContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("policy context the model trusts"),
+	})
+	require.NoError(t, err)
+
+	hiddenMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Visibility:     database.ChatMessageVisibilityModel,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        hiddenContent,
+	})
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: hiddenMessage.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("overwritten policy")},
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotFound))
+}
+
 // TestEditMessageDebugCleanupDeletesPreEditRuns verifies that
 // EditMessage schedules the chat debug cleanup goroutine when debug
 // logging is enabled and that it deletes debug runs tied to the
