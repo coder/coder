@@ -87,8 +87,6 @@ func (c *responseCache) store(key, etag string, body []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Clone the body so we never retain a slice that the caller may
-	// later reuse or mutate.
 	stored := bytes.Clone(body)
 
 	if elem, found := c.entries[key]; found {
