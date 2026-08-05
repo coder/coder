@@ -7,15 +7,11 @@ import "net/http"
 // IsRateLimited reports whether resp is a rate-limited rejection:
 // a 429, or a 403 with Retry-After present or a zeroed remaining count.
 // The remaining count is read from X-RateLimit-Remaining (GitHub) or the
-// unprefixed RateLimit-Remaining (GitLab, and gateways implementing the
-// IETF draft rate-limit headers).
+// unprefixed RateLimit-Remaining (GitLab, IETF draft).
 //
-// Reset-header presence (RateLimit-Reset, X-RateLimit-Reset) is
-// deliberately not a signal: providers attach those headers to
-// non-throttled responses as well.
-//
-// Does not catch every secondary rate limit: GitHub can return 403 with
-// positive remaining and no Retry-After, requiring body inspection.
+// Reset headers are not a signal: providers attach them to non-throttled
+// responses as well. GitHub can return 403 with positive remaining and no
+// Retry-After; those require body inspection and are not detected.
 func IsRateLimited(resp *http.Response) bool {
 	if resp == nil {
 		return false

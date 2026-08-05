@@ -1196,15 +1196,13 @@ func TestValidateToken(t *testing.T) {
 
 	const providerName = "test-validate"
 
-	// newLoggedConfig returns a config under test together with the buffer
-	// capturing its log output.
+	// newLoggedConfig returns a config plus the buffer capturing its logs.
 	newLoggedConfig := func(t *testing.T, validateURL string) (*externalauth.Config, *bytes.Buffer) {
 		t.Helper()
 		f := promoauth.NewFactory(prometheus.NewRegistry())
 		logs := &bytes.Buffer{}
 		logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
-		// Build through ConvertConfig so the named logger is wired the same
-		// way as in production.
+		// ConvertConfig wires the named logger as production does.
 		configs, err := externalauth.ConvertConfig(logger, f, []codersdk.ExternalAuthConfig{{
 			ID:           providerName,
 			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
@@ -1227,8 +1225,7 @@ func TestValidateToken(t *testing.T) {
 		} `json:"fields"`
 	}
 
-	// rateLimitWarnings parses the captured log output and returns only the
-	// rate-limited-validation warnings, ignoring any other log lines.
+	// rateLimitWarnings returns only the rate-limited-validation warnings.
 	rateLimitWarnings := func(t *testing.T, logs string) []logEntry {
 		t.Helper()
 		var out []logEntry
@@ -1245,9 +1242,8 @@ func TestValidateToken(t *testing.T) {
 		return out
 	}
 
-	// requireRateLimitLog asserts that exactly one WARN line was emitted for a
-	// rate-limited validation, carrying the status code and reason that
-	// triggered the optimistic outcome.
+	// requireRateLimitLog asserts exactly one WARN line with the given
+	// status code and reason.
 	requireRateLimitLog := func(t *testing.T, logs string, wantStatus int, wantReason string) {
 		t.Helper()
 		warnings := rateLimitWarnings(t, logs)
@@ -1421,8 +1417,8 @@ func TestValidateToken(t *testing.T) {
 		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
 	})
 
-	// Throttled: repeated rate-limited validations against the same config
-	// within the throttle interval emit a single warning.
+	// Throttled: repeated rate-limited validations within the throttle
+	// interval emit a single warning.
 	t.Run("Throttled", func(t *testing.T) {
 		t.Parallel()
 
@@ -1441,8 +1437,6 @@ func TestValidateToken(t *testing.T) {
 		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
 	})
 
-	// Confirmed: a 200 means the provider confirmed the token. It logs no
-	// rate-limit warning.
 	t.Run("Confirmed", func(t *testing.T) {
 		t.Parallel()
 
