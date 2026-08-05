@@ -2,7 +2,10 @@ type LinkSegment =
 	| { kind: "text"; value: string }
 	| { kind: "url"; value: string };
 
-const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+// Stops at ASCII control characters so ANSI escape sequences in raw
+// shell output (e.g. color codes) never leak into the URL.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional
+const URL_PATTERN = /https?:\/\/[^\s<>"'`\u0000-\u001f\u007f]+/g;
 
 // Characters that end a sentence around a URL far more often than
 // they end the URL itself.

@@ -74,4 +74,21 @@ describe("splitTextForLinks", () => {
 			{ kind: "text", value: "ftp://host ws://host file:///tmp/x" },
 		]);
 	});
+
+	it("stops the URL at ANSI escape sequences", () => {
+		expect(
+			splitTextForLinks("\u001b[32mhttp://localhost:3000/\u001b[39m done"),
+		).toEqual([
+			{ kind: "text", value: "\u001b[32m" },
+			{ kind: "url", value: "http://localhost:3000/" },
+			{ kind: "text", value: "\u001b[39m done" },
+		]);
+	});
+
+	it("stops the URL at other ASCII control characters", () => {
+		expect(splitTextForLinks("http://localhost:3000/a\u0007bell")).toEqual([
+			{ kind: "url", value: "http://localhost:3000/a" },
+			{ kind: "text", value: "\u0007bell" },
+		]);
+	});
 });
