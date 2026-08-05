@@ -1,13 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { MockTask } from "#/testHelpers/entities";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 
 const meta: Meta<typeof BatchDeleteConfirmation> = {
 	title: "pages/TasksPage/BatchDeleteConfirmation",
-	parameters: { chromatic },
 	component: BatchDeleteConfirmation,
 	args: {
 		onClose: action("onClose"),

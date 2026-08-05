@@ -88,6 +88,44 @@ func RedactHeaders(h http.Header) map[string]string {
 	return redacted
 }
 
+var (
+	errNotValidJSON  = xerrors.New("chatdebug: body is not valid JSON")
+	errExtraJSONData = xerrors.New("chatdebug: body contains extra JSON values")
+)
+
+func decodeCompleteJSON(data []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	// Preserve precision: callers may re-marshal the result.
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, errNotValidJSON
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return nil, errExtraJSONData
+	}
+	return value, nil
+}
+
+// redactDecodedJSON redacts an already-decoded JSON value. ok is
+// false when nothing needed redacting or re-marshaling the redacted
+// value failed; either way the caller should fall back to the
+// original bytes.
+func redactDecodedJSON(value any) (encoded []byte, ok bool) {
+	redacted, changed := redactJSONValue(value)
+	if !changed {
+		return nil, false
+	}
+
+	data, err := json.Marshal(redacted)
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
 // RedactJSONSecrets redacts sensitive JSON values by key name. When
 // the input is not valid JSON (truncated body, HTML error page, etc.)
 // the raw bytes are replaced entirely with a diagnostic placeholder
@@ -97,29 +135,20 @@ func RedactJSONSecrets(data []byte) []byte {
 		return data
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-
-	var value any
-	if err := decoder.Decode(&value); err != nil {
+	value, err := decodeCompleteJSON(data)
+	if err != nil {
+		if errors.Is(err, errExtraJSONData) {
+			return []byte(`{"error":"chatdebug: body contains extra JSON values, redacted for safety"}`)
+		}
 		// Cannot parse: replace entirely to prevent credential leaks
 		// from non-JSON error responses (HTML pages, partial bodies).
 		return []byte(`{"error":"chatdebug: body is not valid JSON, redacted for safety"}`)
 	}
-	if err := consumeJSONEOF(decoder); err != nil {
-		return []byte(`{"error":"chatdebug: body contains extra JSON values, redacted for safety"}`)
-	}
 
-	redacted, changed := redactJSONValue(value)
-	if !changed {
-		return data
+	if encoded, changed := redactDecodedJSON(value); changed {
+		return encoded
 	}
-
-	encoded, err := json.Marshal(redacted)
-	if err != nil {
-		return data
-	}
-	return encoded
+	return data
 }
 
 // RedactNDJSONSecrets redacts sensitive values in newline-delimited
@@ -148,18 +177,6 @@ func RedactNDJSONSecrets(data []byte) []byte {
 		return data
 	}
 	return bytes.Join(lines, []byte("\n"))
-}
-
-func consumeJSONEOF(decoder *json.Decoder) error {
-	var extra any
-	err := decoder.Decode(&extra)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err == nil {
-		return xerrors.New("chatdebug: extra JSON values")
-	}
-	return err
 }
 
 // safeRateLimitHeaderNames lists rate-limit headers that contain

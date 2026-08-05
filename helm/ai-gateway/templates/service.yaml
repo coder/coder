@@ -29,7 +29,7 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
-      {{- with .Values.service.nodePort }}
-      nodePort: {{ . }}
+      {{- if .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
       {{- end }}
 {{- end }}
