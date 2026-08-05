@@ -1,4 +1,3 @@
-import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import { Pill } from "#/components/Pill/Pill";
 import {
@@ -14,7 +13,7 @@ interface PillListProps {
 
 export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{roles.length > 0 ? (
 				<Pill className="w-fit" type={isUUID(roles[0]) ? "error" : "muted"}>
 					{roles[0]}
@@ -24,7 +23,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 			)}
 
 			{roles.length > 1 && <OverflowPill roles={roles.slice(1)} />}
-		</Stack>
+		</div>
 	);
 };
 

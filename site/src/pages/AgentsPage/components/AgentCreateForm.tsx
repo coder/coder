@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -613,17 +612,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="text-center text-xs text-content-secondary/50">
-						<a
-							href={docs("/ai-coder/agents")}
-							target="_blank"
-							rel="noreferrer"
-							className="text-content-secondary/50 underline hover:text-content-secondary"
-						>
-							Introductory access
-						</a>{" "}
-						to Coder Agents through September 2026
-					</p>
 				</div>
 			</div>
 			<ConfirmDialog
