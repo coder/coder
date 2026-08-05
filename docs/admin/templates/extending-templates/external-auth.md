@@ -38,6 +38,11 @@ By default, the coder agent will configure native `git` authentication via the
 `GIT_ASKPASS` environment variable. Meaning, with no additional configuration,
 external authentication will work with native `git` commands.
 
+The providers your template declares also determine which token native `git` commands receive.
+For HTTPS Git operations, Coder selects from your template's declared providers first, and only matches against every provider configured on the deployment when none of the declared providers serve that host.
+If your template declares two providers that serve the same host, or declares one that the deployment no longer configures, Coder refuses the request instead of guessing.
+For the full rules, refer to [OAuth (external auth)](../../external-auth/index.md#oauth-external-auth).
+
 To check the auth token being used **from inside a running workspace**, run:
 
 ```sh
