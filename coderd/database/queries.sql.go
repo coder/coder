@@ -8879,8 +8879,8 @@ WHERE
               AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
         )
     )
-    AND NOT (chats_expanded.id = ANY($2::uuid[]))
-ORDER BY chats_expanded.capacity_queued_at ASC NULLS LAST, chats_expanded.updated_at ASC, chats_expanded.id ASC
+    AND NOT (chats_expanded.id = ANY(COALESCE($2::uuid[], '{}'::uuid[])))
+ORDER BY (chats_expanded.status = 'interrupting'::chat_status) DESC, chats_expanded.capacity_queued_at ASC NULLS LAST, chats_expanded.updated_at ASC, chats_expanded.id ASC
 LIMIT $3::int
 `
 
@@ -8952,10 +8952,12 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 // Missing ownership is worker_id IS NULL. Inconsistent ownership is
 // runner_id IS NULL while worker_id is set. Stale ownership is no
 // heartbeat row for (chat_id, runner_id), or one older than
-// @stale_seconds by database time. Capacity-queued chats sort first,
-// longest wait first, so admission is FIFO; remaining candidates are
-// ordered by oldest updated_at so workers drain stale runnable chats
-// predictably. @exclude_ids lets one acquisition pass page past chats
+// @stale_seconds by database time. Interrupting chats sort first so a
+// capacity backlog cannot delay a user's stop request; capacity-queued
+// chats follow, longest wait first, so admission is FIFO; remaining
+// candidates are ordered by oldest updated_at so workers drain stale
+// runnable chats predictably. @exclude_ids lets one acquisition pass
+// page past chats
 // it already attempted; refused capacity-queued chats stay candidates,
 // so without the exclusion a full pool would hide everything beyond
 // the first batch.

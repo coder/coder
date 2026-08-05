@@ -135,6 +135,30 @@ func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+func TestWorker_InterruptingSortsBeforeCapacityQueue(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	queued := f.createRunningChat(t)
+	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+		ID:           queued.ID,
+		StaleSeconds: 30,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, marked)
+	interrupting := f.createRunningChat(t)
+	interruptChat(t, f, interrupting.ID)
+
+	rows, err := f.db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
+		StaleSeconds: 30,
+		LimitCount:   10,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(rows), 2)
+	require.Equal(t, interrupting.ID, rows[0].ID, "interrupting chats must sort before the capacity queue")
+}
+
 func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
