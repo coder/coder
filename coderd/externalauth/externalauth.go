@@ -61,8 +61,7 @@ type Config struct {
 	promoauth.InstrumentedOAuth2Config
 	// Logs rate-limited validation warnings. Zero value discards output.
 	Logger slog.Logger
-	// rateLimitLogThrottle limits how often rate-limited validation
-	// warnings are emitted. Zero value is ready for use.
+	// rateLimitLogThrottle throttles rate-limited validation warnings.
 	rateLimitLogThrottle logThrottle
 	// ID is a unique identifier for the authenticator.
 	ID string
@@ -542,13 +541,10 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 // warnings emitted per Config.
 const rateLimitLogInterval = time.Minute
 
-// logRateLimitedValidation logs at Warn that a token was kept valid without
-// provider confirmation because the validation endpoint returned a
-// rate-limited response. At most one warning is emitted per Config per
-// rateLimitLogInterval; the emitted line reports how many occurrences were
-// suppressed since the previous one. Counts from a burst that ended more
-// than an interval before the current occurrence are discarded rather than
-// attributed to it.
+// logRateLimitedValidation warns that a token was kept valid without
+// provider confirmation due to a rate-limited response. At most one
+// warning is emitted per Config per rateLimitLogInterval; the line
+// carries the number of occurrences suppressed since the previous one.
 func (c *Config) logRateLimitedValidation(ctx context.Context, statusCode int, reason string) {
 	suppressed, ok := c.rateLimitLogThrottle.shouldLog(time.Now(), rateLimitLogInterval)
 	if !ok {
@@ -572,10 +568,9 @@ type logThrottle struct {
 
 // shouldLog reports whether an event occurring at now may be logged,
 // allowing at most one event per interval. When it returns true, it also
-// returns the number of events suppressed since the last allowed one.
-// Suppressed events all occur within one interval of the last allowed
-// event, so when two or more intervals have elapsed the count describes a
-// past burst and zero is returned instead.
+// returns the number of events suppressed since the last allowed one;
+// if two or more intervals have elapsed, the stale count is discarded
+// and zero is returned.
 func (t *logThrottle) shouldLog(now time.Time, interval time.Duration) (int64, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

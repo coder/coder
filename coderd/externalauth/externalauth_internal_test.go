@@ -46,8 +46,7 @@ func TestLogThrottle(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, 0, suppressed, "suppressed should reset after each log")
 
-	// Suppress one event, then let more than two intervals elapse: the
-	// stale count is discarded rather than attributed to the next log.
+	// Suppress one event, then let more than two intervals elapse.
 	_, ok = th.shouldLog(start.Add(2*interval+time.Second), interval)
 	require.False(t, ok)
 	suppressed, ok = th.shouldLog(start.Add(5*interval), interval)
@@ -86,9 +85,8 @@ func TestLogThrottleConcurrent(t *testing.T) {
 	require.EqualValues(t, events-1, suppressed, "every other concurrent event should be counted")
 }
 
-// TestLogRateLimitedValidationSuppressed pins the suppressed count's path
-// into the emitted log line, which the black-box tests cannot observe
-// (they only ever see first-in-window lines with suppressed=0).
+// TestLogRateLimitedValidationSuppressed verifies the suppressed count
+// reaches the emitted log line.
 func TestLogRateLimitedValidationSuppressed(t *testing.T) {
 	t.Parallel()
 

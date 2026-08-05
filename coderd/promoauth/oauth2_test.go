@@ -274,12 +274,11 @@ func TestExternalRequestRateLimitedMetric(t *testing.T) {
 	do(t, http.StatusTooManyRequests, nil)
 	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusTooManyRequests)))
 
-	// A 403 carrying rate-limit headers is counted, under its own status code.
+	// A 403 carrying rate-limit headers is counted under its own status code.
 	do(t, http.StatusForbidden, map[string]string{"X-RateLimit-Remaining": "0"})
 	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusForbidden)))
 
-	// A 200 and a plain 403 (a genuine revocation) are not counted, so the
-	// existing series are unchanged and no 200 series is created.
+	// A 200 and a plain 403 (a genuine revocation) are not counted.
 	do(t, http.StatusOK, nil)
 	do(t, http.StatusForbidden, nil)
 	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusTooManyRequests)))
