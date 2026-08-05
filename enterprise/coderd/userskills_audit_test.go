@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,9 +71,22 @@ func TestUserSkillAuditDiffTracksContent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "expected exactly two rows")
-	sort.Slice(rows, func(i, j int) bool { return rows[i].AuditLog.Action > rows[j].AuditLog.Action })
-	createLog := rows[1].AuditLog
-	updateLog := rows[0].AuditLog
+	// Identify rows by action instead of position. GetAuditLogsOffset orders
+	// by time only, so the create and update rows can come back in either
+	// order when their timestamps tie.
+	var createLog, updateLog database.AuditLog
+	for _, row := range rows {
+		switch row.AuditLog.Action {
+		case database.AuditActionCreate:
+			createLog = row.AuditLog
+		case database.AuditActionWrite:
+			updateLog = row.AuditLog
+		default:
+			t.Fatalf("unexpected audit action %q", row.AuditLog.Action)
+		}
+	}
+	require.Equal(t, database.AuditActionCreate, createLog.Action, "missing create audit log")
+	require.Equal(t, database.AuditActionWrite, updateLog.Action, "missing update audit log")
 
 	var createDiff audit.Map
 	require.NoError(t, json.Unmarshal(createLog.Diff, &createDiff))
