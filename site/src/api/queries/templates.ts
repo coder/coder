@@ -1,4 +1,9 @@
-import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
+import {
+	type MutationOptions,
+	mutationOptions,
+	type QueryClient,
+	type QueryOptions,
+} from "react-query";
 import {
 	API,
 	type GetTemplatesOptions,
@@ -60,15 +65,14 @@ export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
 		refetchType: "all",
 	});
 
-export const updateTemplateMeta = (
-	queryClient: QueryClient,
-): MutationOptions<
-	Awaited<ReturnType<typeof API.updateTemplateMeta>>,
-	unknown,
-	{ template: Template; data: UpdateTemplateMeta }
-> => {
-	return {
-		mutationFn: ({ template, data }) =>
+type UpdateTemplateMetaVariables = {
+	template: Template;
+	data: UpdateTemplateMeta;
+};
+
+export const updateTemplateMeta = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ template, data }: UpdateTemplateMetaVariables) =>
 			API.updateTemplateMeta(template.id, data),
 		onSuccess: async (result, { template }) => {
 			const updatedTemplate = result ?? template;
@@ -85,8 +89,7 @@ export const updateTemplateMeta = (
 				}),
 			]);
 		},
-	};
-};
+	});
 
 export const templateACL = (templateId: string) => {
 	return {

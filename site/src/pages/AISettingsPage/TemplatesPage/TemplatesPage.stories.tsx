@@ -16,7 +16,7 @@ import {
 } from "#/testHelpers/storybook";
 import TemplatesPage from "./TemplatesPage";
 
-const secondTemplate: Template = {
+const mockSecondTemplate: Template = {
 	...MockTemplate,
 	id: "second-template",
 	name: "second-template",
@@ -60,7 +60,7 @@ export const ServerSideFilter: Story = {
 		queries: [
 			{
 				key: getTemplatesQueryKey({ q: "" }),
-				data: [MockTemplate, secondTemplate],
+				data: [MockTemplate, mockSecondTemplate],
 			},
 		],
 	},
@@ -68,7 +68,9 @@ export const ServerSideFilter: Story = {
 		spyOn(API, "getTemplates").mockImplementation((options) => {
 			const query = options && "q" in options ? options.q : "";
 			return Promise.resolve(
-				query === "Second" ? [secondTemplate] : [MockTemplate, secondTemplate],
+				query === "Second"
+					? [mockSecondTemplate]
+					: [MockTemplate, mockSecondTemplate],
 			);
 		});
 	},
@@ -93,7 +95,7 @@ export const ConcurrentToggles: Story = {
 		queries: [
 			{
 				key: getTemplatesQueryKey({ q: "" }),
-				data: [MockTemplate, secondTemplate],
+				data: [MockTemplate, mockSecondTemplate],
 			},
 		],
 	},
@@ -103,7 +105,7 @@ export const ConcurrentToggles: Story = {
 			second: createDeferred<Template | null>(),
 			retry: createDeferred<Template | null>(),
 		};
-		refetchedTemplates = [MockTemplate, secondTemplate];
+		refetchedTemplates = [MockTemplate, mockSecondTemplate];
 		let mutationCall = 0;
 		spyOn(API, "updateTemplateMeta").mockImplementation(() => {
 			mutationCall += 1;
@@ -126,7 +128,7 @@ export const ConcurrentToggles: Story = {
 			return Promise.resolve(
 				query === "Second"
 					? refetchedTemplates.filter(
-							(template) => template.id === secondTemplate.id,
+							(template) => template.id === mockSecondTemplate.id,
 						)
 					: refetchedTemplates,
 			);
@@ -155,18 +157,18 @@ export const ConcurrentToggles: Story = {
 		});
 		expect(API.updateTemplateMeta).toHaveBeenNthCalledWith(
 			2,
-			secondTemplate.id,
+			mockSecondTemplate.id,
 			{ agents_allowed: false },
 		);
 
 		refetchedTemplates = [
 			MockTemplate,
-			{ ...secondTemplate, agents_allowed: false },
+			{ ...mockSecondTemplate, agents_allowed: false },
 		];
 		deferreds.first.reject(
 			mockApiError({ message: "Template access is locked." }),
 		);
-		deferreds.second.resolve({ ...secondTemplate, agents_allowed: false });
+		deferreds.second.resolve({ ...mockSecondTemplate, agents_allowed: false });
 
 		const errorToast = await body.findByText(
 			"Test Template in My Organization: Template access is locked.",
@@ -205,7 +207,7 @@ export const ConcurrentToggles: Story = {
 
 		refetchedTemplates = [
 			{ ...MockTemplate, agents_allowed: false },
-			{ ...secondTemplate, agents_allowed: false },
+			{ ...mockSecondTemplate, agents_allowed: false },
 		];
 		deferreds.retry.resolve({ ...MockTemplate, agents_allowed: false });
 		await waitFor(() => expect(retrySwitch).toBeEnabled());
