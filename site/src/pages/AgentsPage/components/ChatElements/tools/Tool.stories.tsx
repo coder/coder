@@ -729,9 +729,8 @@ export const ProcessOutputFocusExpandsClippedLink: Story = {
 			).toHaveAttribute("aria-expanded", "true");
 		});
 		expect(link.checkVisibility()).toBe(true);
-		// The link sits beyond the expanded viewport's max height, so the
-		// focus-reveal must also scroll it into view. The Radix data
-		// attribute is the documented handle for the scroll viewport.
+		// checkVisibility ignores scroll position, so viewport scrollTop is
+		// the only assertion that fails if the scroll-reveal regresses.
 		const viewport = link.closest("[data-radix-scroll-area-viewport]");
 		await waitFor(() => {
 			expect(viewport?.scrollTop).toBeGreaterThan(0);

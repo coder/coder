@@ -224,8 +224,6 @@ export const LocalhostLinkFromChatContext: Story = {
 	},
 };
 
-// Streamdown memoizes blocks by content, so the rewritten href must
-// come from the render-time context transform.
 const TransformArrivesAfterRender: FC<{ children: string }> = ({
 	children,
 }) => {
@@ -267,8 +265,6 @@ export const LocalhostLinkRewrittenMidStream: Story = {
 	},
 };
 
-// Rebinding a chat to a different workspace must retarget cached
-// links, so hrefs cannot be pre-rewritten at parse time.
 const TransformSwitchesWorkspace: FC = () => {
 	const [workspace, setWorkspace] = useState("ws-a");
 	const transform = (url: string) =>

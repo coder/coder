@@ -102,9 +102,6 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
-// Reads the transform through context at render time because Streamdown
-// memoizes blocks by content, so hrefs rendered before workspace data
-// loads would otherwise stay untransformed until a remount.
 const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
 	const transform = useChatUrlTransform();
 	return (
@@ -119,7 +116,6 @@ const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
 	);
 };
 
-// Same render-time context read as MarkdownAnchor, for image sources.
 const MarkdownImage = ({ src, alt }: MarkdownComponentProps) => {
 	const transform = useChatUrlTransform();
 	return (
@@ -293,11 +289,9 @@ export const Response = ({
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
 
-	// Streamdown must see raw URLs: it caches rendered blocks by
-	// content, so a parse-time rewrite would freeze the first
-	// workspace's URL in the cache. MarkdownAnchor and MarkdownImage
-	// rewrite at render time via context, and Streamdown keeps its
-	// default URL sanitizer.
+	// Streamdown caches rendered blocks by content, so URLs must stay
+	// raw here and get rewritten at render time by MarkdownAnchor and
+	// MarkdownImage, which read the transform from context.
 	const markdown = (
 		<Streamdown
 			controls={false}
@@ -319,8 +313,6 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			{/* An explicit urlTransform prop must also win inside
-			    MarkdownAnchor, which reads from context. */}
 			{urlTransform ? (
 				<ChatUrlTransformContext value={urlTransform}>
 					{markdown}

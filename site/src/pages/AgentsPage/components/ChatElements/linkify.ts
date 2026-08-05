@@ -2,8 +2,7 @@ type LinkSegment =
 	| { kind: "text"; value: string }
 	| { kind: "url"; value: string };
 
-// Stops at ASCII control characters so ANSI escape sequences in raw
-// shell output (e.g. color codes) never leak into the URL.
+// Control characters must end URLs so ANSI escapes cannot become part of them.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional
 const URL_PATTERN = /https?:\/\/[^\s<>"'`\u0000-\u001f\u007f]+/g;
 
@@ -27,8 +26,7 @@ const trimTrailingPunctuation = (url: string): string => {
 			end -= 1;
 			continue;
 		}
-		// Trim a trailing ")" only while there are more closers than
-		// openers, so "(see http://x/(a))" keeps the URL's own parens.
+		// Preserve balanced URL parentheses while trimming unmatched closers.
 		if (char === ")" && parenBalance < 0) {
 			parenBalance += 1;
 			end -= 1;

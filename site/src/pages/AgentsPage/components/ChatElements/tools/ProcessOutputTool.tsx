@@ -79,10 +79,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const toggleOutputExpansion = () => {
 		setOutputFullyExpanded((expanded) => !expanded);
 	};
-	// The collapsed preview clips with overflow:hidden but its links stay
-	// focusable, so expand when focus lands in the clipped remainder.
-	// Browsers scroll clipped containers to reveal a focused element,
-	// hence the scrollTop check.
+	// Browsers may scroll clipped output to reveal focus, so scrollTop detects hidden links.
 	const handleTranscriptFocus = (event: React.FocusEvent<HTMLPreElement>) => {
 		if (outputFullyExpanded || !overflows) {
 			return;
@@ -96,9 +93,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 		if (focusInClippedArea) {
 			pre.scrollTop = 0;
 			setOutputFullyExpanded(true);
-			// The expanded ScrollArea viewport starts at the top, which can
-			// leave the focused link off-screen; reveal it after the
-			// expanded layout commits.
+			// The focused link may remain off-screen after the expanded layout commits.
 			requestAnimationFrame(() => {
 				target.scrollIntoView({ block: "nearest" });
 			});
