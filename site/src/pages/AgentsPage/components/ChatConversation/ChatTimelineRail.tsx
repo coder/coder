@@ -309,7 +309,7 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 			data-testid="chat-timeline-rail"
 			aria-hidden
 			className={cn(
-				"pointer-events-auto absolute inset-y-2 right-3 z-20 w-4",
+				"pointer-events-auto absolute inset-y-2 right-1 z-20 w-6",
 				"transition-opacity duration-200",
 				visible ? "opacity-100" : "opacity-0",
 			)}
@@ -338,17 +338,29 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 						}
 						onClick={() => handleJump(pos.item.id)}
 						className={cn(
-							"absolute left-1/2 -translate-x-1/2 -translate-y-1/2",
-							"h-[2px] w-3 rounded-full border-0 p-0",
-							"transition-[width,height,background-color] duration-150",
-							pos.item.isError
-								? "bg-content-destructive/70 hover:bg-content-destructive"
-								: "bg-content-secondary/50 hover:bg-content-primary",
-							isHovered && "h-[3px] w-4",
+							"absolute inset-x-0 -translate-y-1/2",
+							"flex h-3 items-center justify-center border-0 bg-transparent p-0",
 						)}
 						style={{ top: `calc(50% + ${offsetPx}px)` }}
 						aria-label={pos.item.preview}
 					>
+						<span
+							aria-hidden
+							className={cn(
+								"block rounded-full transition-[width,height,background-color] duration-150",
+								pos.item.isError
+									? "bg-content-destructive/70"
+									: "bg-content-secondary/50",
+								isHovered
+									? cn(
+											"h-[3px] w-5",
+											pos.item.isError
+												? "bg-content-destructive"
+												: "bg-content-primary",
+										)
+									: "h-[2px] w-3",
+							)}
+						/>
 						{isHovered && (
 							<span
 								className={cn(
