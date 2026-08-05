@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios";
+
 import {
 	type FC,
 	useEffect,
@@ -69,6 +71,7 @@ import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import {
+	AgentChatPageErrorView,
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
@@ -1877,6 +1880,40 @@ const AgentChatPage: FC = () => {
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
+			/>
+		);
+	}
+
+	// The detail endpoint throws on 404, so only treat a query failure as
+	// "not found" when the server actually said the chat is gone. Anything
+	// else (network, 5xx, timeout) is a retriable transport failure. This
+	// only applies when the query has no data to show; a background refetch
+	// that fails after content already rendered must not blank the page.
+	if (
+		(chatQuery.isError && chatQuery.data === undefined) ||
+		(chatMessagesQuery.isError && chatMessagesQuery.data === undefined)
+	) {
+		const chatNotFoundError =
+			isAxiosError(chatQuery.error) && chatQuery.error.response?.status === 404;
+		if (chatNotFoundError) {
+			return (
+				<AgentChatPageNotFoundView
+					titleElement={titleElement}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+			);
+		}
+		return (
+			<AgentChatPageErrorView
+				titleElement={titleElement}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				error={chatQuery.error ?? chatMessagesQuery.error}
+				onRetry={() => {
+					void chatQuery.refetch();
+					void chatMessagesQuery.refetch();
+				}}
 			/>
 		);
 	}

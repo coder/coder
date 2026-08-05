@@ -3059,6 +3059,144 @@ export const SendResponseAfterChatSwitch: Story = {
 	},
 };
 
+// ---------------------------------------------------------------------------
+// Query failure states: a transport failure must render an error view with
+// retry, never "Chat not found". Only a 404 from the detail endpoint means
+// the chat is genuinely absent.
+// ---------------------------------------------------------------------------
+
+const minimalChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Failing chat",
+	status: "waiting",
+};
+
+const minimalMessages: TypesGen.ChatMessagesResponse = {
+	messages: [],
+	queued_messages: [],
+	has_more: false,
+};
+
+const serverError = {
+	isAxiosError: true,
+	response: {
+		status: 500,
+		data: { message: "Internal server error." },
+	},
+};
+
+// Spy cleanup matters here: an invalidated query from an earlier story's
+// play function can refetch after that story unmounted, through whatever
+// spy is still registered. Returning restore functions from beforeEach
+// keeps each story's mocks scoped to that story.
+const mockChatFetchError = (error: unknown) => {
+	const getChatSpy = spyOn(API.experimental, "getChat").mockImplementation(
+		(chatId) =>
+			chatId === CHAT_ID ? Promise.reject(error) : Promise.resolve(minimalChat),
+	);
+	const getChatMessagesSpy = spyOn(
+		API.experimental,
+		"getChatMessages",
+	).mockResolvedValue(minimalMessages);
+	return () => {
+		getChatSpy.mockRestore();
+		getChatMessagesSpy.mockRestore();
+	};
+};
+
+/** The detail query fails with a 500: error view, not "Chat not found". */
+export const DetailQueryError: Story = {
+	beforeEach: () => mockChatFetchError(serverError),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Try again" }),
+		).toBeInTheDocument();
+	},
+};
+
+/** The initial messages query fails: error view, not "Chat not found". */
+export const InitialMessagesError: Story = {
+	beforeEach: () => {
+		const getChatSpy = spyOn(API.experimental, "getChat").mockResolvedValue(
+			minimalChat,
+		);
+		const getChatMessagesSpy = spyOn(
+			API.experimental,
+			"getChatMessages",
+		).mockImplementation((chatId) =>
+			chatId === CHAT_ID
+				? Promise.reject(serverError)
+				: Promise.resolve(minimalMessages),
+		);
+		return () => {
+			getChatSpy.mockRestore();
+			getChatMessagesSpy.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+/** Clicking retry refetches both queries and recovers the chat. */
+export const ErrorRetryRecovers: Story = {
+	beforeEach: ({ parameters }) => {
+		let shouldFail = true;
+		const getChatSpy = spyOn(API.experimental, "getChat").mockImplementation(
+			(chatId) => {
+				if (chatId === CHAT_ID && shouldFail) {
+					shouldFail = false;
+					return Promise.reject(serverError);
+				}
+				return Promise.resolve(minimalChat);
+			},
+		);
+		parameters.getChatCallsForChat = () =>
+			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
+		const getChatMessagesSpy = spyOn(
+			API.experimental,
+			"getChatMessages",
+		).mockResolvedValue(minimalMessages);
+		return () => {
+			getChatSpy.mockRestore();
+			getChatMessagesSpy.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, parameters }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+		await waitFor(() => {
+			expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(parameters.getChatCallsForChat()).toBeGreaterThanOrEqual(2);
+	},
+};
+
+/** A genuine 404 from the detail endpoint still renders "Chat not found". */
+export const ChatNotFound: Story = {
+	beforeEach: () =>
+		mockChatFetchError({
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Chat not found." },
+			},
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Chat not found")).toBeVisible();
+		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+	},
+};
+
 export const SendRejectedByHookDispatchFailure: Story = {
 	parameters: {
 		queries: buildQueries(
