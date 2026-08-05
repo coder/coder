@@ -274,6 +274,34 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 		"a full pool must be skipped after one refusal, not re-refused per chat")
 }
 
+// A persisted queue marker (for example left by an enterprise
+// deployment) must clear on acquisition even when no admission hook is
+// configured, or the chat page keeps reporting a generating agent as
+// queued.
+func TestWorker_AcquisitionWithoutAdmissionClearsQueueMark(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	require.Nil(t, opts.AgentAdmission)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chat := f.createRunningChat(t)
+	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+		ID:           chat.ID,
+		StaleSeconds: 30,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, marked)
+	startWorker(t, opts)
+
+	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Equal(t, chat.ID, call.input.ChatID)
+	require.Eventually(t, func() bool {
+		return !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
 func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
