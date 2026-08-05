@@ -7,7 +7,6 @@ import {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
@@ -17,12 +16,12 @@ import {
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -101,11 +100,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 								}
 							/>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>
