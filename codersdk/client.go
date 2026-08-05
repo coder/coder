@@ -464,12 +464,9 @@ func ReadBodyAsError(res *http.Response) error {
 }
 
 // newResponseError wraps an API response in an *Error annotated with
-// the status code, request method, and request URL from res.
+// the status code, request method, and request URL from res. For 401
+// responses it also sets a helper message suggesting 'coder login'.
 func newResponseError(res *http.Response, response Response) *Error {
-	if res == nil {
-		return &Error{Response: response}
-	}
-
 	var requestMethod, requestURL string
 	if res.Request != nil {
 		requestMethod = res.Request.Method
