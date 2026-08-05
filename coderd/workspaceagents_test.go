@@ -4037,7 +4037,8 @@ func TestWorkspaceAgentsExternalAuthTemplateScoped(t *testing.T) {
 
 	// When several of the template's own declared providers match a
 	// hostname, the server must return a clear error rather than silently
-	// pick one.
+	// pick one. 404 specifically, so `coder gitaskpass` warns and defers to
+	// git's own credential behavior.
 	t.Run("AmbiguousDeclaredSetReturnsError", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -4052,9 +4053,52 @@ func TestWorkspaceAgentsExternalAuthTemplateScoped(t *testing.T) {
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, idBroad)
 		require.Contains(t, sdkErr.Message, idDot)
+	})
+
+	// A declared provider that the deployment no longer configures must not
+	// let another provider for the same host stand in for it, even though
+	// that provider would satisfy a deployment-wide scan.
+	t.Run("MissingDeclaredProviderDoesNotFallBack", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Only idBroad is configured. The template declares idDot, which an
+		// administrator has since removed from the deployment config.
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, []string{idDot}, []string{idBroad})
+
+		_, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, idDot,
+			"should name the declared provider the deployment no longer configures")
+		require.NotContains(t, sdkErr.Message, idBroad,
+			"must not offer an undeclared provider as a substitute")
+	})
+
+	// A stale declaration for one host must not block an unambiguous
+	// declared match for a different host. Only the fallback is withheld.
+	t.Run("MissingDeclaredProviderDoesNotBlockOtherDeclaredMatch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idOther, idOther+"-token", gitlabRegex),
+		}
+		// idDot (github.com) is declared but no longer configured, while
+		// idOther (gitlab.com) is both declared and configured.
+		agentClient := setup(t, providers, []string{idDot, idOther}, []string{idOther})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: "https://gitlab.com"})
+		require.NoError(t, err)
+		require.Equal(t, idOther+"-token", resp.AccessToken)
 	})
 
 	// Once narrowed to a single declared candidate, the existing
