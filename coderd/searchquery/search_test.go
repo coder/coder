@@ -1772,10 +1772,31 @@ func TestSearchGroups(t *testing.T) {
 		},
 		{
 			// Structured key:value queries are not supported for groups; the
-			// unrecognized key surfaces as an invalid query param.
+			// unrecognized key surfaces as an invalid query param. Rejecting
+			// unknown keys leaves room for real key:value filters later.
 			Name:                  "StructuredKeyValueRejected",
 			Query:                 "name:alpha",
 			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			// The explicit search key is supported.
+			Name:     "SearchKey",
+			Query:    "search:alpha",
+			Expected: "alpha",
+		},
+		{
+			// A colon-containing name is searchable when quoted via the search
+			// key, since group display names may legally contain colons.
+			Name:     "QuotedColonValue",
+			Query:    `search:"team: frontend"`,
+			Expected: "team: frontend",
+		},
+		{
+			// An unquoted colon is treated as a key:value delimiter, so a bare
+			// colon term is rejected. Users must quote it (see QuotedColonValue).
+			Name:                  "BareColonRejected",
+			Query:                 "team: frontend",
+			ExpectedErrorContains: "cannot start or end with ':'",
 		},
 	}
 

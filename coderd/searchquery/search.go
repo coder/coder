@@ -174,18 +174,18 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+// Groups parses a group search query using the standard filter syntax shared
+// with the rest of the dashboard. Bare terms (including multi-word terms)
+// become a free-text search over group name and display name. A value that
+// contains a colon must be quoted or supplied via the explicit search key,
+// e.g. search:"team: frontend", because an unquoted colon is otherwise treated
+// as a key:value delimiter. Unknown keys are rejected, which keeps room for
+// real key:value filters in the future.
 func Groups(query string) (string, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Groups support free-text search only, so join bare terms into a
-		// single search value. Adding each term separately would make a
-		// multi-word query like "front end" look like a duplicate param and
-		// return a 400 instead of matching the name/display name substring.
-		if existing := values.Get("search"); existing != "" {
-			term = existing + " " + term
-		}
-		values.Set("search", term)
+		values.Add("search", term)
 		return nil
 	})
 	if len(errors) > 0 {

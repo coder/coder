@@ -1293,6 +1293,8 @@ func TestPaginatedGroups(t *testing.T) {
 		{name: "Dev"},
 		{name: "dev"},
 		{name: "zeta", displayName: "Frontend Squad"},
+		// A display name with a colon is searchable via a quoted search value.
+		{name: "team-fe", displayName: "Team: Frontend"},
 	}
 	for _, spec := range specs {
 		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -1426,6 +1428,22 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Equal(t, 1, resp.Count)
 		require.Len(t, resp.Groups, 1)
 		require.Equal(t, "zeta", resp.Groups[0].Name)
+	})
+
+	t.Run("SearchColonValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A display name containing a colon is searchable when the value is
+		// quoted via the search key, since an unquoted colon is a key:value
+		// delimiter.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: `search:"team: frontend"`,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "team-fe", resp.Groups[0].Name)
 	})
 
 	t.Run("PageBoundaries", func(t *testing.T) {
