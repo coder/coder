@@ -88,13 +88,20 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			return;
 		}
 		const pre = event.currentTarget;
+		const target = event.target;
 		const focusInClippedArea =
 			pre.scrollTop > 0 ||
-			event.target.getBoundingClientRect().bottom >
+			target.getBoundingClientRect().bottom >
 				pre.getBoundingClientRect().bottom;
 		if (focusInClippedArea) {
 			pre.scrollTop = 0;
 			setOutputFullyExpanded(true);
+			// The expanded ScrollArea viewport starts at the top, which can
+			// leave the focused link off-screen; reveal it after the
+			// expanded layout commits.
+			requestAnimationFrame(() => {
+				target.scrollIntoView({ block: "nearest" });
+			});
 		}
 	};
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;

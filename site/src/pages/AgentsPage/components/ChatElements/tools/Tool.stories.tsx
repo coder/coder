@@ -709,7 +709,7 @@ export const ProcessOutputFocusExpandsClippedLink: Story = {
 		status: "completed",
 		result: {
 			output: [
-				...Array.from({ length: 20 }, (_, index) => `line ${index + 1}`),
+				...Array.from({ length: 40 }, (_, index) => `line ${index + 1}`),
 				"Server at http://localhost:3000/",
 			].join("\n"),
 		},
@@ -729,6 +729,13 @@ export const ProcessOutputFocusExpandsClippedLink: Story = {
 			).toHaveAttribute("aria-expanded", "true");
 		});
 		expect(link.checkVisibility()).toBe(true);
+		// The link sits beyond the expanded viewport's max height, so the
+		// focus-reveal must also scroll it into view. The Radix data
+		// attribute is the documented handle for the scroll viewport.
+		const viewport = link.closest("[data-radix-scroll-area-viewport]");
+		await waitFor(() => {
+			expect(viewport?.scrollTop).toBeGreaterThan(0);
+		});
 	},
 };
 
