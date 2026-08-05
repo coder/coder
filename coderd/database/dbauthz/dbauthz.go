@@ -1976,7 +1976,6 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 }
 
 func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
-	// Deployment-wide counts require resource-level authorization, not row filters.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return database.CountChatCapacityActiveByPoolRow{}, err
 	}
@@ -1984,7 +1983,6 @@ func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg databas
 }
 
 func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context) (database.CountChatCapacityQueuedByPoolRow, error) {
-	// Deployment-wide counts require resource-level authorization, not row filters.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}

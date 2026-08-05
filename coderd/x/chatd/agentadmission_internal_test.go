@@ -146,14 +146,101 @@ func TestWorker_InterruptingSortsBeforeCapacityQueue(t *testing.T) {
 	require.EqualValues(t, 1, marked)
 	interrupting := f.createRunningChat(t)
 	interruptChat(t, f, interrupting.ID)
+	requiresAction := f.createRequiresActionChat(t)
 
 	rows, err := f.db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 		StaleSeconds: 30,
 		LimitCount:   10,
 	})
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(rows), 2)
+	require.GreaterOrEqual(t, len(rows), 3)
 	require.Equal(t, interrupting.ID, rows[0].ID, "interrupting chats must sort before the capacity queue")
+	require.Equal(t, requiresAction.ID, rows[1].ID, "requires_action chats bypass admission and must sort before the capacity queue")
+	require.Equal(t, queued.ID, rows[2].ID)
+}
+
+// rootRefusingAdmission simulates a full root pool with free subagent
+// capacity: running root chats refuse, everything else admits.
+type rootRefusingAdmission struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (a *rootRefusingAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
+	a.mu.Lock()
+	a.calls++
+	a.mu.Unlock()
+	if chat.Status != database.ChatStatusRunning {
+		return true, nil
+	}
+	return chat.ParentChatID.Valid, nil
+}
+
+func (a *rootRefusingAdmission) callCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.calls
+}
+
+func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = &rootRefusingAdmission{}
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A pre-marked root backlog deeper than two batches; the subagent is
+	// created last, so an ordering that ignores pools buries it behind a
+	// batch of pure re-skips and the pass ends before reaching it.
+	roots := make([]database.Chat, 0, 2*int(opts.AcquisitionBatchSize)+5)
+	for range cap(roots) {
+		chat := f.createRunningChat(t)
+		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+			ID:           chat.ID,
+			StaleSeconds: 30,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, marked)
+		roots = append(roots, chat)
+	}
+	sub := f.createRunningSubagentChat(t, roots[0].ID)
+
+	startWorker(t, opts)
+
+	call := starter.waitCall(t, taskKindGeneration, sub.ID)
+	require.Equal(t, sub.ID, call.input.ChatID)
+}
+
+// After the first refusal proves a pool full, the rest of the pass must
+// queue-mark that pool's chats without opening refusal transactions.
+// All-marked is the pass-completion signal, so the count is stable when
+// read.
+func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	admission := &rootRefusingAdmission{}
+	opts.AgentAdmission = admission
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chats := make([]database.Chat, 5)
+	for i := range chats {
+		chats[i] = f.createRunningChat(t)
+	}
+	startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		for _, chat := range chats {
+			if !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.LessOrEqual(t, admission.callCount(), 2,
+		"a full pool must be skipped after one refusal, not re-refused per chat")
 }
 
 func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
@@ -212,24 +299,32 @@ func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	require.Equal(t, chat.ID, call.input.ChatID)
 }
 
+// One acquisition pass must page past a full pool's backlog (via
+// @exclude_ids) and queue-mark every skipped chat, not just the first
+// batch.
 func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
-	admission := newFakeAdmission()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = admission
+	opts.AgentAdmission = &rootRefusingAdmission{}
 	opts.AcquisitionBatchSize = 2
+	ctx := testutil.Context(t, testutil.WaitLong)
 
-	first := f.createRunningChat(t)
-	second := f.createRunningChat(t)
-	third := f.createRunningChat(t)
-	admission.refuse(first.ID)
-	admission.refuse(second.ID)
+	chats := make([]database.Chat, 5)
+	for i := range chats {
+		chats[i] = f.createRunningChat(t)
+	}
 	startWorker(t, opts)
 
-	call := starter.waitCall(t, taskKindGeneration, third.ID)
-	require.Equal(t, third.ID, call.input.ChatID)
+	require.Eventually(t, func() bool {
+		for _, chat := range chats {
+			if !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {

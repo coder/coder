@@ -168,7 +168,7 @@ func (r *runner) processState(state runnerStateUpdate) {
 	if r.hasAcceptedState && r.activeTaskSet {
 		r.cancelActiveTask()
 	}
-	if r.opts.AgentAdmission != nil && capacityCounted(r.latestState) && !capacityCounted(state) {
+	if r.opts.AgentAdmission != nil && occupiesCapacitySlot(r.latestState) && !occupiesCapacitySlot(state) {
 		// Wake all workers when a slot opens rather than waiting for the
 		// acquisition ticker.
 		r.publishCapacityRelease(state)
@@ -178,9 +178,10 @@ func (r *runner) processState(state runnerStateUpdate) {
 	r.acceptState(state)
 }
 
-// The zero runnerStateUpdate is not capacity-counted, so callers need no
-// hasAcceptedState guard.
-func capacityCounted(state runnerStateUpdate) bool {
+// occupiesCapacitySlot reports whether a chat in this state counts
+// against its concurrency pool. The zero runnerStateUpdate does not, so
+// callers need no hasAcceptedState guard.
+func occupiesCapacitySlot(state runnerStateUpdate) bool {
 	return !state.Archived &&
 		(state.Status == database.ChatStatusRunning || state.Status == database.ChatStatusInterrupting)
 }

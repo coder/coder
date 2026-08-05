@@ -523,9 +523,13 @@ type sqlcQuerier interface {
 	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
 	// runner_id IS NULL while worker_id is set. Stale ownership is no
 	// heartbeat row for (chat_id, runner_id), or one older than
-	// @stale_seconds by database time. Interrupting chats sort first so stop
-	// requests are not delayed by the queue. Queued chats use FIFO order, followed
-	// by other candidates by updated_at. @exclude_ids advances past refusals.
+	// @stale_seconds by database time. Ordering: interrupting first (stop
+	// requests skip the queue), then requires_action (bypasses capacity
+	// admission), then running chats interleaved across the root/subagent
+	// pools, FIFO inside each pool. Interleaving keeps each pool's oldest
+	// candidate near the front so a deep backlog in one full pool cannot
+	// starve the other, letting the worker end a pass once a batch makes
+	// no progress. @exclude_ids advances past refusals.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.

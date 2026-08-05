@@ -8875,7 +8875,15 @@ WHERE
         )
     )
     AND NOT (chats_expanded.id = ANY(COALESCE($2::uuid[], '{}'::uuid[])))
-ORDER BY (chats_expanded.status = 'interrupting'::chat_status) DESC, chats_expanded.capacity_queued_at ASC NULLS LAST, chats_expanded.updated_at ASC, chats_expanded.id ASC
+ORDER BY
+    (chats_expanded.status = 'interrupting'::chat_status) DESC,
+    (chats_expanded.status = 'requires_action'::chat_status) DESC,
+    ROW_NUMBER() OVER (
+        PARTITION BY (chats_expanded.parent_chat_id IS NULL)
+        ORDER BY chats_expanded.capacity_queued_at ASC NULLS LAST, chats_expanded.updated_at ASC, chats_expanded.id ASC
+    ) ASC,
+    (chats_expanded.parent_chat_id IS NULL) DESC,
+    chats_expanded.id ASC
 LIMIT $3::int
 `
 
@@ -8947,9 +8955,13 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 // Missing ownership is worker_id IS NULL. Inconsistent ownership is
 // runner_id IS NULL while worker_id is set. Stale ownership is no
 // heartbeat row for (chat_id, runner_id), or one older than
-// @stale_seconds by database time. Interrupting chats sort first so stop
-// requests are not delayed by the queue. Queued chats use FIFO order, followed
-// by other candidates by updated_at. @exclude_ids advances past refusals.
+// @stale_seconds by database time. Ordering: interrupting first (stop
+// requests skip the queue), then requires_action (bypasses capacity
+// admission), then running chats interleaved across the root/subagent
+// pools, FIFO inside each pool. Interleaving keeps each pool's oldest
+// candidate near the front so a deep backlog in one full pool cannot
+// starve the other, letting the worker end a pass once a batch makes
+// no progress. @exclude_ids advances past refusals.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, pq.Array(arg.ExcludeIds), arg.LimitCount)
 	if err != nil {
