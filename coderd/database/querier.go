@@ -189,8 +189,6 @@ type sqlcQuerier interface {
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// Deletes files older than the threshold only after all chat links are gone.
-	// The purge transaction removes eligible chats first, and cascades clear
-	// their file links.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.

@@ -35,8 +35,7 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
-	// FileIDs are the uploaded files referenced by the initial
-	// messages, linked in the same transaction via [LinkFiles].
+	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 }
 

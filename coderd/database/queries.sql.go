@@ -5792,8 +5792,6 @@ type DeleteOldChatFilesParams struct {
 }
 
 // Deletes files older than the threshold only after all chat links are gone.
-// The purge transaction removes eligible chats first, and cascades clear
-// their file links.
 func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
