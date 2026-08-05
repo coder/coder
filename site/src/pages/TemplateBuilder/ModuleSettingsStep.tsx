@@ -27,6 +27,7 @@ interface ModuleSettingsStepProps {
 		variables: Record<string, string>,
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 }
 
 function variableToField(
@@ -109,6 +110,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	moduleVariables,
 	onChangeModuleVariables,
 	onRemoveModule,
+	registerModuleRef,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
@@ -152,7 +154,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					return (
 						<div
 							key={mod.id}
-							id={`module-config-${mod.id}`}
+							ref={(node) => registerModuleRef(mod.id, node)}
 							className="scroll-mt-24"
 						>
 							<ModuleConfiguration

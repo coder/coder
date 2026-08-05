@@ -178,13 +178,28 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	// Maps module id -> its config section node, populated by
+	// ModuleSettingsStep via callback refs. Used to scroll a module into
+	// view without relying on DOM ids.
+	const moduleRefs = useRef(new Map<string, HTMLDivElement>());
+
+	const registerModuleRef = useCallback(
+		(moduleId: string, node: HTMLDivElement | null) => {
+			if (node) {
+				moduleRefs.current.set(moduleId, node);
+			} else {
+				moduleRefs.current.delete(moduleId);
+			}
+		},
+		[],
+	);
+
 	// Holds the module a sidebar click wants to scroll to, so the scroll can
 	// happen after the module-settings step has rendered.
 	const pendingModuleScrollRef = useRef<string | null>(null);
 
 	const scrollModuleIntoView = (moduleId: string) => {
-		const el = document.getElementById(`module-config-${moduleId}`);
-		el?.scrollIntoView({ behavior: "smooth" });
+		moduleRefs.current.get(moduleId)?.scrollIntoView({ behavior: "smooth" });
 	};
 
 	// Sidebar module rows call this to jump to a module's configuration.
@@ -260,6 +275,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							createError,
 							handleProvisionerStatusChange,
 							handleDeselectModule,
+							registerModuleRef,
 						)}
 					</div>
 
@@ -313,6 +329,7 @@ function renderStepContent(
 	createError: Error | null,
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -359,6 +376,7 @@ function renderStepContent(
 						})
 					}
 					onRemoveModule={onRemoveModule}
+					registerModuleRef={registerModuleRef}
 				/>
 			);
 		case "customizations":
