@@ -37,9 +37,11 @@ import {
 	proposeChatTitle,
 	readInfiniteChatsCache,
 	removeChatEntity,
+	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
+	shouldInvalidateChatsByWorkspace,
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
@@ -304,6 +306,7 @@ const AgentsPageLayout: FC = () => {
 			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
+			removeChatFromChatsByWorkspace(queryClient, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
@@ -619,6 +622,8 @@ const AgentsPageLayout: FC = () => {
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
 						removeChatEntity(queryClient, updatedChat.id);
+						removeChatFromChatsByWorkspace(queryClient, updatedChat.id);
+						void invalidateChatsByWorkspace(queryClient);
 						void invalidateChatSearches(queryClient);
 						return;
 					}
@@ -655,6 +660,7 @@ const AgentsPageLayout: FC = () => {
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
 							void invalidateChatListQueries(queryClient);
+							void invalidateChatsByWorkspace(queryClient);
 							void invalidateChatSearches(queryClient);
 						}
 					} else {
@@ -667,6 +673,9 @@ const AgentsPageLayout: FC = () => {
 						}
 						if (shouldInvalidateChatSearches(chatEvent.kind)) {
 							void invalidateChatSearches(queryClient);
+						}
+						if (shouldInvalidateChatsByWorkspace(chatEvent.kind)) {
+							void invalidateChatsByWorkspace(queryClient);
 						}
 						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
@@ -690,6 +699,7 @@ const AgentsPageLayout: FC = () => {
 			},
 			onOpen() {
 				void invalidateChatListQueries(queryClient);
+				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
 			},
 		});

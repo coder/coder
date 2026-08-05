@@ -643,6 +643,18 @@ export const invalidateChatListQueries = (queryClient: QueryClient) =>
 		queryKey: chatListFamilyKey,
 	});
 
+// Watch events that can reorder which chat is the newest for a
+// workspace. The created and deleted kinds are handled by their own
+// watch branches; title, summary, diff, and context events do not move
+// updated_at ordering.
+const BY_WORKSPACE_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>(
+	["status_change", "action_required"],
+);
+
+export const shouldInvalidateChatsByWorkspace = (
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => BY_WORKSPACE_AFFECTING_EVENT_KINDS.has(eventKind);
+
 export const invalidateChatsByWorkspace = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({
 		queryKey: chatsByWorkspaceFamilyKey,
@@ -766,6 +778,25 @@ export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});
+
+export const removeChatFromChatsByWorkspace = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.setQueriesData<Record<string, string>>(
+		{ queryKey: chatsByWorkspaceFamilyKey },
+		(prev) => {
+			if (!prev) {
+				return prev;
+			}
+			const next = Object.fromEntries(
+				Object.entries(prev).filter(([, id]) => id !== chatId),
+			);
+			return Object.keys(next).length === Object.keys(prev).length
+				? prev
+				: next;
+		},
+	);
 
 export const patchChatEntity = (
 	queryClient: QueryClient,
@@ -1008,6 +1039,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
+		removeChatFromChatsByWorkspace(queryClient, chatId);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
 		void invalidateChatListQueries(queryClient);

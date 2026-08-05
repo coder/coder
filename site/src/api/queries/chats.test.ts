@@ -58,11 +58,13 @@ import {
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
+	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	setChatGroupRole,
 	setChatUserRole,
 	shouldInvalidateChatSearches,
+	shouldInvalidateChatsByWorkspace,
 	TERMINAL_RUN_STATUSES,
 	toChatListParams,
 	unarchiveChat,
@@ -70,6 +72,7 @@ import {
 	updateChatAdvisorConfig,
 	updateChatPlanMode,
 	updateChatTitle,
+	updateChatWorkspace,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "./chats";
@@ -1607,6 +1610,97 @@ describe("mutation invalidation scope", () => {
 			"chat search entry should be invalidated",
 		).toBe(true);
 	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "archiveChat onSettled",
+			settle: (queryClient) =>
+				archiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "unarchiveChat onSettled",
+			settle: (queryClient) =>
+				unarchiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "updateChatWorkspace onSettled",
+			settle: (queryClient) =>
+				updateChatWorkspace(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					workspaceId: "ws-1",
+				}),
+		},
+		{
+			name: "createChat onSuccess",
+			settle: (queryClient) => createChat(queryClient).onSuccess(),
+		},
+	])("$name invalidates chats by workspace", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should be invalidated",
+		).toBe(true);
+	});
+
+	it("archiveChat onSuccess synchronously removes the chat's by-workspace mappings", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+			"ws-2": "chat-2",
+		});
+
+		archiveChat(queryClient).onSuccess(undefined, "chat-1");
+
+		// Assert before any timer flush: the archived chat must be gone
+		// from the mapping without waiting for the onSettled refetch.
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({ "ws-2": "chat-2" });
+	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "updateChatTitle onSettled",
+			settle: (queryClient) =>
+				updateChatTitle(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					title: "New",
+				}),
+		},
+		{
+			name: "createChatMessage onSuccess",
+			settle: (queryClient) =>
+				createChatMessage(queryClient, "chat-1").onSuccess?.(),
+		},
+	])("$name does not invalidate chats by workspace", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should NOT be invalidated",
+		).not.toBe(true);
+	});
 });
 
 describe("chatListKey shape", () => {
@@ -3088,6 +3182,29 @@ describe("semantic cache operations: prefix invalidations", () => {
 		).not.toBe(true);
 	});
 
+	describe(shouldInvalidateChatsByWorkspace.name, () => {
+		// Only events that can reorder which chat is the newest for a
+		// workspace invalidate the by-workspace mapping. The created and
+		// deleted kinds are handled by their own watch branches before the
+		// merge path runs; title, summary, diff, and context events do not
+		// move updated_at ordering.
+		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
+			action_required: true,
+			chat_summary_change: false,
+			context_dirty: false,
+			created: false,
+			deleted: false,
+			diff_status_change: false,
+			status_change: true,
+			summary_change: false,
+			title_change: false,
+		};
+
+		it.each(ChatWatchEventKinds)("%s", (kind) => {
+			expect(shouldInvalidateChatsByWorkspace(kind)).toBe(expectedByKind[kind]);
+		});
+	});
+
 	it("invalidateChatDebugRuns touches the runs list and run details only", async () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
@@ -3290,5 +3407,58 @@ describe("semantic cache operations: removal and patching", () => {
 		patchChatMessages(queryClient, "chat-1", (data) => data);
 
 		expect(queryClient.getQueryData(chatMessagesKey("chat-1"))).toBe(before);
+	});
+
+	it("removeChatFromChatsByWorkspace removes only mappings pointing at the chat", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+			"ws-2": "chat-2",
+		});
+		queryClient.setQueryData(chatsByWorkspace(["ws-3"]).queryKey, {
+			"ws-3": "chat-1",
+		});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+
+		removeChatFromChatsByWorkspace(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({ "ws-2": "chat-2" });
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-3"]).queryKey),
+		).toEqual({});
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["chat detail", chatEntityKey("chat-1")],
+			["chat search", chatSearch({ q: "alpha" }).queryKey],
+		] as const) {
+			expect(
+				queryClient.getQueryData(key),
+				`${label} entry should survive removeChatFromChatsByWorkspace`,
+			).toBeDefined();
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should NOT be invalidated`,
+			).not.toBe(true);
+		}
+	});
+
+	it("removeChatFromChatsByWorkspace preserves the previous reference when the chat is absent", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-2",
+		});
+		const before = queryClient.getQueryData(
+			chatsByWorkspace(["ws-1"]).queryKey,
+		);
+
+		removeChatFromChatsByWorkspace(queryClient, "chat-1");
+
+		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
+			before,
+		);
 	});
 });
