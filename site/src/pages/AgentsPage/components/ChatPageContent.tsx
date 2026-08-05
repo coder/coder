@@ -5,7 +5,6 @@ import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
-import type { ChatUrlTransform } from "../context/ChatUrlTransformContext";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -86,7 +85,6 @@ interface ChatPageTimelineProps {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
@@ -97,7 +95,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
-	urlTransform,
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -157,7 +154,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
@@ -167,7 +163,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
 			</div>

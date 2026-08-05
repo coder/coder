@@ -100,10 +100,9 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
-// Applies the chat URL transform at render time, via context, because
-// Streamdown memoizes rendered blocks by content and ignores urlTransform
-// changes. Anchors rendered before workspace data loads mid-stream would
-// otherwise keep their untransformed localhost hrefs until a remount.
+// Reads the transform through context at render time because Streamdown
+// memoizes blocks by content, so hrefs rendered before workspace data
+// loads would otherwise stay untransformed until a remount.
 const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
 	const transform = useChatUrlTransform();
 	return (
@@ -281,6 +280,19 @@ export const Response = ({
 	const chatUrlTransform = useChatUrlTransform();
 	const effectiveUrlTransform = urlTransform ?? chatUrlTransform;
 
+	const markdown = (
+		<Streamdown
+			controls={false}
+			components={components}
+			urlTransform={effectiveUrlTransform}
+			rehypePlugins={chatRehypePlugins}
+			mode={streaming ? "streaming" : "static"}
+			parseIncompleteMarkdown={streaming}
+		>
+			{children}
+		</Streamdown>
+	);
+
 	return (
 		<div
 			ref={ref}
@@ -290,21 +302,15 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			{/* Re-provide the effective transform so MarkdownAnchor honors an
-			    explicitly passed urlTransform prop, not just the page-level
-			    context value. */}
-			<ChatUrlTransformContext value={effectiveUrlTransform}>
-				<Streamdown
-					controls={false}
-					components={components}
-					urlTransform={effectiveUrlTransform}
-					rehypePlugins={chatRehypePlugins}
-					mode={streaming ? "streaming" : "static"}
-					parseIncompleteMarkdown={streaming}
-				>
-					{children}
-				</Streamdown>
-			</ChatUrlTransformContext>
+			{/* An explicit urlTransform prop must also win inside
+			    MarkdownAnchor, which reads from context. */}
+			{urlTransform ? (
+				<ChatUrlTransformContext value={urlTransform}>
+					{markdown}
+				</ChatUrlTransformContext>
+			) : (
+				markdown
+			)}
 		</div>
 	);
 };

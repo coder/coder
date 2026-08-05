@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import {
 	ConversationItem,
 	Message,
@@ -37,7 +36,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	streamState,
@@ -46,7 +44,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	urlTransform,
 	mcpServers,
 }) => {
 	if (liveStatus.phase === "idle") {
@@ -80,7 +77,6 @@ export const StreamingOutput: FC<{
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								subagentStatusOverrides={subagentStatusOverrides}
-								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 							/>
 						)}

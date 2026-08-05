@@ -224,10 +224,8 @@ export const LocalhostLinkFromChatContext: Story = {
 	},
 };
 
-// Simulates workspace data arriving while a message is already
-// rendered: Streamdown memoizes blocks by content, so the rewritten
-// href must come from the render-time context transform, not from a
-// re-parse.
+// Streamdown memoizes blocks by content, so the rewritten href must
+// come from the render-time context transform.
 const TransformArrivesAfterRender: FC<{ children: string }> = ({
 	children,
 }) => {

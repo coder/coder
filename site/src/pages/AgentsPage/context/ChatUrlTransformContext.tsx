@@ -1,10 +1,6 @@
 import { createContext, useContext } from "react";
 
-/**
- * The single-argument shape (vs streamdown's UrlTransform) lets
- * plain-text surfaces call it with just a URL while staying assignable
- * to Streamdown's urlTransform prop.
- */
+/** Single-argument shape stays assignable to Streamdown's urlTransform. */
 export type ChatUrlTransform = (url: string) => string;
 
 const ChatUrlTransformContext = createContext<ChatUrlTransform | undefined>(

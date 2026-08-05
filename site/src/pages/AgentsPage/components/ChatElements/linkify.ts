@@ -9,6 +9,14 @@ const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
 const TRAILING_PUNCTUATION = new Set([".", ",", ";", ":", "!", "?"]);
 
 const trimTrailingPunctuation = (url: string): string => {
+	let parenBalance = 0;
+	for (const char of url) {
+		if (char === "(") {
+			parenBalance += 1;
+		} else if (char === ")") {
+			parenBalance -= 1;
+		}
+	}
 	let end = url.length;
 	while (end > 0) {
 		const char = url[end - 1];
@@ -16,32 +24,24 @@ const trimTrailingPunctuation = (url: string): string => {
 			end -= 1;
 			continue;
 		}
-		if (char === ")") {
-			const candidate = url.slice(0, end);
-			const opens = candidate.split("(").length - 1;
-			const closes = candidate.split(")").length - 1;
-			if (closes > opens) {
-				end -= 1;
-				continue;
-			}
+		// Trim a trailing ")" only while there are more closers than
+		// openers, so "(see http://x/(a))" keeps the URL's own parens.
+		if (char === ")" && parenBalance < 0) {
+			parenBalance += 1;
+			end -= 1;
+			continue;
 		}
 		break;
 	}
 	return url.slice(0, end);
 };
 
-/**
- * Concatenating the returned segment values reproduces the input, so
- * whitespace in preformatted output is preserved.
- */
+/** Concatenating the returned segment values reproduces the input. */
 export const splitTextForLinks = (text: string): LinkSegment[] => {
 	const segments: LinkSegment[] = [];
 	let lastIndex = 0;
 	for (const match of text.matchAll(URL_PATTERN)) {
 		const url = trimTrailingPunctuation(match[0]);
-		if (url.length === 0) {
-			continue;
-		}
 		if (match.index > lastIndex) {
 			segments.push({
 				kind: "text",

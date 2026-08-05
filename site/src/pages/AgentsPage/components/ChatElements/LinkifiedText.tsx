@@ -1,16 +1,11 @@
 import type React from "react";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import { splitTextForLinks } from "./linkify";
 
-/**
- * Renders plain text with http(s) URLs as anchors, routing hrefs
- * through the chat URL transform so localhost URLs open via the
- * workspace port-forward subdomain.
- */
 export const LinkifiedText: React.FC<{ text: string }> = ({ text }) => {
 	const transform = useChatUrlTransform();
-	const segments = splitTextForLinks(text);
+	const segments = useMemo(() => splitTextForLinks(text), [text]);
 	if (!segments.some((segment) => segment.kind === "url")) {
 		return text;
 	}
@@ -23,7 +18,7 @@ export const LinkifiedText: React.FC<{ text: string }> = ({ text }) => {
 				key={index}
 				href={transform ? transform(segment.value) : segment.value}
 				target="_blank"
-				rel="noreferrer"
+				rel="noopener noreferrer"
 				className="font-[inherit] text-content-link underline underline-offset-2 hover:no-underline"
 			>
 				{segment.value}
