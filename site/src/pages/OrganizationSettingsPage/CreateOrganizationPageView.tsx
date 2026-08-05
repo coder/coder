@@ -13,13 +13,8 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Spinner } from "#/components/Spinner/Spinner";
-import type { Permissions } from "#/modules/permissions";
 import { Textarea } from "#/components/Textarea/Textarea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {

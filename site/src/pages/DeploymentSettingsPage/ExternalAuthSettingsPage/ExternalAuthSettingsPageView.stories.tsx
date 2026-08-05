@@ -50,7 +50,7 @@ export const Page: Story = {
 				name: "Read the External Authentication documentation",
 			}),
 		).toBeVisible();
-	}
+	},
 };
 
 export const Empty: Story = {
@@ -59,4 +59,4 @@ export const Empty: Story = {
 			external_auth: [],
 		},
 	},
-}
+};

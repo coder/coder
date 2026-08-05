@@ -20,9 +20,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import type { Permissions } from "#/modules/permissions";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
