@@ -2330,6 +2330,12 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-groups`
 
+Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+which authorizes each group individually via its ACL, this endpoint requires
+organization-wide group read permission and does no per-group filtering. It is
+therefore not a drop-in replacement: callers without org-wide group read receive
+an error rather than a filtered subset.
+
 ### Parameters
 
 | Name           | In    | Type    | Required | Description             |
@@ -5252,7 +5258,7 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users`
@@ -5274,7 +5280,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `POST /scim/v2/Users`
@@ -5364,7 +5370,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users/{id}`
@@ -5392,7 +5398,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PUT /scim/v2/Users/{id}`
@@ -5484,7 +5490,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PATCH /scim/v2/Users/{id}`

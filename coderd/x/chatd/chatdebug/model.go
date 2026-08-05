@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"unicode/utf8"
@@ -460,6 +461,9 @@ func wrapStreamSeq(
 			finishSeen       bool
 			finishReason     fantasy.FinishReason
 			content          []normalizedContentPart
+			currentText      *strings.Builder
+			currentTextIdx   int
+			argBuilders      = make(map[string]*strings.Builder)
 			warnings         []normalizedWarning
 			streamDebugBytes int
 			streamError      any
@@ -480,6 +484,7 @@ func wrapStreamSeq(
 			close(heartbeatDone)
 
 			summary.FinishReason = string(finishReason)
+			materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
 
 			resp := normalizedResponsePayload{
 				Content:      content,
@@ -528,7 +533,8 @@ func wrapStreamSeq(
 					streamComplete.Store(true)
 				}
 
-				content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+				content, currentText, currentTextIdx = appendNormalizedStreamContent(
+					content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
@@ -758,14 +764,18 @@ func safeMarshalJSON(label string, value any) json.RawMessage {
 	return append(json.RawMessage(nil), data...)
 }
 
+// appendStreamContentText accumulates a delta into the current
+// text/reasoning run.
 func appendStreamContentText(
 	content []normalizedContentPart,
+	currentText *strings.Builder,
+	currentTextIdx int,
 	partType string,
 	delta string,
 	streamDebugBytes *int,
-) []normalizedContentPart {
+) ([]normalizedContentPart, *strings.Builder, int) {
 	if delta == "" {
-		return content
+		return content, currentText, currentTextIdx
 	}
 
 	remaining := maxStreamDebugTextBytes
@@ -773,7 +783,7 @@ func appendStreamContentText(
 		remaining -= *streamDebugBytes
 	}
 	if remaining <= 0 {
-		return content
+		return content, currentText, currentTextIdx
 	}
 	if len(delta) > remaining {
 		cut := 0
@@ -790,18 +800,26 @@ func appendStreamContentText(
 		delta = delta[:cut]
 	}
 	if delta == "" {
-		return content
+		return content, currentText, currentTextIdx
 	}
 
 	if len(content) == 0 || content[len(content)-1].Type != partType {
+		// A different-typed part is interrupting (or this is the
+		// first part): flush the outgoing run into content now, since
+		// currentText is about to be replaced and materializeStreamContent
+		// only ever sees whichever run is still open at the end.
+		if currentText != nil && currentTextIdx < len(content) {
+			content[currentTextIdx].Text = currentText.String()
+		}
 		content = append(content, normalizedContentPart{Type: partType})
+		currentText = &strings.Builder{}
+		currentTextIdx = len(content) - 1
 	}
-	last := &content[len(content)-1]
-	last.Text += delta
+	_, _ = currentText.WriteString(delta)
 	if streamDebugBytes != nil {
 		*streamDebugBytes += len(delta)
 	}
-	return content
+	return content, currentText, currentTextIdx
 }
 
 // appendStreamToolInput accumulates incremental tool-input deltas
@@ -809,6 +827,7 @@ func appendStreamContentText(
 // remain distinguishable in interrupted stream debug payloads.
 func appendStreamToolInput(
 	content []normalizedContentPart,
+	argBuilders map[string]*strings.Builder,
 	part fantasy.StreamPart,
 	streamDebugBytes *int,
 ) []normalizedContentPart {
@@ -842,26 +861,19 @@ func appendStreamToolInput(
 		return content
 	}
 
-	// Find the existing tool_input part for this specific tool call ID.
-	// Scan backwards through all content; tool_input deltas for the
-	// same call may be separated by text, reasoning, or source parts
-	// when streams interleave multiple tool invocations.
-	for i := len(content) - 1; i >= 0; i-- {
-		if content[i].Type == "tool_input" && content[i].ToolCallID == part.ID {
-			content[i].Arguments += delta
-			if streamDebugBytes != nil {
-				*streamDebugBytes += len(delta)
-			}
-			return content
-		}
+	// argBuilders indexes by ToolCallID directly, so resuming an
+	// interleaved call needs no scan through content.
+	b := argBuilders[part.ID]
+	if b == nil {
+		b = &strings.Builder{}
+		argBuilders[part.ID] = b
+		content = append(content, normalizedContentPart{
+			Type:       "tool_input",
+			ToolCallID: part.ID,
+			ToolName:   part.ToolCallName,
+		})
 	}
-
-	content = append(content, normalizedContentPart{
-		Type:       "tool_input",
-		ToolCallID: part.ID,
-		ToolName:   part.ToolCallName,
-		Arguments:  delta,
-	})
+	_, _ = b.WriteString(delta)
 	if streamDebugBytes != nil {
 		*streamDebugBytes += len(delta)
 	}
@@ -879,16 +891,42 @@ func canonicalContentType(partType string) string {
 	}
 }
 
+// materializeStreamContent copies currentText (if any) and each
+// argBuilders entry into the corresponding content part's
+// Text/Arguments. It should be called once, after streaming completes
+// and before content is read. It is safe to call more than once.
+func materializeStreamContent(
+	content []normalizedContentPart,
+	currentText *strings.Builder,
+	currentTextIdx int,
+	argBuilders map[string]*strings.Builder,
+) {
+	if currentText != nil && currentTextIdx < len(content) {
+		content[currentTextIdx].Text = currentText.String()
+	}
+	for i := range content {
+		if content[i].Type != "tool_input" {
+			continue
+		}
+		if b, ok := argBuilders[content[i].ToolCallID]; ok {
+			content[i].Arguments = b.String()
+		}
+	}
+}
+
 func appendNormalizedStreamContent(
 	content []normalizedContentPart,
+	currentText *strings.Builder,
+	currentTextIdx int,
+	argBuilders map[string]*strings.Builder,
 	part fantasy.StreamPart,
 	streamDebugBytes *int,
-) []normalizedContentPart {
+) ([]normalizedContentPart, *strings.Builder, int) {
 	switch part.Type {
 	case fantasy.StreamPartTypeTextDelta:
-		return appendStreamContentText(content, "text", part.Delta, streamDebugBytes)
+		return appendStreamContentText(content, currentText, currentTextIdx, "text", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeReasoningStart, fantasy.StreamPartTypeReasoningDelta:
-		return appendStreamContentText(content, "reasoning", part.Delta, streamDebugBytes)
+		return appendStreamContentText(content, currentText, currentTextIdx, "reasoning", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeToolInputStart,
 		fantasy.StreamPartTypeToolInputDelta,
 		fantasy.StreamPartTypeToolInputEnd:
@@ -896,31 +934,35 @@ func appendNormalizedStreamContent(
 		// tool_call summary. Attribute each chunk to its tool call
 		// so interrupted streams can reconstruct which partial input
 		// belonged to which invocation.
-		return appendStreamToolInput(content, part, streamDebugBytes)
+		content = appendStreamToolInput(content, argBuilders, part, streamDebugBytes)
+		return content, currentText, currentTextIdx
 	case fantasy.StreamPartTypeToolCall:
-		return append(content, normalizedContentPart{
+		content = append(content, normalizedContentPart{
 			Type:        canonicalContentType(string(part.Type)),
 			ToolCallID:  part.ID,
 			ToolName:    part.ToolCallName,
 			Arguments:   boundText(part.ToolCallInput),
 			InputLength: utf8.RuneCountInString(part.ToolCallInput),
 		})
+		return content, currentText, currentTextIdx
 	case fantasy.StreamPartTypeToolResult:
-		return append(content, normalizedContentPart{
+		content = append(content, normalizedContentPart{
 			Type:       canonicalContentType(string(part.Type)),
 			ToolCallID: part.ID,
 			ToolName:   part.ToolCallName,
 			Result:     boundText(part.ToolCallInput),
 		})
+		return content, currentText, currentTextIdx
 	case fantasy.StreamPartTypeSource:
-		return append(content, normalizedContentPart{
+		content = append(content, normalizedContentPart{
 			Type:       string(part.Type),
 			SourceType: string(part.SourceType),
 			Title:      part.Title,
 			URL:        part.URL,
 		})
+		return content, currentText, currentTextIdx
 	default:
-		return content
+		return content, currentText, currentTextIdx
 	}
 }
 

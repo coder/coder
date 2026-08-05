@@ -70,12 +70,12 @@ func SubscribeProviderReload(
 // before serving.
 //
 // It runs until ctx is canceled, then returns ctx.Err(). clientFn receives ctx,
-// so a client acquisition that blocks (e.g. Server.ClientContext waiting for
+// so a client acquisition that blocks (e.g. Server.Client waiting for
 // the daemon to connect to coderd) unblocks when ctx is canceled, leaving no
 // goroutine behind.
 func WatchProviderReload(
 	ctx context.Context,
-	clientFn ClientFuncWithContext,
+	clientFn ClientFunc,
 	reloader ProviderReloader,
 	logger slog.Logger,
 ) error {
@@ -109,7 +109,7 @@ func WatchProviderReload(
 // watchProviderReloadOnce opens a single WatchAIProviders stream and reloads on
 // each signal until the stream fails. received reports whether at least one
 // signal was received before the error.
-func watchProviderReloadOnce(ctx context.Context, clientFn ClientFuncWithContext, reloader ProviderReloader, logger slog.Logger) (received bool, err error) {
+func watchProviderReloadOnce(ctx context.Context, clientFn ClientFunc, reloader ProviderReloader, logger slog.Logger) (received bool, err error) {
 	// clientFn blocks until the daemon connects to coderd or ctx is canceled.
 	c, err := clientFn(ctx)
 	if err != nil {

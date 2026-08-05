@@ -32,9 +32,11 @@ SELECT
 FROM
 	groups
 WHERE
-	organization_id = $1
+	organization_id = @organization_id
 AND
-	name = $2
+	-- Match group name case-insensitively, consistent with organization and
+	-- workspace name lookups.
+	LOWER("name") = LOWER(@name)
 LIMIT
 	1;
 
@@ -89,7 +91,7 @@ WHERE
 LIMIT NULLIF(@limit_opt :: int, 0)
 ;
 
--- name: PaginatedOrganizationGroups :many
+-- name: GetGroupsByOrganizationIDPaginated :many
 SELECT
 		sqlc.embed(groups),
 		organizations.name AS organization_name,
@@ -101,11 +103,7 @@ INNER JOIN
 		organizations ON groups.organization_id = organizations.id
 WHERE
 		true
-		AND CASE
-				WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
-						groups.organization_id = @organization_id
-				ELSE true
-		END
+		AND groups.organization_id = @organization_id
 		-- Filter by group name or display name (substring, case-insensitive).
 		AND CASE WHEN @search :: text != '' THEN (
 				groups.name ILIKE concat('%', @search, '%')

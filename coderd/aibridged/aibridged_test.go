@@ -123,7 +123,7 @@ func TestClient_TransientDialErrorRetries(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
-	_, err = srv.ClientContext(testutil.Context(t, testutil.WaitShort))
+	_, err = srv.Client(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	require.Equal(t, int32(2), calls.Load())
 }

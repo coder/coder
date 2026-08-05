@@ -89,7 +89,7 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GroupsByOrganization
@@ -138,7 +138,7 @@ func (c *Client) Groups(ctx context.Context, args GroupArguments) ([]Group, erro
 	}
 
 	var groups []Group
-	return groups, json.NewDecoder(res.Body).Decode(&groups)
+	return groups, ReadBodyAsJSON(res, &groups)
 }
 
 func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name string) (Group, error) {
@@ -155,7 +155,7 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // OrganizationGroupsPaginated lists filtered and paginated groups in an
@@ -212,7 +212,7 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID, req GroupRequest) (
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GroupMembers(ctx context.Context, group uuid.UUID, req UsersRequest) (GroupMembersResponse, error) {
@@ -231,7 +231,7 @@ func (c *Client) GroupMembers(ctx context.Context, group uuid.UUID, req UsersReq
 		return GroupMembersResponse{}, ReadBodyAsError(res)
 	}
 	var resp GroupMembersResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PatchGroupRequest struct {
@@ -257,7 +257,7 @@ func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroup
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) DeleteGroup(ctx context.Context, group uuid.UUID) error {

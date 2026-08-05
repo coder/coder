@@ -199,11 +199,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name != "" && req.Name != group.Name {
-		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+		existing, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
 			Name:           req.Name,
 		})
-		if err == nil {
+		// GetGroupByOrgAndName matches names case-insensitively, so exclude the
+		// group being renamed. This allows changing only the casing of a name
+		// while still rejecting a name already taken by a different group.
+		if err == nil && existing.ID != group.ID {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
 			})
@@ -557,6 +560,11 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
+// @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+// @Description which authorizes each group individually via its ACL, this endpoint requires
+// @Description organization-wide group read permission and does no per-group filtering. It is
+// @Description therefore not a drop-in replacement: callers without org-wide group read receive
+// @Description an error rather than a filtered subset.
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -577,7 +585,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := api.Database.PaginatedOrganizationGroups(ctx, database.PaginatedOrganizationGroupsParams{
+	groups, err := api.Database.GetGroupsByOrganizationIDPaginated(ctx, database.GetGroupsByOrganizationIDPaginatedParams{
 		OrganizationID: org.ID,
 		Search:         search,
 		// #nosec G115 - Pagination offsets are small and fit in int32

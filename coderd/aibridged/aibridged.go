@@ -167,11 +167,9 @@ func (s *Server) Err() error {
 	return s.lifecycleCtx.Err()
 }
 
-func (s *Server) Client() (DRPCClient, error) {
-	return s.ClientContext(context.Background())
-}
-
-func (s *Server) ClientContext(ctx context.Context) (DRPCClient, error) {
+// Client acquires a [DRPCClient], blocking until the daemon is connected to
+// coderd, the server lifecycle ends, or ctx is canceled.
+func (s *Server) Client(ctx context.Context) (DRPCClient, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

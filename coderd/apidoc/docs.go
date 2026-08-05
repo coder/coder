@@ -582,7 +582,7 @@ const docTemplate = `{
         },
         "/api/experimental/chats/{chat}/cost": {
             "get": {
-                "description": "Experimental: this endpoint is subject to change.",
+                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
                 "produces": [
                     "application/json"
                 ],
@@ -5763,6 +5763,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-groups": {
             "get": {
+                "description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.",
                 "produces": [
                     "application/json"
                 ],
@@ -15613,7 +15614,7 @@ const docTemplate = `{
                     }
                 },
                 "network_calls": {
-                    "description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+                    "description": "NetworkCalls summarizes the Agent Firewall network requests made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
@@ -15649,6 +15650,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeSessionNetworkDomain": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "domain": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeSessionThreadsResponse": {
             "type": "object",
             "properties": {
@@ -15673,6 +15685,31 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                },
+                "network_call_logs": {
+                    "description": "NetworkCallLogs is the chronological list of individual network calls made\nduring the session, holding the earliest calls up to a server-side cap.\nNetworkCalls remains authoritative for whole-session totals, so a shorter\nlist than NetworkCalls.Total means the list was truncated. Empty when the\nsession did not pass through Agent Firewall.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentFirewallLog"
+                    }
+                },
+                "network_calls": {
+                    "description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
+                        }
+                    ]
+                },
+                "network_domain_count": {
+                    "type": "integer"
+                },
+                "network_top_domains": {
+                    "description": "NetworkTopDomains lists the most contacted destination hosts, ordered by\ncall count descending. NetworkDomainCount is the total number of distinct\ndomains, used to render a \"+N more\" overflow beyond the listed domains.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkDomain"
                     }
                 },
                 "page_ended_at": {
@@ -17423,6 +17460,9 @@ const docTemplate = `{
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
+                "hook_allow_insecure": {
+                    "type": "boolean"
+                },
                 "hook_enabled": {
                     "type": "boolean"
                 },
@@ -17544,7 +17584,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "description": "Name is the tool name with the ` + "`" + `\u003cserver\u003e__` + "`" + ` prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
                 }
             }
@@ -17556,13 +17596,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "priced_message_count": {
+                "request_count": {
                     "type": "integer"
                 },
                 "total_cost_micros": {
                     "type": "integer"
                 },
-                "unpriced_messages_having_usage_count": {
+                "unpriced_request_count": {
                     "type": "integer"
                 }
             }
@@ -17960,6 +18000,10 @@ const docTemplate = `{
                 },
                 "file_name": {
                     "type": "string"
+                },
+                "hook_rewritten": {
+                    "description": "HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.",
+                    "type": "boolean"
                 },
                 "is_error": {
                     "type": "boolean"
@@ -20364,7 +20408,6 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
@@ -20379,7 +20422,6 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -20396,7 +20438,6 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
@@ -20412,7 +20453,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
@@ -30009,7 +30049,7 @@ const docTemplate = `{
         },
         "Authorization": {
             "type": "apiKey",
-            "name": "Authorizaiton",
+            "name": "Authorization",
             "in": "header"
         },
         "CoderSessionToken": {

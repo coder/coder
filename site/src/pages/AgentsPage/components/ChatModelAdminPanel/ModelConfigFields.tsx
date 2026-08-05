@@ -37,10 +37,6 @@ import {
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
 } from "./modelConfigFormLogic";
-import {
-	getPricingPlaceholderForField,
-	pricingFieldNames,
-} from "./pricingFields";
 
 const booleanFieldOptions = [
 	{ label: "Off", value: "false" },
@@ -56,14 +52,6 @@ const isReasoningEffortField = (jsonName: string): boolean =>
 	jsonName === "reasoning_effort.max";
 
 // ── Helpers ────────────────────────────────────────────────────
-
-/** Short display labels for pricing fields to avoid overly verbose names. */
-const shortLabelOverrides: Record<string, string> = {
-	"cost.input_price_per_million_tokens": "Input",
-	"cost.output_price_per_million_tokens": "Output",
-	"cost.cache_read_price_per_million_tokens": "Cache read",
-	"cost.cache_write_price_per_million_tokens": "Cache write",
-};
 
 /**
  * Suffix units displayed inside the input control. When present,
@@ -90,16 +78,6 @@ const placeholderOverrides: Record<string, string> = {
 	frequency_penalty: "-2.0 to 2.0",
 };
 
-/**
- * Convert a dot-and-underscore-separated json_name into a
- * human-readable label. Uses short overrides for pricing fields
- * when available.
- *
- * @example
- * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
- * snakeToPrettyLabel("reasoning_effort")        // "Reasoning Effort"
- */
-/** Capitalize the first letter of a string. */
 function capitalize(s: string): string {
 	return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -107,9 +85,6 @@ function capitalize(s: string): string {
 function snakeToPrettyLabel(field: FieldSchema): string {
 	if (field.label) {
 		return field.label;
-	}
-	if (shortLabelOverrides[field.json_name]) {
-		return shortLabelOverrides[field.json_name];
 	}
 	const words = field.json_name.split(/[._]/);
 	return words
@@ -121,11 +96,6 @@ function snakeToPrettyLabel(field: FieldSchema): string {
  * Derive a sensible placeholder from the field schema type.
  */
 function placeholderForField(field: FieldSchema): string {
-	const pricingPlaceholder = getPricingPlaceholderForField(field.json_name);
-	if (pricingPlaceholder !== undefined) {
-		return pricingPlaceholder;
-	}
-
 	switch (field.type) {
 		case "integer":
 		case "number":
@@ -326,12 +296,25 @@ const SegmentedField: FC<
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
 	return (
-		<div className="flex min-w-0 flex-wrap items-center gap-2 self-stretch">
+		<div className="flex min-w-0 flex-col gap-1.5 self-stretch">
+			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
+				<span>{label}</span>
+				{description && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<InfoIcon className="size-3 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-[240px]">
+							{description}
+						</TooltipContent>
+					</Tooltip>
+				)}
+			</div>
 			<div
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex items-center gap-0.75 rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center gap-0.75 rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -345,7 +328,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
@@ -357,19 +340,6 @@ const SegmentedField: FC<
 						</button>
 					);
 				})}
-			</div>
-			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
-				<span>{label}</span>
-				{description && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="size-3 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-[240px]">
-							{description}
-						</TooltipContent>
-					</Tooltip>
-				)}
 			</div>
 			{fieldError && (
 				<p id={errorId} className="m-0 w-full text-xs text-content-destructive">
@@ -469,6 +439,8 @@ const SchemaField: FC<SchemaFieldProps> = ({
 				/>
 			);
 		case "select": {
+			// Booleans keep the on/off/default segmented switch; every string
+			// enum renders as a dropdown so the switch stays a tri-state control.
 			if (field.type === "boolean") {
 				return (
 					<SegmentedField
@@ -482,22 +454,6 @@ const SchemaField: FC<SchemaFieldProps> = ({
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
-			const maxSegmented = 6;
-			if (options.length > 0 && options.length <= maxSegmented) {
-				return (
-					<SegmentedField
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={errorKey}
-						label={label}
-						description={field.description}
-						options={options.map((value) => ({
-							label: capitalize(value),
-							value,
-						}))}
-					/>
-				);
-			}
 			return (
 				<SelectField
 					{...ctx}
@@ -529,14 +485,11 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, small enums)
- *   3 = full-width (booleans, large enums, json textareas)
+ *   1 = default (inputs, selects, boolean switches)
+ *   3 = full-width (json textareas, which need room for multi-line content)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
-	if (field.type === "boolean" || field.input_type === "json") {
-		return 3;
-	}
-	if (field.input_type === "select" && (field.enum?.length ?? 0) > 3) {
+	if (field.input_type === "json") {
 		return 3;
 	}
 	return 1;
@@ -618,74 +571,15 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	);
 };
 
-/**
- * Pricing fields rendered with $ prefix and /1M suffix using
- * InputGroup for a compact, readable layout.
- */
-export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	form,
-	fieldErrors,
-	disabled,
-}) => {
-	const fields = getVisibleGeneralFields().filter(({ json_name }) =>
-		pricingFieldNames.has(json_name),
-	);
-
-	return (
-		<>
-			{fields.map((field) => {
-				const camelName = field.json_name
-					.split(".")
-					.map(snakeToCamel)
-					.join(".");
-				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
-				const errorId = `${fieldKey}-error`;
-				const fieldError = fieldErrors[camelName];
-				const fieldProps = form.getFieldProps(fieldKey);
-
-				return (
-					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
-						<FieldLabel htmlFor={fieldKey} label={label} />
-						<InputGroup
-							className={cn(fieldError && "border-border-destructive")}
-						>
-							<InputGroupAddon align="inline-start">$</InputGroupAddon>
-							<InputGroupInput
-								id={fieldKey}
-								className="min-w-0 placeholder:text-content-disabled"
-								placeholder="0"
-								{...fieldProps}
-								disabled={disabled}
-								aria-invalid={Boolean(fieldError)}
-								aria-describedby={fieldError ? errorId : undefined}
-							/>
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">
-									USD/1M tokens
-								</span>
-							</InputGroupAddon>
-						</InputGroup>
-						{fieldError && (
-							<p id={errorId} className="m-0 text-xs text-content-destructive">
-								{fieldError}
-							</p>
-						)}
-					</div>
-				);
-			})}
-		</>
-	);
-};
-
 /** Reasoning effort selects, outside Advanced. */
 export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields()
+	const fields = getVisibleGeneralFields(provider)
 		.filter(({ json_name }) => isReasoningEffortField(json_name))
 		.reverse();
 
@@ -717,42 +611,37 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 
 /** See ReasoningEffortConfigFields for reasoning effort fields. */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields().filter(
-		({ json_name }) =>
-			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
+	const fields = getVisibleGeneralFields(provider).filter(
+		({ json_name }) => !isReasoningEffortField(json_name),
 	);
 
 	return (
 		<>
 			{fields.map((field) => {
-				// General field keys support nested json_name values, such as
-				// cost.input_price_per_million_tokens.
 				const camelName = field.json_name
 					.split(".")
 					.map(snakeToCamel)
 					.join(".");
 				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
 
 				return (
-					<InputField
+					<div
 						key={fieldKey}
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={camelName}
-						label={label}
-						description={field.description}
-						placeholder={
-							placeholderOverrides[field.json_name] ??
-							placeholderForField(field)
-						}
-						suffix={fieldSuffix[field.json_name]}
-					/>
+						className={cn("min-w-0", colSpanClass[colSpan(field)])}
+					>
+						<SchemaField
+							{...ctx}
+							field={field}
+							fieldKey={fieldKey}
+							errorKey={camelName}
+						/>
+					</div>
 				);
 			})}
 		</>

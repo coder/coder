@@ -1562,6 +1562,39 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	}
 }
 
+type boundaryLogSeed struct {
+	seq     int32
+	proto   string
+	detail  string
+	allowed bool
+}
+
+// seedBoundaryLogs writes boundary logs for a firewall session via the raw
+// store. A non-empty matched_rule marks a call allowed; a blocked call stores a
+// NULL rule. No RBAC role grants boundary_log:create, so tests seed directly.
+func seedBoundaryLogs(t *testing.T, db database.Store, fw, ownerID uuid.UUID, at time.Time, seeds []boundaryLogSeed) {
+	t.Helper()
+	logs := make([]database.BoundaryLog, 0, len(seeds))
+	for _, s := range seeds {
+		rule := ""
+		if s.allowed {
+			rule = "allow " + s.detail
+		}
+		logs = append(logs, database.BoundaryLog{
+			SessionID:      fw,
+			OwnerID:        uuid.NullUUID{UUID: ownerID, Valid: true},
+			SequenceNumber: s.seq,
+			CapturedAt:     at,
+			CreatedAt:      at,
+			Proto:          s.proto,
+			Method:         "GET",
+			Detail:         s.detail,
+			MatchedRule:    sql.NullString{String: rule, Valid: rule != ""},
+		})
+	}
+	dbgen.BoundaryLogs(t, db, logs)
+}
+
 func TestAIBridgeGetSessionThreads(t *testing.T) {
 	t.Parallel()
 
@@ -1670,6 +1703,301 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// Second thread has no firewall correlation.
 		require.Nil(t, res.Threads[1].AgentFirewallSessionID)
 		require.Nil(t, res.Threads[1].AgentFirewallSequenceNumber)
+	})
+
+	t.Run("NetworkSummary", func(t *testing.T) {
+		t.Parallel()
+		// Use the raw store so boundary logs can be seeded directly. No RBAC
+		// role grants boundary_log:create; they are written by the agent path.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		// One interception marked at firewall seq 0, so its window is (0, +inf)
+		// and the LLM-provider call logged at seq 0 is excluded.
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "net-session", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 0, Valid: true},
+		}, &endedAt)
+
+		seedBoundaryLogs(t, db, fw, firstUser.UserID, now, []boundaryLogSeed{
+			{0, "http", "https://api.github.com/llm", true},         // LLM call, excluded
+			{1, "http", "https://api.github.com/repos/coder", true}, // github egress
+			{2, "http", "https://api.github.com/repos/other", true}, // github egress
+			{3, "http", "https://registry.npmjs.org/lodash", false}, // npm egress, blocked
+			{4, "http", "https://api.github.com/repos/more", true},  // github egress
+			{5, "dns", "example.com", true},                         // non-http, ignored by top domains
+			{6, "http", "https://api.github.com:8080/repos", true},  // port-suffixed; host stripped to api.github.com
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "net-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+
+		// total counts seq 1-6 (LLM call at seq 0 excluded); one blocked.
+		require.NotNil(t, res.NetworkCalls)
+		require.EqualValues(t, 6, res.NetworkCalls.Total)
+		require.EqualValues(t, 1, res.NetworkCalls.Blocked)
+
+		// Top domains covers HTTP egress only and is capped at one row (the
+		// summary card renders a single domain). github wins with 4 HTTP calls:
+		// seqs 1, 2, 4, and the port-suffixed seq 6 whose host strips to
+		// api.github.com (proving the port is not treated as a separate host).
+		// The dns log (seq 5) is excluded from domains. NetworkDomainCount is a
+		// window aggregate independent of the row cap, so it still reports the
+		// two distinct HTTP domains (github, npm).
+		require.Len(t, res.NetworkTopDomains, 1)
+		require.Equal(t, "api.github.com", res.NetworkTopDomains[0].Domain)
+		require.EqualValues(t, 4, res.NetworkTopDomains[0].Count)
+		require.EqualValues(t, 2, res.NetworkDomainCount)
+
+		// The per-call list spans the same window as the summary (all protos,
+		// seq 0 LLM call excluded), ordered chronologically. Its length and
+		// blocked count agree with the summary counts.
+		gotSeqs := make([]int32, len(res.NetworkCallLogs))
+		blocked := 0
+		for i, c := range res.NetworkCallLogs {
+			gotSeqs[i] = c.SequenceNumber
+			if !c.Allowed {
+				blocked++
+			}
+		}
+		require.Equal(t, []int32{1, 2, 3, 4, 5, 6}, gotSeqs)
+		require.EqualValues(t, res.NetworkCalls.Total, len(res.NetworkCallLogs))
+		require.EqualValues(t, res.NetworkCalls.Blocked, blocked)
+
+		// The blocked npm call (seq 3, index 2) has no matched rule; allowed
+		// calls do.
+		npm := res.NetworkCallLogs[2]
+		require.Equal(t, int32(3), npm.SequenceNumber)
+		require.Equal(t, "https://registry.npmjs.org/lodash", npm.Detail)
+		require.False(t, npm.Allowed)
+		require.Nil(t, npm.MatchedRule)
+		require.True(t, res.NetworkCallLogs[0].Allowed)
+		require.NotNil(t, res.NetworkCallLogs[0].MatchedRule)
+
+		// Non-http protocols appear in the list (unlike top domains): seq 5 dns.
+		require.Equal(t, "dns", res.NetworkCallLogs[4].Proto)
+	})
+
+	t.Run("NetworkMultipleInterceptions", func(t *testing.T) {
+		t.Parallel()
+		// Two interceptions in the same firewall session must produce two
+		// consecutive, non-overlapping windows: (0, 5) for the first and
+		// (5, +inf) for the second. Each interception's own LLM call (logged at
+		// its own sequence) is excluded by the exclusive lower bound.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		for _, seq := range []int32{0, 5} {
+			endedAt := now.Add(time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:                 firstUser.UserID,
+				Provider:                    "anthropic",
+				Model:                       "claude-sonnet-4-20250514",
+				StartedAt:                   now,
+				ClientSessionID:             sql.NullString{String: "multi-net", Valid: true},
+				AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+				AgentFirewallSequenceNumber: sql.NullInt32{Int32: seq, Valid: true},
+			}, &endedAt)
+		}
+
+		seedBoundaryLogs(t, db, fw, firstUser.UserID, now, []boundaryLogSeed{
+			{0, "http", "https://api.github.com/llm", true},    // interception 1 LLM call, excluded
+			{1, "http", "https://api.github.com/a", true},      // window (0,5)
+			{2, "http", "https://api.github.com/b", true},      // window (0,5)
+			{3, "http", "https://registry.npmjs.org/x", false}, // window (0,5), blocked
+			{5, "http", "https://api.github.com/llm2", true},   // interception 2 LLM call, excluded
+			{6, "http", "https://api.github.com/c", true},      // window (5,+inf)
+			{7, "http", "https://registry.npmjs.org/y", false}, // window (5,+inf), blocked
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "multi-net", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+
+		// Both windows contribute: seqs 1,2,3,6,7. The two LLM calls (0, 5) are
+		// excluded. Blocked = seqs 3 and 7.
+		require.NotNil(t, res.NetworkCalls)
+		require.EqualValues(t, 5, res.NetworkCalls.Total)
+		require.EqualValues(t, 2, res.NetworkCalls.Blocked)
+		// github: seqs 1,2,6 = 3; npm: seqs 3,7 = 2. Two distinct domains.
+		require.Len(t, res.NetworkTopDomains, 1)
+		require.Equal(t, "api.github.com", res.NetworkTopDomains[0].Domain)
+		require.EqualValues(t, 3, res.NetworkTopDomains[0].Count)
+		require.EqualValues(t, 2, res.NetworkDomainCount)
+
+		// The per-call list spans both windows in chronological order, and its
+		// length and blocked count agree with the summary (three-way agreement
+		// across summary, top domains, and list).
+		gotSeqs := make([]int32, len(res.NetworkCallLogs))
+		blocked := 0
+		for i, c := range res.NetworkCallLogs {
+			gotSeqs[i] = c.SequenceNumber
+			if !c.Allowed {
+				blocked++
+			}
+		}
+		require.Equal(t, []int32{1, 2, 3, 6, 7}, gotSeqs)
+		require.EqualValues(t, res.NetworkCalls.Total, len(res.NetworkCallLogs))
+		require.EqualValues(t, res.NetworkCalls.Blocked, blocked)
+	})
+
+	t.Run("NetworkSharedFirewallSessionNoBleed", func(t *testing.T) {
+		t.Parallel()
+		// Two AI sessions share one firewall session. next_seq considers every
+		// interception in the firewall session, so session A's window is bounded
+		// by session B's interception and B's calls never bleed into A's counts.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		// Session A anchored at firewall seq 0; session B at seq 10.
+		for _, s := range []struct {
+			session string
+			seq     int32
+		}{{"sess-a", 0}, {"sess-b", 10}} {
+			endedAt := now.Add(time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:                 firstUser.UserID,
+				Provider:                    "anthropic",
+				Model:                       "claude-sonnet-4-20250514",
+				StartedAt:                   now,
+				ClientSessionID:             sql.NullString{String: s.session, Valid: true},
+				AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+				AgentFirewallSequenceNumber: sql.NullInt32{Int32: s.seq, Valid: true},
+			}, &endedAt)
+		}
+
+		seedBoundaryLogs(t, db, fw, firstUser.UserID, now, []boundaryLogSeed{
+			{0, "http", "https://api.github.com/llm-a", true},    // A's LLM call, excluded
+			{1, "http", "https://api.github.com/a1", true},       // A's window (0,10)
+			{2, "http", "https://registry.npmjs.org/a2", false},  // A's window (0,10), blocked
+			{10, "http", "https://api.github.com/llm-b", true},   // B's LLM call, excluded
+			{11, "http", "https://api.github.com/b1", true},      // B's window (10,+inf)
+			{12, "http", "https://api.github.com/b2", true},      // B's window (10,+inf)
+			{13, "http", "https://registry.npmjs.org/b3", false}, // B's window (10,+inf), blocked
+		})
+
+		// Session A sees only its own two calls (seqs 1, 2), not B's, in both
+		// the summary and the per-call list.
+		resA, err := client.AIBridgeGetSessionThreads(ctx, "sess-a", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.NotNil(t, resA.NetworkCalls)
+		require.EqualValues(t, 2, resA.NetworkCalls.Total)
+		require.EqualValues(t, 1, resA.NetworkCalls.Blocked)
+		seqsA := make([]int32, len(resA.NetworkCallLogs))
+		for i, c := range resA.NetworkCallLogs {
+			seqsA[i] = c.SequenceNumber
+		}
+		require.Equal(t, []int32{1, 2}, seqsA)
+
+		// Session B sees only its own three calls (seqs 11, 12, 13), not A's.
+		resB, err := client.AIBridgeGetSessionThreads(ctx, "sess-b", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.NotNil(t, resB.NetworkCalls)
+		require.EqualValues(t, 3, resB.NetworkCalls.Total)
+		require.EqualValues(t, 1, resB.NetworkCalls.Blocked)
+		seqsB := make([]int32, len(resB.NetworkCallLogs))
+		for i, c := range resB.NetworkCallLogs {
+			seqsB[i] = c.SequenceNumber
+		}
+		require.Equal(t, []int32{11, 12, 13}, seqsB)
+	})
+
+	t.Run("NetworkCallsTruncated", func(t *testing.T) {
+		t.Parallel()
+		// The per-call list is capped server-side while the summary total
+		// reflects the whole session. When a session exceeds the cap the list is
+		// truncated but the summary total stays authoritative.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "trunc-net", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 0, Valid: true},
+		}, &endedAt)
+
+		// Allowed HTTP calls at seqs 1..total, all in the interception's
+		// window (0, +inf), seeded past the server-side cap.
+		const listCap = 1000
+		const total = listCap + 5
+		seeds := make([]boundaryLogSeed, 0, total)
+		for seq := int32(1); seq <= total; seq++ {
+			seeds = append(seeds, boundaryLogSeed{seq, "http", "https://api.github.com/x", true})
+		}
+		seedBoundaryLogs(t, db, fw, firstUser.UserID, now, seeds)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "trunc-net", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+
+		// The summary reflects every call; the list stops at the cap.
+		require.NotNil(t, res.NetworkCalls)
+		require.EqualValues(t, total, res.NetworkCalls.Total)
+		require.Len(t, res.NetworkCallLogs, listCap)
+		// The cap keeps the earliest calls in chronological order.
+		require.EqualValues(t, 1, res.NetworkCallLogs[0].SequenceNumber)
+		require.EqualValues(t, listCap, res.NetworkCallLogs[listCap-1].SequenceNumber)
+	})
+
+	t.Run("NetworkSummaryDisabled", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		// No firewall correlation: network monitoring was not active.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-sonnet-4-20250514",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "no-fw-session", Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "no-fw-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Nil(t, res.NetworkCalls)
+		require.Empty(t, res.NetworkTopDomains)
+		require.EqualValues(t, 0, res.NetworkDomainCount)
+		require.Empty(t, res.NetworkCallLogs)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {

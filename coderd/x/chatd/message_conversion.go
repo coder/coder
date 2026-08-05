@@ -16,7 +16,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -28,12 +27,12 @@ import (
 const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
 
 type buildCommitStepMessagesInput struct {
-	modelConfigID      uuid.UUID
-	modelCallConfig    codersdk.ChatModelCallConfig
-	step               stepData
-	toolNameToConfigID map[string]uuid.UUID
-	logger             slog.Logger
-	contentVersion     int16
+	modelConfigID          uuid.UUID
+	step                   stepData
+	toolNameToConfigID     map[string]uuid.UUID
+	logger                 slog.Logger
+	contentVersion         int16
+	hookRewrittenToolCalls map[string]json.RawMessage
 }
 
 type stepMessagesForCommit struct {
@@ -51,7 +50,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
-	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID)
+	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -59,7 +58,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal assistant content: %w", err)
 		}
-		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step, input.modelCallConfig))
+		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
 	for _, toolResult := range toolResults {
@@ -112,6 +111,7 @@ func buildAssistantParts(
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
 	toolNameToConfigID map[string]uuid.UUID,
+	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	reasoningIdx := 0
@@ -124,6 +124,11 @@ func buildAssistantParts(
 				if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
 					part.CreatedAt = &ts
 				}
+			}
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
+				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
 			if part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
@@ -179,7 +184,6 @@ func assistantMessage(
 	contentVersion int16,
 	content pqtype.NullRawMessage,
 	step stepData,
-	modelCallConfig codersdk.ChatModelCallConfig,
 ) chatstate.Message {
 	msg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, modelConfigID, contentVersion, content)
 	if step.Usage != (fantasy.Usage{}) {
@@ -189,16 +193,6 @@ func assistantMessage(
 		msg.ReasoningTokens = nullInt64IfNonZero(step.Usage.ReasoningTokens)
 		msg.CacheCreationTokens = nullInt64IfNonZero(step.Usage.CacheCreationTokens)
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
-		usage := codersdk.ChatMessageUsage{
-			InputTokens:         int64PtrIfNonZero(step.Usage.InputTokens),
-			OutputTokens:        int64PtrIfNonZero(step.Usage.OutputTokens),
-			ReasoningTokens:     int64PtrIfNonZero(step.Usage.ReasoningTokens),
-			CacheCreationTokens: int64PtrIfNonZero(step.Usage.CacheCreationTokens),
-			CacheReadTokens:     int64PtrIfNonZero(step.Usage.CacheReadTokens),
-		}
-		if totalCost := chatcost.CalculateTotalCostMicros(usage, modelCallConfig.Cost); totalCost != nil {
-			msg.TotalCostMicros = sql.NullInt64{Int64: *totalCost, Valid: true}
-		}
 	}
 	msg.ContextLimit = step.ContextLimit
 	if step.Runtime > 0 {
@@ -228,13 +222,6 @@ func nullInt64IfNonZero(value int64) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: value, Valid: true}
-}
-
-func int64PtrIfNonZero(value int64) *int64 {
-	if value == 0 {
-		return nil
-	}
-	return &value
 }
 
 func visibleMessageIndexes(messages []chatstate.Message) []int {
