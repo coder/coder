@@ -12276,7 +12276,6 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -12337,7 +12336,6 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0, 0, 0},
 			ContextLimit:        []int64{0, 0, 0},
 			Compressed:          []bool{false, false, false},
-			TotalCostMicros:     []int64{0, 100, 0},
 			RuntimeMs:           []int64{0, 500, 0},
 		})
 		require.NoError(t, err)
@@ -12367,10 +12365,6 @@ func TestInsertChatMessages(t *testing.T) {
 		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
 
 		// Verify cost: assistant has cost, others NULL.
-		require.True(t, msgs[1].TotalCostMicros.Valid)
-		require.Equal(t, int64(100), msgs[1].TotalCostMicros.Int64)
-		require.False(t, msgs[0].TotalCostMicros.Valid)
-		require.False(t, msgs[2].TotalCostMicros.Valid)
 
 		// Verify runtime_ms on assistant message.
 		require.True(t, msgs[1].RuntimeMs.Valid)
@@ -12414,7 +12408,6 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 		CacheReadTokens:     make([]int64, count),
 		ContextLimit:        make([]int64, count),
 		Compressed:          make([]bool, count),
-		TotalCostMicros:     make([]int64, count),
 		RuntimeMs:           make([]int64, count),
 	})
 	require.NoError(t, err)
@@ -12586,7 +12579,6 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			CacheCreationTokens: []int64{0},
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -15610,7 +15602,6 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
@@ -15732,7 +15723,6 @@ func TestUpdateChatSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
@@ -17511,7 +17501,6 @@ func TestGetChatsFilter(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -17753,7 +17742,6 @@ func TestGetChatsSearch(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -17986,7 +17974,6 @@ func TestChatHasUnread(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)

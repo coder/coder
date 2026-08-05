@@ -59,6 +59,10 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
 import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
@@ -85,10 +89,6 @@ import {
 } from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -734,7 +734,6 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isAnalytics = sidebarView.panel === "analytics";
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -784,7 +783,7 @@ const AgentsPageLayout: FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail || isAnalytics
+							: isSettingsDetail
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",

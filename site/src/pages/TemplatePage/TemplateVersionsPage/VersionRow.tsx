@@ -7,6 +7,7 @@ import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Pill } from "#/components/Pill/Pill";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 interface VersionRowProps {
@@ -25,6 +26,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 	onArchiveClick,
 }) => {
 	const navigate = useNavigate();
+	const { permissions } = useAuthenticated();
 
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(version.name),
@@ -33,7 +35,11 @@ export const VersionRow: FC<VersionRowProps> = ({
 	const jobStatus = version.job.status;
 
 	return (
-		<TimelineEntry data-testid={`version-${version.id}`} {...clickableProps}>
+		<TimelineEntry
+			data-testid={`version-${version.id}`}
+			aria-label={version.name}
+			{...(permissions.updateTemplates ? clickableProps : { clickable: false })}
+		>
 			<TableCell className="relative border-b-0 !p-0">
 				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
 					<div className="flex flex-row items-center gap-4">

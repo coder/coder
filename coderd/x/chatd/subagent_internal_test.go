@@ -540,7 +540,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 
 	model, config, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
 	require.ErrorContains(t, err, "is disabled")
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 	require.Equal(t, database.ChatModelConfig{}, config)
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
@@ -4237,7 +4237,8 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		_, _, err = server.awaitSubagentCompletion(
 			shortCtx, parent.ID, child.ID, 5*time.Second,
 		)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorIs(t, shortCtx.Err(), context.DeadlineExceeded)
+		require.True(t, database.IsQueryCanceledError(err))
 	})
 
 	t.Run("ZeroTimeoutUsesDefault", func(t *testing.T) {

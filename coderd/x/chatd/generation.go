@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -39,7 +40,7 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             fantasy.LanguageModel
+	Model             chatprovider.Model
 	Prompt            []fantasy.Message
 	Tools             []fantasy.AgentTool
 	ActiveTools       []string
@@ -723,7 +724,7 @@ func (s *taskStarter) generateAssistant(
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
-		Model:                prepared.Model,
+		Model:                prepared.Model.LanguageModel(),
 		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
@@ -750,7 +751,6 @@ func (s *taskStarter) generateAssistant(
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:          prepared.ModelConfigID,
-		modelCallConfig:        prepared.ModelConfig,
 		step:                   stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID:     prepared.ToolNameToConfigID,
 		logger:                 s.opts.Logger,
@@ -816,9 +816,9 @@ func (s *taskStarter) executeLocalTools(
 	defer attempt.closeEpisode()
 	provider := ""
 	modelName := ""
-	if prepared.Model != nil {
+	if prepared.Model.Valid() {
 		provider = prepared.Model.Provider()
-		modelName = prepared.Model.Model()
+		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
@@ -857,7 +857,6 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
 		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
@@ -927,7 +926,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
-		compactionOpts.Model = overrideModel.model
+		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID

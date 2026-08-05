@@ -19,8 +19,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { normalizeChatErrorPayload } from "./chatError";
+import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
