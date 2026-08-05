@@ -169,9 +169,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.cancelActiveTask()
 	}
 	if r.opts.AgentAdmission != nil && capacityCounted(r.latestState) && !capacityCounted(state) {
-		// The chat left the capacity-counted statuses, freeing a slot.
-		// Nudge acquisition everywhere so queued chats admit without
-		// waiting for the fallback ticker.
+		// Wake all workers when a slot opens rather than waiting for the
+		// acquisition ticker.
 		r.publishCapacityRelease(state)
 	}
 
@@ -179,9 +178,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 	r.acceptState(state)
 }
 
-// capacityCounted reports whether the state holds a concurrent-agent
-// capacity slot under the admission counting rule. The zero value is
-// not counted, so callers need no hasAcceptedState guard.
+// The zero runnerStateUpdate is not capacity-counted, so callers need no
+// hasAcceptedState guard.
 func capacityCounted(state runnerStateUpdate) bool {
 	return !state.Archived &&
 		(state.Status == database.ChatStatusRunning || state.Status == database.ChatStatusInterrupting)

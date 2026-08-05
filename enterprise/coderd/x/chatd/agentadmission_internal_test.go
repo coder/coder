@@ -59,8 +59,6 @@ func (f admissionFixture) chat(t *testing.T, seed database.Chat) database.Chat {
 	return dbgen.Chat(t, f.db, seed)
 }
 
-// occupy gives the chat a live runner (ownership plus fresh heartbeat)
-// so it counts against its pool.
 func (f admissionFixture) occupy(t *testing.T, chatID uuid.UUID) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -111,8 +109,6 @@ func TestAdmission_RootPoolCap(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, admitted, "third root must be refused at capacity 2")
 
-	// The pools are independent: a full root pool must not refuse
-	// subagents.
 	subagent := f.chat(t, database.Chat{
 		ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
 		RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -191,9 +187,7 @@ func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {
 	require.True(t, admitted, "an already-counted chat must re-admit for takeover at full capacity")
 }
 
-// Concurrent acquisition attempts replicate the worker path: Admit and
-// Acquire run in one chat machine transaction, serialized across
-// replicas by the advisory lock Admit takes.
+// Mirror the worker's single-transaction Admit-then-Acquire path.
 func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
@@ -249,8 +243,7 @@ func TestAdmission_StaleHeartbeatsFreeSlots(t *testing.T) {
 	f.occupiedRoot(t)
 	f.occupiedRoot(t)
 
-	// With a zero staleness window every heartbeat is stale, so the
-	// occupied chats hold no slots.
+	// A zero staleness window makes every heartbeat stale.
 	a := newAdmission(admissionOptions{
 		Store:                 f.db,
 		HeartbeatStaleSeconds: 0,

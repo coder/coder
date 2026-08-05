@@ -188,10 +188,8 @@ func (w *chatWorker) acquisitionLoop(
 }
 
 func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manager *runnerManager) {
-	// Attempted chats are excluded from later batches instead of only
-	// deduplicated locally: capacity-refused chats stay acquisition
-	// candidates, so without the exclusion a full pool would pin the
-	// same batch forever and hide every candidate behind it.
+	// Capacity-refused chats remain candidates, so each batch must exclude
+	// prior attempts or a full pool would hide all later candidates.
 	excludeIDs := []uuid.UUID{}
 	for {
 		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
@@ -285,9 +283,8 @@ func (w *chatWorker) acquireCandidate(
 				return xerrors.Errorf("agent admission: %w", err)
 			}
 			if !admitted {
-				// Roll back so the committed-update ownership hint is
-				// suppressed; a hint for a still-unowned runnable chat
-				// would wake every worker into an immediate re-refusal.
+				// Roll back to suppress the ownership hint, which would wake every
+				// worker into an immediate retry of this unowned chat.
 				return errCapacityRefused
 			}
 			if chat.CapacityQueuedAt.Valid {
@@ -322,10 +319,8 @@ func (w *chatWorker) acquireCandidate(
 	return nil
 }
 
-// markCapacityQueued records that admission refused the chat. The mark
-// is fenced in SQL to chats that are still unarchived, in a generating
-// status, and without a live owner, so a chat admitted by another
-// worker between the refusal and this write is never marked.
+// SQL fences prevent marking chats that were archived, left a generating
+// status, or gained a live owner after refusal.
 func (w *chatWorker) markCapacityQueued(ctx context.Context, chatID uuid.UUID) {
 	marked, err := w.opts.Store.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
 		ID:           chatID,
@@ -343,9 +338,7 @@ func (w *chatWorker) markCapacityQueued(ctx context.Context, chatID uuid.UUID) {
 	w.publishCapacityChange(ctx, chatID)
 }
 
-// publishCapacityChange tells watching clients that the chat entered or
-// left the capacity queue. Capacity marks do not bump updated_at, so
-// clients need this dedicated event to notice the change.
+// Capacity writes do not bump updated_at, so clients need a dedicated event.
 func (w *chatWorker) publishCapacityChange(ctx context.Context, chatID uuid.UUID) {
 	chat, err := w.opts.Store.GetChatByID(ctx, chatID)
 	if err != nil {

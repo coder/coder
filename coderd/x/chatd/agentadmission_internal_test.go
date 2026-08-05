@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// fakeAdmission admits everything except chats explicitly refused.
 type fakeAdmission struct {
 	mu      sync.Mutex
 	refused map[uuid.UUID]bool
@@ -96,10 +95,8 @@ func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
 	require.NotEmpty(t, events)
 	require.NotNil(t, events[len(events)-1].Chat.QueuedForCapacityAt)
 
-	// A refusal must not republish an ownership hint: the hint would
-	// wake every worker into an immediate re-refusal loop. The recorder
-	// wraps only the worker's pubsub, so any recorded hint would be the
-	// worker's own.
+	// The recorder wraps only worker pubsub, so an ownership hint here would
+	// prove a refusal can wake workers into an immediate retry loop.
 	require.Equal(t, 0, chatOwnershipMessages(t, recording, chat.ID))
 }
 
@@ -187,9 +184,6 @@ func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
 	require.Equal(t, older.ID, second.input.ChatID)
 }
 
-// runningRefusingAdmission simulates a full pool with the enterprise
-// interrupt bypass: it refuses running chats and admits any other
-// status.
 type runningRefusingAdmission struct{}
 
 func (runningRefusingAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
@@ -227,9 +221,6 @@ func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	opts.AgentAdmission = admission
 	opts.AcquisitionBatchSize = 2
 
-	// Refused chats stay candidates, so with a batch of two the third
-	// chat is only reachable when the pass excludes attempted chats
-	// from later batches.
 	first := f.createRunningChat(t)
 	second := f.createRunningChat(t)
 	third := f.createRunningChat(t)
@@ -263,9 +254,8 @@ func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {
 		return err
 	}))
 
-	// The error transition leaves the chat non-runnable, so the state
-	// machine publishes no ownership hint; a recorded hint can only be
-	// the runner's capacity release nudge.
+	// FinishError publishes no ownership hint, so any recorded hint is the
+	// runner's capacity-release nudge.
 	require.Eventually(t, func() bool {
 		return chatOwnershipMessages(t, recording, chat.ID) >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)

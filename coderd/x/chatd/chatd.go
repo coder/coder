@@ -2996,8 +2996,7 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
-	// AgentAdmissionFactory builds the chat worker admission gate.
-	// Nil leaves capacity uncapped.
+	// AgentAdmissionFactory limits concurrent chat agents when non-nil.
 	AgentAdmissionFactory AgentAdmissionFactory
 
 	// OIDCTokenSource resolves the calling user's OIDC access
