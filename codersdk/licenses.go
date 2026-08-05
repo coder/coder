@@ -12,25 +12,13 @@ import (
 )
 
 const (
-	LicenseExpiryClaim                          = "license_expires"
-	LicenseTelemetryRequiredErrorText           = "License requires telemetry but telemetry is disabled"
-	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
-	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
-	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
-	// LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
-	// deployment reaches the advisory soft limit but is still within its
-	// runtime hour allocation. All placeholders are whole hours: the runtime
-	// used so far in the usage period, the allocation, then the soft limit.
-	//
-	// Neither runtime hours text may share a prefix with another warning
-	// constant, and neither may be a prefix of the other: the dashboard's
-	// LicenseBanner dispatches on both. See TestLicenseAgentRuntimeHoursWarningTexts.
-	LicenseAgentRuntimeHoursSoftLimitWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license, reaching the advisory soft limit of %d hours."
-	// LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
-	// the deployment reaches its runtime hour allocation. Both placeholders
-	// are whole hours: the runtime used so far in the usage period, then the
-	// allocation.
-	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license. Additional usage may be billable."
+	LicenseExpiryClaim                                   = "license_expires"
+	LicenseTelemetryRequiredErrorText                    = "License requires telemetry but telemetry is disabled"
+	LicenseManagedAgentLimitExceededWarningText          = "You have built more workspaces with managed agents than your license allows."
+	LicenseAIGovernance90PercentWarningText              = "You have used %d%% of your AI Governance add-on seats."
+	LicenseAIGovernanceOverLimitWarningText              = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
+	LicenseAgentRuntimeHoursSoftLimitWarningText         = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license, reaching the advisory soft limit of %d hours."
+	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license."
 )
 
 type AddLicenseRequest struct {

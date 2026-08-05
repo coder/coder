@@ -5935,26 +5935,10 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
-/**
- * LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
- * the deployment reaches its runtime hour allocation. Both placeholders
- * are whole hours: the runtime used so far in the usage period, then the
- * allocation.
- */
 export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
-	"Your deployment has used %d of the %d Coder Agent runtime hours included in your license. Additional usage may be billable.";
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in your license.";
 
 // From codersdk/licenses.go
-/**
- * LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
- * deployment reaches the advisory soft limit but is still within its
- * runtime hour allocation. All placeholders are whole hours: the runtime
- * used so far in the usage period, the allocation, then the soft limit.
- *
- * Neither runtime hours text may share a prefix with another warning
- * constant, and neither may be a prefix of the other: the dashboard's
- * LicenseBanner dispatches on both. See TestLicenseAgentRuntimeHoursWarningTexts.
- */
 export const LicenseAgentRuntimeHoursSoftLimitWarningText =
 	"Your deployment has used %d of the %d Coder Agent runtime hours included in your license, reaching the advisory soft limit of %d hours.";
 
