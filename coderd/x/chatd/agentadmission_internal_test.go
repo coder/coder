@@ -212,6 +212,37 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	require.Equal(t, sub.ID, call.input.ChatID)
 }
 
+// A configured batch size of 1 would only ever surface the
+// tie-break-favored root pool: with two already-marked queued roots the
+// pass refuses one, re-skips the other without progress, and ends
+// before examining the subagent pool. The floor of 2 keeps both pool
+// heads in every batch.
+func TestWorker_BatchSizeOneCannotHideAPool(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = &rootRefusingAdmission{}
+	opts.AcquisitionBatchSize = 1
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	roots := []database.Chat{f.createRunningChat(t), f.createRunningChat(t)}
+	for _, chat := range roots {
+		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+			ID:           chat.ID,
+			StaleSeconds: 30,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, marked)
+	}
+	sub := f.createRunningSubagentChat(t, roots[0].ID)
+
+	startWorker(t, opts)
+
+	call := starter.waitCall(t, taskKindGeneration, sub.ID)
+	require.Equal(t, sub.ID, call.input.ChatID)
+}
+
 // After the first refusal proves a pool full, the rest of the pass must
 // queue-mark that pool's chats without opening refusal transactions.
 // All-marked is the pass-completion signal, so the count is stable when
