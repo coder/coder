@@ -23,8 +23,8 @@ import (
 // codersdk.FeatureAgentRuntimeHours has remaining hours (see
 // admission.uncapped). Workspace agents are unaffected.
 const (
-	MaxConcurrentRootAgents = int64(5)
-	MaxConcurrentSubagents  = int64(10)
+	maxConcurrentRootAgents = int64(5)
+	maxConcurrentSubagents  = int64(10)
 )
 
 const defaultMetricsInterval = 30 * time.Second
@@ -88,10 +88,10 @@ func newAdmission(opts admissionOptions) *admission {
 		opts.Clock = quartz.NewReal()
 	}
 	if opts.RootCapacity <= 0 {
-		opts.RootCapacity = MaxConcurrentRootAgents
+		opts.RootCapacity = maxConcurrentRootAgents
 	}
 	if opts.SubagentCapacity <= 0 {
-		opts.SubagentCapacity = MaxConcurrentSubagents
+		opts.SubagentCapacity = maxConcurrentSubagents
 	}
 	if opts.MetricsInterval <= 0 {
 		opts.MetricsInterval = defaultMetricsInterval

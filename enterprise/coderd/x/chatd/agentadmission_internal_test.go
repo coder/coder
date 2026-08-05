@@ -213,9 +213,7 @@ func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 		wg         sync.WaitGroup
 	)
 	for _, chat := range chats {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			machine := chatstate.NewChatMachine(f.db, f.ps, chat.ID)
 			err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 				ok, err := a.Admit(ctx, store, chat)
@@ -235,7 +233,7 @@ func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 			default:
 				unexpected.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
