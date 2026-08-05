@@ -108,6 +108,16 @@ resource "coder_agent" "main" {
     interval = 10
     timeout  = 3
   }
+
+  metadata {
+    display_name = "Sandbox Probes"
+    key          = "4_sandbox_probes"
+    # The probe report is written by the child into the shared project
+    # directory, which is the only place the parent can read it from.
+    script   = "sed -n 's/^SUMMARY: //p' ${local.project_host_path}/probe-results.txt 2>/dev/null | tail -n1 || true"
+    interval = 30
+    timeout  = 3
+  }
 }
 
 # The nested isolated execution. Coder pre-creates a child workspace agent
@@ -131,34 +141,21 @@ resource "coder_subagent_execution" "sandbox" {
 # exposes and the paths the sandbox provides.
 resource "coder_script" "sandbox_project_web" {
   agent_id     = coder_subagent_execution.sandbox.subagent_id
-  display_name = "Shared project web server"
+  display_name = "Sandbox probes and project web server"
   icon         = "/icon/widgets.svg"
   run_on_start = true
-  # The server runs in the foreground so the sandbox has a long-lived
-  # workload to observe. It deliberately does not block login: the child web
-  # terminal stays usable while the script runs.
+  # The probe script ends by serving its own report in the foreground, so the
+  # sandbox has a long-lived workload to observe. It deliberately does not
+  # block login: the child web terminal stays usable while the script runs.
   start_blocks_login = false
-  script             = <<-EOT
-    set -eu
-
-    cd ${local.project_child_path}
-
-    # A marker the human owner can see from the parent workspace, proving the
-    # one declared directory really is shared read-write.
-    cat >index.html <<'HTML'
-    <!doctype html>
-    <html>
-      <head><title>Coder sandboxed subagent</title></head>
-      <body>
-        <h1>Served from inside the bubblewrap sandbox</h1>
-        <p>This page lives in the one shared project directory.</p>
-      </body>
-    </html>
-    HTML
-    printf 'sandbox child wrote this at %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >sandbox-marker.txt
-
-    exec busybox httpd -f -p 3000 -h ${local.project_child_path}
-  EOT
+  # The body is the checked-in probe script, prefixed with the shared path
+  # this template declares, so the script and the template cannot disagree
+  # about where the shared directory appears inside the sandbox.
+  script = format(
+    "PROBE_SHARED=%s\nexport PROBE_SHARED\n\n%s",
+    local.project_child_path,
+    file("${path.module}/scripts/probe.sh"),
+  )
 }
 
 # The child's app. It is owner-shared: the sandbox is a private workload of
@@ -166,7 +163,7 @@ resource "coder_script" "sandbox_project_web" {
 resource "coder_app" "sandbox_project_web" {
   agent_id     = coder_subagent_execution.sandbox.subagent_id
   slug         = "sandbox-web"
-  display_name = "Sandbox project page"
+  display_name = "Sandbox probe report"
   icon         = "/icon/widgets.svg"
   url          = "http://localhost:3000"
   share        = "owner"
@@ -239,9 +236,14 @@ resource "docker_container" "workspace" {
   # policy resolves it during reconciliation, which happens before any
   # coder_script runs. The image creates it, the volume mount inherits that
   # ownership, and this mkdir is a cheap guard for a pre-existing volume.
+  #
+  # The parent fixtures run before the parent agent starts, so the markers
+  # the sandbox probes look for already exist when the child comes up. Both
+  # scripts are base64 encoded here so their quoting survives the shell that
+  # unpacks them.
   entrypoint = [
     "sh", "-c",
-    "mkdir -p ${local.project_host_path} && echo ${base64encode(local.parent_init_script)} | base64 -d >/tmp/coder-init.sh && exec sh /tmp/coder-init.sh",
+    "mkdir -p ${local.project_host_path} && echo ${base64encode(file("${path.module}/scripts/parent-fixtures.sh"))} | base64 -d >/tmp/parent-fixtures.sh && sh /tmp/parent-fixtures.sh && echo ${base64encode(local.parent_init_script)} | base64 -d >/tmp/coder-init.sh && exec sh /tmp/coder-init.sh",
   ]
   env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
 
