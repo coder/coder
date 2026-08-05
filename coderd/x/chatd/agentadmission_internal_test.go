@@ -135,6 +135,65 @@ func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = newFakeAdmission()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Queue the newer chat first so FIFO order by capacity_queued_at
+	// disagrees with the fallback updated_at order.
+	older := f.createRunningChat(t)
+	newer := f.createRunningChat(t)
+	for _, id := range []uuid.UUID{newer.ID, older.ID} {
+		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+			ID:           id,
+			StaleSeconds: 30,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, marked)
+	}
+	startWorker(t, opts)
+
+	first := starter.waitCall(t, taskKindGeneration, uuid.Nil)
+	require.Equal(t, newer.ID, first.input.ChatID, "the longer-queued chat must admit first")
+	second := starter.waitCall(t, taskKindGeneration, uuid.Nil)
+	require.Equal(t, older.ID, second.input.ChatID)
+}
+
+// runningRefusingAdmission simulates a full pool with the enterprise
+// interrupt bypass: it refuses running chats and admits any other
+// status.
+type runningRefusingAdmission struct{}
+
+func (runningRefusingAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
+	return chat.Status != database.ChatStatusRunning, nil
+}
+
+func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = runningRefusingAdmission{}
+
+	chat := f.createRunningChat(t)
+	worker := startWorker(t, opts)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.Eventually(t, func() bool {
+		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	interruptChat(t, f, chat.ID)
+	worker.Wake()
+
+	call := starter.waitCall(t, taskKindInterrupt, chat.ID)
+	require.Equal(t, chat.ID, call.input.ChatID)
+}
+
 func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

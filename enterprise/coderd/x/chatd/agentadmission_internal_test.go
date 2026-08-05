@@ -1,10 +1,14 @@
 package chatd
 
 import (
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -185,6 +189,58 @@ func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {
 	admitted, err := a.Admit(ctx, f.db, chat)
 	require.NoError(t, err)
 	require.True(t, admitted, "an already-counted chat must re-admit for takeover at full capacity")
+}
+
+// Concurrent acquisition attempts replicate the worker path: Admit and
+// Acquire run in one chat machine transaction, serialized across
+// replicas by the advisory lock Admit takes.
+func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	const attempts = 8
+	chats := make([]database.Chat, attempts)
+	for i := range chats {
+		chats[i] = f.chat(t, database.Chat{})
+	}
+
+	errRefused := xerrors.New("refused")
+	var (
+		admitted   atomic.Int64
+		unexpected atomic.Int64
+		wg         sync.WaitGroup
+	)
+	for _, chat := range chats {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			machine := chatstate.NewChatMachine(f.db, f.ps, chat.ID)
+			err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				ok, err := a.Admit(ctx, store, chat)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return errRefused
+				}
+				_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+				return err
+			})
+			switch {
+			case err == nil:
+				admitted.Add(1)
+			case errors.Is(err, errRefused):
+			default:
+				unexpected.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	require.EqualValues(t, 0, unexpected.Load(), "admission attempts must not error")
+	require.EqualValues(t, 2, admitted.Load(), "exactly RootCapacity chats must admit")
 }
 
 func TestAdmission_StaleHeartbeatsFreeSlots(t *testing.T) {
