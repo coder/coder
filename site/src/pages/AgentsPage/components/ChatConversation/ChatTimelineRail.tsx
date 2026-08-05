@@ -25,7 +25,7 @@ import type { ParsedMessageEntry } from "./types";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-// PROTOTYPE — Agent conversation timeline rail.
+// PROTOTYPE. Agent conversation timeline rail.
 //
 // This component renders a minimap-style column of ticks along the right edge
 // of the chat scroll container, just to the left of the native scrollbar.
@@ -79,7 +79,7 @@ const truncate = (text: string, max: number): string => {
 	return `${text.slice(0, max - 1).trimEnd()}…`;
 };
 
-export const buildTimelineItems = (
+const buildTimelineItems = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): TimelineItem[] => {
 	const items: TimelineItem[] = [];
@@ -124,7 +124,7 @@ interface ChatTimelineRailProps {
 	items: readonly TimelineItem[];
 }
 
-export const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
+const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 	scrollContainerRef,
 	items,
 }) => {
