@@ -29,8 +29,6 @@ ORDER BY cf.created_at ASC;
 
 -- name: DeleteOldChatFiles :execrows
 -- Deletes files older than the threshold only after all chat links are gone.
--- The purge transaction removes eligible chats first, and cascades clear
--- their file links.
 WITH deletable AS (
     SELECT cf.id
     FROM chat_files cf

@@ -1742,8 +1742,7 @@ func TestMessageFileLinking(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, linkedFileIDs(chat.ID), fileEdit)
 
-	// Queued send links at queue time so the file is protected from
-	// purge while the message waits for promotion.
+	// Queued files must be linked before promotion to prevent purge.
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -1842,8 +1841,7 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, files, codersdk.MaxChatFileIDs)
 
-	// Re-referencing an already-linked file is deduped, not counted
-	// against the cap.
+	// Existing links do not consume another cap slot.
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID: chat.ID,
 		Content: []codersdk.ChatMessagePart{
