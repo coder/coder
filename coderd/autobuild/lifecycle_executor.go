@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -469,13 +468,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					// The body renders this label in its "will be automatically
-					// deleted in ..." sentence, so it must carry the auto-delete
-					// countdown, or generic wording when there is no deadline.
-					timeTilDelete := "line with your template's auto-deletion policy"
-					if ws.DeletingAt.Valid {
-						timeTilDelete = humanize.Time(ws.DeletingAt.Time)
-					}
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
@@ -483,7 +475,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": timeTilDelete,
+							"timeTilDormant": notifications.DormantDeletionText(ws.DeletingAt),
 						},
 						"lifecycle_executor",
 						ws.ID,

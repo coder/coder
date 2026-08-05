@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -1515,13 +1514,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil {
-			// The body renders this label in its "will be automatically
-			// deleted in ..." sentence, so it must carry the auto-delete
-			// countdown, or generic wording when there is no deadline.
-			timeTilDelete := "line with your template's auto-deletion policy"
-			if newWorkspace.DeletingAt.Valid {
-				timeTilDelete = humanize.Time(newWorkspace.DeletingAt.Time)
-			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
@@ -1530,7 +1522,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           newWorkspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": timeTilDelete,
+					"timeTilDormant": notifications.DormantDeletionText(newWorkspace.DeletingAt),
 				},
 				"api",
 				newWorkspace.ID,
