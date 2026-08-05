@@ -3,6 +3,7 @@ import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { chatEntityKey } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
 import { createChatStore } from "./chatStore";
@@ -106,7 +107,7 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: chatEntityKey("chat-1"),
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -144,7 +145,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		expect(invalidateSpy).not.toHaveBeenCalledWith({
-			queryKey: ["chats", "chat-1"],
+			queryKey: chatEntityKey("chat-1"),
 		});
 	});
 
@@ -183,7 +184,7 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: chatEntityKey("chat-1"),
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -250,7 +251,7 @@ describe("useChatToolInvalidations", () => {
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledTimes(6);
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-2"],
+				queryKey: chatEntityKey("chat-2"),
 			});
 		});
 	});
