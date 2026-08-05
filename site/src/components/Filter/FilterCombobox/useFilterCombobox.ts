@@ -1,0 +1,582 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery } from "react-query";
+import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
+import {
+	collectValueSuggestions,
+	composeFilterQuery,
+	extractFreeText,
+	matchCategories,
+	parseChipToken,
+	parseTypedCategoryPrefix,
+	queryToChips,
+} from "./filterQuery";
+import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import { parseSearchResultToken } from "./types";
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+const filterComboboxSearchResultsKey = (query: string) =>
+	["filterCombobox", "searchResults", query] as const;
+
+const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
+	["filterCombobox", "options", categoryKey, query] as const;
+
+type UseFilterComboboxOptions = {
+	value: string;
+	onChange: (query: string) => void;
+	categories: readonly FilterCategory[];
+	getSearchResults?: (query: string) => Promise<SearchResult[]>;
+	onSearchResultSelect?: (result: SearchResult) => void;
+};
+
+export const useFilterCombobox = ({
+	value,
+	onChange,
+	categories,
+	getSearchResults,
+	onSearchResultSelect,
+}: UseFilterComboboxOptions) => {
+	const chipKeys = useMemo(
+		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
+		[categories],
+	);
+	const [open, setOpen] = useState(false);
+	// True while the popup is browsing categories/typeahead (no active category).
+	const [isBrowsing, setIsBrowsing] = useState(false);
+	const [activeCategoryKey, setActiveCategoryKey] = useState<string | null>(
+		null,
+	);
+	const [inputValue, setInputValue] = useState(() =>
+		extractFreeText(value, chipKeys),
+	);
+	const [committedFreeText, setCommittedFreeText] = useState(() =>
+		extractFreeText(value, chipKeys),
+	);
+	const committedFreeTextRef = useRef(committedFreeText);
+	const facetModeRef = useRef(false);
+	const isBrowsingRef = useRef(false);
+	const lastEmittedRef = useRef(value);
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+	const getSearchResultsRef = useRef(getSearchResults);
+	getSearchResultsRef.current = getSearchResults;
+	const onSearchResultSelectRef = useRef(onSearchResultSelect);
+	onSearchResultSelectRef.current = onSearchResultSelect;
+	const storeInputRef = useRef<HTMLInputElement | null>(null);
+	const hasSearchResults = Boolean(getSearchResults);
+	const categoriesRef = useRef(categories);
+	categoriesRef.current = categories;
+
+	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
+		(query: string) => {
+			lastEmittedRef.current = query;
+			onChangeRef.current(query);
+		},
+		SEARCH_DEBOUNCE_MS,
+	);
+
+	const emitQuery = (query: string, immediate = false) => {
+		if (immediate) {
+			cancelDebounce();
+			lastEmittedRef.current = query;
+			onChangeRef.current(query);
+			return;
+		}
+		debouncedOnChange(query);
+	};
+
+	const setBrowsing = (next: boolean) => {
+		isBrowsingRef.current = next;
+		setIsBrowsing(next);
+	};
+
+	const setCommittedNameSearch = (nextValue: string) => {
+		const next = nextValue.trim();
+		committedFreeTextRef.current = next;
+		setCommittedFreeText(next);
+	};
+
+	// Sync local free-text state when the controlled value changes externally.
+	useEffect(() => {
+		if (value === lastEmittedRef.current) {
+			return;
+		}
+		lastEmittedRef.current = value;
+		const freeText = extractFreeText(value, chipKeys);
+		committedFreeTextRef.current = freeText;
+		setCommittedFreeText(freeText);
+		if (!facetModeRef.current) {
+			setInputValue(freeText);
+		}
+	}, [value, chipKeys]);
+
+	const openCategorySuggestions = () => {
+		facetModeRef.current = false;
+		setBrowsing(true);
+		setOpen(true);
+	};
+
+	/** Opens or closes the category list. Focuses the input when opening so
+	 * keyboard list navigation via aria-activedescendant works. */
+	const toggleFilterMenu = () => {
+		if (open) {
+			setOpen(false);
+			setBrowsing(false);
+			exitFacetMode();
+			return;
+		}
+		openCategorySuggestions();
+		setActiveCategoryKey(null);
+		queueMicrotask(() => {
+			storeInputRef.current?.focus();
+		});
+	};
+
+	const activeCategory = categories.find(
+		(category) => category.key === activeCategoryKey,
+	);
+	const chipValues = useMemo(
+		() => queryToChips(value, chipKeys),
+		[chipKeys, value],
+	);
+
+	/** Categories shown in typeahead: all when empty, prefix matches while typing. */
+	const listedCategories = useMemo(() => {
+		if (activeCategoryKey !== null || !isBrowsing) {
+			return [] as FilterCategory[];
+		}
+		if (inputValue.trim().length === 0) {
+			return [...categories];
+		}
+		return matchCategories(inputValue, categories);
+	}, [activeCategoryKey, isBrowsing, categories, inputValue]);
+	const listedCategoriesRef = useRef(listedCategories);
+	listedCategoriesRef.current = listedCategories;
+
+	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
+	const debouncedActiveOptionsQuery = useDebouncedValue(
+		activeOptionsQuerySource,
+		SEARCH_DEBOUNCE_MS,
+	);
+	const activeOptionsPending =
+		activeCategoryKey !== null &&
+		activeOptionsQuerySource !== debouncedActiveOptionsQuery;
+
+	const activeOptionsQuery = useQuery({
+		queryKey: filterComboboxOptionsKey(
+			activeCategoryKey ?? "",
+			debouncedActiveOptionsQuery,
+		),
+		queryFn: () => {
+			const category = categoriesRef.current.find(
+				(entry) => entry.key === activeCategoryKey,
+			);
+			if (!category) {
+				return Promise.resolve([] as FilterOption[]);
+			}
+			return category.getOptions(debouncedActiveOptionsQuery);
+		},
+		enabled: activeCategoryKey !== null,
+	});
+
+	const activeOptions = activeOptionsQuery.data;
+	const activeOptionsError =
+		activeCategoryKey !== null && activeOptionsQuery.isError;
+	const activeOptionsLoading =
+		activeOptionsPending ||
+		(activeCategoryKey !== null &&
+			!activeOptionsError &&
+			(activeOptionsQuery.isFetching || activeOptions === undefined));
+	const retryActiveOptions = () => {
+		void activeOptionsQuery.refetch();
+	};
+
+	const suggestionQuerySource =
+		activeCategoryKey === null && isBrowsing ? inputValue.trim() : "";
+	const debouncedSuggestionQuery = useDebouncedValue(
+		suggestionQuerySource,
+		SEARCH_DEBOUNCE_MS,
+	);
+	const suggestionQueryPending =
+		suggestionQuerySource.length > 0 &&
+		suggestionQuerySource !== debouncedSuggestionQuery;
+
+	const suggestionQueries = useQueries({
+		queries: categories.map((category) => ({
+			queryKey: filterComboboxOptionsKey(
+				category.key,
+				debouncedSuggestionQuery,
+			),
+			queryFn: () => category.getOptions(debouncedSuggestionQuery),
+			enabled:
+				debouncedSuggestionQuery.length > 0 &&
+				activeCategoryKey === null &&
+				isBrowsing,
+		})),
+	});
+
+	// react-query keeps each query's `data` reference stable between renders,
+	// but useQueries returns a fresh array wrapper every render, so memoizing
+	// on it never hit. The map is tiny (a handful of categories), so build it
+	// directly instead of pretending to memoize.
+	const optionsByKey = new Map<string, readonly FilterOption[]>();
+	categories.forEach((category, index) => {
+		const options = suggestionQueries[index]?.data;
+		if (options) {
+			optionsByKey.set(category.key, options);
+		}
+	});
+
+	const valueSuggestions = useMemo(() => {
+		if (activeCategoryKey !== null || !isBrowsing) {
+			return [];
+		}
+		return collectValueSuggestions(
+			inputValue,
+			categories,
+			optionsByKey,
+			chipValues,
+		);
+	}, [
+		activeCategoryKey,
+		isBrowsing,
+		categories,
+		chipValues,
+		inputValue,
+		optionsByKey,
+	]);
+	const valueSuggestionsRef = useRef(valueSuggestions);
+	valueSuggestionsRef.current = valueSuggestions;
+
+	// A rejected suggestion query must not leave the popup spinning forever;
+	// treat an error as "done loading" and surface it instead.
+	const suggestionsError =
+		activeCategoryKey === null &&
+		isBrowsing &&
+		suggestionQueries.some((query) => query.isError);
+	const valueSuggestionsLoading =
+		activeCategoryKey === null &&
+		isBrowsing &&
+		inputValue.trim().length > 0 &&
+		!suggestionsError &&
+		(suggestionQueryPending ||
+			suggestionQueries.some(
+				(query) =>
+					query.isFetching || (!query.isError && query.data === undefined),
+			));
+
+	const previewQuerySource =
+		activeCategoryKey === null && isBrowsing ? inputValue.trim() : "";
+	const debouncedPreviewQuery = useDebouncedValue(
+		previewQuerySource,
+		SEARCH_DEBOUNCE_MS,
+	);
+	const previewQueryPending =
+		hasSearchResults &&
+		previewQuerySource.length > 0 &&
+		previewQuerySource !== debouncedPreviewQuery;
+
+	const searchResultsQuery = useQuery({
+		queryKey: filterComboboxSearchResultsKey(debouncedPreviewQuery),
+		queryFn: () => {
+			const loader = getSearchResultsRef.current;
+			if (!loader) {
+				return Promise.resolve([] as SearchResult[]);
+			}
+			return loader(debouncedPreviewQuery);
+		},
+		enabled:
+			hasSearchResults &&
+			debouncedPreviewQuery.length > 0 &&
+			activeCategoryKey === null &&
+			isBrowsing,
+	});
+
+	const searchResults = searchResultsQuery.data ?? [];
+	const searchResultsLoading =
+		previewQueryPending ||
+		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
+	const typeaheadError =
+		activeCategoryKey === null &&
+		isBrowsing &&
+		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
+	const searchResultsRef = useRef(searchResults);
+	searchResultsRef.current = searchResults;
+
+	// The token of the row cmdk currently has highlighted (via
+	// aria-activedescendant), or null when nothing is highlighted. Enter/Tab
+	// commit this row rather than always committing the first option.
+	const highlightedItemRef = useRef<string | null>(null);
+	const handleItemHighlighted = (highlightedValue: string | undefined) => {
+		highlightedItemRef.current = highlightedValue ?? null;
+	};
+
+	const restoreFreeTextInput = () => {
+		setInputValue(committedFreeTextRef.current);
+	};
+
+	const exitFacetMode = () => {
+		facetModeRef.current = false;
+		setActiveCategoryKey(null);
+		restoreFreeTextInput();
+	};
+
+	const enterCategoryMode = (categoryKey: string, query = "") => {
+		facetModeRef.current = true;
+		setBrowsing(false);
+		setActiveCategoryKey(categoryKey);
+		setInputValue(query);
+		setOpen(true);
+	};
+
+	const updateFromChips = (tokens: string[], freeText?: string) => {
+		const nextFreeText =
+			freeText === undefined ? committedFreeTextRef.current : freeText;
+		if (freeText !== undefined) {
+			setCommittedNameSearch(freeText);
+		}
+		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
+	};
+
+	const selectCategory = (
+		categoryKey: string,
+		options?: Readonly<{ clearMatchedQuery?: boolean }>,
+	) => {
+		if (options?.clearMatchedQuery) {
+			setCommittedNameSearch("");
+			emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
+		} else if (activeCategoryKey === null) {
+			setCommittedNameSearch(inputValue);
+			emitQuery(composeFilterQuery(chipValues, chipKeys, inputValue), true);
+		}
+		enterCategoryMode(categoryKey);
+	};
+
+	const selectValueSuggestion = (token: string) => {
+		updateFromChips([...chipValues, token], "");
+		facetModeRef.current = false;
+		setBrowsing(false);
+		setActiveCategoryKey(null);
+		setInputValue("");
+		setOpen(false);
+	};
+
+	const selectSearchResult = (result: SearchResult) => {
+		onSearchResultSelectRef.current?.(result);
+		facetModeRef.current = false;
+		setBrowsing(false);
+		setActiveCategoryKey(null);
+		setOpen(false);
+	};
+
+	const handleInputFocus = () => {
+		if (activeCategoryKey !== null || facetModeRef.current) {
+			return;
+		}
+		openCategorySuggestions();
+	};
+
+	const handleInputValueChange = (
+		nextValue: string,
+		eventDetails: { reason: string },
+	) => {
+		if (eventDetails.reason === "input-clear") {
+			if (activeCategoryKey === null) {
+				restoreFreeTextInput();
+				return;
+			}
+			setInputValue("");
+			return;
+		}
+
+		const typedCategory = parseTypedCategoryPrefix(nextValue, categories);
+		if (typedCategory) {
+			setCommittedNameSearch(typedCategory.freeText);
+			emitQuery(
+				composeFilterQuery(chipValues, chipKeys, typedCategory.freeText),
+				true,
+			);
+			enterCategoryMode(typedCategory.categoryKey, typedCategory.query);
+			return;
+		}
+
+		if (activeCategory) {
+			setInputValue(nextValue);
+			facetModeRef.current = true;
+			setBrowsing(false);
+			setOpen(true);
+			return;
+		}
+
+		setCommittedNameSearch(nextValue);
+		setInputValue(nextValue);
+		emitQuery(composeFilterQuery(chipValues, chipKeys, nextValue), false);
+		openCategorySuggestions();
+	};
+
+	const handleOpenChange = (
+		nextOpen: boolean,
+		eventDetails: { reason: string },
+	) => {
+		if (
+			nextOpen &&
+			!facetModeRef.current &&
+			!isBrowsingRef.current &&
+			eventDetails.reason !== "trigger-press"
+		) {
+			return;
+		}
+
+		setOpen(nextOpen);
+		if (!nextOpen) {
+			setBrowsing(false);
+			exitFacetMode();
+		} else if (eventDetails.reason === "trigger-press") {
+			facetModeRef.current = false;
+			setBrowsing(true);
+			setActiveCategoryKey(null);
+		}
+	};
+
+	const handleValueChange = (nextTokens: string[]) => {
+		const added = nextTokens.find((token) => !chipValues.includes(token));
+		if (added) {
+			const searchValue = parseSearchResultToken(added);
+			if (searchValue) {
+				const result = searchResultsRef.current.find(
+					(entry) => entry.value === searchValue,
+				);
+				if (result) {
+					selectSearchResult(result);
+				}
+				return;
+			}
+
+			const matchedCategory = categories.find(
+				(category) => category.key === added,
+			);
+			if (activeCategoryKey === null && matchedCategory) {
+				selectCategory(matchedCategory.key, { clearMatchedQuery: true });
+				return;
+			}
+
+			if (
+				activeCategoryKey === null &&
+				isBrowsingRef.current &&
+				parseChipToken(added, chipKeys)
+			) {
+				selectValueSuggestion(added);
+				return;
+			}
+		}
+
+		updateFromChips(nextTokens);
+		facetModeRef.current = false;
+		setBrowsing(false);
+		setActiveCategoryKey(null);
+		setInputValue(committedFreeTextRef.current);
+		setOpen(false);
+	};
+
+	const exitActiveCategory = () => {
+		facetModeRef.current = false;
+		setBrowsing(false);
+		setActiveCategoryKey(null);
+		restoreFreeTextInput();
+		setOpen(false);
+	};
+
+	const handleInputKeyDown = (event: {
+		key: string;
+		shiftKey?: boolean;
+		preventDefault: () => void;
+	}) => {
+		if (event.key === "Backspace" && inputValue === "" && activeCategory) {
+			event.preventDefault();
+			exitActiveCategory();
+			return;
+		}
+
+		// With an empty input and no active category, Backspace/Delete removes
+		// the last committed chip.
+		if (
+			(event.key === "Backspace" || event.key === "Delete") &&
+			inputValue === "" &&
+			!activeCategory &&
+			chipValues.length > 0
+		) {
+			event.preventDefault();
+			updateFromChips(chipValues.slice(0, -1));
+			return;
+		}
+
+		// Enter is committed by cmdk through the highlighted item's `onSelect`.
+		// Tab additionally completes the highlighted category/suggestion.
+		const isTabComplete = event.key === "Tab" && !event.shiftKey;
+		if (!isTabComplete || !isBrowsingRef.current) {
+			return;
+		}
+
+		const highlighted = highlightedItemRef.current;
+		if (!highlighted) {
+			return;
+		}
+
+		event.preventDefault();
+
+		const searchValue = parseSearchResultToken(highlighted);
+		if (searchValue) {
+			const result = searchResultsRef.current.find(
+				(entry) => entry.value === searchValue,
+			);
+			if (result) {
+				selectSearchResult(result);
+			}
+			return;
+		}
+
+		const highlightedCategory = listedCategoriesRef.current.find(
+			(category) => category.key === highlighted,
+		);
+		if (highlightedCategory) {
+			selectCategory(highlightedCategory.key, { clearMatchedQuery: true });
+			return;
+		}
+
+		if (parseChipToken(highlighted, chipKeys)) {
+			selectValueSuggestion(highlighted);
+		}
+	};
+
+	const setInputRef = (node: HTMLInputElement | null) => {
+		storeInputRef.current = node;
+	};
+
+	return {
+		open,
+		isBrowsing,
+		inputValue,
+		committedFreeText,
+		activeCategoryKey,
+		activeCategory,
+		activeOptions,
+		activeOptionsLoading,
+		activeOptionsError,
+		retryActiveOptions,
+		listedCategories,
+		valueSuggestions,
+		valueSuggestionsLoading,
+		typeaheadError,
+		searchResults,
+		searchResultsLoading,
+		chipValues,
+		toggleFilterMenu,
+		setInputRef,
+		handleInputFocus,
+		handleInputKeyDown,
+		handleItemHighlighted,
+		handleInputValueChange,
+		handleOpenChange,
+		handleValueChange,
+	};
+};

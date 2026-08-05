@@ -4,17 +4,6 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
-const mockMenu = {
-	initialOption: undefined,
-	isInitializing: false,
-	isSearching: false,
-	query: "",
-	searchOptions: [],
-	selectedOption: undefined,
-	selectOption: vi.fn(),
-	setQuery: vi.fn(),
-};
-
 const createFilterState = (used = false) =>
 	({
 		filter: {
@@ -24,12 +13,6 @@ const createFilterState = (used = false) =>
 			update: vi.fn(),
 			debounceUpdate: vi.fn(),
 			cancelDebounce: vi.fn(),
-		},
-		menus: {
-			user: mockMenu,
-			template: mockMenu,
-			status: mockMenu,
-			organizations: mockMenu,
 		},
 	}) as WorkspaceFilterState;
 
