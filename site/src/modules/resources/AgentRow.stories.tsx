@@ -564,7 +564,7 @@ export const FoundDevcontainer: Story = {
 	},
 };
 
-const MockIsolatedSubAgent = {
+const isolatedSubAgent = {
 	...M.MockWorkspaceSubAgent,
 	id: "test-isolated-sub-agent",
 	parent_id: M.MockWorkspaceAgent.id,
@@ -583,7 +583,7 @@ const MockIsolatedSubAgent = {
 
 export const IsolatedSubAgent: Story = {
 	args: {
-		subAgents: [MockIsolatedSubAgent],
+		subAgents: [isolatedSubAgent],
 	},
 	parameters: {
 		webSocket: [],
@@ -607,7 +607,7 @@ export const IsolatedSubAgent: Story = {
 
 export const DevcontainerAndIsolatedSubAgent: Story = {
 	args: {
-		subAgents: [M.MockWorkspaceSubAgent, MockIsolatedSubAgent],
+		subAgents: [M.MockWorkspaceSubAgent, isolatedSubAgent],
 	},
 	parameters: {
 		queries: [
