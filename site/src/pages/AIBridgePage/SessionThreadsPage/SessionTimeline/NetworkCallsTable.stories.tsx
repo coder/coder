@@ -34,7 +34,9 @@ export const BlockedBadge: Story = {
 	},
 	play: async ({ canvas }) => {
 		await expect(
-			canvas.getByText("Blocked network calls: 9"),
+			canvas.getByText((_content, element) => {
+				return element?.textContent === "Blocked network calls: 9";
+			}),
 		).toBeInTheDocument();
 		await expect(canvas.getAllByText("Blocked")).toHaveLength(2);
 	},

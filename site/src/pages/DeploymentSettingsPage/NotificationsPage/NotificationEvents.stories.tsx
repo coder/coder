@@ -67,7 +67,7 @@ export const ChangeMethod: Story = {
 			throw new Error("Could not find notification template row");
 		}
 		await user.click(
-			within(row).getByRole("combobox", { name: "Notification method" }),
+			within(row).getByRole("combobox", { name: /Notification method/ }),
 		);
 		await user.click(
 			await within(document.body).findByRole("option", { name: "Webhook" }),
@@ -88,7 +88,7 @@ export const ChangeMethodError: Story = {
 			throw new Error("Could not find notification template row");
 		}
 		await user.click(
-			within(row).getByRole("combobox", { name: "Notification method" }),
+			within(row).getByRole("combobox", { name: /Notification method/ }),
 		);
 		await user.click(
 			await within(document.body).findByRole("option", { name: "Webhook" }),
