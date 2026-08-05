@@ -394,7 +394,8 @@ In both, the request fails and `coder gitaskpass` prints a warning and falls bac
 - **Several of the template's declared providers match the host.**
   Coder can't tell which one the operation needs, so it returns an HTTP 404 naming each match.
   Give the providers non-overlapping `CODER_EXTERNAL_AUTH_<N>_REGEX` values so that only one matches the host, or fetch a token with an explicit provider ID using `coder external-auth access-token <USER_DEFINED_ID>` in your template's startup script.
-- **The template declares a provider that the deployment no longer configures.**
+- **The template declares a provider that the deployment no longer configures, and none of its other declared providers match the host.**
   This happens when a provider is renamed or removed after a template started declaring it.
-  Coder returns an HTTP 404 naming the missing provider, and doesn't substitute a different provider's token even when another configured provider matches the host.
+  Coder returns an HTTP 404 naming the missing provider instead of falling back to a provider the template never declared.
+  A provider that the template declares and the deployment still configures keeps serving its own host, so only the hosts that relied on the missing provider are affected.
   Restore that provider's configuration, or update the template to declare a provider that the deployment configures.
