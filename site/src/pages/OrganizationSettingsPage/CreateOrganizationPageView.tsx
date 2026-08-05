@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
@@ -9,15 +8,19 @@ import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -59,6 +62,11 @@ export const CreateOrganizationPageView: FC<
 	});
 	const navigate = useNavigate();
 	const getFieldHelpers = getFormHelpers(form, error);
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+	});
+	const descriptionErrorId = `${descriptionField.id}-error`;
+	const descriptionHelperId = `${descriptionField.id}-helper`;
 
 	return (
 		<div className="flex flex-row font-medium">
@@ -130,23 +138,54 @@ export const CreateOrganizationPageView: FC<
 								disabled={form.isSubmitting}
 								className="flex flex-col gap-6 w-full border-none"
 							>
-								<TextField
-									{...getFieldHelpers("name")}
-									onChange={onChangeTrimmed(form)}
-									fullWidth
+								<FormField
+									field={getFieldHelpers("name")}
 									label="Slug"
+									onChange={onChangeTrimmed(form)}
 								/>
-								<TextField
-									{...getFieldHelpers("display_name")}
-									fullWidth
+								<FormField
+									field={getFieldHelpers("display_name")}
 									label="Display name"
 								/>
-								<TextField
-									{...getFieldHelpers("description")}
-									multiline
-									label="Description"
-									rows={2}
-								/>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={descriptionField.id}>Description</Label>
+									<Textarea
+										id={descriptionField.id}
+										name={descriptionField.name}
+										value={descriptionField.value}
+										onChange={descriptionField.onChange}
+										onBlur={descriptionField.onBlur}
+										rows={2}
+										aria-invalid={descriptionField.error}
+										aria-describedby={
+											descriptionField.error
+												? descriptionErrorId
+												: descriptionField.helperText
+													? descriptionHelperId
+													: undefined
+										}
+										className={cn(
+											descriptionField.error && "border-border-destructive",
+										)}
+									/>
+									{descriptionField.error ? (
+										<span
+											id={descriptionErrorId}
+											className="text-xs text-content-destructive"
+										>
+											{descriptionField.helperText}
+										</span>
+									) : (
+										descriptionField.helperText && (
+											<span
+												id={descriptionHelperId}
+												className="text-xs text-content-secondary"
+											>
+												{descriptionField.helperText}
+											</span>
+										)
+									)}
+								</div>
 								<IconField
 									{...getFieldHelpers("icon")}
 									onChange={onChangeTrimmed(form)}

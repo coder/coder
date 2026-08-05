@@ -8,7 +8,6 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -19,6 +18,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -137,28 +137,24 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	}
 	if (groups.length === 0) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No groups yet"
-						description={
-							canCreateGroup
-								? "Create your first group"
-								: "You don't have permission to create a group"
-						}
-						cta={
-							canCreateGroup && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon className="size-icon-sm" />
-										Create group
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No groups yet"
+				description={
+					canCreateGroup
+						? "Create your first group"
+						: "You don't have permission to create a group"
+				}
+				cta={
+					canCreateGroup && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon className="size-icon-sm" />
+								Create group
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (

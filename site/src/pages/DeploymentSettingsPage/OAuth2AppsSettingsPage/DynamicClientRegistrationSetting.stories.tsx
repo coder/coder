@@ -254,7 +254,9 @@ export const KeepsFocusWhileUpdating: Story = {
 
 		// The same element becomes the opposite action once the request lands, and
 		// focus rides along rather than resetting to the top of the document.
-		await expect(canvas.getByText("Enable")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: "Enable" })).toBeVisible();
+		});
 		await expect(button).toHaveFocus();
 	},
 };

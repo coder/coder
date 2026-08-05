@@ -33,7 +33,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
@@ -47,6 +46,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
@@ -198,11 +198,7 @@ const GroupMembersPage: FC = () => {
 
 					<TableBody>
 						{members.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState message="No members found" />
-								</TableCell>
-							</TableRow>
+							<TableEmpty message="No members found" />
 						) : (
 							membersWithSpend.map((member) => (
 								<GroupMemberRow

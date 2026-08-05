@@ -1,12 +1,7 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
@@ -65,13 +60,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				)}
 
 				{versions && versions.length === 0 && (
-					<TableRow>
-						<TableCell colSpan={999}>
-							<div className="p-8">
-								<EmptyState message="No versions found" />
-							</div>
-						</TableCell>
-					</TableRow>
+					<TableEmpty message="No versions found" />
 				)}
 			</TableBody>
 		</Table>

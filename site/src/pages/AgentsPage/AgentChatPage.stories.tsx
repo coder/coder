@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
+import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -22,6 +23,7 @@ import {
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
@@ -32,6 +34,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -3056,6 +3059,124 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+const mockErrorChat: TypesGen.Chat = {
+	...MockChat,
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Failing chat",
+};
+
+const mockServerError = {
+	...mockApiError({ message: "Internal server error." }),
+	status: 500,
+};
+
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
+
+export const DetailQueryError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Try again" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const InitialMessagesError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatMessagesKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatMessages").mockRejectedValue(
+			mockServerError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+export const ErrorRetryRecovers: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatKey(CHAT_ID),
+		),
+	},
+	beforeEach: ({ parameters }) => {
+		const getChatSpy = spyOn(API.experimental, "getChat")
+			.mockRejectedValueOnce(mockServerError)
+			.mockResolvedValue(mockErrorChat);
+		parameters.getChatCallsForChat = () =>
+			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
+	},
+	play: async ({ canvasElement, parameters }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+		await waitFor(() => {
+			expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(parameters.getChatCallsForChat()).toBeGreaterThanOrEqual(2);
+	},
+};
+
+export const ChatNotFound: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Chat not found." }),
+			status: 404,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Chat not found")).toBeVisible();
+		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
 	},
 };
 
