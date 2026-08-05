@@ -1,3 +1,5 @@
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.coder%2Fcoder.svg)](https://mcptoplist.com/server/io.github.coder%2Fcoder)
+
 <!-- markdownlint-disable MD041 -->
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
