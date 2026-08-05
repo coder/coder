@@ -1,10 +1,13 @@
 terraform {
   required_providers {
     coder = {
-      # coder_subagent_execution is not in a released provider yet. Use the
-      # provider branch that ships the resource together with a Coder
-      # deployment built from the matching server branch. The version is
-      # intentionally unpinned so a locally built provider is picked up.
+      # coder_subagent_execution is not in a released provider yet, so no
+      # version constraint can select it and none is given here. An unpinned
+      # source is not enough on its own: Terraform would resolve it to the
+      # newest release, which does not have the resource. The provisioner's
+      # Terraform must be configured with a provider_installation
+      # dev_overrides entry mapping coder/coder to a locally built provider.
+      # See the README section on provider compatibility.
       source = "coder/coder"
     }
     docker = {
