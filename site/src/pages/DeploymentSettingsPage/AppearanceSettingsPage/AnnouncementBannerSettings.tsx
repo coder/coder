@@ -3,16 +3,15 @@ import { type FC, useState } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
 
@@ -91,12 +90,10 @@ export const AnnouncementBannerSettings: FC<
 							</TableHeader>
 							<TableBody>
 								{!isEntitled || banners.length < 1 ? (
-									<TableCell colSpan={999}>
-										<EmptyState
-											className="min-h-[160px]"
-											message="No announcement banners"
-										/>
-									</TableCell>
+									<TableEmpty
+										className="min-h-[160px]"
+										message="No announcement banners"
+									/>
 								) : (
 									banners.map((banner, i) => (
 										<AnnouncementBannerItem

@@ -25,7 +25,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -49,6 +48,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	Tooltip,
 	TooltipContent,
@@ -408,19 +408,15 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 			</TableHeader>
 			<TableBody>
 				{isEmpty ? (
-					<TableRow>
-						<TableCell colSpan={999}>
-							<EmptyState
-								message="No organization mappings"
-								isCompact
-								cta={
-									<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-										How to set up IdP organization sync
-									</Link>
-								}
-							/>
-						</TableCell>
-					</TableRow>
+					<TableEmpty
+						message="No organization mappings"
+						isCompact
+						cta={
+							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+								How to set up IdP organization sync
+							</Link>
+						}
+					/>
 				) : (
 					children
 				)}

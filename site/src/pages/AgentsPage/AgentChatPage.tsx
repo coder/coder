@@ -22,7 +22,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
 } from "#/api/api";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -68,6 +68,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -1877,6 +1878,37 @@ const AgentChatPage: FC = () => {
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
+			/>
+		);
+	}
+
+	if (chatQuery.isLoadingError || chatMessagesQuery.isLoadingError) {
+		if (getErrorStatus(chatQuery.error) === 404) {
+			return (
+				<AgentChatPageNotFoundView
+					titleElement={titleElement}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+			);
+		}
+
+		return (
+			<AgentChatPageErrorView
+				titleElement={titleElement}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				error={
+					chatQuery.isLoadingError ? chatQuery.error : chatMessagesQuery.error
+				}
+				onRetry={() => {
+					if (chatQuery.isLoadingError) {
+						void chatQuery.refetch();
+					}
+					if (chatMessagesQuery.isLoadingError) {
+						void chatMessagesQuery.refetch();
+					}
+				}}
 			/>
 		);
 	}

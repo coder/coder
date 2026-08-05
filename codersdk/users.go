@@ -996,7 +996,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 		return User{}, ReadBodyAsError(res)
 	}
 	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	return user, ReadBodyAsJSON(res, &user)
 }
 
 // UserQuietHoursSchedule returns the quiet hours settings for the user. This

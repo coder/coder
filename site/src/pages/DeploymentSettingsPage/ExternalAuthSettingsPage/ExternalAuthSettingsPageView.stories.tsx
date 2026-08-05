@@ -39,3 +39,11 @@ export default meta;
 type Story = StoryObj<typeof ExternalAuthSettingsPageView>;
 
 export const Page: Story = {};
+
+export const Empty: Story = {
+	args: {
+		config: {
+			external_auth: [],
+		},
+	},
+};

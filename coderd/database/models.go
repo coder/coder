@@ -5602,13 +5602,15 @@ type OAuth2ProviderAppToken struct {
 	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
 	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
 	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
-	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	RefreshHash []byte        `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.NullUUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string        `db:"api_key_id" json:"api_key_id"`
 	// Token audience binding from resource parameter
 	Audience sql.NullString `db:"audience" json:"audience"`
 	// Denormalized user ID for performance optimization in authorization checks
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
 }
 
 type Organization struct {

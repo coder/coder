@@ -20,7 +20,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	Select,
 	SelectContent,
@@ -37,6 +36,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
@@ -198,15 +198,11 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	if (sharingSettingsQuery.data.sharing_disabled) {
 		return (
 			<TableBody>
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="This workspace cannot be shared"
-							description="Workspace sharing has been disabled for this organization."
-							isCompact={isCompact}
-						/>
-					</TableCell>
-				</TableRow>
+				<TableEmpty
+					message="This workspace cannot be shared"
+					description="Workspace sharing has been disabled for this organization."
+					isCompact={isCompact}
+				/>
 			</TableBody>
 		);
 	}
@@ -232,15 +228,11 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 			{!workspaceACL ? (
 				<TableLoader />
 			) : isEmpty ? (
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="No shared members or groups yet"
-							description="Add a member or group using the controls above."
-							isCompact={isCompact}
-						/>
-					</TableCell>
-				</TableRow>
+				<TableEmpty
+					message="No shared members or groups yet"
+					description="Add a member or group using the controls above."
+					isCompact={isCompact}
+				/>
 			) : (
 				<>
 					{workspaceACL.group.map((group) => (
