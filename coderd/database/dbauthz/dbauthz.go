@@ -3979,6 +3979,17 @@ func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) (
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroups)(ctx, arg)
 }
 
+func (q *querier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg database.GetGroupsByOrganizationIDPaginatedParams) ([]database.GetGroupsByOrganizationIDPaginatedRow, error) {
+	// Required to have permission to read all groups in the organization. This
+	// mirrors PaginatedOrganizationMembers: a single org-wide read check with no
+	// per-row post-filter, so that SQL LIMIT/OFFSET and COUNT(*) OVER() stay
+	// consistent across pages.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroupsByOrganizationIDPaginated(ctx, arg)
+}
+
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetHealthSettings(ctx)
@@ -7033,17 +7044,6 @@ func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID)
 
 func (q *querier) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
-}
-
-func (q *querier) PaginatedOrganizationGroups(ctx context.Context, arg database.PaginatedOrganizationGroupsParams) ([]database.PaginatedOrganizationGroupsRow, error) {
-	// Required to have permission to read all groups in the organization. This
-	// mirrors PaginatedOrganizationMembers: a single org-wide read check with no
-	// per-row post-filter, so that SQL LIMIT/OFFSET and COUNT(*) OVER() stay
-	// consistent across pages.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
-		return nil, err
-	}
-	return q.db.PaginatedOrganizationGroups(ctx, arg)
 }
 
 func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {

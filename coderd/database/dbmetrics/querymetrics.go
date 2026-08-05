@@ -2233,6 +2233,14 @@ func (m queryMetricsStore) GetGroups(ctx context.Context, arg database.GetGroups
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg database.GetGroupsByOrganizationIDPaginatedParams) ([]database.GetGroupsByOrganizationIDPaginatedRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupsByOrganizationIDPaginated(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationIDPaginated").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupsByOrganizationIDPaginated").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetHealthSettings(ctx)
@@ -4966,14 +4974,6 @@ func (m queryMetricsStore) OrganizationMembers(ctx context.Context, arg database
 	r0, r1 := m.s.OrganizationMembers(ctx, arg)
 	m.queryLatencies.WithLabelValues("OrganizationMembers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "OrganizationMembers").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) PaginatedOrganizationGroups(ctx context.Context, arg database.PaginatedOrganizationGroupsParams) ([]database.PaginatedOrganizationGroupsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.PaginatedOrganizationGroups(ctx, arg)
-	m.queryLatencies.WithLabelValues("PaginatedOrganizationGroups").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PaginatedOrganizationGroups").Inc()
 	return r0, r1
 }
 

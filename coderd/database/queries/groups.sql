@@ -89,7 +89,7 @@ WHERE
 LIMIT NULLIF(@limit_opt :: int, 0)
 ;
 
--- name: PaginatedOrganizationGroups :many
+-- name: GetGroupsByOrganizationIDPaginated :many
 SELECT
 		sqlc.embed(groups),
 		organizations.name AS organization_name,

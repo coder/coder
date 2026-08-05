@@ -577,7 +577,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := api.Database.PaginatedOrganizationGroups(ctx, database.PaginatedOrganizationGroupsParams{
+	groups, err := api.Database.GetGroupsByOrganizationIDPaginated(ctx, database.GetGroupsByOrganizationIDPaginatedParams{
 		OrganizationID: org.ID,
 		Search:         search,
 		// #nosec G115 - Pagination offsets are small and fit in int32

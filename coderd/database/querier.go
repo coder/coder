@@ -628,6 +628,7 @@ type sqlcQuerier interface {
 	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
+	GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
 	// breaking ties by the earliest organization membership. Implements the
@@ -1296,7 +1297,6 @@ type sqlcQuerier interface {
 	//  - Use just 'user_id' to get all orgs a user is a member of
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
-	PaginatedOrganizationGroups(ctx context.Context, arg PaginatedOrganizationGroupsParams) ([]PaginatedOrganizationGroupsRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
 	// Under READ COMMITTED, concurrent pin operations for the same
 	// owner may momentarily produce duplicate pin_order values because
