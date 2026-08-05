@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { type FC, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { rewriteLocalhostURL } from "#/utils/portForward";
-import { ChatUrlTransformContext } from "../../context/ChatUrlTransformContext";
+import {
+	type ChatUrlTransform,
+	ChatUrlTransformContext,
+} from "../../context/ChatUrlTransformContext";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -217,6 +221,51 @@ export const LocalhostLinkFromChatContext: Story = {
 		);
 		const docs = canvas.getByRole("link", { name: "the docs" });
 		expect(docs).toHaveAttribute("href", "https://coder.com/docs");
+	},
+};
+
+// Simulates workspace data arriving while a message is already
+// rendered: Streamdown memoizes blocks by content, so the rewritten
+// href must come from the render-time context transform, not from a
+// re-parse.
+const TransformArrivesAfterRender: FC<{ children: string }> = ({
+	children,
+}) => {
+	const [transform, setTransform] = useState<ChatUrlTransform | undefined>(
+		undefined,
+	);
+	return (
+		<ChatUrlTransformContext value={transform}>
+			<button
+				type="button"
+				onClick={() => setTransform(() => chatUrlTransform)}
+			>
+				Load workspace data
+			</button>
+			<Response streaming>{children}</Response>
+		</ChatUrlTransformContext>
+	);
+};
+
+export const LocalhostLinkRewrittenMidStream: Story = {
+	render: () => (
+		<TransformArrivesAfterRender>
+			Open [the preview](http://localhost:3000/apps?tab=1) now.
+		</TransformArrivesAfterRender>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute("href", "http://localhost:3000/apps?tab=1");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load workspace data" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByRole("link", { name: "the preview" })).toHaveAttribute(
+				"href",
+				"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+			);
+		});
 	},
 };
 

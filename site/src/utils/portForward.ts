@@ -1,6 +1,7 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
 
-const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+// URL.hostname keeps the brackets around IPv6 addresses ("[::1]").
+const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"]);
 
 /**
  * Parse a port string from a URL, falling back to the protocol default

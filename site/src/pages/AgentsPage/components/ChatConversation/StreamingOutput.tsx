@@ -1,6 +1,6 @@
 import type { FC } from "react";
-import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import {
 	ConversationItem,
 	Message,
@@ -37,7 +37,7 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	streamState,

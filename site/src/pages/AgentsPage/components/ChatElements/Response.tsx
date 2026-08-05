@@ -4,19 +4,18 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
-import {
-	type Components,
-	defaultRehypePlugins,
-	Streamdown,
-	type UrlTransform,
-} from "streamdown";
+import { type Components, defaultRehypePlugins, Streamdown } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
-import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
+import {
+	type ChatUrlTransform,
+	ChatUrlTransformContext,
+	useChatUrlTransform,
+} from "../../context/ChatUrlTransformContext";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend) and useTransition-based render
 	 * scheduling. Pass true only for live-streaming output. */
@@ -101,21 +100,30 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
+// Applies the chat URL transform at render time, via context, because
+// Streamdown memoizes rendered blocks by content and ignores urlTransform
+// changes. Anchors rendered before workspace data loads mid-stream would
+// otherwise keep their untransformed localhost hrefs until a remount.
+const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
+	const transform = useChatUrlTransform();
+	return (
+		<a
+			href={href && transform ? transform(href) : href}
+			target="_blank"
+			rel="noopener noreferrer"
+			className="text-content-link no-underline hover:underline hover:decoration-content-link"
+		>
+			{children}
+		</a>
+	);
+};
+
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
 	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
 ): Components => {
 	return {
-		a: ({ href, children }: MarkdownComponentProps) => (
-			<a
-				href={href}
-				target="_blank"
-				rel="noopener noreferrer"
-				className="text-content-link no-underline hover:underline hover:decoration-content-link"
-			>
-				{children}
-			</a>
-		),
+		a: MarkdownAnchor,
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
 		h1: ({ children }: MarkdownComponentProps) => (
@@ -271,6 +279,7 @@ export const Response = ({
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
 	const chatUrlTransform = useChatUrlTransform();
+	const effectiveUrlTransform = urlTransform ?? chatUrlTransform;
 
 	return (
 		<div
@@ -281,16 +290,21 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown
-				controls={false}
-				components={components}
-				urlTransform={urlTransform ?? chatUrlTransform}
-				rehypePlugins={chatRehypePlugins}
-				mode={streaming ? "streaming" : "static"}
-				parseIncompleteMarkdown={streaming}
-			>
-				{children}
-			</Streamdown>
+			{/* Re-provide the effective transform so MarkdownAnchor honors an
+			    explicitly passed urlTransform prop, not just the page-level
+			    context value. */}
+			<ChatUrlTransformContext value={effectiveUrlTransform}>
+				<Streamdown
+					controls={false}
+					components={components}
+					urlTransform={effectiveUrlTransform}
+					rehypePlugins={chatRehypePlugins}
+					mode={streaming ? "streaming" : "static"}
+					parseIncompleteMarkdown={streaming}
+				>
+					{children}
+				</Streamdown>
+			</ChatUrlTransformContext>
 		</div>
 	);
 };

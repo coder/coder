@@ -15,11 +15,9 @@ import {
 } from "react";
 
 import { useQuery } from "react-query";
-import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -29,6 +27,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import type { ChatUrlTransform } from "../../context/ChatUrlTransformContext";
 
 import {
 	ConversationItem,
@@ -89,7 +88,7 @@ const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	thinkingDisplayMode?: ThinkingDisplayMode;
 }>(
 	({
@@ -202,7 +201,7 @@ const ReasoningDisclosure = memo<{
 const SmoothedResponse = memo<{
 	text: string;
 	streamKey: string;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 }>(({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
@@ -270,7 +269,7 @@ export const BlockList: FC<{
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 }> = ({
 	blocks,
 	tools,
@@ -535,7 +534,7 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 
 const LifecycleHookNotice: FC<{
 	children: string;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 }> = ({ children, urlTransform }) => (
 	<TimelineNotice>
 		<div className="flex flex-col gap-1">
@@ -569,7 +568,7 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -848,7 +847,7 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 }>(
 	({
 		message,
@@ -1194,7 +1193,7 @@ interface ConversationTimelineProps {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;

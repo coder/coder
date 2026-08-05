@@ -1,5 +1,5 @@
-import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { ChatDetailError } from "./chatError";
@@ -35,7 +35,7 @@ interface LiveStreamTailContentProps {
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
@@ -99,7 +99,7 @@ interface LiveStreamTailProps {
 	isTranscriptEmpty: boolean;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
