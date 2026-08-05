@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
+	invalidateTemplateListQueries,
 	templateByNameKey,
-	updateTemplateListQueries,
 } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -45,7 +45,7 @@ const TemplateSettingsPage: FC = () => {
 			} else {
 				// Use data.name because an admin may have renamed the template.
 				await Promise.all([
-					updateTemplateListQueries(queryClient, data),
+					invalidateTemplateListQueries(queryClient),
 					queryClient.invalidateQueries({
 						queryKey: templateByNameKey(template.organization_name, data.name),
 					}),

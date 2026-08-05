@@ -1,37 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useQuery } from "react-query";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
-import {
-	getTemplatesQueryKey,
-	templateByNameKey,
-	templates,
-} from "#/api/queries/templates";
+import { templateByNameKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
-import { Switch } from "#/components/Switch/Switch";
-import { createDeferred } from "#/testHelpers/deferred";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { TemplateSettingsLayout } from "../TemplateSettingsLayout";
 import TemplateSettingsPage from "./TemplateSettingsPage";
-
-const CachedTemplateList = () => {
-	const templatesQuery = useQuery(templates({ q: "" }));
-	const template = templatesQuery.data?.find(
-		(template) => template.id === MockTemplate.id,
-	);
-	if (!template) {
-		return null;
-	}
-	return (
-		<Switch
-			checked={template.agents_allowed}
-			aria-label="Allow Coder Agents to create workspaces with cached template"
-		/>
-	);
-};
 
 const meta = {
 	title: "pages/TemplateSettingsPage/TemplateSettingsPage",
@@ -80,53 +57,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const UpdateSucceeds: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/templates/:template/settings",
-				pathParams: { template: MockTemplate.name },
-			},
-			routing: [
-				{
-					path: "/templates/:template/settings",
-					useStoryElement: true,
-					children: [{ index: true, element: <TemplateSettingsPage /> }],
-				},
-				{ path: "/templates/:template", element: <CachedTemplateList /> },
-			],
-		}),
-		queries: [
-			{
-				key: templateByNameKey("default", MockTemplate.name),
-				data: MockTemplate,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "" }),
-				data: [MockTemplate],
-			},
-			{
-				key: getAuthorizationKey({
-					checks: {
-						canUpdateTemplate: {
-							object: {
-								resource_type: "template",
-								resource_id: MockTemplate.id,
-							},
-							action: "update",
-						},
-					},
-				}),
-				data: { canUpdateTemplate: true },
-			},
-		],
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const templatesDeferred = createDeferred<Template[]>();
-		const getTemplatesSpy = spyOn(API, "getTemplates").mockReturnValue(
-			templatesDeferred.promise,
-		);
 		const updatedTemplate: Template = {
 			...MockTemplate,
 			name: "new-name",
@@ -141,15 +74,6 @@ export const UpdateSucceeds: Story = {
 		expect(updateTemplateMetaSpy.mock.calls[0][1]).toEqual(
 			expect.objectContaining({ agents_allowed: false }),
 		);
-		const cachedTemplateSwitch = await within(document.body).findByRole(
-			"switch",
-			{
-				name: "Allow Coder Agents to create workspaces with cached template",
-			},
-		);
-		expect(cachedTemplateSwitch).not.toBeChecked();
-		expect(getTemplatesSpy).toHaveBeenCalledWith({ q: "" });
-		templatesDeferred.resolve([updatedTemplate]);
 	},
 };
 

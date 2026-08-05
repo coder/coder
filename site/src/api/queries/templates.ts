@@ -54,23 +54,8 @@ export const templates = (
 	};
 };
 
-export const updateTemplateListQueries = async (
-	queryClient: QueryClient,
-	updatedTemplate: Template,
-) => {
-	queryClient.setQueriesData<Template[]>(
-		{ queryKey: templateListsKey },
-		(current) => {
-			if (!current?.some((template) => template.id === updatedTemplate.id)) {
-				return current;
-			}
-			return current.map((template) =>
-				template.id === updatedTemplate.id ? updatedTemplate : template,
-			);
-		},
-	);
-	await queryClient.invalidateQueries({ queryKey: templateListsKey });
-};
+export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({ queryKey: templateListsKey });
 
 export const updateTemplateMeta = (
 	queryClient: QueryClient,
@@ -85,11 +70,7 @@ export const updateTemplateMeta = (
 		onSuccess: async (result, { template }) => {
 			const updatedTemplate = result ?? template;
 			await Promise.all([
-				result
-					? updateTemplateListQueries(queryClient, result)
-					: queryClient.invalidateQueries({
-							queryKey: templateListsKey,
-						}),
+				invalidateTemplateListQueries(queryClient),
 				queryClient.invalidateQueries({
 					queryKey: templateKey(template.id),
 				}),
