@@ -947,6 +947,20 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.
 
+## Concurrent agent limiter
+
+Deployments without remaining licensed agent runtime hours cap how many chats generate at once. The cap is enforced at worker ownership acquisition through the `AgentAdmission` hook (`agentadmission.go`): before a worker writes ownership, it asks the admission gate whether the chat may run. A nil hook (AGPL builds) admits everything; the enterprise implementation (`enterprise/coderd/x/chatd`) enforces two deployment-wide pools, 5 root chats and 10 subagent chats. Workspace agents are unaffected.
+
+A chat holds a capacity slot while it is unarchived, in `running` or `interrupting` status, owned, and its owning runner has a fresh `chat_heartbeats` row. Counting live runners from the database means a crashed replica's slots free once its heartbeats go stale (the production staleness window, minutes), and slots free at the status transition out of `running`/`interrupting`, before the asynchronous abandon clears ownership. `requires_action` chats keep their runner but hold no slot; when the action completes they resume on the runner they already own, without re-admission, which can transiently exceed the cap. The same bounded softness applies to license expiry: in-flight chats finish their turns.
+
+Refused chats stay `running` but unowned: no runner and no parked goroutine. The worker stamps `capacity_queued_at` (fenced in SQL to unarchived, generating, live-owner-free chats so a concurrently admitted chat is never marked) and publishes a `capacity_change` watch event so clients show the queued banner. Acquisition candidates order by `capacity_queued_at` first, so admission is FIFO per pool, and each acquisition pass excludes already-attempted chats so refused candidates cannot hide the rest of the queue behind a full batch. Because a refusal must not republish an ownership hint (every worker would wake into an immediate re-refusal), the refused acquisition transaction rolls back and the queue mark happens outside it.
+
+Admission decisions are made per pool: root chats (`parent_chat_id IS NULL`) and subagent chats draw from separate pools, so a parent blocked in `wait_agent` keeps its root slot without starving its children, and there is no yield machinery. Subagents cannot nest, so the subagent pool cannot deadlock on itself. Interrupting chats always admit, otherwise an over-cap user could not stop their own chat. Counting and claim serialize across replicas with the `LockIDChatCapacityAdmission` advisory lock held to the end of the acquisition transaction; the count excludes the candidate itself so stale-ownership takeovers are capacity-neutral.
+
+When a runner observes its chat leaving the counted statuses, it publishes a bare ownership hint so all workers immediately re-run acquisition and admit queued chats; the acquisition ticker (default 30s) is the fallback for missed nudges, entitlement changes, and heartbeat-staleness releases. Admission clears `capacity_queued_at` in the acquiring transaction and the worker publishes `capacity_change` so open chat pages clear the banner without a reload. `UpdateChatExecutionState`, `UpdateChatStatus`, archive, and auto-archive clear stray markers whenever a chat leaves the counted statuses.
+
+The bypass rule for licensed deployments: uncapped only while `codersdk.FeatureAgentRuntimeHours` is enabled and recorded usage (`Actual`) is below the allocation (`Limit`). A nil `Actual` or `Limit` fails open, because capping paying customers on a missing usage reading is worse than bounded over-admission. Queued chats admit automatically after entitlement changes via the acquisition ticker.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.

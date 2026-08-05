@@ -3050,6 +3050,10 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
+	// AgentAdmissionFactory builds the chat worker admission gate.
+	// Nil leaves capacity uncapped.
+	AgentAdmissionFactory AgentAdmissionFactory
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -3181,6 +3185,18 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
+	var agentAdmission AgentAdmission
+	if cfg.AgentAdmissionFactory != nil {
+		agentAdmission = cfg.AgentAdmissionFactory(AgentAdmissionOptions{
+			Store:      cfg.Database,
+			Logger:     cfg.Logger.Named("chatadmission"),
+			Clock:      clk,
+			Registerer: cfg.PrometheusRegistry,
+			//nolint:gocritic // Capacity accounting is chatd-internal state.
+			LifetimeCtx:           dbauthz.AsChatd(ctx),
+			HeartbeatStaleSeconds: int32(inFlightChatStaleAfter.Seconds()),
+		})
+	}
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3188,6 +3204,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
+		AgentAdmission:        agentAdmission,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,

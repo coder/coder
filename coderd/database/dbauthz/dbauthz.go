@@ -1942,6 +1942,17 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
 }
 
+func (q *querier) ClearChatCapacityQueued(ctx context.Context, id uuid.UUID) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.ClearChatCapacityQueued(ctx, id)
+}
+
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -1962,6 +1973,24 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
+}
+
+func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+	// Deployment-wide capacity accounting is a system-level read
+	// enforced by the AsChatd context, not per-row authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatCapacityActiveByPoolRow{}, err
+	}
+	return q.db.CountChatCapacityActiveByPool(ctx, arg)
+}
+
+func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context) (database.CountChatCapacityQueuedByPoolRow, error) {
+	// Deployment-wide capacity accounting is a system-level read
+	// enforced by the AsChatd context, not per-row authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatCapacityQueuedByPoolRow{}, err
+	}
+	return q.db.CountChatCapacityQueuedByPool(ctx)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
@@ -6949,6 +6978,17 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	}
 
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
+}
+
+func (q *querier) MarkChatCapacityQueued(ctx context.Context, arg database.MarkChatCapacityQueuedParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.MarkChatCapacityQueued(ctx, arg)
 }
 
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {

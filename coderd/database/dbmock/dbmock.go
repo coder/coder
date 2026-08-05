@@ -408,6 +408,21 @@ func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDeletedMCPServerIDsFromChats", reflect.TypeOf((*MockStore)(nil).CleanupDeletedMCPServerIDsFromChats), ctx)
 }
 
+// ClearChatCapacityQueued mocks base method.
+func (m *MockStore) ClearChatCapacityQueued(ctx context.Context, id uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatCapacityQueued", ctx, id)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearChatCapacityQueued indicates an expected call of ClearChatCapacityQueued.
+func (mr *MockStoreMockRecorder) ClearChatCapacityQueued(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatCapacityQueued", reflect.TypeOf((*MockStore)(nil).ClearChatCapacityQueued), ctx, id)
+}
+
 // CountAIBridgeSessions mocks base method.
 func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -481,6 +496,36 @@ func (m *MockStore) CountAuthorizedConnectionLogs(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
+}
+
+// CountChatCapacityActiveByPool mocks base method.
+func (m *MockStore) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatCapacityActiveByPool", ctx, arg)
+	ret0, _ := ret[0].(database.CountChatCapacityActiveByPoolRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatCapacityActiveByPool indicates an expected call of CountChatCapacityActiveByPool.
+func (mr *MockStoreMockRecorder) CountChatCapacityActiveByPool(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityActiveByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityActiveByPool), ctx, arg)
+}
+
+// CountChatCapacityQueuedByPool mocks base method.
+func (m *MockStore) CountChatCapacityQueuedByPool(ctx context.Context) (database.CountChatCapacityQueuedByPoolRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatCapacityQueuedByPool", ctx)
+	ret0, _ := ret[0].(database.CountChatCapacityQueuedByPoolRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatCapacityQueuedByPool indicates an expected call of CountChatCapacityQueuedByPool.
+func (mr *MockStoreMockRecorder) CountChatCapacityQueuedByPool(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityQueuedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityQueuedByPool), ctx)
 }
 
 // CountChatQueuedMessages mocks base method.
@@ -9220,6 +9265,21 @@ func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
+}
+
+// MarkChatCapacityQueued mocks base method.
+func (m *MockStore) MarkChatCapacityQueued(ctx context.Context, arg database.MarkChatCapacityQueuedParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatCapacityQueued", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatCapacityQueued indicates an expected call of MarkChatCapacityQueued.
+func (mr *MockStoreMockRecorder) MarkChatCapacityQueued(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatCapacityQueued", reflect.TypeOf((*MockStore)(nil).MarkChatCapacityQueued), ctx, arg)
 }
 
 // MarkChatsContextDirtyByAgent mocks base method.

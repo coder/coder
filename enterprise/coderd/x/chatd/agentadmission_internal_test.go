@@ -1,0 +1,272 @@
+package chatd
+
+import (
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func agentHoursSet(t *testing.T, feature codersdk.Feature) *entitlements.Set {
+	t.Helper()
+	set := entitlements.New()
+	set.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.HasLicense = true
+		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = feature
+	})
+	return set
+}
+
+type admissionFixture struct {
+	db          database.Store
+	ps          pubsub.Pubsub
+	owner       database.User
+	org         database.Organization
+	modelConfig database.ChatModelConfig
+}
+
+func newAdmissionFixture(t *testing.T) admissionFixture {
+	t.Helper()
+	db, ps := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	return admissionFixture{db: db, ps: ps, owner: owner, org: org, modelConfig: modelConfig}
+}
+
+func (f admissionFixture) chat(t *testing.T, seed database.Chat) database.Chat {
+	t.Helper()
+	seed.OwnerID = f.owner.ID
+	seed.OrganizationID = f.org.ID
+	seed.LastModelConfigID = f.modelConfig.ID
+	if seed.Status == "" {
+		seed.Status = database.ChatStatusRunning
+	}
+	return dbgen.Chat(t, f.db, seed)
+}
+
+// occupy gives the chat a live runner (ownership plus fresh heartbeat)
+// so it counts against its pool.
+func (f admissionFixture) occupy(t *testing.T, chatID uuid.UUID) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	machine := chatstate.NewChatMachine(f.db, f.ps, chatID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+		return err
+	}))
+}
+
+func (f admissionFixture) occupiedRoot(t *testing.T) database.Chat {
+	t.Helper()
+	chat := f.chat(t, database.Chat{})
+	f.occupy(t, chat.ID)
+	return chat
+}
+
+func (f admissionFixture) occupiedSubagent(t *testing.T, root database.Chat) database.Chat {
+	t.Helper()
+	chat := f.chat(t, database.Chat{
+		ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	f.occupy(t, chat.ID)
+	return chat
+}
+
+func testAdmission(f admissionFixture, set *entitlements.Set) *admission {
+	return newAdmission(admissionOptions{
+		Entitlements:          set,
+		Store:                 f.db,
+		HeartbeatStaleSeconds: 30,
+		RootCapacity:          2,
+		SubagentCapacity:      2,
+	})
+}
+
+func TestAdmission_RootPoolCap(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	root := f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	admitted, err := a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
+	require.NoError(t, err)
+	require.False(t, admitted, "third root must be refused at capacity 2")
+
+	// The pools are independent: a full root pool must not refuse
+	// subagents.
+	subagent := f.chat(t, database.Chat{
+		ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	admitted, err = a.Admit(ctx, f.db, subagent)
+	require.NoError(t, err)
+	require.True(t, admitted)
+}
+
+func TestAdmission_SubagentPoolCap(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	root := f.occupiedRoot(t)
+	f.occupiedSubagent(t, root)
+	f.occupiedSubagent(t, root)
+
+	subagent := f.chat(t, database.Chat{
+		ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	admitted, err := a.Admit(ctx, f.db, subagent)
+	require.NoError(t, err)
+	require.False(t, admitted, "third subagent must be refused at capacity 2")
+
+	admitted, err = a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
+	require.NoError(t, err)
+	require.True(t, admitted, "a full subagent pool must not refuse roots")
+}
+
+func TestAdmission_InterruptingBypassesCap(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	interrupting := f.chat(t, database.Chat{Status: database.ChatStatusInterrupting})
+	admitted, err := a.Admit(ctx, f.db, interrupting)
+	require.NoError(t, err)
+	require.True(t, admitted, "interrupting chats must always be acquirable")
+}
+
+func TestAdmission_RequiresActionBypassesCap(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	requiresAction := f.chat(t, database.Chat{Status: database.ChatStatusRequiresAction})
+	admitted, err := a.Admit(ctx, f.db, requiresAction)
+	require.NoError(t, err)
+	require.True(t, admitted, "requires_action chats hold no slot and need their runner")
+}
+
+func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	counted := f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	chat, err := f.db.GetChatByID(ctx, counted.ID)
+	require.NoError(t, err)
+	admitted, err := a.Admit(ctx, f.db, chat)
+	require.NoError(t, err)
+	require.True(t, admitted, "an already-counted chat must re-admit for takeover at full capacity")
+}
+
+func TestAdmission_StaleHeartbeatsFreeSlots(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	// With a zero staleness window every heartbeat is stale, so the
+	// occupied chats hold no slots.
+	a := newAdmission(admissionOptions{
+		Store:                 f.db,
+		HeartbeatStaleSeconds: 0,
+		RootCapacity:          2,
+		SubagentCapacity:      2,
+	})
+	admitted, err := a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
+	require.NoError(t, err)
+	require.True(t, admitted)
+}
+
+func TestAdmission_LicensedBypass(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		feature *codersdk.Feature
+		admit   bool
+	}{
+		{
+			name: "EnabledWithoutUsage",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+			},
+			admit: true,
+		},
+		{
+			name: "RemainingHours",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(40)),
+			},
+			admit: true,
+		},
+		{
+			name: "ExhaustedHours",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(100)),
+			},
+			admit: false,
+		},
+		{
+			name:    "NoFeature",
+			feature: nil,
+			admit:   false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAdmissionFixture(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			set := entitlements.New()
+			if tc.feature != nil {
+				set = agentHoursSet(t, *tc.feature)
+			}
+			a := testAdmission(f, set)
+
+			f.occupiedRoot(t)
+			f.occupiedRoot(t)
+
+			admitted, err := a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
+			require.NoError(t, err)
+			require.Equal(t, tc.admit, admitted)
+		})
+	}
+}

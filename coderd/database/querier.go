@@ -91,8 +91,20 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	// Clears the capacity queue marker, typically in the same transaction
+	// that acquires ownership of an admitted chat. Does not bump
+	// updated_at; see MarkChatCapacityQueued.
+	ClearChatCapacityQueued(ctx context.Context, id uuid.UUID) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	// Counts chats currently holding a concurrent-agent capacity slot,
+	// split into root chats and subagent chats. A chat holds a slot while
+	// it is unarchived, in a generating status, owned, and its owning
+	// runner has a fresh heartbeat, so slots held by crashed replicas free
+	// once their heartbeats go stale. @exclude_chat_id omits the candidate
+	// being admitted so stale-ownership takeovers are capacity-neutral.
+	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
+	CountChatCapacityQueuedByPool(ctx context.Context) (CountChatCapacityQueuedByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -516,8 +528,13 @@ type sqlcQuerier interface {
 	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
 	// runner_id IS NULL while worker_id is set. Stale ownership is no
 	// heartbeat row for (chat_id, runner_id), or one older than
-	// @stale_seconds by database time. Candidates are ordered by oldest
-	// updated_at first so workers drain stale runnable chats predictably.
+	// @stale_seconds by database time. Capacity-queued chats sort first,
+	// longest wait first, so admission is FIFO; remaining candidates are
+	// ordered by oldest updated_at so workers drain stale runnable chats
+	// predictably. @exclude_ids lets one acquisition pass page past chats
+	// it already attempted; refused capacity-queued chats stay candidates,
+	// so without the exclusion a full pool would hide everything beyond
+	// the first batch.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
@@ -1298,6 +1315,14 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	// Marks a chat as waiting for a concurrent-agent capacity slot after a
+	// worker refused acquisition. The status and live-owner fences keep
+	// markers off chats that finished, archived, or were admitted by
+	// another worker between the admission decision and this write. An
+	// existing queue timestamp is preserved so repeated refusals keep FIFO
+	// order. Deliberately does not bump updated_at: capacity marking is
+	// bookkeeping, not chat activity.
+	MarkChatCapacityQueued(ctx context.Context, arg MarkChatCapacityQueuedParams) (int64, error)
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
