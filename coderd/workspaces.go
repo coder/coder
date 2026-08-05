@@ -1514,19 +1514,15 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+		if initiatorErr == nil {
+			// The notification body renders this label inside the
+			// "will be automatically deleted in ..." sentence, so it must
+			// carry the auto-delete countdown. When auto-delete is disabled
+			// there is no deadline, so use generic wording.
+			timeTilDelete := "line with your template's auto-deletion policy"
+			if newWorkspace.DeletingAt.Valid {
+				timeTilDelete = humanize.Time(newWorkspace.DeletingAt.Time)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
@@ -1535,7 +1531,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           newWorkspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
+					"timeTilDormant": timeTilDelete,
 				},
 				"api",
 				newWorkspace.ID,

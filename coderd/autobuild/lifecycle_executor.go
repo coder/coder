@@ -382,8 +382,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							Old: wsOld.WorkspaceTable(),
 							New: wsNew,
 						}
-						// To keep the `ws` accurate without doing a sql fetch
+						// To keep the `ws` accurate without doing a sql fetch.
+						// deleting_at is computed by the UPDATE from the template's
+						// time_til_dormant_autodelete.
 						ws.DormantAt = wsNew.DormantAt
+						ws.DeletingAt = wsNew.DeletingAt
 
 						shouldNotifyDormancy = true
 
@@ -467,7 +470,14 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+					// The notification body renders this label inside the
+					// "will be automatically deleted in ..." sentence, so it
+					// must carry the auto-delete countdown. When auto-delete is
+					// disabled there is no deadline, so use generic wording.
+					timeTilDelete := "line with your template's auto-deletion policy"
+					if ws.DeletingAt.Valid {
+						timeTilDelete = humanize.Time(ws.DeletingAt.Time)
+					}
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
@@ -475,7 +485,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": humanize.Time(dormantTime),
+							"timeTilDormant": timeTilDelete,
 						},
 						"lifecycle_executor",
 						ws.ID,
