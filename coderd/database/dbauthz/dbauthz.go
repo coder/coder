@@ -5395,6 +5395,7 @@ func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Cont
 	}
 	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
 }
+
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }

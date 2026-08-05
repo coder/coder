@@ -3689,6 +3689,7 @@ func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx con
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasTemplateVersionsUsingCachedModuleFileInOrg").Inc()
 	return r0, r1
 }
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
