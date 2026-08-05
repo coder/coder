@@ -17407,6 +17407,9 @@ const docTemplate = `{
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
+                "hook_allow_insecure": {
+                    "type": "boolean"
+                },
                 "hook_enabled": {
                     "type": "boolean"
                 },
@@ -17528,7 +17531,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "description": "Name is the tool name with the ` + "`" + `\u003cserver\u003e__` + "`" + ` prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
                 }
             }

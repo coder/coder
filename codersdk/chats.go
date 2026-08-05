@@ -224,7 +224,7 @@ const (
 // ChatContextTool is one tool exposed by a pinned MCP server, reported on the
 // single-chat GET response. Metadata only; the input schema is omitted.
 type ChatContextTool struct {
-	// Name is the tool name with the "<server>__" prefix the agent adds
+	// Name is the tool name with the `<server>__` prefix the agent adds
 	// stripped, so it reads as the server exposes it.
 	Name string `json:"name"`
 	// Description is the tool's human-readable summary; may be empty.

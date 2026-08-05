@@ -22,16 +22,16 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
 } from "#/api/api";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatKey,
+	chatEntityKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
-	chatProviderConfigs,
 	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
@@ -68,6 +68,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -1181,8 +1182,10 @@ const AgentChatPage: FC = () => {
 				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
-		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
+		queryClient.setQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+			(previousChat) =>
+				previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
 	};
 
@@ -1692,7 +1695,7 @@ const AgentChatPage: FC = () => {
 					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
 					void queryClient.invalidateQueries({
-						queryKey: chatKey(agentId),
+						queryKey: chatEntityKey(agentId),
 						exact: true,
 					});
 				},
@@ -1743,7 +1746,7 @@ const AgentChatPage: FC = () => {
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(agentId),
+				queryKey: chatEntityKey(agentId),
 				exact: true,
 			});
 			throw error;
@@ -1877,6 +1880,37 @@ const AgentChatPage: FC = () => {
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
+			/>
+		);
+	}
+
+	if (chatQuery.isLoadingError || chatMessagesQuery.isLoadingError) {
+		if (getErrorStatus(chatQuery.error) === 404) {
+			return (
+				<AgentChatPageNotFoundView
+					titleElement={titleElement}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+			);
+		}
+
+		return (
+			<AgentChatPageErrorView
+				titleElement={titleElement}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				error={
+					chatQuery.isLoadingError ? chatQuery.error : chatMessagesQuery.error
+				}
+				onRetry={() => {
+					if (chatQuery.isLoadingError) {
+						void chatQuery.refetch();
+					}
+					if (chatMessagesQuery.isLoadingError) {
+						void chatMessagesQuery.refetch();
+					}
+				}}
 			/>
 		);
 	}

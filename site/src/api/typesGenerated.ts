@@ -2037,6 +2037,7 @@ export interface ChatConfig {
 	readonly hook_secret: string;
 	readonly hook_timeout: number;
 	readonly hook_enabled: boolean;
+	readonly hook_allow_insecure: boolean;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2175,7 +2176,7 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
  */
 export interface ChatContextTool {
 	/**
-	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * Name is the tool name with the `<server>__` prefix the agent adds
 	 * stripped, so it reads as the server exposes it.
 	 */
 	readonly name: string;

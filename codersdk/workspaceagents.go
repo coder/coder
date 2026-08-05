@@ -365,7 +365,7 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 		return WorkspaceAgent{}, ReadBodyAsError(res)
 	}
 	var workspaceAgent WorkspaceAgent
-	err = json.NewDecoder(res.Body).Decode(&workspaceAgent)
+	err = ReadBodyAsJSON(res, &workspaceAgent)
 	if err != nil {
 		return WorkspaceAgent{}, err
 	}
@@ -392,7 +392,7 @@ func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueR
 		return IssueReconnectingPTYSignedTokenResponse{}, ReadBodyAsError(res)
 	}
 	var resp IssueReconnectingPTYSignedTokenResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type WorkspaceAgentListeningPortsResponse struct {
@@ -421,7 +421,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 		return WorkspaceAgentListeningPortsResponse{}, ReadBodyAsError(res)
 	}
 	var listeningPorts WorkspaceAgentListeningPortsResponse
-	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
+	return listeningPorts, ReadBodyAsJSON(res, &listeningPorts)
 }
 
 // WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
@@ -582,7 +582,7 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	}
 	var cr WorkspaceAgentListContainersResponse
 
-	return cr, json.NewDecoder(res.Body).Decode(&cr)
+	return cr, ReadBodyAsJSON(res, &cr)
 }
 
 func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
@@ -643,7 +643,7 @@ func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID
 		return Response{}, ReadBodyAsError(res)
 	}
 	var m Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := ReadBodyAsJSON(res, &m); err != nil {
 		return Response{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
@@ -679,7 +679,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		}
 
 		var logs []WorkspaceAgentLog
-		err = json.NewDecoder(resp.Body).Decode(&logs)
+		err = ReadBodyAsJSON(resp, &logs)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
 		}

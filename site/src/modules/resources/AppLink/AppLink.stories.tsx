@@ -91,6 +91,42 @@ export const ExternalAppShareable: Story = {
 	},
 };
 
+export const InvalidExternalAppUrl: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			// A bare string with no scheme is unparsable by the URL constructor.
+			url: "my-repo",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		// A disabled app renders an anchor without an href, which has no
+		// "link" role, so query by its label text instead.
+		const trigger = await canvas.findByText("Test App");
+		// The disabled button sets `pointer-events: none`, so bypass the
+		// pointer-events guard to hover and reveal the tooltip.
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+		await step("button is disabled", async () => {
+			const anchor = trigger.closest("a");
+			expect(anchor).not.toBeNull();
+			expect(anchor).not.toHaveAttribute("href");
+		});
+
+		await step("tooltip explains the invalid URL", async () => {
+			await user.hover(trigger);
+			const tooltip = await screen.findByRole("tooltip");
+			expect(tooltip).toHaveTextContent(
+				"This app has an invalid URL and can't be opened.",
+			);
+		});
+	},
+};
+
 export const SharingLevelOwner: Story = {
 	args: {
 		workspace: MockWorkspace,

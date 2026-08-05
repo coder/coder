@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -361,7 +360,7 @@ func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSe
 		return AIBridgeListSessionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeListSessionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AIBridgeGetSessionThreads returns a single session with expanded
@@ -388,7 +387,7 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 		return AIBridgeSessionThreadsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeSessionThreadsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AIBridgeListClients returns the distinct AI clients visible to the caller.
@@ -402,7 +401,7 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var clients []string
-	return clients, json.NewDecoder(res.Body).Decode(&clients)
+	return clients, ReadBodyAsJSON(res, &clients)
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
@@ -462,7 +461,7 @@ func (c *Client) GroupAIBudget(ctx context.Context, group uuid.UUID) (GroupAIBud
 		return GroupAIBudget{}, ReadBodyAsError(res)
 	}
 	var resp GroupAIBudget
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpsertGroupAIBudget creates or updates the AI spend budget for the given group.
@@ -480,7 +479,7 @@ func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req U
 		return GroupAIBudget{}, ReadBodyAsError(res)
 	}
 	var resp GroupAIBudget
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteGroupAIBudget removes the AI spend budget for the given group.
@@ -531,7 +530,7 @@ func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (User
 		return UserAIBudgetOverride{}, ReadBodyAsError(res)
 	}
 	var resp UserAIBudgetOverride
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
@@ -549,7 +548,7 @@ func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID,
 		return UserAIBudgetOverride{}, ReadBodyAsError(res)
 	}
 	var resp UserAIBudgetOverride
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
@@ -585,7 +584,7 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 		return UserAISpendStatus{}, ReadBodyAsError(res)
 	}
 	var resp UserAISpendStatus
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // OrganizationGroupsAISpend returns AI spend for the given groups within the
@@ -612,7 +611,7 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GroupAISpend returns AI spend for the given group within the active budget
@@ -631,7 +630,7 @@ func (c *Client) GroupAISpend(ctx context.Context, group uuid.UUID) (GroupAISpen
 		return GroupAISpend{}, ReadBodyAsError(res)
 	}
 	var resp GroupAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GroupMembersAISpend returns AI spend attributed to the given group for the
@@ -658,5 +657,5 @@ func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userI
 		return GroupMembersAISpend{}, ReadBodyAsError(res)
 	}
 	var resp GroupMembersAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

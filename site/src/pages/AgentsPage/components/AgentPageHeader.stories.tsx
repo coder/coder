@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useMemo, useState } from "react";
 import { Outlet } from "react-router";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentPageHeader } from "./AgentPageHeader";
 import { ChimeButton } from "./ChimeButton";
@@ -184,7 +185,9 @@ export const MobileActionsExcludeAnalytics: Story = {
 	},
 	render: () => <HeaderStateHarness />,
 	parameters: {
+		layout: "fullscreen",
 		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: pixelWithPhone },
 		reactRouter: {
 			location: {
 				path: "/agents",

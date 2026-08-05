@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,7 +47,7 @@ func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id u
 		return MCPServerOAuth2DisconnectResponse{}, ReadBodyAsError(res)
 	}
 	var resp MCPServerOAuth2DisconnectResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // MCPServerConfig represents an admin-configured MCP server.
@@ -184,7 +183,7 @@ func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error
 		return nil, ReadBodyAsError(res)
 	}
 	var configs []MCPServerConfig
-	return configs, json.NewDecoder(res.Body).Decode(&configs)
+	return configs, ReadBodyAsJSON(res, &configs)
 }
 
 func (c *Client) MCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error) {
@@ -197,7 +196,7 @@ func (c *Client) MCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServ
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 func (c *Client) CreateMCPServerConfig(ctx context.Context, req CreateMCPServerConfigRequest) (MCPServerConfig, error) {
@@ -210,7 +209,7 @@ func (c *Client) CreateMCPServerConfig(ctx context.Context, req CreateMCPServerC
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req UpdateMCPServerConfigRequest) (MCPServerConfig, error) {
@@ -223,7 +222,7 @@ func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req Up
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error {
