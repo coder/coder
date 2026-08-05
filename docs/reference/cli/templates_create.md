@@ -18,7 +18,7 @@ coder templates create [flags] [name]
 | Type    | <code>bool</code> |
 | Default | <code>true</code> |
 
-Allow Coder Agents to use this template.
+Allow Coder Agents to create workspaces using this template.
 
 ### --private
 

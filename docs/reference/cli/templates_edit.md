@@ -133,7 +133,7 @@ Specify a duration workspaces may be in the dormant state prior to being deleted
 | Type    | <code>bool</code> |
 | Default | <code>true</code> |
 
-Allow Coder Agents to use this template.
+Allow Coder Agents to create workspaces using this template.
 
 ### --allow-user-cancel-workspace-jobs
 

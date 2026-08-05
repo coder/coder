@@ -11,7 +11,7 @@ OPTIONS:
           Select which organization (uuid or name) to use.
 
       --agents-allowed bool (default: true)
-          Allow Coder Agents to use this template.
+          Allow Coder Agents to create workspaces using this template.
 
       --default-ttl duration (default: 24h)
           Specify a default TTL for workspaces created from this template. It is

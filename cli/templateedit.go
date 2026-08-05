@@ -300,7 +300,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		},
 		{
 			Flag:        "agents-allowed",
-			Description: "Allow Coder Agents to use this template.",
+			Description: "Allow Coder Agents to create workspaces using this template.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&agentsAllowed),
 		},
