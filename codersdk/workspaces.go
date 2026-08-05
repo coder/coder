@@ -623,7 +623,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 	}
 
 	var wres WorkspacesResponse
-	return wres, json.NewDecoder(res.Body).Decode(&wres)
+	return wres, ReadBodyAsJSON(res, &wres)
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
