@@ -171,7 +171,10 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 
 // uncapped returns true for an enabled entitlement with remaining hours.
 // Missing limit or usage data also fails open to avoid capping on incomplete
-// entitlement data.
+// entitlement data. Entitlements do not yet populate Actual for this feature
+// (usage accrues externally via usage events), so today every enabled
+// runtime-hours license is uncapped; the exhaustion branch activates when
+// usage wiring lands.
 func (a *admission) uncapped() bool {
 	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {

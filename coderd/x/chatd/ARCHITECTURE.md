@@ -959,7 +959,7 @@ Admission decisions are made per pool: root chats (`parent_chat_id IS NULL`) and
 
 When a runner observes its chat leaving the counted statuses, it publishes a bare ownership hint so all workers immediately re-run acquisition and admit queued chats; the acquisition ticker (default 30s) is the fallback for missed nudges, entitlement changes, and heartbeat-staleness releases. Admission clears `capacity_queued_at` in the acquiring transaction and the worker publishes `capacity_change` so open chat pages clear the banner without a reload. `UpdateChatExecutionState`, `UpdateChatStatus`, archive, and auto-archive clear stray markers whenever a chat leaves the counted statuses.
 
-The bypass rule for licensed deployments: uncapped only while `codersdk.FeatureAgentRuntimeHours` is enabled and recorded usage (`Actual`) is below the allocation (`Limit`). A nil `Actual` or `Limit` fails open, because capping paying customers on a missing usage reading is worse than bounded over-admission. Queued chats admit automatically after entitlement changes via the acquisition ticker.
+The bypass rule for licensed deployments: uncapped only while `codersdk.FeatureAgentRuntimeHours` is enabled and recorded usage (`Actual`) is below the allocation (`Limit`). A nil `Actual` or `Limit` fails open, because capping paying customers on a missing usage reading is worse than bounded over-admission. Entitlements do not yet populate `Actual` for this feature (runtime-hour usage accrues externally via usage events), so today an enabled runtime-hours license is always uncapped; the exhaustion comparison activates when usage wiring lands. Queued chats admit automatically after entitlement changes via the acquisition ticker.
 
 ## Auto-archive loop
 
