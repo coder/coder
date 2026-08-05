@@ -75,6 +75,30 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("trims an unmatched closing bracket wrapping the URL", () => {
+		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
+			{ kind: "text", value: "Open [" },
+			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: "] now" },
+		]);
+	});
+
+	it("trims an unmatched closing bracket after a path", () => {
+		expect(splitTextForLinks("[http://localhost:3000/app]")).toEqual([
+			{ kind: "text", value: "[" },
+			{ kind: "url", value: "http://localhost:3000/app" },
+			{ kind: "text", value: "]" },
+		]);
+	});
+
+	it("keeps IPv6 host brackets while trimming a wrapper bracket", () => {
+		expect(splitTextForLinks("[http://[::1]:8080/]")).toEqual([
+			{ kind: "text", value: "[" },
+			{ kind: "url", value: "http://[::1]:8080/" },
+			{ kind: "text", value: "]" },
+		]);
+	});
+
 	it("stops the URL at ANSI escape sequences", () => {
 		expect(
 			splitTextForLinks("\u001b[32mhttp://localhost:3000/\u001b[39m done"),

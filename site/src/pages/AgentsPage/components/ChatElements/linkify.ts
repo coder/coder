@@ -12,11 +12,16 @@ const TRAILING_PUNCTUATION = new Set([".", ",", ";", ":", "!", "?"]);
 
 const trimTrailingPunctuation = (url: string): string => {
 	let parenBalance = 0;
+	let bracketBalance = 0;
 	for (const char of url) {
 		if (char === "(") {
 			parenBalance += 1;
 		} else if (char === ")") {
 			parenBalance -= 1;
+		} else if (char === "[") {
+			bracketBalance += 1;
+		} else if (char === "]") {
+			bracketBalance -= 1;
 		}
 	}
 	let end = url.length;
@@ -29,6 +34,13 @@ const trimTrailingPunctuation = (url: string): string => {
 		// Preserve balanced URL parentheses while trimming unmatched closers.
 		if (char === ")" && parenBalance < 0) {
 			parenBalance += 1;
+			end -= 1;
+			continue;
+		}
+		// Same for brackets, so "[http://x]" sheds its wrapper while IPv6
+		// hosts like http://[::1]:8080/ keep theirs.
+		if (char === "]" && bracketBalance < 0) {
+			bracketBalance += 1;
 			end -= 1;
 			continue;
 		}
