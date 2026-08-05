@@ -1,6 +1,5 @@
 import {
 	ArrowLeftIcon,
-	BarChart3Icon,
 	BellIcon,
 	BellOffIcon,
 	EllipsisIcon,
@@ -37,7 +36,7 @@ import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
-	 *  and hides the settings/analytics nav buttons. */
+	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
@@ -175,14 +174,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuItem asChild>
-							<Link
-								to={{ pathname: "/agents/analytics", search: location.search }}
-							>
-								<BarChart3Icon className="size-icon-sm" />
-								Analytics
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem

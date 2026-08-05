@@ -61,7 +61,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+				<h3 id={nameId} className="text-sm font-bold text-content-primary">
 					{name}
 					{official && (
 						<>
@@ -71,14 +71,14 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 					)}
 				</h3>
 				<div>
-					<p className="text-sm font-normal text-content-secondary">
+					<p className="text-xs font-normal text-content-secondary">
 						{description}
 					</p>
 
 					<Link
 						href={detailsUrl}
 						target="_blank"
-						className="text-sm font-normal"
+						className="text-xs font-normal"
 					>
 						View details
 					</Link>

@@ -868,6 +868,7 @@ func matrixCases() []transitionCaseSpec {
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
 		// lands in E0; Invalid with non-empty queue lands in E1.

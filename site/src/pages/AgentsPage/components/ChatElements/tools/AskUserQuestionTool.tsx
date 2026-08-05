@@ -692,7 +692,6 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					/>
 				</ToolCall.Root>
 			)}
-
 			{isInteractive ? (
 				<form onSubmit={handleFormSubmit}>{content}</form>
 			) : (

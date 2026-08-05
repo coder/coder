@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,11 +20,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -769,6 +771,13 @@ func (p *Server) subagentTools(
 					options,
 				)
 				if err != nil {
+					// A failed hook dispatch must fail closed instead of
+					// degrading into a tool error the model can ignore.
+					if _, ok := errors.AsType[*dispatch.Error](err); ok {
+						return fantasy.ToolResponse{}, err
+					}
+					// chathooks.UserPromptDeniedError.Error() carries the user-facing
+					// denial message, so the model can adjust its prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
@@ -1154,7 +1163,6 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
-
 	return parent, nil
 }
 
@@ -1246,9 +1254,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
-	}
 
 	rootChatID := parent.ID
 	if parent.RootChatID.Valid {
@@ -1288,8 +1293,37 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// strip the root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
-	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
-		return database.Chat{}, limitErr
+	// Review before persistence so spawned chats cannot bypass prompt policy.
+	childChatID := uuid.New()
+	var promptResult *chathooks.Result
+	if p.hooks.Enabled() {
+		mintedTurnID := uuid.New()
+		promptMessage, err := chathooks.UserPromptMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return database.Chat{}, err
+		}
+		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
+			ID:           childChatID,
+			OwnerID:      parent.OwnerID,
+			WorkspaceID:  parent.WorkspaceID,
+			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
+			TurnID:       &mintedTurnID,
+		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassGeneration)
+		if err != nil {
+			return database.Chat{}, chathooks.UserPromptDenial(err)
+		}
+		override, overridden, overrideErr := chathooks.UserPromptOverride(promptResult)
+		if overrideErr != nil {
+			return database.Chat{}, overrideErr
+		}
+		if overridden {
+			// The overridden prompt also feeds the fallback title below.
+			prompt = override
+		}
+	}
+	if title == "" {
+		title = subagentFallbackChatTitle(prompt)
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
@@ -1302,7 +1336,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
+	childUserParts = append(childUserParts, chathooks.UserPromptParts(promptResult)...)
+	userContent, err := chatprompt.MarshalParts(childUserParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
@@ -1338,7 +1374,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if publisher == nil {
 		publisher = dbpubsub.NewInMemory()
 	}
-	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
 		OwnerID:           parent.OwnerID,
 		WorkspaceID:       parent.WorkspaceID,
@@ -1653,13 +1689,6 @@ func latestSubagentAssistantMessage(
 	if err != nil {
 		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
-
-	sort.Slice(messages, func(i, j int) bool {
-		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
-			return messages[i].ID < messages[j].ID
-		}
-		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
-	})
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]

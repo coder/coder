@@ -38,7 +38,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
@@ -94,6 +94,7 @@ interface WorkspacesTableProps {
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
@@ -106,6 +107,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onCheckChange,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 	onActionSuccess,
 	onActionError,
 	chatsByWorkspace,
@@ -168,6 +170,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								templates={templates}
 								isUsingFilter={isUsingFilter}
 								canCreateTemplate={canCreateTemplate}
+								canCreateWorkspace={canCreateWorkspace}
 							/>
 						</TableCell>
 					</TableRow>

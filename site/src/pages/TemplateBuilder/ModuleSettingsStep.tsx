@@ -162,7 +162,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 							/>
 
 							{sensitiveVars.length > 0 && (
-								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-sm text-content-secondary">
+								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-xs text-content-secondary">
 									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
 									<p>
 										{sensitiveVars.map((v) => (

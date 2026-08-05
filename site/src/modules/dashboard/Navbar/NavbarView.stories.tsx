@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
@@ -18,7 +18,7 @@ const tasksFilter: TasksFilter = {
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
-		chromatic: chromaticWithTablet,
+		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
 		queries: [
 			{

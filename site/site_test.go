@@ -275,6 +275,10 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)
 	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+	// THEN: createWorkspace = true because the organization-member role
+	// grants creating a workspace owned by the member, and owner_id "me"
+	// resolves to the requesting user.
+	assert.True(t, permsWithRole["createWorkspace"], "org member should have createWorkspace = true")
 
 	// GIVEN: a user without the agents-access role.
 	userWithoutRole := dbgen.User(t, db, database.User{})
@@ -296,6 +300,36 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
 	require.NoError(t, err)
 	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
+	// THEN: createWorkspace = false because the user belongs to no
+	// organization, so the any_org check has no memberships to satisfy it.
+	assert.False(t, permsWithoutRole["createWorkspace"], "user without an org membership should have createWorkspace = false")
+
+	// GIVEN: an org member whose only membership carries the
+	// workspace-creation ban role.
+	bannedUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         bannedUser.ID,
+		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
+	})
+	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    bannedUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, bannedToken)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createWorkspace = false because the ban's negative permission
+	// overrides the create permission granted by org membership.
+	var bannedPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &bannedPerms)
+	require.NoError(t, err)
+	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
@@ -542,7 +576,7 @@ func TestServingFiles(t *testing.T) {
 	require.NoError(t, err)
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
-	client := &http.Client{}
+	client := srv.Client()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -831,7 +865,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
-			client := &http.Client{}
+			client := srv.Client()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
