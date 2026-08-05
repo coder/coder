@@ -142,10 +142,8 @@ type Chat struct {
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
 	Context *ChatContext `json:"context,omitempty"`
-	// QueuedForCapacityAt is when the chat began waiting for a
-	// concurrent-agent capacity slot. Nil unless the chat is queued.
-	// Status may be running or interrupting while queued, so clients must
-	// check this field.
+	// QueuedForCapacityAt is when the chat began waiting for an agent slot.
+	// Status can remain running or interrupting while queued.
 	QueuedForCapacityAt *time.Time     `json:"queued_for_capacity_at,omitempty" format:"date-time"`
 	Warnings            []string       `json:"warnings,omitempty"`
 	ClientType          ChatClientType `json:"client_type"`
@@ -1857,9 +1855,8 @@ const (
 	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	// ChatWatchEventKindCapacityChange signals that the chat entered or
-	// left the queue for a concurrent-agent capacity slot; the embedded
-	// chat's QueuedForCapacityAt carries the current state.
+	// ChatWatchEventKindCapacityChange signals a capacity-queue change;
+	// QueuedForCapacityAt carries the current state.
 	ChatWatchEventKindCapacityChange ChatWatchEventKind = "capacity_change"
 	ChatWatchEventKindActionRequired ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned

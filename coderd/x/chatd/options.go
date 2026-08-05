@@ -192,8 +192,6 @@ type chatWorkerOptions struct {
 	Auditor               *atomic.Pointer[audit.Auditor]
 	AutoArchiveRecords    prometheus.Counter
 
-	// AgentAdmission gates chat acquisition on deployment-wide
-	// concurrency capacity. nil admits everything.
 	AgentAdmission AgentAdmission
 
 	AcquisitionInterval        time.Duration

@@ -1,5 +1,4 @@
--- Drop the view before the column it references, then recreate it without
--- the capacity column, matching the 000551 chats_expanded definition.
+-- chats_expanded must be dropped before removing a referenced column.
 DROP VIEW IF EXISTS chats_expanded;
 
 DROP INDEX IF EXISTS idx_chats_capacity_active;

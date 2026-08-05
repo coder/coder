@@ -549,9 +549,8 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Concurrency marker writes do not bump chats.updated_at, so capacity
-	// events bypass timestamp rejection. Fresh status events also carry the
-	// marker.
+	// Capacity writes do not bump chats.updated_at, so apply capacity events
+	// unconditionally. Fresh status events also carry the marker.
 	const nextQueuedForCapacityAt =
 		isCapacityEvent || (isFreshEnough && isStatusEvent)
 			? watchedChat.queued_for_capacity_at

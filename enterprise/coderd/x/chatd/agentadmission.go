@@ -16,12 +16,9 @@ import (
 	"github.com/coder/quartz"
 )
 
-// Concurrent-agent pool caps. Root chats and subagent chats draw from
-// separate pools, so a parent blocked in wait_agent keeps its root slot
-// without starving its own children. Subagents cannot nest, so the
-// subagent pool cannot deadlock on itself. Neither cap applies while
-// codersdk.FeatureAgentRuntimeHours has remaining hours (see
-// admission.uncapped). Workspace agents are unaffected.
+// Root and subagent chats use separate pools so a waiting root keeps its slot
+// without starving children. Deployments with remaining licensed agent runtime
+// hours bypass both caps. Workspace agents use neither pool.
 const (
 	maxConcurrentRootAgents = int64(5)
 	maxConcurrentSubagents  = int64(10)
@@ -29,9 +26,8 @@ const (
 
 const defaultMetricsInterval = 30 * time.Second
 
-// NewAgentAdmissionFactory returns an admission gate that evaluates the
-// agent runtime hours entitlement and the per-pool capacity counts on
-// each acquisition attempt.
+// NewAgentAdmissionFactory builds a gate that evaluates current entitlements
+// and pool capacity for each acquisition.
 func NewAgentAdmissionFactory(set *entitlements.Set) osschatd.AgentAdmissionFactory {
 	return func(opts osschatd.AgentAdmissionOptions) osschatd.AgentAdmission {
 		return newAdmission(admissionOptions{
@@ -60,11 +56,8 @@ type admissionOptions struct {
 	MetricsInterval  time.Duration
 }
 
-// admission enforces the two-pool concurrency cap at worker acquisition
-// time. Counting and admission serialize across replicas with an
-// advisory lock held for the remainder of the acquisition transaction,
-// so a concurrent admission elsewhere is committed (and counted) before
-// this one reads the pool counts.
+// The admission lock remains held through ownership acquisition, serializing
+// pool counts across replicas.
 type admission struct {
 	entitlements     *entitlements.Set
 	logger           slog.Logger
@@ -139,11 +132,8 @@ func newAdmission(opts admissionOptions) *admission {
 	return a
 }
 
-// Admit implements osschatd.AgentAdmission inside the acquisition
-// transaction. Only running chats consume a fresh slot: interrupting
-// chats must always be acquirable so an over-cap user can stop their
-// own chat, and requires_action chats idle on a client tool call
-// without generating.
+// Admit applies capacity only to running chats. Interrupting chats remain
+// acquirable for stop requests, while requires_action chats are idle.
 func (a *admission) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
@@ -179,12 +169,9 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 	return true, nil
 }
 
-// uncapped reports whether the license has remaining agent runtime
-// hours. Enabled alone only means the license carries a positive
-// allocation; once recorded usage (Actual) reaches it, the deployment
-// is capped like community. A nil allocation or usage reading fails
-// open to Enabled semantics: capping on a missing usage reading is
-// worse than bounded over-admission.
+// uncapped returns true for an enabled entitlement with remaining hours.
+// Missing limit or usage data also fails open to avoid capping on incomplete
+// entitlement data.
 func (a *admission) uncapped() bool {
 	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {
@@ -200,8 +187,7 @@ func (a *admission) observeAdmission(chat database.Chat) {
 	if !chat.CapacityQueuedAt.Valid {
 		return
 	}
-	// Queue entry uses the database clock, so clamp the skew-induced
-	// negative case.
+	// The database sets queue time, so clamp negative clock skew.
 	a.waitSeconds.Observe(max(0, a.clock.Since(chat.CapacityQueuedAt.Time).Seconds()))
 }
 

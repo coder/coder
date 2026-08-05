@@ -2327,15 +2327,9 @@ WHERE chat_id = @chat_id::uuid
 -- Missing ownership is worker_id IS NULL. Inconsistent ownership is
 -- runner_id IS NULL while worker_id is set. Stale ownership is no
 -- heartbeat row for (chat_id, runner_id), or one older than
--- @stale_seconds by database time. Interrupting chats sort first so a
--- capacity backlog cannot delay a user's stop request; capacity-queued
--- chats follow, longest wait first, so admission is FIFO; remaining
--- candidates are ordered by oldest updated_at so workers drain stale
--- runnable chats predictably. @exclude_ids lets one acquisition pass
--- page past chats
--- it already attempted; refused capacity-queued chats stay candidates,
--- so without the exclusion a full pool would hide everything beyond
--- the first batch.
+-- @stale_seconds by database time. Interrupting chats sort first so stop
+-- requests are not delayed by the queue. Queued chats use FIFO order, followed
+-- by other candidates by updated_at. @exclude_ids advances past refusals.
 SELECT
     chats_expanded.*,
     chat_heartbeats.heartbeat_at AS current_heartbeat_at,
@@ -2829,13 +2823,9 @@ LEFT JOIN to_archive t ON t.id = a.id
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
 
 -- name: MarkChatCapacityQueued :execrows
--- Marks a chat as waiting for a concurrent-agent capacity slot after a
--- worker refused acquisition. The status and live-owner fences keep
--- markers off chats that finished, archived, or were admitted by
--- another worker between the admission decision and this write. An
--- existing queue timestamp is preserved so repeated refusals keep FIFO
--- order. Deliberately does not bump updated_at: capacity marking is
--- bookkeeping, not chat activity.
+-- Records the first capacity refusal without bumping updated_at. Status,
+-- archive, and heartbeat fences avoid stale marks; preserving the first
+-- timestamp maintains FIFO order across retries.
 UPDATE chats
 SET capacity_queued_at = NOW()
 WHERE id = @id::uuid
@@ -2851,21 +2841,16 @@ WHERE id = @id::uuid
   );
 
 -- name: ClearChatCapacityQueued :execrows
--- Clears the capacity queue marker, typically in the same transaction
--- that acquires ownership of an admitted chat. Does not bump
--- updated_at; see MarkChatCapacityQueued.
+-- Clears the queue marker without bumping updated_at.
 UPDATE chats
 SET capacity_queued_at = NULL
 WHERE id = @id::uuid
   AND capacity_queued_at IS NOT NULL;
 
 -- name: CountChatCapacityActiveByPool :one
--- Counts chats currently holding a concurrent-agent capacity slot,
--- split into root chats and subagent chats. A chat holds a slot while
--- it is unarchived, in a generating status, owned, and its owning
--- runner has a fresh heartbeat, so slots held by crashed replicas free
--- once their heartbeats go stale. @exclude_chat_id omits the candidate
--- being admitted so stale-ownership takeovers are capacity-neutral.
+-- Counts root and subagent slots held by unarchived running or interrupting
+-- chats with a fresh owner heartbeat. @exclude_chat_id makes stale-owner
+-- takeovers capacity-neutral.
 SELECT
     COUNT(*) FILTER (WHERE parent_chat_id IS NULL)::bigint AS root_count,
     COUNT(*) FILTER (WHERE parent_chat_id IS NOT NULL)::bigint AS subagent_count

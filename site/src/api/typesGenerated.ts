@@ -1980,10 +1980,8 @@ export interface Chat {
 	 */
 	readonly context?: ChatContext;
 	/**
-	 * QueuedForCapacityAt is when the chat began waiting for a
-	 * concurrent-agent capacity slot. Nil unless the chat is queued.
-	 * Status may be running or interrupting while queued, so clients must
-	 * check this field.
+	 * QueuedForCapacityAt is when the chat began waiting for an agent slot.
+	 * Status can remain running or interrupting while queued.
 	 */
 	readonly queued_for_capacity_at?: string;
 	readonly warnings?: readonly string[];

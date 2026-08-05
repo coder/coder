@@ -1,21 +1,17 @@
--- Set while a chat waits for a concurrent-agent capacity slot; the
--- worker refuses acquisition when the chat's pool is full. NULL means
--- the chat is not waiting for capacity.
 ALTER TABLE chats
     ADD COLUMN capacity_queued_at TIMESTAMPTZ;
 
 CREATE INDEX idx_chats_capacity_queued_at ON chats (capacity_queued_at)
     WHERE capacity_queued_at IS NOT NULL;
 
--- Narrows the capacity slot count to the handful of generating chats
--- instead of a walk over all historical chats.
+-- Restricts capacity count scans to chats that can hold a slot.
 CREATE INDEX idx_chats_capacity_active ON chats (parent_chat_id)
     WHERE archived = false
       AND status IN ('running', 'interrupting')
       AND worker_id IS NOT NULL
       AND runner_id IS NOT NULL;
 
--- Recreate chats_expanded: its explicit column list hides new columns otherwise.
+-- chats_expanded must be recreated because it uses an explicit column list.
 DROP VIEW IF EXISTS chats_expanded;
 
 CREATE VIEW chats_expanded AS
