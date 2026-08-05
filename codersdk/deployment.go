@@ -4379,7 +4379,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook Allow Insecure",
-			Description: "Allow the chat hook URL to use plain HTTP for any host. Hook traffic carries sensitive chat data and signed tokens, so only enable this on a trusted network.",
+			Description: "Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes sensitive chat data and lets an on-path attacker forge hook responses that control agent execution, so only enable this on a network you fully trust.",
 			Flag:        "chat-hook-allow-insecure",
 			Hidden:      true,
 			Env:         "CODER_CHAT_HOOK_ALLOW_INSECURE",

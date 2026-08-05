@@ -814,8 +814,9 @@ chat:
   # Requires the agent-lifecycle-hooks experiment.
   # (default: true, type: bool)
   hookEnabled: true
-  # Allow the chat hook URL to use plain HTTP for any host. Hook traffic carries
-  # sensitive chat data and signed tokens, so only enable this on a trusted network.
+  # Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes
+  # sensitive chat data and lets an on-path attacker forge hook responses that
+  # control agent execution, so only enable this on a network you fully trust.
   # (default: false, type: bool)
   hookAllowInsecure: false
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
