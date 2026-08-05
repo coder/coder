@@ -1723,6 +1723,35 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 	},
 };
 
+/**
+ * "disabled" health means the template declares no healthcheck, so the tab
+ * shows on template presence alone.
+ */
+export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...agentBrowserApp, health: "disabled" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await userEvent.click(browserTab);
+
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(canvas.getByTitle("agent-browser").checkVisibility()).toBe(true);
+	},
+};
+
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 	render: () => (
 		<StoryAgentChatPageView

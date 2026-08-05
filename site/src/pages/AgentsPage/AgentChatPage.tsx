@@ -426,7 +426,7 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 
 // Keep this list in sync with app fields consumed by the chat UI, or live
 // updates to those fields can retain stale query data.
-const watchedAgentAppFields = [
+const watchedAgentAppFields: readonly (keyof TypesGen.WorkspaceApp)[] = [
 	"id",
 	"slug",
 	"health",
@@ -436,7 +436,7 @@ const watchedAgentAppFields = [
 	"subdomain",
 	"subdomain_name",
 	"display_name",
-] as const;
+];
 
 /** @internal Exported for testing. */
 export const isWatchedWorkspaceViewUnchanged = (
