@@ -5138,7 +5138,10 @@ func (c *DeploymentValues) Validate() error {
 			default:
 				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL, or set --chat-hook-allow-insecure to allow plain HTTP")
 			}
-			if hookURL.Host == "" {
+			// Hostname() instead of Host: a URL like http://:8080/hooks has a
+			// non-empty Host (":8080") but no hostname, and the dispatcher
+			// rejects it on every dispatch.
+			if hookURL.Hostname() == "" {
 				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete URL")
 			}
 			// The configured string is signed verbatim as the JWT audience,

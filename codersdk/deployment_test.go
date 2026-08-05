@@ -860,6 +860,21 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			wantErr:       "set --chat-hook-url to a complete URL",
 		},
 		{
+			name:          "PortOnlyHTTPURLAllowInsecure",
+			url:           "http://:8080/hooks",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "must include a host",
+		},
+		{
+			name:    "PortOnlyHTTPSURL",
+			url:     "https://:8080/hooks",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
 			name:    "FragmentURL",
 			url:     "https://hooks.example.com/agent#frag",
 			secret:  "0123456789abcdef0123456789abcdef",
