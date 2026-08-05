@@ -539,9 +539,8 @@ func netAddrNil(m dsl.Matcher) {
 // services) suppress this rule with a nolint:gocritic comment explaining
 // why.
 //
-// The pattern only matches the chained call form. Decoders assigned to a
-// variable first, such as the UseNumber decoders in licenses.go, evade
-// it.
+// Both the chained call form and decoders assigned to a variable first
+// are matched.
 //
 //nolint:unused,deadcode,varnamelen
 func codersdkResponseBodyDecode(m dsl.Matcher) {
@@ -549,9 +548,11 @@ func codersdkResponseBodyDecode(m dsl.Matcher) {
 	m.Import("net/http")
 	m.Match(
 		`json.NewDecoder($res.Body).Decode($_)`,
+		`$_ := json.NewDecoder($res.Body)`,
+		`$_ = json.NewDecoder($res.Body)`,
 	).
 		Where(
-			m["res"].Type.Is("*http.Response") &&
+			(m["res"].Type.Is("*http.Response") || m["res"].Type.Is("http.Response")) &&
 				m.File().PkgPath.Matches(`github.com/coder/coder/v2/codersdk`) &&
 				!m.File().Name.Matches(`_test\.go$`),
 		).
