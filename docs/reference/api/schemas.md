@@ -1082,6 +1082,7 @@
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
+    "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
     "hook_timeout": 0,
@@ -2455,6 +2456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
+  "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
   "hook_timeout": 0,
@@ -2480,6 +2482,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|----------------------------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer                    | false    |              |             |
 | `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_allow_insecure`   | boolean                    | false    |              |             |
 | `hook_enabled`          | boolean                    | false    |              |             |
 | `hook_secret`           | string                     | false    |              |             |
 | `hook_timeout`          | integer                    | false    |              |             |
@@ -5921,6 +5924,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
+        "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
         "hook_timeout": 0,
@@ -6547,6 +6551,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
+      "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
       "hook_timeout": 0,

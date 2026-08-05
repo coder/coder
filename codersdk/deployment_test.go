@@ -791,12 +791,13 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		disabled bool
-		url      string
-		secret   string
-		timeout  time.Duration
-		wantErr  string
+		name          string
+		disabled      bool
+		url           string
+		secret        string
+		timeout       time.Duration
+		allowInsecure bool
+		wantErr       string
 	}{
 		{
 			name:    "NoURL",
@@ -822,6 +823,28 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			wantErr: "chat hook URL must use HTTPS",
 		},
 		{
+			name:          "HTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+		},
+		{
+			name:          "NonHTTPSchemeAllowInsecure",
+			url:           "ftp://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook URL must use HTTPS",
+		},
+		{
+			name:          "AllowInsecureStillRequiresSecret",
+			url:           "http://hooks.example.com/agent",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook secret is required",
+		},
+		{
 			name:    "HostlessURL",
 			url:     "https:///hook",
 			secret:  "0123456789abcdef0123456789abcdef",
@@ -829,11 +852,27 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			wantErr: "must include a host",
 		},
 		{
+			name:          "HostlessHTTPURLAllowInsecure",
+			url:           "http:///hook",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a complete URL",
+		},
+		{
 			name:    "FragmentURL",
 			url:     "https://hooks.example.com/agent#frag",
 			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: 1500 * time.Millisecond,
 			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:          "FragmentHTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent#frag",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a URL without a fragment or userinfo",
 		},
 		{
 			name:    "UserinfoURL",
@@ -892,6 +931,7 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
 			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
 			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
+			dv.AI.Chat.HookAllowInsecure = serpent.Bool(tt.allowInsecure)
 			if tt.url != "" {
 				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
 			}

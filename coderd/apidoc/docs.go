@@ -17407,6 +17407,9 @@ const docTemplate = `{
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
+                "hook_allow_insecure": {
+                    "type": "boolean"
+                },
                 "hook_enabled": {
                     "type": "boolean"
                 },

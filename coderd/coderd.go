@@ -898,6 +898,7 @@ func New(options *Options) *API {
 					options.Logger,
 					nil,
 					chatConfig.HookURL.String(),
+					chatConfig.HookAllowInsecure.Value(),
 					chatConfig.HookSecret.Value(),
 					chatConfig.HookTimeout.Value(),
 					api.DeploymentID,
