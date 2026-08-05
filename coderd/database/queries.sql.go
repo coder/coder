@@ -15873,11 +15873,7 @@ INNER JOIN
 		organizations ON groups.organization_id = organizations.id
 WHERE
 		true
-		AND CASE
-				WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
-						groups.organization_id = $1
-				ELSE true
-		END
+		AND groups.organization_id = $1
 		-- Filter by group name or display name (substring, case-insensitive).
 		AND CASE WHEN $2 :: text != '' THEN (
 				groups.name ILIKE concat('%', $2, '%')
