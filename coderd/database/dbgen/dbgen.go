@@ -1789,13 +1789,18 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 }
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
-		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		AppID:       seed.AppID,
+		// Public (secretless) clients reference no secret, so a zero-value
+		// NullUUID is passed through as NULL rather than defaulted. takeFirst
+		// cannot express that, since NULL is its "unset" sentinel.
+		AppSecretID: seed.AppSecretID,
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
