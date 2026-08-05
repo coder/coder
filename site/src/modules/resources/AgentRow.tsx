@@ -75,6 +75,7 @@ import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
+import { GenericSubAgentCard } from "./GenericSubAgentCard";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
@@ -256,6 +257,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 	// Check if any devcontainers have errors to gray out agent border
 	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
+
+	// Child agents that back a dev container are rendered by
+	// AgentDevcontainerCard, so they must not be rendered a second time as
+	// generic children.
+	const devcontainerAgentIds = new Set(
+		devcontainers?.flatMap((dc) => (dc.agent ? [dc.agent.id] : [])) ?? [],
+	);
+	const genericSubAgents = (subAgents ?? []).filter(
+		(subAgent) => !devcontainerAgentIds.has(subAgent.id),
+	);
 
 	const hasSubdomainApps = agent.apps?.some((app) => app.subdomain);
 	const shouldShowWildcardWarning =
@@ -540,6 +551,18 @@ export const AgentRow: FC<AgentRowProps> = ({
 								/>
 							);
 						})}
+					</section>
+				)}
+
+				{genericSubAgents.length > 0 && (
+					<section className="flex flex-col gap-4">
+						{genericSubAgents.map((subAgent) => (
+							<GenericSubAgentCard
+								key={subAgent.id}
+								subAgent={subAgent}
+								workspace={workspace}
+							/>
+						))}
 					</section>
 				)}
 

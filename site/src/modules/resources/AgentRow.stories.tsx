@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
-import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
+import type {
+	WorkspaceAgent,
+	WorkspaceAgentLogSource,
+} from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import * as M from "#/testHelpers/entities";
 import {
@@ -558,6 +561,73 @@ export const FoundDevcontainer: Story = {
 			},
 		],
 		webSocket: [],
+	},
+};
+
+const MockIsolatedSubAgent = {
+	...M.MockWorkspaceSubAgent,
+	id: "test-isolated-sub-agent",
+	parent_id: M.MockWorkspaceAgent.id,
+	name: "isolated-child",
+	status: "connected",
+	execution_isolation: true,
+	apps: [
+		{
+			...M.MockWorkspaceApp,
+			id: "sandbox-app",
+			slug: "sandbox",
+			display_name: "Sandbox",
+		},
+	],
+} satisfies WorkspaceAgent;
+
+export const IsolatedSubAgent: Story = {
+	args: {
+		subAgents: [MockIsolatedSubAgent],
+	},
+	parameters: {
+		webSocket: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(await canvas.findByText("isolated-child")).toBeVisible();
+		await expect(canvas.getByText("Isolated execution")).toBeVisible();
+
+		const appLink = await canvas.findByRole("link", { name: /Sandbox/ });
+		await expect(appLink).toBeVisible();
+		await expect(appLink).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				`/${M.MockWorkspace.name}.isolated-child/apps/sandbox/`,
+			),
+		);
+	},
+};
+
+export const DevcontainerAndIsolatedSubAgent: Story = {
+	args: {
+		subAgents: [M.MockWorkspaceSubAgent, MockIsolatedSubAgent],
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspaceAgentContainersKey(M.MockWorkspaceAgent.id),
+				data: {
+					devcontainers: [M.MockWorkspaceAgentDevcontainer],
+					containers: [M.MockWorkspaceAgentContainer],
+				},
+			},
+		],
+		webSocket: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(await canvas.findByText("isolated-child")).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.getAllByText(M.MockWorkspaceSubAgent.name)).toHaveLength(1),
+		);
 	},
 };
 
