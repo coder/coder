@@ -896,7 +896,7 @@ func New(options *Options) *API {
 			if hooksConfigured && hooksExperimentEnabled {
 				if chatConfig.HookAllowInsecure.Value() && chatConfig.HookURL.Value().Scheme == "http" {
 					options.Logger.Warn(ctx, "chat hooks use a plain HTTP URL; hook traffic is unencrypted and hook responses controlling agent execution can be forged on the network",
-						slog.F("hook_url", chatConfig.HookURL.String()),
+						slog.F("hook_url", mcpclient.RedactURL(chatConfig.HookURL.String())),
 					)
 				}
 				hookDispatcher = dispatch.New(
