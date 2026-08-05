@@ -25,9 +25,10 @@ const (
 )
 
 type ConnectionWatchEvent struct {
-	Error       *WatchError  `json:"error"`
-	BuildUpdate *BuildUpdate `json:"build_update,omitempty"`
-	AgentUpdate *AgentUpdate `json:"agent_update,omitempty"`
+	Error       *WatchError                 `json:"error"`
+	BuildUpdate *BuildUpdate                `json:"build_update,omitempty"`
+	AgentUpdate *AgentUpdate                `json:"agent_update,omitempty"`
+	JobLog      *codersdk.ProvisionerJobLog `json:"job_log,omitempty"`
 }
 
 type WatchError struct {
