@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -612,29 +613,39 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 		Groups: make([]codersdk.Group, 0, len(groups)),
 		Count:  int(groups[0].Count),
 	}
-	for _, group := range groups {
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
 
+	// Fetch member counts for every group on the page in a single query to
+	// avoid an N+1 lookup. We intentionally do not hydrate the per-group member
+	// rosters here: they can be large, contain member PII, and a caller
+	// authorized to read a group is not necessarily authorized to read its
+	// membership. Callers that need the roster page it via the group members
+	// endpoint. Only the total member count is returned.
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.Group.ID
+	}
+	// nolint:gocritic // Member counts are returned even without member read
+	// access, matching GetGroupMembersCountByGroupID. The endpoint already
+	// authorized org-wide group read.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
+	for _, group := range groups {
 		resp.Groups = append(resp.Groups, db2sdk.Group(database.GetGroupsRow{
 			Group:                   group.Group,
 			OrganizationName:        group.OrganizationName,
 			OrganizationDisplayName: group.OrganizationDisplayName,
-		}, members, int(memberCount)))
+		}, nil, int(countByGroup[group.Group.ID])))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

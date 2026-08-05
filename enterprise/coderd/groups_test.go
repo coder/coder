@@ -1342,12 +1342,14 @@ func TestPaginatedGroups(t *testing.T) {
 		}
 	})
 
-	t.Run("MemberHydration", func(t *testing.T) {
+	t.Run("MemberCount", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// The handler enriches each page group with its members and total
-		// count. Assert both so removing that logic would fail the test.
+		// The list endpoint returns each group's total member count but does
+		// not hydrate the member roster; callers page members separately via
+		// the group members endpoint. Assert the count is populated and the
+		// roster is empty so re-adding roster hydration would fail the test.
 		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 			SearchQuery: "alpha",
 		})
@@ -1355,8 +1357,7 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Len(t, resp.Groups, 1)
 		require.Equal(t, "alpha", resp.Groups[0].Name)
 		require.Equal(t, 1, resp.Groups[0].TotalMemberCount)
-		require.Len(t, resp.Groups[0].Members, 1)
-		require.Equal(t, member.ID, resp.Groups[0].Members[0].ID)
+		require.Empty(t, resp.Groups[0].Members)
 	})
 
 	t.Run("Search", func(t *testing.T) {
