@@ -1469,6 +1469,50 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Len(t, seen, totalGroups)
 	})
 
+	t.Run("AfterIDCursor", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Page through the results using after_id as a keyset cursor. The union
+		// must cover every group exactly once, in the same deterministic
+		// (LOWER(name), id) order, with no duplicates even across the
+		// "Dev"/"dev" case collision that relies on the id tiebreaker.
+		seen := make(map[uuid.UUID]struct{})
+		var after uuid.UUID
+		var prevName string
+		var prevID uuid.UUID
+		havePrev := false
+		for {
+			resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+				Pagination: codersdk.Pagination{Limit: 2, AfterID: after},
+			})
+			require.NoError(t, err)
+			if len(resp.Groups) == 0 {
+				break
+			}
+			require.LessOrEqual(t, len(resp.Groups), 2)
+			for _, g := range resp.Groups {
+				_, dup := seen[g.ID]
+				require.False(t, dup, "group %q returned on more than one page", g.Name)
+				seen[g.ID] = struct{}{}
+
+				name := strings.ToLower(g.Name)
+				if havePrev {
+					if name == prevName {
+						require.Less(t, prevID.String(), g.ID.String(),
+							"ties must advance by id")
+					} else {
+						require.Less(t, prevName, name,
+							"groups must stay ordered by lowercased name")
+					}
+				}
+				prevName, prevID, havePrev = name, g.ID, true
+			}
+			after = resp.Groups[len(resp.Groups)-1].ID
+		}
+		require.Len(t, seen, totalGroups)
+	})
+
 	t.Run("OrganizationIsolation", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

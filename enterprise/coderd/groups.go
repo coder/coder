@@ -559,6 +559,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param q query string false "Search query"
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
+// @Param after_id query string false "After ID" format(uuid)
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
 // @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
 // @Description which authorizes each group individually via its ACL, this endpoint requires
@@ -588,6 +589,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	groups, err := api.Database.GetGroupsByOrganizationIDPaginated(ctx, database.GetGroupsByOrganizationIDPaginatedParams{
 		OrganizationID: org.ID,
 		Search:         search,
+		AfterID:        paginationParams.AfterID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

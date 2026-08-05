@@ -2338,12 +2338,13 @@ an error rather than a filtered subset.
 
 ### Parameters
 
-| Name           | In    | Type    | Required | Description             |
-|----------------|-------|---------|----------|-------------------------|
-| `organization` | path  | string  | true     | Organization ID or name |
-| `q`            | query | string  | false    | Search query            |
-| `limit`        | query | integer | false    | Page limit              |
-| `offset`       | query | integer | false    | Page offset             |
+| Name           | In    | Type         | Required | Description             |
+|----------------|-------|--------------|----------|-------------------------|
+| `organization` | path  | string       | true     | Organization ID or name |
+| `q`            | query | string       | false    | Search query            |
+| `limit`        | query | integer      | false    | Page limit              |
+| `offset`       | query | integer      | false    | Page offset             |
+| `after_id`     | query | string(uuid) | false    | After ID                |
 
 ### Example responses
 
