@@ -11073,13 +11073,11 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 	require.NotContains(t, toolResults["list_templates"][0], tplBlocked.ID.String(),
 		"blocked template should not appear in list_templates result")
 
-	// read_template: the blocked row fails and the allowed row succeeds.
 	require.Contains(t, toolResults["read_template"][0], "not available",
 		"read_template for blocked template should return an actionable error")
 	require.Contains(t, toolResults["read_template"][1], tplAllowed.ID.String(),
 		"read_template for allowed template should return template details")
 
-	// create_workspace: the blocked row is rejected.
 	require.Contains(t, toolResults["create_workspace"][0], "not available",
 		"create_workspace for blocked template should be rejected")
 }

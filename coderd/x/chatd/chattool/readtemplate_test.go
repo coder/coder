@@ -36,8 +36,7 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
 		ActiveVersionID: tv.ID,
-
-		AgentsAllowed: true,
+		AgentsAllowed:   true,
 	})
 
 	// Create a preset with parameters.
@@ -163,8 +162,7 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
 		ActiveVersionID: tv.ID,
-
-		AgentsAllowed: true,
+		AgentsAllowed:   true,
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -207,8 +205,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 			OrganizationID:  org.ID,
 			CreatedBy:       user.ID,
 			ActiveVersionID: activeVersionID,
-
-			AgentsAllowed: true,
+			AgentsAllowed:   true,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)

@@ -47,15 +47,13 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		OrganizationID: orgA.ID,
 		CreatedBy:      user.ID,
 		Name:           "alpha",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	tBeta := dbgen.Template(t, db, database.Template{
 		OrganizationID: orgB.ID,
 		CreatedBy:      user.ID,
 		Name:           "beta",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 
 	t.Run("ScopedToOrgA", func(t *testing.T) {
@@ -153,24 +151,21 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "tpl-42",
 		DisplayName:    "Data Science Lab",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	descriptionTemplate := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "node-general",
 		Description:    "A JavaScript and TypeScript workspace.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unrelated",
 		Description:    "A plain Linux workspace.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -221,30 +216,26 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	prefix := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-alpha",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	contains := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-python",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	description := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "generic-dev",
 		Description:    "Python-capable general environment.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -262,8 +253,7 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-gpu",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	result = runListTemplates(ctx, t, tool, `{"query":"python gpu"}`)
 	templates = listTemplateItems(t, result)
@@ -275,8 +265,7 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "ml-tools",
 		Description:    "Includes machine-learning libraries.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	result = runListTemplates(ctx, t, tool, `{"query":"machine learning"}`)
 	templates = listTemplateItems(t, result)
@@ -301,8 +290,7 @@ func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 			Name:           fmt.Sprintf("template-%02d", i),
-
-			AgentsAllowed: true,
+			AgentsAllowed:  true,
 		})
 		if i == 10 {
 			target = tpl
@@ -353,16 +341,14 @@ func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "python-gpu",
 		Description:    "GPU workspace.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	used := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "generic-dev",
 		Description:    "Python-capable general environment.",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -398,15 +384,13 @@ func TestListTemplates_PersonalUsageBreaksEqualQueryScoreTie(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-alpha",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	used := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-beta",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -442,15 +426,13 @@ func TestListTemplates_OrgPopularityFallback(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "popular-template",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	lessPopular := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "less-popular-template",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	for range 2 {
 		otherUser := dbgen.User(t, db, database.User{})
@@ -494,15 +476,13 @@ func TestListTemplates_WeakOrgPopularityDoesNotRecommend(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "used-by-one",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	otherUser := dbgen.User(t, db, database.User{})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -543,15 +523,13 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "old-usage",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -595,15 +573,13 @@ func TestListTemplates_StaleFrequentPersonalUsageDoesNotRecommend(t *testing.T) 
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "stale-usage",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	// Stale usage decays out of the personal signal despite its frequency.
 	for range 2 {
@@ -649,15 +625,13 @@ func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "recent-usage",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	// Recent in-window usage is a confident signal.
 	for range 2 {
@@ -701,15 +675,13 @@ func TestListTemplates_DeletedRecentPersonalUsageShowsEvidence(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "deleted-usage",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -751,15 +723,13 @@ func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-alpha",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-beta",
-
-		AgentsAllowed: true,
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -934,8 +904,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 			CreatedBy:       user.ID,
 			Name:            name,
 			ActiveVersionID: tv.ID,
-
-			AgentsAllowed: true,
+			AgentsAllowed:   true,
 		})
 		require.NoError(t, db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID:         tv.ID,
@@ -960,8 +929,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		CreatedBy:       user.ID,
 		Name:            "missing-version",
 		ActiveVersionID: uuid.New(),
-
-		AgentsAllowed: true,
+		AgentsAllowed:   true,
 	})
 
 	// Run through a dbauthz-wrapped store so the tool executes under real RBAC as
