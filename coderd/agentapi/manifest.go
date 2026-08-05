@@ -103,12 +103,25 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
-	// Fetch user secrets for injection into the agent manifest.
-	// This runs after the errgroup because it needs workspace.OwnerID.
-	//nolint:gocritic // System context needed to read secrets for the workspace owner.
-	userSecrets, err := a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
-	if err != nil {
-		return nil, xerrors.Errorf("getting user secrets: %w", err)
+	// An execution-isolated agent runs outside the workspace owner's trust
+	// boundary, so it receives a manifest with no human principal attached: no
+	// owner secrets and no Git auth configuration. This applies to a standalone
+	// isolated top-level agent as well as an execution-owned child. The query is
+	// not issued at all, so the owner's secret values never enter this process on
+	// behalf of an isolated agent.
+	//
+	// This is temporary credential suppression pending Agent Identity, which will
+	// give an isolated agent its own principal and its own credentials rather than
+	// borrowing the workspace owner's.
+	var userSecrets []database.UserSecret
+	if !workspaceAgent.ExecutionIsolation {
+		// Fetch user secrets for injection into the agent manifest.
+		// This runs after the errgroup because it needs workspace.OwnerID.
+		//nolint:gocritic // System context needed to read secrets for the workspace owner.
+		userSecrets, err = a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("getting user secrets: %w", err)
+		}
 	}
 
 	appSlug := appurl.ApplicationURL{
@@ -125,10 +138,16 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, err
 	}
 
+	// Git auth configuration counts as a human credential: a non-zero count tells
+	// the agent to configure the Git credential helper against the workspace
+	// owner's external auth. An isolated agent is told there are none, so it never
+	// installs an owner-backed Git override.
 	var gitAuthConfigs uint32
-	for _, cfg := range a.ExternalAuthConfigs {
-		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
-			gitAuthConfigs++
+	if !workspaceAgent.ExecutionIsolation {
+		for _, cfg := range a.ExternalAuthConfigs {
+			if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
+				gitAuthConfigs++
+			}
 		}
 	}
 

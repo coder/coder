@@ -71,6 +71,35 @@ func TestGetManifest(t *testing.T) {
 			Directory: "/workspace/dir",
 			MOTDFile:  "/workspace/motd",
 		}
+		// An execution-owned child agent. It runs outside the workspace owner's
+		// trust boundary, so its manifest carries no human principal.
+		isolatedChildAgent = database.WorkspaceAgent{
+			ID:                 uuid.New(),
+			Name:               "isolated-child-agent",
+			ParentID:           uuid.NullUUID{Valid: true, UUID: agent.ID},
+			ExecutionIsolation: true,
+			Directory:          "/workspace/isolated",
+			MOTDFile:           "/workspace/isolated-motd",
+		}
+		// A standalone isolated top-level agent gets the same treatment: the
+		// suppression keys off execution_isolation, not off parentage.
+		isolatedAgent = database.WorkspaceAgent{
+			ID:                 uuid.New(),
+			Name:               "isolated-agent",
+			ExecutionIsolation: true,
+			EnvironmentVariables: pqtype.NullRawMessage{
+				RawMessage: expectedEnvVarsJSON,
+				Valid:      true,
+			},
+			Directory: "/isolated/dir",
+			MOTDFile:  "/isolated/motd",
+		}
+		// Both secret forms: one injected as an env var, one written to a file.
+		// Neither form may cross the execution isolation boundary.
+		ownerSecrets = []database.UserSecret{
+			{EnvName: "GITHUB_TOKEN", Value: "ghp_xxxx", Enabled: true},
+			{FilePath: "~/.ssh/id_rsa", Value: "private-key", Enabled: true},
+		}
 		apps = []database.WorkspaceApp{
 			{
 				ID:                   uuid.New(),
@@ -497,6 +526,146 @@ func TestGetManifest(t *testing.T) {
 		require.Equal(t, expected, got)
 	})
 
+	// An execution-isolated agent must receive a manifest with no human
+	// principal: no owner secrets and no Git auth configuration. The owner secret
+	// query must not be issued at all, so the mock forbids it with Times(0). The
+	// fixture it would have returned covers both an env secret and a file secret,
+	// so neither form can cross the boundary.
+	t.Run("ExecutionIsolated/Child", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+			ExternalAuthConfigs: []*externalauth.Config{
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitHub)},
+				{Type: "some-provider"},
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitLab)},
+			},
+			DisableDirectConnections: true,
+			DerpForceWebSockets:      true,
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return isolatedChildAgent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), isolatedChildAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{isolatedChildAgent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: isolatedChildAgent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), isolatedChildAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(ownerSecrets, nil).Times(0)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		expected := &agentproto.Manifest{
+			AgentId:                  isolatedChildAgent.ID[:],
+			AgentName:                isolatedChildAgent.Name,
+			ParentId:                 agent.ID[:],
+			OwnerUsername:            owner.Username,
+			WorkspaceId:              workspace.ID[:],
+			WorkspaceName:            workspace.Name,
+			GitAuthConfigs:           0, // no human Git auth for an isolated agent
+			EnvironmentVariables:     nil,
+			Directory:                isolatedChildAgent.Directory,
+			VsCodePortProxyUri:       fmt.Sprintf("https://{{port}}--%s--%s--%s--apps.example.com", isolatedChildAgent.Name, workspace.Name, owner.Username),
+			MotdPath:                 isolatedChildAgent.MOTDFile,
+			DisableDirectConnections: true,
+			DerpForceWebsockets:      true,
+
+			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:       []*agentproto.WorkspaceAgentScript{},
+			Apps:          []*agentproto.WorkspaceApp{},
+			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
+			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
+			// No workspace owner secrets for an isolated agent.
+			Secrets: []*agentproto.WorkspaceSecret{},
+
+			// A child agent never launches nested executions.
+			SubagentExecutions: []*agentproto.SubagentExecution{},
+		}
+
+		require.Equal(t, expected, got)
+	})
+
+	// A standalone isolated top-level agent loses the same credentials, while its
+	// apps, scripts, metadata, env, and execution declarations are untouched.
+	t.Run("ExecutionIsolated/TopLevel", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+			ExternalAuthConfigs: []*externalauth.Config{
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitHub)},
+				{Type: "some-provider"},
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitLab)},
+			},
+			DisableDirectConnections: true,
+			DerpForceWebSockets:      true,
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return isolatedAgent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), isolatedAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{isolatedAgent.ID}).Return(scripts, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: isolatedAgent.ID,
+			Keys:             nil, // all
+		}).Return(metadata, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), isolatedAgent.ID).Return(devcontainers, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(ownerSecrets, nil).Times(0)
+		mDB.EXPECT().GetWorkspaceAgentSubagentExecutionDeclarationsByParentAgentID(gomock.Any(), isolatedAgent.ID).Return(subagentExecutions, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		expected := &agentproto.Manifest{
+			AgentId:                  isolatedAgent.ID[:],
+			AgentName:                isolatedAgent.Name,
+			ParentId:                 nil,
+			OwnerUsername:            owner.Username,
+			WorkspaceId:              workspace.ID[:],
+			WorkspaceName:            workspace.Name,
+			GitAuthConfigs:           0, // no human Git auth for an isolated agent
+			EnvironmentVariables:     expectedEnvVars,
+			Directory:                isolatedAgent.Directory,
+			VsCodePortProxyUri:       fmt.Sprintf("https://{{port}}--%s--%s--%s--apps.example.com", isolatedAgent.Name, workspace.Name, owner.Username),
+			MotdPath:                 isolatedAgent.MOTDFile,
+			DisableDirectConnections: true,
+			DerpForceWebsockets:      true,
+
+			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:       protoScripts,
+			Apps:          []*agentproto.WorkspaceApp{},
+			Metadata:      protoMetadata,
+			Devcontainers: protoDevcontainers,
+			// No workspace owner secrets for an isolated agent.
+			Secrets: []*agentproto.WorkspaceSecret{},
+
+			// The execution declaration flow is unchanged by the suppression.
+			SubagentExecutions: protoSubagentExecutions,
+		}
+
+		require.Equal(t, expected, got)
+	})
+
+	// An ordinary child agent (execution_isolation=false, e.g. a dynamic child or
+	// a Dev Container child) still receives the workspace owner's secrets.
 	t.Run("SecretsFiltering", func(t *testing.T) {
 		t.Parallel()
 

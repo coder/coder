@@ -334,7 +334,10 @@ driver is as trusted as the template that ships it.
 - **No Agent Identity.** The child has a workspace-agent token and nothing
   else. It has no agent principal, no agent-owned credentials, and no Git or
   external-auth material. Human credentials are simply absent, which is a
-  "no principal" state rather than an identity model.
+  "no principal" state rather than an identity model. The suppression is
+  temporary: `GetManifest` omits the workspace owner's secrets and Git auth
+  configuration for any execution-isolated agent until Agent Identity gives
+  the child its own principal and its own credentials.
 - **`RUNNING` means the driver process started**, not that the child agent is
   ready, not that the child connected, and not that the sandbox is healthy.
 - **`startup_timeout` and `restart_policy` are declared but not enforced.**
