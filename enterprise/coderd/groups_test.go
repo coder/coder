@@ -1241,7 +1241,8 @@ func TestPaginatedGroups(t *testing.T) {
 
 	client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 		Features: license.Features{
-			codersdk.FeatureTemplateRBAC: 1,
+			codersdk.FeatureTemplateRBAC:          1,
+			codersdk.FeatureMultipleOrganizations: 1,
 		},
 	}})
 	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
@@ -1423,5 +1424,43 @@ func TestPaginatedGroups(t *testing.T) {
 			}
 		}
 		require.Len(t, seen, totalGroups)
+	})
+
+	t.Run("OrganizationIsolation", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A second organization with its own group must never appear in the
+		// first org's results, and the first org's Count must exclude it. This
+		// exercises the organization_id filter for exclusion, which a
+		// single-org test cannot.
+		//nolint:gocritic // Only owners can create organizations.
+		otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "other-org",
+		})
+		require.NoError(t, err)
+		// Reuse a name that also exists in the first org to prove isolation is
+		// by organization, not by name.
+		otherGroup, err := client.CreateGroup(ctx, otherOrg.ID, codersdk.CreateGroupRequest{
+			Name: "alpha",
+		})
+		require.NoError(t, err)
+
+		resp, err := client.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{})
+		require.NoError(t, err)
+		require.Equal(t, totalGroups, resp.Count)
+		for _, g := range resp.Groups {
+			require.Equal(t, user.OrganizationID, g.OrganizationID)
+			require.NotEqual(t, otherGroup.ID, g.ID)
+		}
+
+		// The second org returns only its own groups: the created group plus
+		// that org's implicit "Everyone" group.
+		otherResp, err := client.OrganizationGroupsPaginated(ctx, otherOrg.ID, codersdk.PaginatedGroupsRequest{})
+		require.NoError(t, err)
+		require.Equal(t, 2, otherResp.Count)
+		for _, g := range otherResp.Groups {
+			require.Equal(t, otherOrg.ID, g.OrganizationID)
+		}
 	})
 }
