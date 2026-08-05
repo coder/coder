@@ -303,12 +303,18 @@ func Test_readBodyAsError(t *testing.T) {
 		},
 		{
 			name: "JSONNoBody",
-			req:  nil,
+			req:  httptest.NewRequest(http.MethodGet, exampleURL, nil),
 			res:  newResponse(http.StatusNotFound, jsonCT, ""),
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
 				assert.Contains(t, sdkErr.Response.Message, "empty response body")
+
+				assert.Equal(t, http.MethodGet, sdkErr.method)
+				assert.ErrorContains(t, err, sdkErr.method)
+
+				assert.Equal(t, exampleURL, sdkErr.url)
+				assert.ErrorContains(t, err, sdkErr.url)
 			},
 		},
 		{
