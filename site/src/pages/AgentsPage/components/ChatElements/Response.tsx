@@ -279,12 +279,21 @@ export const Response = ({
 	const components = componentsByTheme[fileViewerThemeType];
 	const chatUrlTransform = useChatUrlTransform();
 	const effectiveUrlTransform = urlTransform ?? chatUrlTransform;
+	// Streamdown must see raw hrefs: it caches rendered blocks by
+	// content, so a parse-time rewrite would freeze the first
+	// workspace's URL in the cache. MarkdownAnchor rewrites hrefs at
+	// render time instead; only img src, which has no render-time
+	// consumer, is rewritten here at parse time.
+	const srcUrlTransform = effectiveUrlTransform
+		? (url: string, key: string) =>
+				key === "src" ? effectiveUrlTransform(url) : url
+		: undefined;
 
 	const markdown = (
 		<Streamdown
 			controls={false}
 			components={components}
-			urlTransform={effectiveUrlTransform}
+			urlTransform={srcUrlTransform}
 			rehypePlugins={chatRehypePlugins}
 			mode={streaming ? "streaming" : "static"}
 			parseIncompleteMarkdown={streaming}

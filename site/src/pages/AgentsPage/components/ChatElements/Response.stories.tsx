@@ -267,6 +267,43 @@ export const LocalhostLinkRewrittenMidStream: Story = {
 	},
 };
 
+// Rebinding a chat to a different workspace must retarget cached
+// links, so hrefs cannot be pre-rewritten at parse time.
+const TransformSwitchesWorkspace: FC = () => {
+	const [workspace, setWorkspace] = useState("ws-a");
+	const transform = (url: string) =>
+		rewriteLocalhostURL(url, "*.proxy.example.com", "main", workspace, "alice");
+	return (
+		<ChatUrlTransformContext value={transform}>
+			<button type="button" onClick={() => setWorkspace("ws-b")}>
+				Switch workspace
+			</button>
+			<Response>Open [the preview](http://localhost:3000/).</Response>
+		</ChatUrlTransformContext>
+	);
+};
+
+export const LocalhostLinkRetargetsOnWorkspaceChange: Story = {
+	render: () => <TransformSwitchesWorkspace />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://3000--main--ws-a--alice.proxy.example.com/",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Switch workspace" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByRole("link", { name: "the preview" })).toHaveAttribute(
+				"href",
+				"http://3000--main--ws-b--alice.proxy.example.com/",
+			);
+		});
+	},
+};
+
 export const ExplicitUrlTransformWinsOverContext: Story = {
 	decorators: [
 		(Story) => (

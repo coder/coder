@@ -1,11 +1,11 @@
 import type React from "react";
-import { Fragment, useMemo } from "react";
+import { Fragment } from "react";
 import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import { splitTextForLinks } from "./linkify";
 
 export const LinkifiedText: React.FC<{ text: string }> = ({ text }) => {
 	const transform = useChatUrlTransform();
-	const segments = useMemo(() => splitTextForLinks(text), [text]);
+	const segments = splitTextForLinks(text);
 	if (!segments.some((segment) => segment.kind === "url")) {
 		return text;
 	}
