@@ -141,10 +141,10 @@ export const ConcurrentToggles: Story = {
 		const body = within(document.body);
 		const user = userEvent.setup();
 		const firstSwitch = await canvas.findByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
 		const secondSwitch = canvas.getByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Second Template in My Organization",
+			name: "Allow Coder Agents to create workspaces using Second Template in My Organization",
 		});
 		await user.click(firstSwitch);
 		await user.click(secondSwitch);
@@ -185,7 +185,7 @@ export const ConcurrentToggles: Story = {
 		expect(await canvas.findByText("Second Template")).toBeVisible();
 		expect(
 			canvas.queryByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+				name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 			}),
 		).not.toBeInTheDocument();
 		const filteredErrorToast = await body.findByText(
@@ -195,7 +195,7 @@ export const ConcurrentToggles: Story = {
 
 		await user.clear(filter);
 		const retrySwitch = await canvas.findByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
 		await user.click(retrySwitch);
 		await waitFor(() => expect(retrySwitch).toBeDisabled());
@@ -221,7 +221,7 @@ export const DisplaysFallbackMutationError: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const templateSwitch = await canvas.findByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Test Template in My Organization",
+			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
 
 		await userEvent.click(templateSwitch);

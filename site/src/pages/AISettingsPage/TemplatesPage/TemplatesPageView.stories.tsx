@@ -91,12 +91,12 @@ export const MixedToggles: Story = {
 		expect(within(rows[2]).getByText("Product ops engineering")).toBeVisible();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces using Docker containers in My Organization",
 			}),
 		).toBeChecked();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Product ops engineering in My Organization",
+				name: "Allow Coder Agents to create workspaces using Product ops engineering in My Organization",
 			}),
 		).not.toBeChecked();
 	},
@@ -107,7 +107,7 @@ export const ToggleTemplate: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces using Docker containers in My Organization",
 			}),
 		);
 		expect(args.onToggleAgentsAllowed).toHaveBeenCalledWith(
@@ -239,10 +239,10 @@ export const MixedOrganizations: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const engineeringSwitch = await canvas.findByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Docker containers in Engineering",
+			name: "Allow Coder Agents to create workspaces using Docker containers in Engineering",
 		});
 		const productSwitch = canvas.getByRole("switch", {
-			name: "Allow Coder Agents to create workspaces with Docker containers in Product",
+			name: "Allow Coder Agents to create workspaces using Docker containers in Product",
 		});
 		expect(engineeringSwitch).toBeChecked();
 		expect(productSwitch).toBeChecked();
@@ -257,12 +257,12 @@ export const UpdatingOneTemplate: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Product ops engineering in My Organization",
+				name: "Allow Coder Agents to create workspaces using Product ops engineering in My Organization",
 			}),
 		).toBeDisabled();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Allow Coder Agents to create workspaces with Docker containers in My Organization",
+				name: "Allow Coder Agents to create workspaces using Docker containers in My Organization",
 			}),
 		).toBeEnabled();
 	},

@@ -215,7 +215,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						/>
 						<Label htmlFor="agents_allowed">
 							<StackLabel>
-								Allow Coder Agents to create workspaces with this template
+								Allow Coder Agents to create workspaces using this template
 							</StackLabel>
 						</Label>
 					</div>

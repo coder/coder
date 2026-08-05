@@ -97,7 +97,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						onToggleAgentsAllowed(template, agentsAllowed)
 					}
 					disabled={isPending}
-					aria-label={`Allow Coder Agents to create workspaces with ${label} in ${organization}`}
+					aria-label={`Allow Coder Agents to create workspaces using ${label} in ${organization}`}
 				/>
 			</TableCell>
 		</TableRow>
