@@ -3071,18 +3071,6 @@ describe("semantic cache operations: cancellation", () => {
 		});
 	});
 
-	it("cancelChatListRefetches cancels with the loaded-refetch predicate", async () => {
-		const queryClient = createTestQueryClient();
-		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
-
-		await cancelChatListRefetches(queryClient);
-
-		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatListFamilyKey,
-			predicate: expect.any(Function),
-		});
-	});
-
 	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");

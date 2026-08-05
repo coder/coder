@@ -703,6 +703,11 @@ export const cancelChatListQueries = (queryClient: QueryClient) =>
 		queryKey: chatListFamilyKey,
 	});
 
+/**
+ * Cancel background chat-list refetches, leaving pagination fetches alone.
+ * Call before applying WebSocket-driven cache updates, or a concurrent
+ * refetch may overwrite them with stale data.
+ */
 export const cancelChatListRefetches = (queryClient: QueryClient) =>
 	queryClient.cancelQueries({
 		queryKey: chatListFamilyKey,
@@ -715,6 +720,8 @@ export const cancelChatEntity = (queryClient: QueryClient, chatId: string) =>
 		exact: true,
 	});
 
+// Cancelling a first-time fetch leaves the query pending with no retry,
+// which the page shows as "Chat not found".
 export const cancelLoadedChatEntityRefetch = (
 	queryClient: QueryClient,
 	chatId: string,
