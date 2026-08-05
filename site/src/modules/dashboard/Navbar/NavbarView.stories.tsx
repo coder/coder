@@ -48,9 +48,6 @@ const meta: Meta<typeof NavbarView> = {
 export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
-// Admin settings is `hidden md:block`; Pixel tablet (744px) is below Tailwind
-// `md` (768px), so these play functions only run at desktop. Mobile coverage
-// lives in `MobileMenu.stories.tsx`.
 export const ForAdmin: Story = {
 	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {
