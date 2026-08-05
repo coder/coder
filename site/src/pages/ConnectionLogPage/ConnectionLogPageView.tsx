@@ -20,7 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
@@ -33,6 +33,7 @@ interface ConnectionLogPageViewProps {
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
+	permissions: Permissions;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -42,9 +43,8 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
+	permissions,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	const isLoading =
 		(connectionLogs === undefined ||
 			paginationResult.totalRecords === undefined) &&

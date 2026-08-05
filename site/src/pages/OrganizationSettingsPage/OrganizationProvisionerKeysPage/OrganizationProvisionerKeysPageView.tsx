@@ -23,7 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -39,14 +39,13 @@ interface OrganizationProvisionerKeysPageViewProps {
 	showPaywall: boolean | undefined;
 	provisionerKeyDaemons: ProvisionerKeyDaemons[] | undefined;
 	error: unknown;
+	permissions: Permissions;
 	onRetry: () => void;
 }
 
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
-> = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
-	const { permissions } = useAuthenticated();
-
+> = ({ showPaywall, provisionerKeyDaemons, error, permissions, onRetry }) => {
 	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
 		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
 	);

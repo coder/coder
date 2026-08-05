@@ -26,7 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
@@ -42,6 +42,7 @@ interface OrganizationProvisionersPageViewProps {
 	buildVersion: string | undefined;
 	error: unknown;
 	filter: ProvisionersFilter;
+	permissions: Permissions;
 	onRetry: () => void;
 	onFilterChange: (filter: ProvisionersFilter) => void;
 }
@@ -54,11 +55,10 @@ export const OrganizationProvisionersPageView: FC<
 	provisioners,
 	buildVersion,
 	filter,
+	permissions,
 	onFilterChange,
 	onRetry,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>

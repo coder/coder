@@ -18,7 +18,7 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
@@ -31,6 +31,7 @@ interface WorkspaceProxyViewProps {
 	preferredProxy?: Region;
 	selectProxyError?: unknown;
 	showPaywall: boolean;
+	permissions: Permissions;
 }
 
 export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
@@ -41,9 +42,8 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	hasLoaded,
 	selectProxyError,
 	showPaywall,
+	permissions,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	return (
 		<div className="flex flex-col gap-4">
 			<SettingsHeader

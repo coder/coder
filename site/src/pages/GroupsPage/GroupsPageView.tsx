@@ -23,8 +23,8 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
@@ -59,6 +59,7 @@ type GroupsPageViewProps = {
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	permissions: Permissions;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
@@ -67,9 +68,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	permissions,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	if (!groupsEnabled) {
 		return (
 			<PaywallPremium

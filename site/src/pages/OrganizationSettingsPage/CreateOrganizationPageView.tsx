@@ -12,7 +12,7 @@ import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -37,12 +37,12 @@ interface CreateOrganizationPageViewProps {
 	error: unknown;
 	onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
 	isEntitled: boolean;
+	permissions: Permissions;
 }
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
-> = ({ error, onSubmit, isEntitled }) => {
-	const { permissions } = useAuthenticated();
+> = ({ error, onSubmit, isEntitled, permissions }) => {
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
-import { mockApiError } from "#/testHelpers/entities";
+import { MockPermissions, mockApiError } from "#/testHelpers/entities";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const meta: Meta<typeof CreateOrganizationPageView> = {
@@ -8,6 +8,7 @@ const meta: Meta<typeof CreateOrganizationPageView> = {
 	component: CreateOrganizationPageView,
 	args: {
 		isEntitled: true,
+		permissions: MockPermissions,
 	},
 };
 
@@ -36,6 +37,25 @@ export const NotEntitled: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Read the documentation" }),
 		).toBeVisible();
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEntitledWithoutLicenseAccess: Story = {
+	args: {
+		isEntitled: false,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
 	},
 };
 

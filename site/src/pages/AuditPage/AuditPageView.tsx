@@ -20,7 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
@@ -34,6 +34,7 @@ interface AuditPageViewProps {
 	filterProps: ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
+	permissions: Permissions;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -44,9 +45,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	filterProps,
 	auditsQuery: paginationResult,
 	showOrgDetails,
+	permissions,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
 		!error;

@@ -19,7 +19,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
@@ -29,6 +29,7 @@ type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;
 	isEntitled: boolean;
 	isPremium: boolean;
+	permissions: Permissions;
 	onSaveAppearance: (
 		newConfig: Partial<UpdateAppearanceConfig>,
 	) => Promise<void>;
@@ -36,9 +37,7 @@ type AppearanceSettingsPageViewProps = {
 
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
-> = ({ appearance, isEntitled, isPremium, onSaveAppearance }) => {
-	const { permissions } = useAuthenticated();
-
+> = ({ appearance, isEntitled, isPremium, permissions, onSaveAppearance }) => {
 	const applicationNameForm = useFormik<{
 		application_name: string;
 	}>({

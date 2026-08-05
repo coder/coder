@@ -20,7 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { relativeTime } from "#/utils/time";
 
@@ -29,6 +29,7 @@ interface GatewayKeysPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	showPaywall: boolean;
+	permissions: Permissions;
 	onCreateKey: () => void;
 	onDeleteKey: (key: AIGatewayKey) => void;
 }
@@ -38,11 +39,10 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 	isLoading,
 	error,
 	showPaywall,
+	permissions,
 	onCreateKey,
 	onDeleteKey,
 }) => {
-	const { permissions } = useAuthenticated();
-
 	return (
 		<div>
 			<SettingsHeader
