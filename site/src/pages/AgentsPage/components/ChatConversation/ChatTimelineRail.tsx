@@ -117,6 +117,11 @@ type Position = {
 	item: TimelineItem;
 };
 
+type MeasureState = {
+	positions: Position[];
+	activeIndex: number;
+};
+
 // Vertical spacing (px) between consecutive ticks. Chosen to match the
 // mocked dashes: tight enough to read as a group, loose enough to hit
 // individual ticks with a pointer.
@@ -132,7 +137,11 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 	items,
 }) => {
 	const railRef = useRef<HTMLDivElement>(null);
-	const [positions, setPositions] = useState<Position[]>([]);
+	const [state, setState] = useState<MeasureState>({
+		positions: [],
+		activeIndex: -1,
+	});
+	const { positions, activeIndex } = state;
 	const [visible, setVisible] = useState(false);
 	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 	const hoverRef = useRef(false);
@@ -158,30 +167,47 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 	const measure = useCallback(() => {
 		const scroller = scrollContainerRef.current;
 		if (!scroller) {
-			setPositions([]);
+			setState({ positions: [], activeIndex: -1 });
 			return;
 		}
 		const anchors = scroller.querySelectorAll<HTMLElement>(
 			"[data-timeline-anchor-id]",
 		);
 		if (anchors.length === 0) {
-			setPositions([]);
+			setState({ positions: [], activeIndex: -1 });
 			return;
 		}
-		const ordered: TimelineItem[] = [];
+		const scrollerTop = scroller.getBoundingClientRect().top;
+		// The active tick is the last anchor whose top has scrolled to or
+		// above the top edge of the viewport, with a small offset so it
+		// flips as the message crosses that threshold rather than only
+		// once it fully leaves.
+		const ACTIVE_OFFSET = 24;
+		const ordered: Position[] = [];
+		let activeIdx = -1;
 		for (const anchor of anchors) {
 			const rawId = anchor.getAttribute("data-timeline-anchor-id");
 			if (!rawId) continue;
 			const id = Number(rawId);
 			const item = itemsById.get(id);
 			if (!item) continue;
-			ordered.push(item);
+			const rect = anchor.getBoundingClientRect();
+			const pastTop = rect.top - scrollerTop <= ACTIVE_OFFSET;
+			if (pastTop) {
+				activeIdx = ordered.length;
+			}
+			ordered.push({ item });
 		}
 		if (ordered.length === 0) {
-			setPositions([]);
+			setState({ positions: [], activeIndex: -1 });
 			return;
 		}
-		setPositions(ordered.map((item) => ({ item })));
+		// If nothing has scrolled past the threshold yet, treat the first
+		// prompt as active so the indicator is always shown.
+		if (activeIdx === -1) {
+			activeIdx = 0;
+		}
+		setState({ positions: ordered, activeIndex: activeIdx });
 	}, [scrollContainerRef, itemsById]);
 
 	useLayoutEffect(() => {
@@ -320,6 +346,7 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 		>
 			{positions.map((pos, idx) => {
 				const isHovered = hoveredIndex === idx;
+				const isActive = activeIndex === idx;
 				// Center the whole stack vertically on the rail, then offset
 				// each tick by its index. calc(50% + Npx) keeps the group
 				// centered regardless of the rail's actual height.
@@ -358,7 +385,14 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 												? "bg-content-destructive"
 												: "bg-content-primary",
 										)
-									: "h-[2px] w-3",
+									: isActive
+										? cn(
+												"h-[3px] w-4",
+												pos.item.isError
+													? "bg-content-destructive"
+													: "bg-content-primary",
+											)
+										: "h-[2px] w-3",
 							)}
 						/>
 						{isHovered && (
