@@ -67,6 +67,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 
 const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
+	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
@@ -80,9 +81,11 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/organizations">Organizations</Link>
-			</DropdownMenuItem>
+			{canViewOrganizations && (
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
+			)}
 			{canViewAISettings && (
 				<DropdownMenuItem asChild>
 					<Link to="/ai/settings">AI</Link>
