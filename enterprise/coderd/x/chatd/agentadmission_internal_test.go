@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -116,6 +117,28 @@ func TestAdmission_RootPoolCap(t *testing.T) {
 	admitted, err = a.Admit(ctx, f.db, subagent)
 	require.NoError(t, err)
 	require.True(t, admitted)
+}
+
+func TestAdmission_QueueCounterCountsMarkerWinsOnly(t *testing.T) {
+	t.Parallel()
+	f := newAdmissionFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	a := testAdmission(f, nil)
+
+	f.occupiedRoot(t)
+	f.occupiedRoot(t)
+
+	chat := f.chat(t, database.Chat{})
+	for range 2 {
+		admitted, err := a.Admit(ctx, f.db, chat)
+		require.NoError(t, err)
+		require.False(t, admitted)
+	}
+	require.Zero(t, promtestutil.ToFloat64(a.queueTotal),
+		"refusals must not count queue entries: concurrent replicas can refuse the same chat before one marker write wins")
+
+	a.RecordQueued()
+	require.Equal(t, float64(1), promtestutil.ToFloat64(a.queueTotal))
 }
 
 func TestAdmission_SubagentPoolCap(t *testing.T) {

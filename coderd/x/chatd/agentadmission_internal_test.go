@@ -18,6 +18,9 @@ import (
 type fakeAdmission struct {
 	mu      sync.Mutex
 	refused map[uuid.UUID]bool
+
+	admitCalls    int
+	queuedRecords int
 }
 
 func newFakeAdmission() *fakeAdmission {
@@ -39,7 +42,26 @@ func (f *fakeAdmission) allow(chatID uuid.UUID) {
 func (f *fakeAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.admitCalls++
 	return !f.refused[chat.ID], nil
+}
+
+func (f *fakeAdmission) RecordQueued() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queuedRecords++
+}
+
+func (f *fakeAdmission) admitCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.admitCalls
+}
+
+func (f *fakeAdmission) queuedRecordCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.queuedRecords
 }
 
 func capacityQueuedAt(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) *database.Chat {
@@ -98,6 +120,32 @@ func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
 	// The recorder wraps only worker pubsub, so an ownership hint here would
 	// prove a refusal can wake workers into an immediate retry loop.
 	require.Equal(t, 0, chatOwnershipMessages(t, recording, chat.ID))
+}
+
+func TestWorker_RefusalRecordsQueueEntryOnce(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = admission
+
+	chat := f.createRunningChat(t)
+	admission.refuse(chat.ID)
+	worker := startWorker(t, opts)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.Eventually(t, func() bool {
+		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, 1, admission.queuedRecordCount())
+
+	admitCallsAfterMark := admission.admitCallCount()
+	worker.Wake()
+	require.Eventually(t, func() bool {
+		return admission.admitCallCount() > admitCallsAfterMark
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, 1, admission.queuedRecordCount())
 }
 
 func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
@@ -159,8 +207,6 @@ func TestWorker_InterruptingSortsBeforeCapacityQueue(t *testing.T) {
 	require.Equal(t, queued.ID, rows[2].ID)
 }
 
-// rootRefusingAdmission simulates a full root pool with free subagent
-// capacity: running root chats refuse, everything else admits.
 type rootRefusingAdmission struct {
 	mu    sync.Mutex
 	calls int
@@ -176,6 +222,8 @@ func (a *rootRefusingAdmission) Admit(_ context.Context, _ database.Store, chat 
 	return chat.ParentChatID.Valid, nil
 }
 
+func (*rootRefusingAdmission) RecordQueued() {}
+
 func (a *rootRefusingAdmission) callCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -190,9 +238,8 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	opts.AgentAdmission = &rootRefusingAdmission{}
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// A pre-marked root backlog deeper than two batches; the subagent is
-	// created last, so an ordering that ignores pools buries it behind a
-	// batch of pure re-skips and the pass ends before reaching it.
+	// The root backlog is deep enough to hide the later subagent without
+	// pool-interleaved ordering.
 	roots := make([]database.Chat, 0, 2*int(opts.AcquisitionBatchSize)+5)
 	for range cap(roots) {
 		chat := f.createRunningChat(t)
@@ -212,11 +259,6 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	require.Equal(t, sub.ID, call.input.ChatID)
 }
 
-// A configured batch size of 1 would only ever surface the
-// tie-break-favored root pool: with two already-marked queued roots the
-// pass refuses one, re-skips the other without progress, and ends
-// before examining the subagent pool. The floor of 2 keeps both pool
-// heads in every batch.
 func TestWorker_BatchSizeOneCannotHideAPool(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -243,10 +285,6 @@ func TestWorker_BatchSizeOneCannotHideAPool(t *testing.T) {
 	require.Equal(t, sub.ID, call.input.ChatID)
 }
 
-// After the first refusal proves a pool full, the rest of the pass must
-// queue-mark that pool's chats without opening refusal transactions.
-// All-marked is the pass-completion signal, so the count is stable when
-// read.
 func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -274,10 +312,6 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 		"a full pool must be skipped after one refusal, not re-refused per chat")
 }
 
-// A persisted queue marker (for example left by an enterprise
-// deployment) must clear on acquisition even when no admission hook is
-// configured, or the chat page keeps reporting a generating agent as
-// queued.
 func TestWorker_AcquisitionWithoutAdmissionClearsQueueMark(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -336,6 +370,8 @@ func (runningRefusingAdmission) Admit(_ context.Context, _ database.Store, chat 
 	return chat.Status != database.ChatStatusRunning, nil
 }
 
+func (runningRefusingAdmission) RecordQueued() {}
+
 func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -358,9 +394,6 @@ func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	require.Equal(t, chat.ID, call.input.ChatID)
 }
 
-// One acquisition pass must page past a full pool's backlog (via
-// @exclude_ids) and queue-mark every skipped chat, not just the first
-// batch.
 func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

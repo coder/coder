@@ -2471,8 +2471,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 			queued_for_capacity_at: undefined,
 		});
-		// Queue marks do not bump updated_at, so the event carries the same
-		// timestamp as the cache.
+
 		const watchedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
 			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
@@ -2485,15 +2484,50 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe("2025-01-01T00:00:05.000Z");
 	});
 
+	it("keeps the queue mark when an equal-timestamp status event arrives after it", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: undefined,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).queued_for_capacity_at,
+		).toBe("2025-01-01T00:00:05.000Z");
+	});
+
+	it("clears the queue mark on a strictly newer status event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity_at: undefined,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).queued_for_capacity_at,
+		).toBeUndefined();
+	});
+
 	it("rejects a stale capacity mark reordered after a fresher clear", () => {
-		// Admission cleared the marker inside the acquisition transaction,
-		// which bumps updated_at; the cache already saw that clear event.
 		const cachedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:01:00.000Z",
 			queued_for_capacity_at: undefined,
 		});
-		// A delayed mark event from another worker carries the pre-acquisition
-		// snapshot and must not restore the banner on a running chat.
+
 		const watchedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
 			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",

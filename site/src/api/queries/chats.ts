@@ -549,13 +549,12 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Queue marks do not bump chats.updated_at (equal timestamps pass the
-	// freshness check), while the clear always runs in the acquisition or
-	// status transaction, which does bump it. Gating on freshness rejects a
-	// reordered stale mark event published after another worker's clear,
-	// which would otherwise pin the queued banner on a running chat.
+	// Queue marks keep chats.updated_at, but clears bump it. Apply capacity
+	// events at equal timestamps and require status events to be newer,
+	// preventing reordered snapshots from clearing or restoring the banner.
 	const nextQueuedForCapacityAt =
-		isFreshEnough && (isCapacityEvent || isStatusEvent)
+		(isCapacityEvent && isFreshEnough) ||
+		(isStatusEvent && updatedAtComparison < 0)
 			? watchedChat.queued_for_capacity_at
 			: cachedChat.queued_for_capacity_at;
 	const nextWorkspaceId = isFreshEnough

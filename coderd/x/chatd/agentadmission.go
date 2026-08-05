@@ -17,6 +17,10 @@ type AgentAdmission interface {
 	// Admit reports whether the worker may acquire the chat. Refused chats
 	// remain unowned and are retried from the capacity queue.
 	Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error)
+	// RecordQueued observes a chat entering the capacity queue. Workers call
+	// it only after their queue-marker write wins, so replicas refusing the
+	// same chat concurrently record one queue entry.
+	RecordQueued()
 }
 
 // AgentAdmissionOptions configures an AgentAdmissionFactory.

@@ -160,9 +160,6 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 		used, capacity = counts.SubagentCount, a.subagentCapacity
 	}
 	if used >= capacity {
-		if !chat.CapacityQueuedAt.Valid {
-			a.queueTotal.Inc()
-		}
 		return false, nil
 	}
 	a.observeAdmission(chat)
@@ -170,11 +167,8 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 }
 
 // uncapped returns true for an enabled entitlement with remaining hours.
-// Missing limit or usage data also fails open to avoid capping on incomplete
-// entitlement data. Entitlements do not yet populate Actual for this feature
-// (usage accrues externally via usage events), so today every enabled
-// runtime-hours license is uncapped; the exhaustion branch activates when
-// usage wiring lands.
+// Missing limit or usage data fails open to avoid capping on incomplete
+// entitlement data; runtime-hour license decoding leaves Actual unset.
 func (a *admission) uncapped() bool {
 	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {
@@ -184,6 +178,10 @@ func (a *admission) uncapped() bool {
 		return true
 	}
 	return *f.Actual < *f.Limit
+}
+
+func (a *admission) RecordQueued() {
+	a.queueTotal.Inc()
 }
 
 func (a *admission) observeAdmission(chat database.Chat) {
