@@ -141,6 +141,7 @@ export function useBatchActions(
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||
 			stopAllMutation.isPending ||
-			deleteAllMutation.isPending,
+			deleteAllMutation.isPending ||
+			updateAllMutation.isPending,
 	};
 }

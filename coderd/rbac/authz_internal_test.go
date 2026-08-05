@@ -307,6 +307,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 	}
 
@@ -467,6 +468,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -545,6 +547,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 		Roles: Roles{
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -1049,6 +1052,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
@@ -1085,6 +1089,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1174,6 +1179,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1229,6 +1235,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: must(ScopeNoUserData.Expand()),
 	}

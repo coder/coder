@@ -39,7 +39,6 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
-	defaultRolesEnabled?: boolean;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -56,15 +55,11 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
-	defaultRolesEnabled,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
-	const showDefaultRoles =
-		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
-
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
@@ -74,10 +69,11 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					documentationLink={docs("/admin/users/groups-roles")}
 				/>
 			)}
-			{showDefaultRoles && onUpdateDefaultRoles && (
+			{onUpdateDefaultRoles && (
 				<DefaultRolesSection
 					organization={organization}
 					availableOrgRoles={availableOrgRoles}
+					canEditDefaultRoles={canEditDefaultRoles}
 					defaultRolesEntitled={Boolean(defaultRolesEntitled)}
 					isUpdatingDefaultRoles={Boolean(isUpdatingDefaultRoles)}
 					onUpdateDefaultRoles={onUpdateDefaultRoles}
@@ -130,6 +126,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 interface DefaultRolesSectionProps {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
+	canEditDefaultRoles: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
@@ -138,6 +135,7 @@ interface DefaultRolesSectionProps {
 const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
+	canEditDefaultRoles,
 	defaultRolesEntitled,
 	isUpdatingDefaultRoles,
 	onUpdateDefaultRoles,
@@ -153,23 +151,33 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 						{!defaultRolesEntitled && <PremiumBadge />}
 					</h2>
 					<span className="text-sm text-content-secondary leading-relaxed">
-						Roles attached to every member of this organization. An empty
-						selection limits new members to the floor permissions only.
+						Roles granted to every member of this organization, current and
+						future, in addition to any roles assigned directly. Removing a role
+						here removes it from all members that are not assigned that role
+						directly.
 					</span>
 				</span>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => setIsEditing(true)}
-					disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
-				>
-					Edit default roles
-				</Button>
+				{canEditDefaultRoles && (
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => setIsEditing(true)}
+						disabled={
+							isUpdatingDefaultRoles ||
+							!defaultRolesEntitled ||
+							!availableOrgRoles
+						}
+					>
+						Edit default roles
+					</Button>
+				)}
 			</div>
 			<div className="text-sm">
 				{organization.default_org_member_roles.length === 0 ? (
 					<span className="text-content-secondary">
-						No default roles. New members receive only the floor.
+						No default roles. Members have only the permissions of their
+						directly assigned roles, which excludes creating and using
+						workspaces.
 					</span>
 				) : (
 					<DefaultRolesSummary

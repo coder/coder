@@ -40,6 +40,10 @@ It reads as a misspelling of the product name.
 
 *Enforced by `Coder.ProductTerms` (planned).*
 
+The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
+When you add, rename, or deprecate a product or feature name, update the glossary in the same change.
+The planned `Coder.ProductTerms` rule and the glossary should draw on one shared term list.
+
 ## Brand names
 
 Use the canonical casing for third-party brand and product names.

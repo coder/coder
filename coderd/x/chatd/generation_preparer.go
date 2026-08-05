@@ -36,7 +36,7 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            fantasy.LanguageModel
+		model            chatprovider.Model
 		modelConfig      database.ChatModelConfig
 		modelRoute       aiGatewayModelRoute
 		modelOpts        modelBuildOptions
@@ -99,6 +99,41 @@ func (server *Server) prepareGeneration(
 	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
 		callConfig.MaxOutputTokens = &maxOutputTokens
+	}
+
+	// Computer-use turns swap in a specialized model, so the substitution
+	// must happen before anything model-sensitive runs: file-part
+	// classification, history sanitization, and provider option preparation
+	// must all agree with the client actually used for the turn.
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
+	var computerUseProvider codersdk.ChatComputerUseProvider
+	if isComputerUse {
+		var cuModelProvider, cuModelName string
+		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
+		if err != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
+		}
+		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
+		if keyErr != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
+		}
+		modelRoute = computerUseRoute
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
+			ctx,
+			chat,
+			computerUseRoute,
+			computerUseProvider,
+			cuModelProvider,
+			cuModelName,
+			modelOpts,
+		)
+		if cuErr != nil {
+			return generationPrepared{}, cuErr
+		}
+		model = cuModel
+		debugEnabled = cuDebugEnabled
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
 	}
 
 	currentPlanMode := chat.PlanMode
@@ -258,9 +293,7 @@ func (server *Server) prepareGeneration(
 		// aibridge routing rewrites the provider (e.g. Bedrock to the
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
-		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
-		}
+		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
@@ -327,7 +360,7 @@ func (server *Server) prepareGeneration(
 		logger,
 		"persisted_history_replay",
 		model.Provider(),
-		model.Model(),
+		model.ModelID(),
 		sanitizeStats,
 	)
 
@@ -480,36 +513,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	if isComputerUse {
-		computerUseProvider, computerUseModelProvider, computerUseModelName, err := server.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
-		if keyErr != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			computerUseModelProvider,
-			computerUseModelName,
-			modelOpts,
-		)
-		if cuErr != nil {
-			cleanup()
-			return generationPrepared{}, cuErr
-		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -538,12 +542,7 @@ func (server *Server) prepareGeneration(
 	if chat.LastReasoningEffort.Valid {
 		requestedEffort = new(string(chat.LastReasoningEffort.ChatReasoningEffort))
 	}
-	reasoningEffort := chatprovider.ResolveReasoningEffort(
-		requestedEffort,
-		callConfig.ReasoningEffort,
-	)
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
-	providerOptions = chatprovider.ApplyReasoningEffort(model, providerOptions, reasoningEffort)
+	providerOptions := chatprovider.ProviderOptionsForCall(model, callConfig, requestedEffort)
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
@@ -602,7 +601,7 @@ func (server *Server) prepareGeneration(
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                model,
+		Model:                model.LanguageModel(),
 		Messages:             prompt,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,
@@ -768,7 +767,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
 		// generic label when StatusLabelModel is nil.
@@ -787,6 +786,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		FallbackRoute:       modelRoute,
 		FallbackModel:       resolvedModel,
 		ModelBuildOptions:   modelOpts,
+		StatusLabelOptions:  dbConfig.Options,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

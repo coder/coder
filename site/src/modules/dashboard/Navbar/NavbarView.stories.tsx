@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithDesktop, pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
@@ -18,7 +18,7 @@ const tasksFilter: TasksFilter = {
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
-		chromatic: chromaticWithTablet,
+		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
 		queries: [
 			{
@@ -49,6 +49,7 @@ export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
 export const ForAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -58,6 +59,7 @@ export const ForAdmin: Story = {
 };
 
 export const ForAuditor: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -73,6 +75,7 @@ export const ForAuditor: Story = {
 };
 
 export const ForOrgAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -89,6 +92,7 @@ export const ForOrgAdmin: Story = {
 };
 
 export const ForSingleOrgOSSAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		adminPermissions: {
 			canViewDeployment: true,

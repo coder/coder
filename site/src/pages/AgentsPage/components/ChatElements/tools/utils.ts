@@ -101,23 +101,6 @@ const isCommandReference = (value: string, command: string): boolean => {
 const normalizeCommandReference = (value: string): string =>
 	value.trim().toLowerCase().replace(/\s+/g, " ");
 
-export const toProviderLabel = (
-	providerDisplayName: string,
-	providerID: string,
-	providerType: string,
-): string => {
-	if (providerDisplayName) {
-		return providerDisplayName;
-	}
-	if (providerID) {
-		return providerID;
-	}
-	if (providerType) {
-		return providerType;
-	}
-	return "Git provider";
-};
-
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
 
 export const formatShellDurationMs = (

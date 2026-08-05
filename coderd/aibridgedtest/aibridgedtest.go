@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 // StartTestAIBridgeDaemon wires an in-process aibridged daemon onto the
@@ -35,6 +36,21 @@ func StartTestAIBridgeDaemon(
 	t testing.TB,
 	api *coderd.API,
 	metrics *aibridged.Metrics,
+) {
+	t.Helper()
+	StartTestAIBridgeDaemonWithPubsub(ctx, t, api, metrics, api.Pubsub)
+}
+
+// StartTestAIBridgeDaemonWithPubsub is StartTestAIBridgeDaemon with an
+// explicit pubsub for the provider-reload subscription. A pubsub that is
+// disconnected from api.Pubsub cuts the daemon off from provider change
+// events, leaving the initial synchronous load as its only route source.
+func StartTestAIBridgeDaemonWithPubsub(
+	ctx context.Context,
+	t testing.TB,
+	api *coderd.API,
+	metrics *aibridged.Metrics,
+	ps pubsub.Pubsub,
 ) {
 	t.Helper()
 
@@ -62,8 +78,8 @@ func StartTestAIBridgeDaemon(
 
 	// The reloader fetches providers from coderd over srv's DRPC client; the
 	// subscription drives an initial load and refreshes on change events.
-	reloader := cli.NewPoolRPCReloader(pool, srv.ClientContext, cfg, logger.Named("reloader"), nil, metrics)
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
+	reloader := cli.NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
+	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, ps, reloader, logger.Named("subscriber"))
 	if err != nil {
 		t.Fatalf("subscribe provider reload: %v", err)
 	}

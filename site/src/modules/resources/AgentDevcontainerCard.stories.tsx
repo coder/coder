@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
@@ -36,7 +35,6 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 	},
 	decorators: [withProxyProvider(), withDashboardProvider],
 	parameters: {
-		chromatic,
 		queries: [
 			{
 				key: ["portForward", MockWorkspaceSubAgent.id],

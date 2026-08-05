@@ -228,6 +228,9 @@ export const handlers = [
 			status: 201,
 		});
 	}),
+	http.post("/api/v2/users/:userId/secrets/batch", () => {
+		return HttpResponse.json(M.MockImportedUserSecrets, { status: 201 });
+	}),
 	http.patch(
 		"/api/v2/users/:userId/secrets/:name",
 		async ({ request, params }) => {
@@ -444,6 +447,7 @@ function userSecretFromCreateRequest(
 		description: request.description ?? "",
 		env_name: request.env_name ?? "",
 		file_path: request.file_path ?? "",
+		enabled: request.enabled ?? true,
 		created_at: now,
 		updated_at: now,
 	};
