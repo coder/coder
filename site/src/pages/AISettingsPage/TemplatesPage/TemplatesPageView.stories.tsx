@@ -131,10 +131,30 @@ export const Loading: Story = {
 export const LoadError: Story = {
 	args: {
 		error: new Error("Templates request failed"),
+		templates: undefined,
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Failed to load templates.")).toBeVisible();
+		expect(canvas.queryByRole("table")).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		expect(args.onRetry).toHaveBeenCalled();
+	},
+};
+
+export const RefetchError: Story = {
+	args: {
+		error: new Error("Templates request failed"),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load templates.")).toBeVisible();
+		expect(
+			canvas.getByRole("table", {
+				name: "Templates Coder Agents can use to create workspaces",
+			}),
+		).toBeVisible();
+		expect(canvas.getByText("Docker containers")).toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
 		expect(args.onRetry).toHaveBeenCalled();
 	},

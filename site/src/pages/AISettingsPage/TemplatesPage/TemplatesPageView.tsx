@@ -114,6 +114,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	pendingTemplateIDs,
 }) => {
 	const hasValidationError = hasError(error) && isApiValidationError(error);
+	const hasLoadError = hasError(error) && !hasValidationError;
 
 	return (
 		<div>
@@ -129,8 +130,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				error={error}
 				userMenu={filterState.menus.user}
 			/>
-			{hasError(error) && !hasValidationError ? (
-				<div className="flex flex-col gap-4">
+			{hasLoadError && (
+				<div className="mb-4 flex flex-col gap-4">
 					<ErrorAlert
 						error={
 							new DetailedError(
@@ -143,7 +144,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						Retry
 					</Button>
 				</div>
-			) : hasValidationError ? null : (
+			)}
+			{!hasValidationError && (!hasLoadError || templates !== undefined) && (
 				<Table
 					aria-label="Templates Coder Agents can use to create workspaces"
 					className="table-fixed"

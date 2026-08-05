@@ -4,8 +4,10 @@ import type { Template } from "#/api/typesGenerated";
 import { MockTemplate } from "#/testHelpers/entities";
 import {
 	getTemplatesQueryKey,
+	templateByNameKey,
 	templateExamples,
 	updateTemplateListQueries,
+	updateTemplateMeta,
 } from "./templates";
 
 describe("updateTemplateListQueries", () => {
@@ -59,5 +61,37 @@ describe("updateTemplateListQueries", () => {
 		expect(queryClient.getQueryState(objectSegmentKey)?.isInvalidated).toBe(
 			false,
 		);
+	});
+});
+
+describe("updateTemplateMeta", () => {
+	it("invalidates the detail query for the returned name after a rename", async () => {
+		const queryClient = new QueryClient();
+		const renamedTemplate: Template = {
+			...MockTemplate,
+			name: "renamed-template",
+		};
+		const oldNameKey = templateByNameKey(
+			MockTemplate.organization_name,
+			MockTemplate.name,
+		);
+		const newNameKey = templateByNameKey(
+			renamedTemplate.organization_name,
+			renamedTemplate.name,
+		);
+		queryClient.setQueryData(oldNameKey, MockTemplate);
+		queryClient.setQueryData(newNameKey, renamedTemplate);
+
+		await updateTemplateMeta(queryClient).onSuccess?.(
+			renamedTemplate,
+			{
+				template: MockTemplate,
+				data: { name: renamedTemplate.name },
+			},
+			undefined,
+		);
+
+		expect(queryClient.getQueryState(newNameKey)?.isInvalidated).toBe(true);
+		expect(queryClient.getQueryState(oldNameKey)?.isInvalidated).toBe(false);
 	});
 });

@@ -19,8 +19,7 @@ import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
 const templateKey = (templateId: string) => ["template", templateId];
-const templatesKey = ["templates"] as const;
-const templateListsKey = [...templatesKey, "list"] as const;
+const templateListsKey = ["templates", "list"] as const;
 
 export const template = (templateId: string) => {
 	return {
@@ -84,6 +83,7 @@ export const updateTemplateMeta = (
 		mutationFn: ({ template, data }) =>
 			API.updateTemplateMeta(template.id, data),
 		onSuccess: async (result, { template }) => {
+			const updatedTemplate = result ?? template;
 			await Promise.all([
 				result
 					? updateTemplateListQueries(queryClient, result)
@@ -95,8 +95,8 @@ export const updateTemplateMeta = (
 				}),
 				queryClient.invalidateQueries({
 					queryKey: templateByNameKey(
-						template.organization_name,
-						template.name,
+						updatedTemplate.organization_name,
+						updatedTemplate.name,
 					),
 				}),
 			]);
