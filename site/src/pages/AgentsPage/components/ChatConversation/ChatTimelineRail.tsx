@@ -115,9 +115,12 @@ const buildTimelineItems = (
 
 type Position = {
 	item: TimelineItem;
-	// 0..1 fraction along the rail height
-	ratio: number;
 };
+
+// Vertical spacing (px) between consecutive ticks. Chosen to match the
+// mocked dashes: tight enough to read as a group, loose enough to hit
+// individual ticks with a pointer.
+const TICK_SPACING_PX = 12;
 
 interface ChatTimelineRailProps {
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -145,8 +148,13 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 		return map;
 	}, [items]);
 
-	// Recomputes tick ratios from DOM anchor positions. Called on scroll,
+	// Recomputes tick positions from DOM anchor order. Called on scroll,
 	// resize, and DOM mutation. Uses rAF batching to avoid layout thrash.
+	//
+	// Ticks are laid out with fixed pixel spacing, centered vertically on
+	// the rail. This keeps the column feeling like a compact indicator
+	// stack rather than a justified min-to-max scale, which felt clunky
+	// for chats with only a few prompts.
 	const measure = useCallback(() => {
 		const scroller = scrollContainerRef.current;
 		if (!scroller) {
@@ -160,37 +168,20 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 			setPositions([]);
 			return;
 		}
-		// Establish a stable content coordinate space by taking the min and
-		// max top of all anchors in viewport coordinates. Using this range
-		// (rather than scrollHeight) is robust against the flex-col-reverse
-		// scroller layout in ChatScrollContainer.
-		let minTop = Number.POSITIVE_INFINITY;
-		let maxTop = Number.NEGATIVE_INFINITY;
-		const raw: Array<{ id: number; top: number }> = [];
+		const ordered: TimelineItem[] = [];
 		for (const anchor of anchors) {
 			const rawId = anchor.getAttribute("data-timeline-anchor-id");
 			if (!rawId) continue;
 			const id = Number(rawId);
-			if (!itemsById.has(id)) continue;
-			const rect = anchor.getBoundingClientRect();
-			// Skip zero-sized wrappers that never mounted content.
-			if (rect.width === 0 && rect.height === 0 && rect.top === 0) {
-				continue;
-			}
-			raw.push({ id, top: rect.top });
-			if (rect.top < minTop) minTop = rect.top;
-			if (rect.top > maxTop) maxTop = rect.top;
+			const item = itemsById.get(id);
+			if (!item) continue;
+			ordered.push(item);
 		}
-		if (raw.length === 0) {
+		if (ordered.length === 0) {
 			setPositions([]);
 			return;
 		}
-		const span = Math.max(1, maxTop - minTop);
-		const next: Position[] = raw.map(({ id, top }) => ({
-			item: itemsById.get(id) as TimelineItem,
-			ratio: (top - minTop) / span,
-		}));
-		setPositions(next);
+		setPositions(ordered.map((item) => ({ item })));
 	}, [scrollContainerRef, itemsById]);
 
 	useLayoutEffect(() => {
@@ -329,6 +320,10 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 		>
 			{positions.map((pos, idx) => {
 				const isHovered = hoveredIndex === idx;
+				// Center the whole stack vertically on the rail, then offset
+				// each tick by its index. calc(50% + Npx) keeps the group
+				// centered regardless of the rail's actual height.
+				const offsetPx = (idx - (positions.length - 1) / 2) * TICK_SPACING_PX;
 				return (
 					<button
 						type="button"
@@ -351,7 +346,7 @@ const ChatTimelineRail: FC<ChatTimelineRailProps> = ({
 								: "bg-content-secondary/50 hover:bg-content-primary",
 							isHovered && "h-[3px] w-4",
 						)}
-						style={{ top: `${pos.ratio * 100}%` }}
+						style={{ top: `calc(50% + ${offsetPx}px)` }}
 						aria-label={pos.item.preview}
 					>
 						{isHovered && (
