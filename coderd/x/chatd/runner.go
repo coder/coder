@@ -178,9 +178,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 	r.acceptState(state)
 }
 
-// occupiesCapacitySlot reports whether a chat in this state counts
-// against its concurrency pool. The zero runnerStateUpdate does not, so
-// callers need no hasAcceptedState guard.
+// The zero value is not capacity-counted, so callers need no
+// hasAcceptedState guard.
 func occupiesCapacitySlot(state runnerStateUpdate) bool {
 	return !state.Archived &&
 		(state.Status == database.ChatStatusRunning || state.Status == database.ChatStatusInterrupting)

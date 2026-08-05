@@ -191,10 +191,8 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 	// Capacity-refused chats remain candidates, so each batch must exclude
 	// prior attempts or a full pool would hide all later candidates.
 	excludeIDs := []uuid.UUID{}
-	// One refusal proves a pool full for the rest of the pass: later
-	// running chats in that pool are queue-marked without an acquisition
-	// attempt. Keyed by parent_chat_id presence (false = root pool,
-	// true = subagent pool).
+	// One refusal marks the pool full for the rest of the pass. The key is
+	// parent_chat_id presence: false for roots, true for subagents.
 	refusedPools := map[bool]bool{}
 	for {
 		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
@@ -234,9 +232,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 				w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
 			}
 		}
-		// A batch of nothing but re-skipped queued chats means every
-		// admittable candidate was already tried: the query sorts
-		// bypassing statuses and each pool's oldest chats first.
+		// An all-skipped batch means the available pool heads were tried.
 		if !progressed || len(rows) < int(w.opts.AcquisitionBatchSize) {
 			return
 		}
@@ -310,10 +306,8 @@ func (w *chatWorker) acquireCandidate(
 				return errCapacityRefused
 			}
 		}
-		// Clear independently of the admission hook: a persisted marker
-		// must not survive acquisition on a deployment that later runs
-		// without admission (for example an AGPL build over an
-		// enterprise database).
+		// Clear markers left by deployments with admission enabled, even when
+		// this worker has no admission hook.
 		if chat.CapacityQueuedAt.Valid {
 			if _, err := store.ClearChatCapacityQueued(ctx, chat.ID); err != nil {
 				return xerrors.Errorf("clear capacity queue marker: %w", err)
@@ -360,6 +354,9 @@ func (w *chatWorker) markCapacityQueued(ctx context.Context, chatID uuid.UUID) {
 	}
 	if marked == 0 {
 		return
+	}
+	if w.opts.AgentAdmission != nil {
+		w.opts.AgentAdmission.RecordQueued()
 	}
 	w.publishCapacityChange(ctx, chatID)
 }

@@ -231,11 +231,8 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.AcquisitionBatchSize <= 0 {
 		o.AcquisitionBatchSize = defaultAcquisitionBatchSize
 	}
-	// The acquisition query interleaves the two capacity pools, so any
-	// batch of two or more contains each pool's oldest candidate and an
-	// all-skipped batch proves nothing admittable remains. A batch of
-	// one sees only the tie-break-favored pool and would end the pass
-	// with the other pool unexamined.
+	// A batch size of one can end the pass on the tie-break-favored pool
+	// before the other pool's head is examined.
 	if o.AcquisitionBatchSize < 2 {
 		o.AcquisitionBatchSize = 2
 	}
