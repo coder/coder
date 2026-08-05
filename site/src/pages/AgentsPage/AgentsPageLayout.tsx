@@ -29,6 +29,7 @@ import {
 	invalidateChatDiffContents,
 	invalidateChatEntity,
 	invalidateChatListQueries,
+	invalidateChatSearches,
 	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	pinChat,
@@ -38,6 +39,7 @@ import {
 	removeChatEntity,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	shouldInvalidateChatSearches,
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
@@ -308,6 +310,7 @@ const AgentsPageLayout: FC = () => {
 			void invalidateChatListQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
+			void invalidateChatSearches(queryClient);
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
@@ -576,6 +579,7 @@ const AgentsPageLayout: FC = () => {
 			return changed ? next : chats;
 		});
 		void invalidateChatListQueries(queryClient);
+		void invalidateChatSearches(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -615,6 +619,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
 						removeChatEntity(queryClient, updatedChat.id);
+						void invalidateChatSearches(queryClient);
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
@@ -650,6 +655,7 @@ const AgentsPageLayout: FC = () => {
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
 							void invalidateChatListQueries(queryClient);
+							void invalidateChatSearches(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -658,6 +664,9 @@ const AgentsPageLayout: FC = () => {
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
+						}
+						if (shouldInvalidateChatSearches(chatEvent.kind)) {
+							void invalidateChatSearches(queryClient);
 						}
 						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
@@ -681,6 +690,7 @@ const AgentsPageLayout: FC = () => {
 			},
 			onOpen() {
 				void invalidateChatListQueries(queryClient);
+				void invalidateChatSearches(queryClient);
 			},
 		});
 	}, [queryClient]);

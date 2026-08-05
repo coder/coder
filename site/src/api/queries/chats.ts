@@ -648,6 +648,26 @@ export const invalidateChatsByWorkspace = (queryClient: QueryClient) =>
 		queryKey: chatsByWorkspaceFamilyKey,
 	});
 
+// Watch events that change fields rendered in search results (title,
+// status, diff status, action-required badge). Summary events are
+// deliberately excluded: stale last_turn_summary subtitles are accepted
+// until reconciliation lands.
+const SEARCH_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"title_change",
+	"status_change",
+	"diff_status_change",
+	"action_required",
+]);
+
+export const shouldInvalidateChatSearches = (
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => SEARCH_AFFECTING_EVENT_KINDS.has(eventKind);
+
+export const invalidateChatSearches = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: chatSearchFamilyKey,
+	});
+
 export const invalidateChatDebugRuns = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -993,6 +1013,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatsByWorkspace(queryClient);
+		void invalidateChatSearches(queryClient);
 	},
 });
 
@@ -1042,6 +1063,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatsByWorkspace(queryClient);
+		void invalidateChatSearches(queryClient);
 	},
 });
 
@@ -1329,6 +1351,7 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	) => {
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatSearches(queryClient);
 	},
 });
 
@@ -1409,6 +1432,7 @@ export const createChat = (queryClient: QueryClient) => ({
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatsByWorkspace(queryClient);
+		void invalidateChatSearches(queryClient);
 	},
 });
 
@@ -1501,6 +1525,7 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void invalidateChatSearches(queryClient);
 	},
 });
 
