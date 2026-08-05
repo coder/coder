@@ -379,7 +379,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'tunnel'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -595,7 +596,8 @@ CREATE TYPE resource_type AS ENUM (
     'group_ai_budget',
     'user_skill',
     'ai_gateway_key',
-    'user_ai_budget_override'
+    'user_ai_budget_override',
+    'oauth2_provider_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -726,7 +728,7 @@ CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     AS $$
 BEGIN
     -- Check for supported event types and throw error for unknown types.
-    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1') THEN
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1', 'hb_agent_runtime_v1') THEN
         RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
     END IF;
 
@@ -754,6 +756,13 @@ BEGIN
 						COALESCE((NEW.event_data->>'count')::bigint, 0)
 					)
 				)
+            -- Hourly runtime heartbeats: sum the runtime per day.
+            WHEN NEW.event_type IN ('hb_agent_runtime_v1') THEN
+                jsonb_build_object(
+                    'runtime_ms',
+                    COALESCE((usage_events_daily.usage_data->>'runtime_ms')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'runtime_ms')::bigint, 0)
+                )
         END;
 
     RETURN NEW;
@@ -2620,10 +2629,11 @@ CREATE TABLE oauth2_provider_app_tokens (
     expires_at timestamp with time zone NOT NULL,
     hash_prefix bytea NOT NULL,
     refresh_hash bytea NOT NULL,
-    app_secret_id uuid NOT NULL,
+    app_secret_id uuid,
     api_key_id text NOT NULL,
     audience text,
-    user_id uuid NOT NULL
+    user_id uuid NOT NULL,
+    app_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
@@ -2631,6 +2641,8 @@ COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens pro
 COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding from resource parameter';
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.app_id IS 'Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -3527,7 +3539,7 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text])))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text])))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -3537,6 +3549,8 @@ COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a rand
 COMMENT ON COLUMN usage_events.event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
 
 COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
+
+COMMENT ON COLUMN usage_events.created_at IS 'The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.';
 
 COMMENT ON COLUMN usage_events.publish_started_at IS 'Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.';
 
@@ -3624,7 +3638,9 @@ CREATE TABLE user_secrets (
     file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    value_key_id text
+    value_key_id text,
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT user_secrets_enabled_requires_target CHECK (((NOT enabled) OR (env_name <> ''::text) OR (file_path <> ''::text)))
 );
 
 CREATE TABLE user_skills (
@@ -4698,6 +4714,8 @@ CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
 
+CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
+
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
 CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
@@ -4762,7 +4780,9 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+CREATE INDEX idx_chat_messages_chat_role_id ON chat_messages USING btree (chat_id, role, id DESC) WHERE (deleted = false);
+
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, id DESC) WHERE ((compressed = true) AND (deleted = false) AND (visibility = 'model'::chat_message_visibility));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
@@ -4861,6 +4881,8 @@ CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_pre
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
+CREATE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
 
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
@@ -5292,6 +5314,9 @@ ALTER TABLE ONLY oauth2_provider_app_secrets
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;

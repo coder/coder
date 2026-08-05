@@ -33,7 +33,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
@@ -47,11 +46,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
@@ -78,14 +79,14 @@ const GroupMembersPage: FC = () => {
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
+	const { permissions: sitePermissions } = useAuthenticated();
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	// Setting a user's AI budget override updates both the user and the group
+	// its spend is charged to, so it needs permission on both.
+	const canUpdateBudgetOverride = canUpdateGroup && sitePermissions.updateUsers;
 	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
@@ -112,7 +113,7 @@ const GroupMembersPage: FC = () => {
 		}),
 	);
 	const aiBudgetNote = [
-		"Monthly AI spend for this user.",
+		"Estimated monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.
 		aiSpend &&
 			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
@@ -173,7 +174,13 @@ const GroupMembersPage: FC = () => {
 													message="AI spend couldn't be loaded, so budgets aren't shown."
 												/>
 											) : (
-												<StatusIconTooltip message={aiBudgetNote} />
+												<StatusIconTooltip
+													message={
+														<>
+															{aiBudgetNote} <SpendEstimateDocsLink />
+														</>
+													}
+												/>
 											)}
 										</div>
 									</TableHead>
@@ -191,11 +198,7 @@ const GroupMembersPage: FC = () => {
 
 					<TableBody>
 						{members.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState message="No members found" />
-								</TableCell>
-							</TableRow>
+							<TableEmpty message="No members found" />
 						) : (
 							membersWithSpend.map((member) => (
 								<GroupMemberRow
@@ -237,6 +240,7 @@ const GroupMembersPage: FC = () => {
 					user={budgetUser}
 					currentGroup={groupData}
 					effectiveGroupId={budgetUser.spend?.effective_group_id}
+					canUpdate={canUpdateBudgetOverride}
 				/>
 			)}
 		</div>

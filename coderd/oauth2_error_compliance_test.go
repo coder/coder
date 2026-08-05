@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -29,6 +30,7 @@ func TestOAuth2ErrorResponseFormat(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will definitely fail
@@ -152,6 +154,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 
 			client := coderdtest.New(t, nil)
 			_ = coderdtest.CreateFirstUser(t, client)
+			oauth2providertest.EnableDCR(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// Create a copy of the request with a unique client name
@@ -214,6 +217,7 @@ func TestOAuth2ManagementErrorCodes(t *testing.T) {
 
 			client := coderdtest.New(t, nil)
 			_ = coderdtest.CreateFirstUser(t, client)
+			oauth2providertest.EnableDCR(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// First register a valid client to use for management tests
@@ -286,6 +290,7 @@ func TestOAuth2ErrorResponseStructure(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will generate an error
@@ -335,6 +340,7 @@ func TestOAuth2ErrorHTTPHeaders(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will fail
@@ -360,6 +366,7 @@ func TestOAuth2SpecificErrorScenarios(t *testing.T) {
 	// coderd server. Sub-tests that don't need one just ignore it.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	t.Run("MissingRequiredFields", func(t *testing.T) {
 		t.Parallel()

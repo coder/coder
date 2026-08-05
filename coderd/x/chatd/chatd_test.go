@@ -64,7 +64,6 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type recordedOpenAIRequest struct {
@@ -1849,78 +1848,6 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 	})
 }
 
-func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-
-	existingChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		Title:             "existing-limit-chat",
-		LastModelConfigID: model.ID,
-	})
-
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("assistant"),
-	})
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          existingChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-
-	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnedOnly: true,
-		ViewerID:  user.ID,
-		AfterID:   uuid.Nil,
-		OffsetOpt: 0,
-		LimitOpt:  100,
-	})
-	require.NoError(t, err)
-	require.Len(t, beforeChats, 1)
-
-	_, err = replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "over-limit",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.Error(t, err)
-
-	var limitErr *chatd.UsageLimitExceededError
-	require.ErrorAs(t, err, &limitErr)
-	require.Equal(t, int64(100), limitErr.LimitMicros)
-	require.Equal(t, int64(100), limitErr.ConsumedMicros)
-
-	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnedOnly: true,
-		ViewerID:  user.ID,
-		AfterID:   uuid.Nil,
-		OffsetOpt: 0,
-		LimitOpt:  100,
-	})
-	require.NoError(t, err)
-	require.Len(t, afterChats, len(beforeChats))
-}
-
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
@@ -2058,264 +1985,6 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	}
 	require.Equal(t, []string{"hello", "queued b", "queued c"}, userTexts)
 	require.Equal(t, []uuid.UUID{modelConfigA.ID, modelConfigB.ID, modelConfigC.ID}, userModelConfigIDs)
-}
-
-func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-
-	clock := quartz.NewMock(t)
-
-	streamStarted := make(chan struct{})
-	interrupted := make(chan struct{})
-	secondRequestStarted := make(chan struct{}, 1)
-	thirdRequestStarted := make(chan struct{}, 1)
-	allowFinish := make(chan struct{})
-	allowSecondRequestFinish := make(chan struct{})
-	allowThirdRequestFinish := make(chan struct{})
-	var requestCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		switch requestCount.Add(1) {
-		case 1:
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("partial")[0]
-				select {
-				case <-streamStarted:
-				default:
-					close(streamStarted)
-				}
-				<-req.Context().Done()
-				select {
-				case <-interrupted:
-				default:
-					close(interrupted)
-				}
-				<-allowFinish
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		case 2:
-			select {
-			case secondRequestStarted <- struct{}{}:
-			default:
-			}
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("second run partial")[0]
-				select {
-				case <-allowSecondRequestFinish:
-				case <-req.Context().Done():
-				}
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		case 3:
-			select {
-			case thirdRequestStarted <- struct{}{}:
-			default:
-			}
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("third run partial")[0]
-				select {
-				case <-allowThirdRequestFinish:
-				case <-req.Context().Done():
-				}
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.Clock = clock
-		// Keep periodic polling frozen so request handoff is synchronized
-		// through explicit mock channels.
-		cfg.PendingChatAcquireInterval = time.Hour
-		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
-	})
-
-	user, org, model := seedChatDependencies(t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "interrupt-autopromote-limit",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	testutil.TryReceive(ctx, t, streamStarted)
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	testutil.TryReceive(ctx, t, interrupted)
-
-	close(allowFinish)
-	testutil.TryReceive(ctx, t, secondRequestStarted)
-
-	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
-	})
-	require.NoError(t, err)
-	require.True(t, laterQueuedResult.Queued)
-	require.NotNil(t, laterQueuedResult.QueuedMessage)
-
-	spendChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "other-spend",
-	})
-
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("spent elsewhere"),
-	})
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          spendChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-
-	close(allowSecondRequestFinish)
-	testutil.TryReceive(ctx, t, thirdRequestStarted)
-	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
-
-	close(allowThirdRequestFinish)
-	chatd.WaitUntilIdleForTest(server)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-
-	userTexts := make([]string, 0, 3)
-	for _, message := range messages {
-		if message.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		sdkMessage := db2sdk.ChatMessage(message)
-		if len(sdkMessage.Content) != 1 {
-			continue
-		}
-		userTexts = append(userTexts, sdkMessage.Content[0].Text)
-	}
-	require.Equal(t, []string{"hello", "queued", "later queued"}, userTexts)
-}
-
-func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "edit-limit-reached",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
-	})
-	require.NoError(t, err)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	editedMessageID := messages[0].ID
-
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("assistant"),
-	})
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-
-	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		EditedMessageID: editedMessageID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
-	})
-	require.Error(t, err)
-
-	var limitErr *chatd.UsageLimitExceededError
-	require.ErrorAs(t, err, &limitErr)
-	require.Equal(t, int64(100), limitErr.LimitMicros)
-	require.Equal(t, int64(100), limitErr.ConsumedMicros)
-
-	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	originalMessage := db2sdk.ChatMessage(messages[0])
-	require.Len(t, originalMessage.Content, 1)
-	require.Equal(t, "original", originalMessage.Content[0].Text)
 }
 
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
@@ -5660,112 +5329,12 @@ func TestActiveServer_Compaction(t *testing.T) {
 	})
 }
 
-func TestCompactChat(t *testing.T) {
-	t.Parallel()
-
-	setupAtLimitChat := func(
-		t *testing.T,
-		status database.ChatStatus,
-		compactable bool,
-	) (context.Context, database.Store, *chatd.Server, database.Chat) {
-		t.Helper()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-		server := newTestServer(t, db, ps, uuid.New())
-
-		_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-			Enabled:            true,
-			DefaultLimitMicros: 100,
-			Period:             string(codersdk.ChatUsageLimitPeriodDay),
-		})
-		require.NoError(t, err)
-
-		spendChat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
-		})
-		spendContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("spent usage"),
-		})
-		require.NoError(t, err)
-		dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:          spendChat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-			Role:            database.ChatMessageRoleAssistant,
-			ContentVersion:  chatprompt.CurrentContentVersion,
-			Content:         spendContent,
-			TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-		})
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
-			Status:            status,
-		})
-		if compactable {
-			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("assistant response"),
-			})
-			require.NoError(t, err)
-			dbgen.ChatMessage(t, db, database.ChatMessage{
-				ChatID:         chat.ID,
-				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-				Role:           database.ChatMessageRoleAssistant,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				Content:        assistantContent,
-			})
-		}
-
-		return ctx, db, server, chat
-	}
-
-	t.Run("usage limit rejects compactable idle chat", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, db, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, true)
-		_, err := server.CompactChat(ctx, chat)
-
-		var limitErr *chatd.UsageLimitExceededError
-		require.ErrorAs(t, err, &limitErr)
-		refreshed, err := db.GetChatByID(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
-		require.False(t, refreshed.CompactionRequestedAt.Valid)
-	})
-
-	t.Run("nothing to compact precedes usage limit", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, false)
-		_, err := server.CompactChat(ctx, chat)
-
-		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
-		var limitErr *chatd.UsageLimitExceededError
-		require.False(t, errors.As(err, &limitErr))
-	})
-
-	t.Run("state conflict precedes usage limit", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusRunning, true)
-		_, err := server.CompactChat(ctx, chat)
-
-		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
-		var limitErr *chatd.UsageLimitExceededError
-		require.False(t, errors.As(err, &limitErr))
-	})
-}
-
 func TestActiveServer_ManualCompaction(t *testing.T) {
 	t.Parallel()
 
 	const compactionSummary = "manual compaction summary"
 
-	t.Run("compacts below threshold and returns to waiting", func(t *testing.T) {
+	t.Run("compacts below threshold and returns to waiting without hooks", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5813,7 +5382,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 			"compaction commit must consume the request marker")
 		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
 		require.Equal(t, int32(1), streamCount.Load(),
-			"manual compaction must not trigger an assistant follow-up")
+			"manual compaction alone must not trigger an assistant follow-up")
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -8424,7 +7993,7 @@ func insertChatMessageParts(
 	messages, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	return messages[0]
+	return database.ChatMessage(messages[0])
 }
 
 func createPlanSubagentChatWithHistory(

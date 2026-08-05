@@ -49,7 +49,7 @@ export const TotalAndBlockedKeyboard: Story = {
 		await userEvent.tab();
 		await waitFor(() => {
 			const tooltip = screen.getByRole("tooltip");
-			expect(tooltip).toHaveTextContent("Total calls");
+			expect(tooltip).toHaveTextContent("Total requests");
 			expect(tooltip).toHaveTextContent("Blocked");
 		});
 	},
@@ -66,7 +66,7 @@ export const DisabledKeyboard: Story = {
 		await userEvent.keyboard("{Enter}");
 		await waitFor(() =>
 			expect(screen.getByRole("dialog")).toHaveTextContent(
-				"Network call monitoring was not active for this session.",
+				"Network request monitoring was not active for this session.",
 			),
 		);
 	},

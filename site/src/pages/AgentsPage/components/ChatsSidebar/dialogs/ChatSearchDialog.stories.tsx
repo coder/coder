@@ -112,7 +112,6 @@ const meta: Meta<typeof ChatSearchDialog> = {
 				{ path: "/agents/:agentId", useStoryElement: true },
 				{ path: "/agents/settings", useStoryElement: true },
 				{ path: "/agents/settings/personal-skills", useStoryElement: true },
-				{ path: "/agents/analytics", useStoryElement: true },
 			],
 		}),
 	},

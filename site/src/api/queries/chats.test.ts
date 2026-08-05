@@ -17,8 +17,6 @@ import {
 	chatAdvisorConfigKey,
 	chatCost,
 	chatCostKey,
-	chatCostSummary,
-	chatCostSummaryKey,
 	chatDebugRunsKey,
 	chatDiffContentsKey,
 	chatKey,
@@ -35,7 +33,6 @@ import {
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
-	paginatedChatCostUsers,
 	pinChat,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
@@ -62,8 +59,6 @@ vi.mock("#/api/api", () => ({
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatCost: vi.fn(),
-			getChatCostSummary: vi.fn(),
-			getChatCostUsers: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -207,10 +202,6 @@ describe("invalidateChatListQueries", () => {
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
-		queryClient.setQueryData(
-			chatCostSummaryKey("me", undefined),
-			{} as TypesGen.ChatCostSummary,
-		);
 
 		await invalidateChatListQueries(queryClient);
 
@@ -237,11 +228,6 @@ describe("invalidateChatListQueries", () => {
 		expect(
 			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
 			"chatDiffContentsKey should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatCostSummaryKey("me", undefined))
-				?.isInvalidated,
-			"chatCostSummaryKey should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -847,32 +833,6 @@ describe("reorderPinnedChat", () => {
 });
 
 describe("chat cost query factories", () => {
-	it("builds the summary query key and forwards snake_case params", async () => {
-		const user = "user-1";
-		const params = {
-			start_date: "2025-01-01",
-			end_date: "2025-01-31",
-		};
-		vi.mocked(API.experimental.getChatCostSummary).mockResolvedValue(
-			{} as TypesGen.ChatCostSummary,
-		);
-
-		const query = chatCostSummary(user, params);
-
-		expect(chatCostSummaryKey(user, params)).toEqual([
-			"chats",
-			"costSummary",
-			user,
-			params,
-		]);
-		expect(query.queryKey).toEqual(["chats", "costSummary", user, params]);
-		await query.queryFn();
-		expect(API.experimental.getChatCostSummary).toHaveBeenCalledWith(
-			user,
-			params,
-		);
-	});
-
 	it("builds the per-chat cost query key and forwards the chat id", async () => {
 		const chatId = "chat-1";
 		vi.mocked(API.experimental.getChatCost).mockResolvedValue(
@@ -885,44 +845,6 @@ describe("chat cost query factories", () => {
 		expect(query.queryKey).toEqual(["chats", chatId, "cost"]);
 		await query.queryFn();
 		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
-	});
-
-	it("builds paginated cost users query with correct key and coerces empty username", async () => {
-		const payload = {
-			start_date: "2025-01-01",
-			end_date: "2025-01-31",
-			username: "",
-		};
-		vi.mocked(API.experimental.getChatCostUsers).mockResolvedValue(
-			{} as TypesGen.ChatCostUsersResponse,
-		);
-		const result = paginatedChatCostUsers(payload);
-
-		// queryPayload returns the original payload.
-		const pageParams = {
-			pageNumber: 2,
-			limit: 25,
-			offset: 25,
-			searchParams: new URLSearchParams(),
-		};
-		expect(result.queryPayload(pageParams)).toEqual(payload);
-
-		// queryKey includes the payload and page number.
-		const key = result.queryKey({ ...pageParams, payload });
-		expect(key).toEqual(["chats", "costUsers", payload, 2]);
-
-		// queryFn coerces empty username to undefined.
-		// Cast needed because PaginatedQueryFnContext includes
-		// react-query internal fields that aren't relevant here.
-		await (
-			result.queryFn as (params: Record<string, unknown>) => Promise<unknown>
-		)({
-			...pageParams,
-			payload,
-		});
-		expect(API.experimental.getChatCostUsers).toHaveBeenCalledWith(
-			expect.objectContaining({ username: undefined, limit: 25, offset: 25 }),
-		);
 	});
 });
 
@@ -953,18 +875,12 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
 		// Diff contents: ["chats", chatId, "diff-contents"]
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
-		// Cost summary: ["chats", "costSummary", "me", undefined]
-		queryClient.setQueryData(
-			chatCostSummaryKey("me", undefined),
-			{} as TypesGen.ChatCostSummary,
-		);
 	};
 
 	/** Keys that should NEVER be invalidated by chat message mutations
 	 *  because they are completely unrelated to the message flow. */
 	const unrelatedKeys = (chatId: string) => [
 		{ label: "diff-contents", key: chatDiffContentsKey(chatId) },
-		{ label: "cost-summary", key: chatCostSummaryKey("me", undefined) },
 	];
 
 	it("createChatMessage does not invalidate unrelated queries", async () => {

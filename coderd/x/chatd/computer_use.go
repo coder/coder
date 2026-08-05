@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -66,7 +65,7 @@ func (p *Server) resolveComputerUseModel(
 	computerUseModelName string,
 	modelOpts modelBuildOptions,
 ) (
-	model fantasy.LanguageModel,
+	model chatprovider.Model,
 	debugEnabled bool,
 	resolvedProvider string,
 	resolvedModel string,
@@ -77,7 +76,7 @@ func (p *Server) resolveComputerUseModel(
 		computerUseModelProvider,
 	)
 	if err != nil {
-		return nil, false, "", "", xerrors.Errorf(
+		return chatprovider.Model{}, false, "", "", xerrors.Errorf(
 			"resolve computer use model metadata for provider %q model %q: %w",
 			computerUseProvider,
 			computerUseModelName,
@@ -92,7 +91,7 @@ func (p *Server) resolveComputerUseModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		return nil, false, "", "", xerrors.Errorf(
+		return chatprovider.Model{}, false, "", "", xerrors.Errorf(
 			"resolve computer use model for provider %q model %q: %w",
 			computerUseProvider,
 			computerUseModelName,
