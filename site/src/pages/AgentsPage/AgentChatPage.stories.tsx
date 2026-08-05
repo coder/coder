@@ -3062,20 +3062,14 @@ export const SendResponseAfterChatSwitch: Story = {
 	},
 };
 
-const queryErrorChat: TypesGen.Chat = {
+const mockErrorChat: TypesGen.Chat = {
 	...MockChat,
 	id: CHAT_ID,
 	...baseChatFields,
 	title: "Failing chat",
 };
 
-const queryErrorMessages: TypesGen.ChatMessagesResponse = {
-	messages: [],
-	queued_messages: [],
-	has_more: false,
-};
-
-const serverError = {
+const mockServerError = {
 	...mockApiError({ message: "Internal server error." }),
 	status: 500,
 };
@@ -3088,12 +3082,16 @@ const withoutQuery = (
 export const DetailQueryError: Story = {
 	parameters: {
 		queries: withoutQuery(
-			buildQueries(queryErrorChat, queryErrorMessages),
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 			chatKey(CHAT_ID),
 		),
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "getChat").mockRejectedValue(serverError);
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3108,12 +3106,18 @@ export const DetailQueryError: Story = {
 export const InitialMessagesError: Story = {
 	parameters: {
 		queries: withoutQuery(
-			buildQueries(queryErrorChat, queryErrorMessages),
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 			chatMessagesKey(CHAT_ID),
 		),
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "getChatMessages").mockRejectedValue(serverError);
+		spyOn(API.experimental, "getChatMessages").mockRejectedValue(
+			mockServerError,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3125,14 +3129,18 @@ export const InitialMessagesError: Story = {
 export const ErrorRetryRecovers: Story = {
 	parameters: {
 		queries: withoutQuery(
-			buildQueries(queryErrorChat, queryErrorMessages),
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 			chatKey(CHAT_ID),
 		),
 	},
 	beforeEach: ({ parameters }) => {
 		const getChatSpy = spyOn(API.experimental, "getChat")
-			.mockRejectedValueOnce(serverError)
-			.mockResolvedValue(queryErrorChat);
+			.mockRejectedValueOnce(mockServerError)
+			.mockResolvedValue(mockErrorChat);
 		parameters.getChatCallsForChat = () =>
 			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
 	},
@@ -3151,7 +3159,11 @@ export const ErrorRetryRecovers: Story = {
 export const ChatNotFound: Story = {
 	parameters: {
 		queries: withoutQuery(
-			buildQueries(queryErrorChat, queryErrorMessages),
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 			chatKey(CHAT_ID),
 		),
 	},
