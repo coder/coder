@@ -191,6 +191,11 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 	// Capacity-refused chats remain candidates, so each batch must exclude
 	// prior attempts or a full pool would hide all later candidates.
 	excludeIDs := []uuid.UUID{}
+	// One refusal proves a pool full for the rest of the pass: later
+	// running chats in that pool are queue-marked without an acquisition
+	// attempt. Keyed by parent_chat_id presence (false = root pool,
+	// true = subagent pool).
+	refusedPools := map[bool]bool{}
 	for {
 		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 			StaleSeconds: w.opts.HeartbeatStaleSeconds,
@@ -206,16 +211,33 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		if len(rows) == 0 {
 			return
 		}
+		progressed := false
 		for _, row := range rows {
 			excludeIDs = append(excludeIDs, row.ID)
-			if err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID); err != nil {
+			if row.Status == database.ChatStatusRunning && refusedPools[row.ParentChatID.Valid] {
+				if !row.CapacityQueuedAt.Valid {
+					progressed = true
+					w.markCapacityQueued(ctx, row.ID)
+				}
+				continue
+			}
+			progressed = true
+			err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
+			if errors.Is(err, errCapacityRefused) {
+				refusedPools[row.ParentChatID.Valid] = true
+				continue
+			}
+			if err != nil {
 				if ctx.Err() != nil {
 					return
 				}
 				w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
 			}
 		}
-		if len(rows) < int(w.opts.AcquisitionBatchSize) {
+		// A batch of nothing but re-skipped queued chats means every
+		// admittable candidate was already tried: the query sorts
+		// bypassing statuses and each pool's oldest chats first.
+		if !progressed || len(rows) < int(w.opts.AcquisitionBatchSize) {
 			return
 		}
 	}
@@ -299,7 +321,7 @@ func (w *chatWorker) acquireCandidate(
 	})
 	if errors.Is(err, errCapacityRefused) {
 		w.markCapacityQueued(ctx, chatID)
-		return nil
+		return errCapacityRefused
 	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
 		return nil

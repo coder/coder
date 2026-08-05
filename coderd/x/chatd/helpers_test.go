@@ -148,6 +148,25 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 	return res.Chat
 }
 
+func (f *workerTestFixture) createRunningSubagentChat(t *testing.T, parentID uuid.UUID) database.Chat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		LastModelConfigID: f.model.ID,
+		Title:             "subagent",
+		ClientType:        database.ChatClientTypeApi,
+		ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parentID, Valid: true},
+		InitialMessages: []chatstate.Message{
+			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+		},
+	})
+	require.NoError(t, err)
+	return res.Chat
+}
+
 func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
