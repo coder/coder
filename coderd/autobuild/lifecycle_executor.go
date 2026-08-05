@@ -382,9 +382,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							Old: wsOld.WorkspaceTable(),
 							New: wsNew,
 						}
-						// To keep the `ws` accurate without doing a sql fetch.
-						// deleting_at is computed by the UPDATE from the template's
-						// time_til_dormant_autodelete.
+						// Keep `ws` accurate without a sql fetch. The UPDATE derives
+						// deleting_at from the template's time_til_dormant_autodelete.
 						ws.DormantAt = wsNew.DormantAt
 						ws.DeletingAt = wsNew.DeletingAt
 
@@ -470,10 +469,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					// The notification body renders this label inside the
-					// "will be automatically deleted in ..." sentence, so it
-					// must carry the auto-delete countdown. When auto-delete is
-					// disabled there is no deadline, so use generic wording.
+					// The body renders this label in its "will be automatically
+					// deleted in ..." sentence, so it must carry the auto-delete
+					// countdown, or generic wording when there is no deadline.
 					timeTilDelete := "line with your template's auto-deletion policy"
 					if ws.DeletingAt.Valid {
 						timeTilDelete = humanize.Time(ws.DeletingAt.Time)

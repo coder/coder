@@ -1515,10 +1515,9 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil {
-			// The notification body renders this label inside the
-			// "will be automatically deleted in ..." sentence, so it must
-			// carry the auto-delete countdown. When auto-delete is disabled
-			// there is no deadline, so use generic wording.
+			// The body renders this label in its "will be automatically
+			// deleted in ..." sentence, so it must carry the auto-delete
+			// countdown, or generic wording when there is no deadline.
 			timeTilDelete := "line with your template's auto-deletion policy"
 			if newWorkspace.DeletingAt.Valid {
 				timeTilDelete = humanize.Time(newWorkspace.DeletingAt.Time)

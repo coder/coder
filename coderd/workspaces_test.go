@@ -5156,8 +5156,6 @@ func TestWorkspaceNotifications(t *testing.T) {
 			require.Contains(t, sent[0].Targets, workspace.ID)
 			require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 			require.Contains(t, sent[0].Targets, workspace.OwnerID)
-			// Auto-delete is not configured, so the label must fall back to
-			// generic wording instead of promising a deletion time.
 			require.Equal(t, "line with your template's auto-deletion policy", sent[0].Labels["timeTilDormant"])
 		})
 
@@ -5167,18 +5165,13 @@ func TestWorkspaceNotifications(t *testing.T) {
 			// Given
 			var (
 				notifyEnq = &notificationstest.FakeEnqueuer{}
-				// 35 days sits solidly inside humanize.Time's "1 month"
-				// bucket (between 30 and 60 days), so the rendered label is
-				// deterministic regardless of microsecond-level timing
-				// differences.
+				// 35 days keeps humanize.Time deterministically in its "1 month" bucket.
 				timeTilDormantAutoDelete = 35 * 24 * time.Hour
 				client                   = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
-					// AGPL templateScheduleStore drops TimeTilDormantAutoDelete
-					// when Set runs. The mock propagates it into the template
-					// row so the UPDATE in UpdateWorkspaceDormantDeletingAt
-					// can compute deleting_at.
+					// The AGPL store ignores TimeTilDormantAutoDelete, so the mock
+					// writes it to the template row for deleting_at computation.
 					TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 						SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 							template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)

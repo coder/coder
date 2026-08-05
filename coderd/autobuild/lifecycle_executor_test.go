@@ -1337,8 +1337,6 @@ func TestNotifications(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 
-		// Auto-delete is not configured, so the label must fall back to
-		// generic wording instead of promising a deletion time.
 		require.Equal(t, "line with your template's auto-deletion policy", sent[0].Labels["timeTilDormant"])
 		require.Equal(t, workspace.Name, sent[0].Labels["name"])
 		require.Equal(t, "inactivity exceeded the dormancy threshold", sent[0].Labels["reason"])
@@ -1347,14 +1345,11 @@ func TestNotifications(t *testing.T) {
 	t.Run("DormancyAutoDelete", func(t *testing.T) {
 		t.Parallel()
 
-		// Setup template with dormancy and auto-delete and create a workspace
-		// with it. The two durations are intentionally far apart to reliably
-		// check what's rendered in the notification.
 		var (
 			ticker    = make(chan time.Time)
 			statCh    = make(chan autobuild.Stats)
 			notifyEnq = notificationstest.FakeEnqueuer{}
-			// 35 days is inside humanize.Time's "1 month" bucket (between 30 and 60 days).
+			// 35 days keeps humanize.Time deterministically in its "1 month" bucket.
 			timeTilDormant           = time.Minute
 			timeTilDormantAutoDelete = 35 * 24 * time.Hour
 			client, db               = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1393,27 +1388,21 @@ func TestNotifications(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
-		// Stop workspace
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
 
-		// Wait for workspace to become dormant
 		notifyEnq.Clear()
 		tickTime := workspace.LastUsedAt.Add(timeTilDormant * 3)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		ticker <- tickTime
 		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
 
-		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NotNil(t, workspace.DormantAt)
 
-		// The label must render the deletion countdown from the template's
-		// `time_til_dormant_autodelete` value. With auto-delete at 35 days and
-		// dormancy at 1 minute, humanize.Time renders it as "1 month from now".
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 1)
 		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
