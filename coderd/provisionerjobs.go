@@ -356,25 +356,6 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	httpapi.Write(ctx, rw, http.StatusOK, apiResources)
 }
 
-func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {
-	sdk := make([]codersdk.ProvisionerJobLog, 0, len(provisionerJobLogs))
-	for _, log := range provisionerJobLogs {
-		sdk = append(sdk, convertProvisionerJobLog(log))
-	}
-	return sdk
-}
-
-func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
-	return codersdk.ProvisionerJobLog{
-		ID:        provisionerJobLog.ID,
-		CreatedAt: provisionerJobLog.CreatedAt,
-		Source:    codersdk.LogSource(provisionerJobLog.Source),
-		Level:     codersdk.LogLevel(provisionerJobLog.Level),
-		Stage:     provisionerJobLog.Stage,
-		Output:    provisionerJobLog.Output,
-	}
-}
-
 func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
 	provisionerJob := pj.ProvisionerJob
 	job := codersdk.ProvisionerJob{
@@ -466,7 +447,7 @@ func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, 
 		}
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ConvertProvisionerJobLogs(logs))
 }
 
 func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
@@ -690,7 +671,7 @@ func (f *logFollower) query(watchCtx context.Context) error {
 		return xerrors.Errorf("error fetching logs: %w", err)
 	}
 	for _, log := range logs {
-		err := f.enc.Encode(convertProvisionerJobLog(log))
+		err := f.enc.Encode(db2sdk.ConvertProvisionerJobLog(log))
 		if err != nil {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}

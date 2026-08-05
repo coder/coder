@@ -3,7 +3,9 @@ package workspaceconnwatcher
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"sync"
 
@@ -11,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -19,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/websocket"
 )
 
@@ -33,18 +37,21 @@ type Watcher struct {
 	wg     sync.WaitGroup
 	closed bool
 
-	connCtx     context.Context
-	conn        *websocket.Conn
-	enc         *wsjson.Encoder[workspacesdk.ConnectionWatchEvent]
-	workspaceID uuid.UUID
-	events      chan event
-	agentName   string
-	lastBuild   database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
+	connCtx         context.Context
+	conn            *websocket.Conn
+	enc             *wsjson.Encoder[workspacesdk.ConnectionWatchEvent]
+	workspaceID     uuid.UUID
+	events          chan event
+	agentName       string
+	lastBuild       database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
+	jobLogSubCancel context.CancelFunc
+	lastLogID       int64
 }
 
 type event struct {
-	sync    bool
-	wsEvent *wspubsub.WorkspaceEvent
+	sync         bool
+	wsEvent      *wspubsub.WorkspaceEvent
+	jobLogNotify *provisionersdk.ProvisionerJobLogsNotifyMessage
 }
 
 func New(ctx context.Context, logger slog.Logger, sub pubsub.Subscriber, db database.Store) *Watcher {
@@ -80,7 +87,7 @@ func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.
 	w.events <- event{sync: true} // init sync
 	cancelWorkspaceSubscribe, err := w.sub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 		wspubsub.HandleWorkspaceEvent(
-			func(ctx context.Context, payload wspubsub.WorkspaceEvent, err error) {
+			func(_ context.Context, payload wspubsub.WorkspaceEvent, err error) {
 				if err != nil {
 					// subscription error, resync
 					select {
@@ -160,6 +167,10 @@ func (w *Watcher) run() {
 	defer func() {
 		// this is a no-op if we have already closed for some other reason.
 		_ = w.enc.Close(websocket.StatusNormalClosure)
+		if w.jobLogSubCancel != nil {
+			w.jobLogSubCancel()
+			w.jobLogSubCancel = nil
+		}
 	}()
 
 	for {
@@ -193,6 +204,20 @@ func (w *Watcher) run() {
 					}
 				}
 			}
+			if e.jobLogNotify != nil {
+				if e.jobLogNotify.EndOfLogs {
+					// There aren't actually new logs, so we can ignore. Note that unlike a log stream, we should not
+					// be tearing things down here, since the end of build logs just means that the client of the stream
+					// will now be waiting additional build and agent updates.
+					continue
+				}
+				if e.jobLogNotify.CreatedAfter >= w.lastLogID {
+					// Newer logs are potentially available.
+					if !w.queryJobLogs() {
+						return
+					}
+				}
+			}
 		}
 	}
 }
@@ -218,11 +243,37 @@ func (w *Watcher) buildUpdate() bool {
 		})
 		return false
 	}
+	oldBuild := w.lastBuild
+	w.lastBuild = build
+	// We want to provide logs for builds we are waiting for. But, if the build job is already complete, don't bother
+	// sending logs.
+	if build.JobID != oldBuild.JobID && build.JobStatus != database.ProvisionerJobStatusSucceeded {
+		err = w.subscribeToJobLogs()
+		if err != nil {
+			w.errorThenClose(workspacesdk.WatchError{
+				Code:      workspacesdk.WatchErrorDatabase,
+				Retryable: false,
+				Message:   "failed to subscribe to build job logs",
+				Details:   err.Error(),
+			})
+			return false
+		}
+	}
 
-	if build.BuildNumber != w.lastBuild.BuildNumber ||
-		build.JobStatus != w.lastBuild.JobStatus ||
-		build.Transition != w.lastBuild.Transition {
-		w.lastBuild = build
+	if build.BuildNumber != oldBuild.BuildNumber ||
+		build.JobStatus != oldBuild.JobStatus ||
+		build.Transition != oldBuild.Transition {
+		if build.Transition == database.WorkspaceTransitionStart &&
+			build.JobStatus == database.ProvisionerJobStatusSucceeded &&
+			// Only if we have previously subscribed.
+			w.jobLogSubCancel != nil {
+			// Before we send the update about a successful build, do one last query of the job log to ensure we haven't
+			// missed any, since they logically precede the job completing.
+			if !w.queryJobLogs() {
+				return false
+			}
+		}
+
 		err = w.enc.Encode(workspacesdk.ConnectionWatchEvent{BuildUpdate: &workspacesdk.BuildUpdate{
 			Transition: codersdk.WorkspaceTransition(build.Transition),
 			JobStatus:  codersdk.ProvisionerJobStatus(build.JobStatus),
@@ -318,4 +369,79 @@ func (w *Watcher) errorThenClose(err workspacesdk.WatchError) {
 	_ = w.enc.Encode(workspacesdk.ConnectionWatchEvent{Error: &err})
 	// ignore encoding errors above because in any case, we are going to close the connection.
 	_ = w.conn.Close(websocket.StatusNormalClosure, "error")
+	if w.jobLogSubCancel != nil {
+		w.jobLogSubCancel()
+		w.jobLogSubCancel = nil
+	}
+}
+
+func (w *Watcher) subscribeToJobLogs() error {
+	// restart the logID, since we are subscribing to a new job ID, and log IDs are scoped to the job.
+	w.lastLogID = 0
+	if w.jobLogSubCancel != nil {
+		w.jobLogSubCancel()
+	}
+	var err error
+	w.jobLogSubCancel, err = w.sub.SubscribeWithErr(
+		provisionersdk.ProvisionerJobLogsNotifyChannel(w.lastBuild.JobID),
+		w.jobLogListener)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Watcher) jobLogListener(_ context.Context, message []byte, err error) {
+	n := new(provisionersdk.ProvisionerJobLogsNotifyMessage)
+	if err == nil {
+		err = json.Unmarshal(message, &n)
+	}
+	if err != nil {
+		// This means there was a problem with the pubsub, like a disconnection, or with decoding. In either case we
+		// don't know if some new logs have arrived during the disconnection, so send a notify that will trigger a query
+		// of the latest.
+		n.CreatedAfter = math.MaxInt64
+		n.EndOfLogs = false
+	}
+	select {
+	case w.events <- event{jobLogNotify: n}:
+	case <-w.connCtx.Done():
+		return
+	}
+}
+
+func (w *Watcher) queryJobLogs() (ok bool) {
+	w.logger.Debug(w.connCtx, "querying logs", slog.F("after", w.lastLogID))
+	logs, err := w.db.GetProvisionerLogsAfterID(w.connCtx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        w.lastBuild.JobID,
+		CreatedAfter: w.lastLogID,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		details := err.Error()
+		retryable := true
+		if dbauthz.IsNotAuthorizedError(err) {
+			retryable = false
+			details = "unauthorized"
+		}
+		w.errorThenClose(workspacesdk.WatchError{
+			Code:      workspacesdk.WatchErrorDatabase,
+			Retryable: retryable,
+			Message:   "failed to fetch build logs",
+			Details:   details,
+		})
+		return false
+	}
+	for _, log := range logs {
+		sdkLog := db2sdk.ConvertProvisionerJobLog(log)
+		err = w.enc.Encode(workspacesdk.ConnectionWatchEvent{JobLog: &sdkLog})
+		if err != nil {
+			// probably this is just that the connection is closed, but in case there is some actual JSON serialization
+			// error, send a close frame.
+			_ = w.conn.Close(websocket.StatusInternalError, "failed to encode agent update")
+			return false
+		}
+		w.lastLogID = log.ID
+		w.logger.Debug(w.connCtx, "wrote log to websocket", slog.F("id", log.ID))
+	}
+	return true
 }

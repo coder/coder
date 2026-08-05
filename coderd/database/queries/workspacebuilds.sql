@@ -307,7 +307,7 @@ WHERE
 
 -- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
 SELECT
-	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	workspace_builds.transition, workspace_builds.build_number, workspace_builds.job_id, provisioner_jobs.job_status,
 	sqlc.embed(workspaces) -- Used for dbauthz fetch() checks
 FROM
 	workspace_builds

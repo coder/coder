@@ -2242,3 +2242,22 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	}
 	return metadata
 }
+
+func ConvertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {
+	sdk := make([]codersdk.ProvisionerJobLog, 0, len(provisionerJobLogs))
+	for _, log := range provisionerJobLogs {
+		sdk = append(sdk, ConvertProvisionerJobLog(log))
+	}
+	return sdk
+}
+
+func ConvertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
+	return codersdk.ProvisionerJobLog{
+		ID:        provisionerJobLog.ID,
+		CreatedAt: provisionerJobLog.CreatedAt,
+		Source:    codersdk.LogSource(provisionerJobLog.Source),
+		Level:     codersdk.LogLevel(provisionerJobLog.Level),
+		Stage:     provisionerJobLog.Stage,
+		Output:    provisionerJobLog.Output,
+	}
+}

@@ -1929,6 +1929,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
     "details": "string",
     "message": "string",
     "retryable": true
+  },
+  "job_log": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "log_level": "trace",
+    "log_source": "provisioner_daemon",
+    "output": "string",
+    "stage": "string"
   }
 }
 ```

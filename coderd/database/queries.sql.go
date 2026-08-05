@@ -36726,7 +36726,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 
 const getLatestWorkspaceBuildWithStatusByWorkspaceID = `-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
 SELECT
-	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	workspace_builds.transition, workspace_builds.build_number, workspace_builds.job_id, provisioner_jobs.job_status,
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl -- Used for dbauthz fetch() checks
 FROM
 	workspace_builds
@@ -36746,6 +36746,7 @@ ORDER BY
 type GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow struct {
 	Transition     WorkspaceTransition  `db:"transition" json:"transition"`
 	BuildNumber    int32                `db:"build_number" json:"build_number"`
+	JobID          uuid.UUID            `db:"job_id" json:"job_id"`
 	JobStatus      ProvisionerJobStatus `db:"job_status" json:"job_status"`
 	WorkspaceTable WorkspaceTable       `db:"workspace_table" json:"workspace_table"`
 }
@@ -36756,6 +36757,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.
 	err := row.Scan(
 		&i.Transition,
 		&i.BuildNumber,
+		&i.JobID,
 		&i.JobStatus,
 		&i.WorkspaceTable.ID,
 		&i.WorkspaceTable.CreatedAt,

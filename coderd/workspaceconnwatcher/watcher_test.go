@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 )
@@ -35,6 +36,7 @@ var (
 	userID      = uuid.UUID{2}
 	orgID       = uuid.UUID{3}
 	agentID     = uuid.UUID{4}
+	jobID       = uuid.UUID{5}
 )
 
 type harness struct {
@@ -45,6 +47,7 @@ type harness struct {
 
 	// Initialized, but overridable before Dial()
 	workspace     database.Workspace
+	job           database.ProvisionerJob
 	userID, orgID uuid.UUID
 }
 
@@ -58,6 +61,10 @@ func newHarness(ctx context.Context, t *testing.T, logger slog.Logger) *harness 
 		orgID:  orgID,
 		userID: userID,
 		logger: logger,
+		job: database.ProvisionerJob{
+			ID:   jobID,
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		},
 	}
 	ps := pubsub.NewInMemory()
 	h.pub = ps
@@ -93,6 +100,19 @@ func (h *harness) Dial(ctx context.Context, url string) (*wsjson.Decoder[workspa
 	dec := wsjson.NewDecoder[workspacesdk.ConnectionWatchEvent](
 		clientSock, websocket.MessageText, h.logger.Named("decoder"))
 	return dec, nil
+}
+
+// expectRBAC sets the database to expect RBAC queries for the workspace, agent, and provisioner logs
+func (h *harness) expectRBAC() {
+	h.db.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).
+		AnyTimes().
+		Return(h.job, nil)
+	h.db.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), h.job.ID).
+		AnyTimes().
+		Return(database.WorkspaceBuild{JobID: h.job.ID, WorkspaceID: h.workspace.ID}, nil)
+	h.db.EXPECT().GetWorkspaceByID(gomock.Any(), h.workspace.ID).
+		AnyTimes(). // these queries are identical between the initial and the update below
+		Return(h.workspace, nil)
 }
 
 func TestWatcher_Agents(t *testing.T) {
@@ -207,6 +227,7 @@ func TestWatcher_Agents(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			logger := testutil.Logger(t)
 			h := newHarness(ctx, t, logger)
+			h.expectRBAC()
 
 			h.db.EXPECT().GetLatestWorkspaceBuildWithStatusByWorkspaceID(gomock.Any(), h.workspace.ID).
 				Times(1).
@@ -214,16 +235,13 @@ func TestWatcher_Agents(t *testing.T) {
 					Transition:  database.WorkspaceTransitionStart,
 					BuildNumber: 1,
 					JobStatus:   database.ProvisionerJobStatusSucceeded,
+					JobID:       h.job.ID,
 					WorkspaceTable: database.WorkspaceTable{
 						ID:             h.workspace.ID,
 						OwnerID:        userID,
 						OrganizationID: orgID,
 					},
 				}, nil)
-			// RBAC check for agent query
-			h.db.EXPECT().GetWorkspaceByID(gomock.Any(), h.workspace.ID).
-				Times(1).
-				Return(h.workspace, nil)
 			h.db.EXPECT().GetWorkspaceAgentsByWorkspaceAndBuildNumber(
 				gomock.Any(),
 				database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
@@ -303,6 +321,7 @@ func TestWatcher_PublishChanges(t *testing.T) {
 			Transition:  database.WorkspaceTransitionStart,
 			BuildNumber: 1,
 			JobStatus:   database.ProvisionerJobStatusRunning,
+			JobID:       h.job.ID,
 			WorkspaceTable: database.WorkspaceTable{
 				ID:             h.workspace.ID,
 				OwnerID:        userID,
@@ -334,17 +353,24 @@ func TestWatcher_PublishChanges(t *testing.T) {
 			Transition:  database.WorkspaceTransitionStart,
 			BuildNumber: 1,
 			JobStatus:   database.ProvisionerJobStatusSucceeded,
+			JobID:       h.job.ID,
 			WorkspaceTable: database.WorkspaceTable{
 				ID:             h.workspace.ID,
 				OwnerID:        userID,
 				OrganizationID: orgID,
 			},
 		}, nil)
-	// RBAC check for agent query
-	h.db.EXPECT().GetWorkspaceByID(gomock.Any(), h.workspace.ID).
+
+	// Logs query
+	h.db.EXPECT().GetProvisionerLogsAfterID(gomock.Any(),
+		database.GetProvisionerLogsAfterIDParams{JobID: h.job.ID, CreatedAfter: 0}).
 		After(build1).
-		Times(2). // these queries are identical between the initial and the update below
-		Return(h.workspace, nil)
+		Times(1).
+		Return([]database.ProvisionerJobLog{
+			{Output: "foo"},
+			{Output: "bar"},
+		}, nil)
+	h.expectRBAC()
 	agent0 := h.db.EXPECT().GetWorkspaceAgentsByWorkspaceAndBuildNumber(
 		gomock.Any(),
 		database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
@@ -369,6 +395,17 @@ func TestWatcher_PublishChanges(t *testing.T) {
 	err = h.pub.Publish(wspubsub.WorkspaceEventChannel(h.workspace.OwnerID), changeBytes)
 	require.NoError(t, err)
 
+	// Logs
+	l0 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "foo"},
+	}, l0)
+	l1 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "bar"},
+	}, l1)
+
+	// Build update
 	e1 := testutil.RequireReceive(ctx, t, events)
 	require.Equal(t, workspacesdk.ConnectionWatchEvent{
 		BuildUpdate: &workspacesdk.BuildUpdate{
@@ -376,6 +413,8 @@ func TestWatcher_PublishChanges(t *testing.T) {
 			JobStatus:  codersdk.ProvisionerJobSucceeded,
 		},
 	}, e1)
+
+	// Agent update
 	e2 := testutil.RequireReceive(ctx, t, events)
 	require.Equal(t, workspacesdk.ConnectionWatchEvent{AgentUpdate: &workspacesdk.AgentUpdate{
 		ID:        agentID,
@@ -413,6 +452,168 @@ func TestWatcher_PublishChanges(t *testing.T) {
 		ID:        agentID,
 		Lifecycle: codersdk.WorkspaceAgentLifecycleReady,
 	}}, e3)
+}
+
+func TestWatcher_SubscribesToLogs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	h := newHarness(ctx, t, logger)
+	h.expectRBAC()
+
+	// Initial build update, job is running.
+	build0 := h.db.EXPECT().GetLatestWorkspaceBuildWithStatusByWorkspaceID(gomock.Any(), h.workspace.ID).
+		Times(1).
+		Return(database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow{
+			Transition:  database.WorkspaceTransitionStart,
+			BuildNumber: 1,
+			JobStatus:   database.ProvisionerJobStatusRunning,
+			JobID:       h.job.ID,
+			WorkspaceTable: database.WorkspaceTable{
+				ID:             h.workspace.ID,
+				OwnerID:        userID,
+				OrganizationID: orgID,
+			},
+		}, nil)
+
+	dec, err := h.Dial(ctx, "wss://local.test/")
+	require.NoError(t, err)
+	defer func() {
+		_ = dec.Close()
+	}()
+	events := dec.Chan()
+
+	e0 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		BuildUpdate: &workspacesdk.BuildUpdate{
+			Transition: codersdk.WorkspaceTransitionStart,
+			JobStatus:  codersdk.ProvisionerJobRunning,
+		},
+	}, e0)
+
+	// Logs query
+	h.db.EXPECT().GetProvisionerLogsAfterID(gomock.Any(),
+		database.GetProvisionerLogsAfterIDParams{JobID: h.job.ID, CreatedAfter: 0}).
+		After(build0).
+		Times(1).
+		Return([]database.ProvisionerJobLog{
+			{Output: "foo", ID: 1},
+			{Output: "bar", ID: 2},
+		}, nil)
+
+	logMsg := provisionersdk.ProvisionerJobLogsNotifyMessage{
+		CreatedAfter: 0,
+		EndOfLogs:    false,
+	}
+	logBytes, err := json.Marshal(logMsg)
+	require.NoError(t, err)
+	err = h.pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(h.job.ID), logBytes)
+	require.NoError(t, err)
+
+	l1 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "foo", ID: 1},
+	}, l1)
+	l2 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "bar", ID: 2},
+	}, l2)
+
+	h.db.EXPECT().GetProvisionerLogsAfterID(gomock.Any(),
+		database.GetProvisionerLogsAfterIDParams{JobID: h.job.ID, CreatedAfter: 2}).
+		After(build0).
+		Times(1).
+		Return([]database.ProvisionerJobLog{
+			{Output: "baz", ID: 3},
+		}, nil)
+
+	// Second log notification triggers new query
+	logMsg.CreatedAfter = 2
+	logBytes, err = json.Marshal(logMsg)
+	require.NoError(t, err)
+	err = h.pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(h.job.ID), logBytes)
+	require.NoError(t, err)
+
+	l3 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "baz", ID: 3},
+	}, l3)
+
+	// Repeating the notification won't trigger any new queries, since we already have logs up to ID = 3
+	err = h.pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(h.job.ID), logBytes)
+	require.NoError(t, err)
+
+	// Similarly, a notification of end of logs does not trigger a new query
+	logMsg.CreatedAfter = 0
+	logMsg.EndOfLogs = true
+	logBytes, err = json.Marshal(logMsg)
+	require.NoError(t, err)
+	err = h.pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(h.job.ID), logBytes)
+	require.NoError(t, err)
+
+	// However, the successful build will trigger a new query
+	h.db.EXPECT().GetLatestWorkspaceBuildWithStatusByWorkspaceID(gomock.Any(), h.workspace.ID).
+		Times(1).
+		Return(database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow{
+			Transition:  database.WorkspaceTransitionStart,
+			BuildNumber: 1,
+			JobStatus:   database.ProvisionerJobStatusSucceeded,
+			JobID:       h.job.ID,
+			WorkspaceTable: database.WorkspaceTable{
+				ID:             h.workspace.ID,
+				OwnerID:        userID,
+				OrganizationID: orgID,
+			},
+		}, nil)
+	h.db.EXPECT().GetProvisionerLogsAfterID(gomock.Any(),
+		database.GetProvisionerLogsAfterIDParams{JobID: h.job.ID, CreatedAfter: 3}).
+		Times(1).
+		Return([]database.ProvisionerJobLog{
+			{Output: "buzz", ID: 4},
+		}, nil)
+	// And will also query the agent
+	h.db.EXPECT().GetWorkspaceAgentsByWorkspaceAndBuildNumber(
+		gomock.Any(),
+		database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: h.workspace.ID,
+			BuildNumber: 1,
+		}).
+		Times(1).
+		Return([]database.WorkspaceAgent{
+			{
+				Name:           "test",
+				ID:             agentID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			},
+		}, nil)
+
+	changeMsg := wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID: h.workspace.ID,
+	}
+	changeBytes, err := json.Marshal(changeMsg)
+	require.NoError(t, err)
+	err = h.pub.Publish(wspubsub.WorkspaceEventChannel(h.workspace.OwnerID), changeBytes)
+	require.NoError(t, err)
+
+	// Updates are final log, build, then agent
+	l4 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		JobLog: &codersdk.ProvisionerJobLog{Output: "buzz", ID: 4},
+	}, l4)
+	e1 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{
+		BuildUpdate: &workspacesdk.BuildUpdate{
+			Transition: codersdk.WorkspaceTransitionStart,
+			JobStatus:  codersdk.ProvisionerJobSucceeded,
+		},
+	}, e1)
+	e2 := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, workspacesdk.ConnectionWatchEvent{AgentUpdate: &workspacesdk.AgentUpdate{
+		ID:        agentID,
+		Lifecycle: codersdk.WorkspaceAgentLifecycleReady,
+	}}, e2)
 }
 
 func TestWatcher_ClosedBeforeDial(t *testing.T) {
