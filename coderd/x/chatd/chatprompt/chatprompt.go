@@ -97,10 +97,13 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 // FileIDs returns the deduplicated file IDs referenced by file parts.
 func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	var ids []uuid.UUID
-	seen := make(map[uuid.UUID]struct{})
+	var seen map[uuid.UUID]struct{}
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeFile || !part.FileID.Valid {
 			continue
+		}
+		if seen == nil {
+			seen = make(map[uuid.UUID]struct{})
 		}
 		if _, ok := seen[part.FileID.UUID]; ok {
 			continue
