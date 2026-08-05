@@ -1,0 +1,213 @@
+package chatd
+
+import (
+	"context"
+	"sync"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+)
+
+// fakeAdmission admits everything except chats explicitly refused.
+type fakeAdmission struct {
+	mu      sync.Mutex
+	refused map[uuid.UUID]bool
+}
+
+func newFakeAdmission() *fakeAdmission {
+	return &fakeAdmission{refused: make(map[uuid.UUID]bool)}
+}
+
+func (f *fakeAdmission) refuse(chatID uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refused[chatID] = true
+}
+
+func (f *fakeAdmission) allow(chatID uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.refused, chatID)
+}
+
+func (f *fakeAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return !f.refused[chat.ID], nil
+}
+
+func capacityQueuedAt(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) *database.Chat {
+	t.Helper()
+	chat, err := db.GetChatByID(ctx, chatID)
+	require.NoError(t, err)
+	return &chat
+}
+
+func chatOwnershipMessages(t *testing.T, ps *recordingPubsub, chatID uuid.UUID) int {
+	t.Helper()
+	count := 0
+	for _, msg := range ps.ownershipMessages(t) {
+		if msg.ChatID == chatID {
+			count++
+		}
+	}
+	return count
+}
+
+func capacityEvents(t *testing.T, ps *recordingPubsub, chatID uuid.UUID) []codersdk.ChatWatchEvent {
+	t.Helper()
+	events := make([]codersdk.ChatWatchEvent, 0)
+	for _, event := range ps.watchEvents(t) {
+		if event.Kind == codersdk.ChatWatchEventKindCapacityChange && event.Chat.ID == chatID {
+			events = append(events, event)
+		}
+	}
+	return events
+}
+
+func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = admission
+
+	chat := f.createRunningChat(t)
+	admission.refuse(chat.ID)
+	startWorker(t, opts)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.Eventually(t, func() bool {
+		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+	starter.assertNoCall(t)
+
+	events := capacityEvents(t, recording, chat.ID)
+	require.NotEmpty(t, events)
+	require.NotNil(t, events[len(events)-1].Chat.QueuedForCapacityAt)
+
+	// A refusal must not republish an ownership hint: the hint would
+	// wake every worker into an immediate re-refusal loop. The recorder
+	// wraps only the worker's pubsub, so any recorded hint would be the
+	// worker's own.
+	require.Equal(t, 0, chatOwnershipMessages(t, recording, chat.ID))
+}
+
+func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = admission
+
+	chat := f.createRunningChat(t)
+	admission.refuse(chat.ID)
+	worker := startWorker(t, opts)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.Eventually(t, func() bool {
+		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	admission.allow(chat.ID)
+	worker.Wake()
+
+	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Equal(t, chat.ID, call.input.ChatID)
+	require.False(t, capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid)
+
+	require.Eventually(t, func() bool {
+		events := capacityEvents(t, recording, chat.ID)
+		return len(events) >= 2 && events[len(events)-1].Chat.QueuedForCapacityAt == nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = admission
+	opts.AcquisitionBatchSize = 2
+
+	// Refused chats stay candidates, so with a batch of two the third
+	// chat is only reachable when the pass excludes attempted chats
+	// from later batches.
+	first := f.createRunningChat(t)
+	second := f.createRunningChat(t)
+	third := f.createRunningChat(t)
+	admission.refuse(first.ID)
+	admission.refuse(second.ID)
+	startWorker(t, opts)
+
+	call := starter.waitCall(t, taskKindGeneration, third.ID)
+	require.Equal(t, third.ID, call.input.ChatID)
+}
+
+func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = newFakeAdmission()
+
+	chat := f.createRunningChat(t)
+	startWorker(t, opts)
+	starter.waitCall(t, taskKindGeneration, chat.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishError(chatstate.FinishErrorInput{
+			LastError: pqtype.NullRawMessage{RawMessage: []byte(`{"message":"boom"}`), Valid: true},
+		})
+		return err
+	}))
+
+	// The error transition leaves the chat non-runnable, so the state
+	// machine publishes no ownership hint; a recorded hint can only be
+	// the runner's capacity release nudge.
+	require.Eventually(t, func() bool {
+		return chatOwnershipMessages(t, recording, chat.ID) >= 1
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestChat_StatusTransitionClearsCapacityQueueMark(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chat := f.createRunningChat(t)
+	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
+		ID:           chat.ID,
+		StaleSeconds: 30,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, marked)
+
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishError(chatstate.FinishErrorInput{
+			LastError: pqtype.NullRawMessage{RawMessage: []byte(`{"message":"boom"}`), Valid: true},
+		})
+		return err
+	}))
+
+	require.False(t, capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid)
+}

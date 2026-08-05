@@ -1,0 +1,237 @@
+package chatd
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/entitlements"
+	osschatd "github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
+)
+
+// Concurrent-agent pool caps. Root chats and subagent chats draw from
+// separate pools, so a parent blocked in wait_agent keeps its root slot
+// without starving its own children. Subagents cannot nest, so the
+// subagent pool cannot deadlock on itself. Neither cap applies while
+// codersdk.FeatureAgentRuntimeHours has remaining hours (see
+// admission.uncapped). Workspace agents are unaffected.
+const (
+	MaxConcurrentRootAgents = int64(5)
+	MaxConcurrentSubagents  = int64(10)
+)
+
+const defaultMetricsInterval = 30 * time.Second
+
+// NewAgentAdmissionFactory returns an admission gate that evaluates the
+// agent runtime hours entitlement and the per-pool capacity counts on
+// each acquisition attempt.
+func NewAgentAdmissionFactory(set *entitlements.Set) osschatd.AgentAdmissionFactory {
+	return func(opts osschatd.AgentAdmissionOptions) osschatd.AgentAdmission {
+		return newAdmission(admissionOptions{
+			Entitlements:          set,
+			Store:                 opts.Store,
+			Logger:                opts.Logger,
+			Clock:                 opts.Clock,
+			Registerer:            opts.Registerer,
+			LifetimeCtx:           opts.LifetimeCtx,
+			HeartbeatStaleSeconds: opts.HeartbeatStaleSeconds,
+		})
+	}
+}
+
+type admissionOptions struct {
+	Entitlements          *entitlements.Set
+	Store                 database.Store
+	Logger                slog.Logger
+	Clock                 quartz.Clock
+	Registerer            prometheus.Registerer
+	LifetimeCtx           context.Context
+	HeartbeatStaleSeconds int32
+
+	RootCapacity     int64
+	SubagentCapacity int64
+	MetricsInterval  time.Duration
+}
+
+// admission enforces the two-pool concurrency cap at worker acquisition
+// time. Counting and admission serialize across replicas with an
+// advisory lock held for the remainder of the acquisition transaction,
+// so a concurrent admission elsewhere is committed (and counted) before
+// this one reads the pool counts.
+type admission struct {
+	entitlements     *entitlements.Set
+	logger           slog.Logger
+	clock            quartz.Clock
+	staleSeconds     int32
+	rootCapacity     int64
+	subagentCapacity int64
+	metricsInterval  time.Duration
+
+	activeGauge *prometheus.GaugeVec
+	queuedGauge *prometheus.GaugeVec
+	queueTotal  prometheus.Counter
+	waitSeconds prometheus.Histogram
+}
+
+func newAdmission(opts admissionOptions) *admission {
+	if opts.Entitlements == nil {
+		opts.Entitlements = entitlements.New()
+	}
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
+	if opts.RootCapacity <= 0 {
+		opts.RootCapacity = MaxConcurrentRootAgents
+	}
+	if opts.SubagentCapacity <= 0 {
+		opts.SubagentCapacity = MaxConcurrentSubagents
+	}
+	if opts.MetricsInterval <= 0 {
+		opts.MetricsInterval = defaultMetricsInterval
+	}
+	a := &admission{
+		entitlements:     opts.Entitlements,
+		logger:           opts.Logger,
+		clock:            opts.Clock,
+		staleSeconds:     opts.HeartbeatStaleSeconds,
+		rootCapacity:     opts.RootCapacity,
+		subagentCapacity: opts.SubagentCapacity,
+		metricsInterval:  opts.MetricsInterval,
+	}
+	a.activeGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "chatd",
+		Name:      "agents_active",
+		Help:      "Deployment-wide number of chats holding a concurrent-agent capacity slot. Every replica reports the same database-derived value; aggregate with max, not sum.",
+	}, []string{"pool"})
+	a.queuedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "chatd",
+		Name:      "agents_queued_for_capacity",
+		Help:      "Deployment-wide number of chats waiting for a concurrent-agent capacity slot. Every replica reports the same database-derived value; aggregate with max, not sum.",
+	}, []string{"pool"})
+	a.queueTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chatd",
+		Name:      "agent_capacity_queue_total",
+		Help:      "Total number of times a chat on this replica entered the concurrent-agent capacity queue.",
+	})
+	a.waitSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "chatd",
+		Name:      "agent_capacity_wait_seconds",
+		Help:      "Time chats spent queued for a concurrent-agent capacity slot, observed at admission.",
+		Buckets:   []float64{1, 5, 15, 60, 300, 900, 3600},
+	})
+	if opts.Registerer != nil {
+		opts.Registerer.MustRegister(a.activeGauge, a.queuedGauge, a.queueTotal, a.waitSeconds)
+		if opts.LifetimeCtx != nil {
+			go a.refreshGauges(opts.LifetimeCtx, opts.Store)
+		}
+	}
+	return a
+}
+
+// Admit implements osschatd.AgentAdmission inside the acquisition
+// transaction. Only running chats consume a fresh slot: interrupting
+// chats must always be acquirable so an over-cap user can stop their
+// own chat, and requires_action chats idle on a client tool call
+// without generating.
+func (a *admission) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
+	//nolint:gocritic // Capacity accounting is chatd-internal state.
+	ctx = dbauthz.AsChatd(ctx)
+	if a.uncapped() {
+		a.observeAdmission(chat)
+		return true, nil
+	}
+	if chat.Status != database.ChatStatusRunning {
+		a.observeAdmission(chat)
+		return true, nil
+	}
+	if err := store.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+		return false, err
+	}
+	counts, err := store.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{
+		ExcludeChatID: chat.ID,
+		StaleSeconds:  a.staleSeconds,
+	})
+	if err != nil {
+		return false, err
+	}
+	used, capacity := counts.RootCount, a.rootCapacity
+	if chat.ParentChatID.Valid {
+		used, capacity = counts.SubagentCount, a.subagentCapacity
+	}
+	if used >= capacity {
+		if !chat.CapacityQueuedAt.Valid {
+			a.queueTotal.Inc()
+		}
+		return false, nil
+	}
+	a.observeAdmission(chat)
+	return true, nil
+}
+
+// uncapped reports whether the license has remaining agent runtime
+// hours. Enabled alone only means the license carries a positive
+// allocation; once recorded usage (Actual) reaches it, the deployment
+// is capped like community. A nil allocation or usage reading fails
+// open to Enabled semantics: capping on a missing usage reading is
+// worse than bounded over-admission.
+func (a *admission) uncapped() bool {
+	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
+	if !ok || !f.Enabled {
+		return false
+	}
+	if f.Limit == nil || f.Actual == nil {
+		return true
+	}
+	return *f.Actual < *f.Limit
+}
+
+func (a *admission) observeAdmission(chat database.Chat) {
+	if !chat.CapacityQueuedAt.Valid {
+		return
+	}
+	// Queue entry uses the database clock, so clamp the skew-induced
+	// negative case.
+	a.waitSeconds.Observe(max(0, a.clock.Since(chat.CapacityQueuedAt.Time).Seconds()))
+}
+
+func (a *admission) refreshGauges(ctx context.Context, store database.Store) {
+	//nolint:gocritic // Capacity accounting is chatd-internal state.
+	ctx = dbauthz.AsChatd(ctx)
+	ticker := a.clock.NewTicker(a.metricsInterval, "chatd", "capacity_metrics")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+		active, err := store.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{
+			ExcludeChatID: uuid.Nil,
+			StaleSeconds:  a.staleSeconds,
+		})
+		if err != nil {
+			a.logger.Warn(ctx, "count active capacity chats", slog.Error(err))
+			continue
+		}
+		queued, err := store.CountChatCapacityQueuedByPool(ctx)
+		if err != nil {
+			a.logger.Warn(ctx, "count queued capacity chats", slog.Error(err))
+			continue
+		}
+		a.activeGauge.WithLabelValues("root").Set(float64(active.RootCount))
+		a.activeGauge.WithLabelValues("subagent").Set(float64(active.SubagentCount))
+		a.queuedGauge.WithLabelValues("root").Set(float64(queued.RootCount))
+		a.queuedGauge.WithLabelValues("subagent").Set(float64(queued.SubagentCount))
+	}
+}

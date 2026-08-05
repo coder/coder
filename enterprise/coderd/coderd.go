@@ -222,6 +222,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
+	options.Options.ChatAgentAdmissionFactory = entchatd.NewAgentAdmissionFactory(options.Entitlements)
+
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.AGPL.AISeatTracker = api.aiSeatTracker

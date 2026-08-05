@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -167,9 +168,36 @@ func (r *runner) processState(state runnerStateUpdate) {
 	if r.hasAcceptedState && r.activeTaskSet {
 		r.cancelActiveTask()
 	}
+	if r.opts.AgentAdmission != nil && capacityCounted(r.latestState) && !capacityCounted(state) {
+		// The chat left the capacity-counted statuses, freeing a slot.
+		// Nudge acquisition everywhere so queued chats admit without
+		// waiting for the fallback ticker.
+		r.publishCapacityRelease(state)
+	}
 
 	r.spawnForState(state)
 	r.acceptState(state)
+}
+
+// capacityCounted reports whether the state holds a concurrent-agent
+// capacity slot under the admission counting rule. The zero value is
+// not counted, so callers need no hasAcceptedState guard.
+func capacityCounted(state runnerStateUpdate) bool {
+	return !state.Archived &&
+		(state.Status == database.ChatStatusRunning || state.Status == database.ChatStatusInterrupting)
+}
+
+func (r *runner) publishCapacityRelease(state runnerStateUpdate) {
+	payload, err := json.Marshal(coderdpubsub.ChatStateOwnershipMessage{
+		ChatID:          r.rec.key.ChatID,
+		SnapshotVersion: state.SnapshotVersion,
+	})
+	if err != nil {
+		return
+	}
+	if err := r.opts.Pubsub.Publish(coderdpubsub.ChatStateOwnershipChannel, payload); err != nil {
+		r.opts.Logger.Warn(r.ctx, "chatworker publish capacity release nudge failed", slogError(err))
+	}
 }
 
 func (r *runner) acceptState(state runnerStateUpdate) {

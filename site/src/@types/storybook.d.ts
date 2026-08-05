@@ -1,6 +1,7 @@
 import type {
 	DeploymentValues,
 	Experiments,
+	Feature,
 	FeatureName,
 	Organization,
 	SerpentOption,
@@ -15,7 +16,7 @@ declare module "@storybook/react-vite" {
 		| { event: "message"; data: string }
 		| { event: "open" | "error" | "close" };
 	interface Parameters {
-		features?: FeatureName[];
+		features?: (FeatureName | ({ name: FeatureName } & Partial<Feature>))[];
 		experiments?: Experiments;
 		showOrganizations?: boolean;
 		organizations?: Organization[];
