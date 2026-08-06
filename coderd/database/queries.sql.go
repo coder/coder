@@ -38573,48 +38573,57 @@ LEFT JOIN LATERAL (
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $3
+	-- Filter by status
+	-- @statuses is a list of workspace statuses. A workspace matches when its
+	-- computed status equals ANY of the requested statuses. This mirrors the
+	-- single-status logic but evaluates every requested status at once.
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			CASE
-			    -- Some workspace specific status refer to the transition
+		WHEN array_length($4 :: text[], 1) > 0 THEN
+			(
+			    -- Some workspace specific statuses refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
-			    -- 'running' states
-				WHEN $4 = 'starting' THEN
-				    latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-				WHEN $4 = 'stopping' THEN
+			    -- 'running' provisioner states:
+				('starting' = ANY($4 :: text[]) AND
 					latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN $4 = 'deleting' THEN
-					latest_build.job_status = 'running' AND
-					latest_build.transition = 'delete'::workspace_transition
+					latest_build.transition = 'start'::workspace_transition) OR
+				('stopping' = ANY($4 :: text[]) AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
+					latest_build.transition = 'stop'::workspace_transition) OR
+				('deleting' = ANY($4 :: text[]) AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
+					latest_build.transition = 'delete'::workspace_transition) OR
 
-			    -- 'succeeded' states
-			    WHEN $4 = 'deleted' THEN
-			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
-			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $4 = 'stopped' THEN
+			    -- 'succeeded' provisioner states:
+				('deleted' = ANY($4 :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN $4 = 'started' THEN
+					latest_build.transition = 'delete'::workspace_transition) OR
+				('stopped' = ANY($4 :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
+					latest_build.transition = 'stop'::workspace_transition) OR
+				('started' = ANY($4 :: text[]) AND
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition) OR
 
 			    -- Special case where the provisioner status and workspace status
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN $4 = 'running' THEN
+				('running' = ANY($4 :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
+					latest_build.transition = 'start'::workspace_transition) OR
 
-				WHEN $4 != '' THEN
-				    -- By default just match the job status exactly
-			    	latest_build.job_status = $4::provisioner_job_status
-				ELSE
-					true
-			END
+			    -- By default just match the job status exactly. The 'running' and
+			    -- 'succeeded' job statuses are excluded here because they are
+			    -- always represented by the transition-derived states above, so a
+			    -- requested 'running' status keeps meaning succeeded+start instead
+			    -- of matching an in-progress build.
+				(latest_build.job_status::text = ANY($4 :: text[]) AND
+					latest_build.job_status NOT IN (
+						'running'::provisioner_job_status,
+						'succeeded'::provisioner_job_status
+					))
+			)
 		ELSE true
 	END
 	-- Filter by owner_id
@@ -38663,18 +38672,18 @@ WHERE
 		ELSE true
 	END
 
-	-- Filter by owner_name
+	-- Filter by owner_usernames
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($8) AND deleted = false)
+		WHEN array_length($8 :: text[], 1) > 0 THEN
+			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) = ANY($8 :: text[]) AND deleted = false)
 		ELSE true
 	END
-	-- Filter by template_name
+	-- Filter by template_names
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($9) AND deleted = false)
+		WHEN array_length($9 :: text[], 1) > 0 THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY($9 :: text[]) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -38890,12 +38899,12 @@ type GetWorkspacesParams struct {
 	ParamNames                            []string     `db:"param_names" json:"param_names"`
 	ParamValues                           []string     `db:"param_values" json:"param_values"`
 	Deleted                               bool         `db:"deleted" json:"deleted"`
-	Status                                string       `db:"status" json:"status"`
+	Statuses                              []string     `db:"statuses" json:"statuses"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
 	OrganizationID                        uuid.UUID    `db:"organization_id" json:"organization_id"`
 	HasParam                              []string     `db:"has_param" json:"has_param"`
-	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
-	TemplateName                          string       `db:"template_name" json:"template_name"`
+	OwnerUsernames                        []string     `db:"owner_usernames" json:"owner_usernames"`
+	TemplateNames                         []string     `db:"template_names" json:"template_names"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string       `db:"name" json:"name"`
@@ -38968,12 +38977,12 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.ParamNames),
 		pq.Array(arg.ParamValues),
 		arg.Deleted,
-		arg.Status,
+		pq.Array(arg.Statuses),
 		arg.OwnerID,
 		arg.OrganizationID,
 		pq.Array(arg.HasParam),
-		arg.OwnerUsername,
-		arg.TemplateName,
+		pq.Array(arg.OwnerUsernames),
+		pq.Array(arg.TemplateNames),
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),
 		arg.Name,

@@ -2586,6 +2586,113 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, ws3.Workspaces, 0)
 	})
+	t.Run("MultipleStatuses", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		runningWorkspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		stoppedWorkspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, runningWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stoppedWorkspace.LatestBuild.ID)
+
+		// Stop one workspace so the two workspaces have different statuses.
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, stoppedWorkspace, database.WorkspaceTransitionStop)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// A single status still works (no breaking change).
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "status:running",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, runningWorkspace.ID, res.Workspaces[0].ID)
+
+		// Repeated keys match either status.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "status:running status:stopped",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+
+		// CSV form is equivalent to repeated keys.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "status:running,stopped",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+	})
+	t.Run("MultipleOwners", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		userB, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		userC, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		workspaceB := coderdtest.CreateWorkspace(t, userB, template.ID)
+		workspaceC := coderdtest.CreateWorkspace(t, userC, template.ID)
+		// A workspace owned by a third user that should never match.
+		_ = coderdtest.CreateWorkspace(t, client, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		sdkUserB, err := userB.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		sdkUserC, err := userC.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:%s owner:%s", sdkUserB.Username, sdkUserC.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{workspaceB, workspaceC}, res.Workspaces)
+
+		// CSV form is equivalent.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:%s,%s", sdkUserB.Username, sdkUserC.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{workspaceB, workspaceC}, res.Workspaces)
+	})
+	t.Run("MultipleTemplates", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version3 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version3.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+		template3 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version3.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		workspace2 := coderdtest.CreateWorkspace(t, client, template2.ID)
+		// A workspace on a third template that should never match.
+		_ = coderdtest.CreateWorkspace(t, client, template3.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("template:%s template:%s", template.Name, template2.Name),
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{workspace, workspace2}, res.Workspaces)
+	})
 	t.Run("FilterQuery", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

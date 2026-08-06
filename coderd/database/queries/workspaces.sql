@@ -167,48 +167,57 @@ LEFT JOIN LATERAL (
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
+	-- Filter by status
+	-- @statuses is a list of workspace statuses. A workspace matches when its
+	-- computed status equals ANY of the requested statuses. This mirrors the
+	-- single-status logic but evaluates every requested status at once.
 	AND CASE
-		WHEN @status :: text != '' THEN
-			CASE
-			    -- Some workspace specific status refer to the transition
+		WHEN array_length(@statuses :: text[], 1) > 0 THEN
+			(
+			    -- Some workspace specific statuses refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
-			    -- 'running' states
-				WHEN @status = 'starting' THEN
-				    latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-				WHEN @status = 'stopping' THEN
+			    -- 'running' provisioner states:
+				('starting' = ANY(@statuses :: text[]) AND
 					latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN @status = 'deleting' THEN
-					latest_build.job_status = 'running' AND
-					latest_build.transition = 'delete'::workspace_transition
+					latest_build.transition = 'start'::workspace_transition) OR
+				('stopping' = ANY(@statuses :: text[]) AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
+					latest_build.transition = 'stop'::workspace_transition) OR
+				('deleting' = ANY(@statuses :: text[]) AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
+					latest_build.transition = 'delete'::workspace_transition) OR
 
-			    -- 'succeeded' states
-			    WHEN @status = 'deleted' THEN
-			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
-			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN @status = 'stopped' THEN
+			    -- 'succeeded' provisioner states:
+				('deleted' = ANY(@statuses :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN @status = 'started' THEN
+					latest_build.transition = 'delete'::workspace_transition) OR
+				('stopped' = ANY(@statuses :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
+					latest_build.transition = 'stop'::workspace_transition) OR
+				('started' = ANY(@statuses :: text[]) AND
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition) OR
 
 			    -- Special case where the provisioner status and workspace status
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN @status = 'running' THEN
+				('running' = ANY(@statuses :: text[]) AND
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
+					latest_build.transition = 'start'::workspace_transition) OR
 
-				WHEN @status != '' THEN
-				    -- By default just match the job status exactly
-			    	latest_build.job_status = @status::provisioner_job_status
-				ELSE
-					true
-			END
+			    -- By default just match the job status exactly. The 'running' and
+			    -- 'succeeded' job statuses are excluded here because they are
+			    -- always represented by the transition-derived states above, so a
+			    -- requested 'running' status keeps meaning succeeded+start instead
+			    -- of matching an in-progress build.
+				(latest_build.job_status::text = ANY(@statuses :: text[]) AND
+					latest_build.job_status NOT IN (
+						'running'::provisioner_job_status,
+						'succeeded'::provisioner_job_status
+					))
+			)
 		ELSE true
 	END
 	-- Filter by owner_id
@@ -257,18 +266,18 @@ WHERE
 		ELSE true
 	END
 
-	-- Filter by owner_name
+	-- Filter by owner_usernames
 	AND CASE
-		WHEN @owner_username :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower(@owner_username) AND deleted = false)
+		WHEN array_length(@owner_usernames :: text[], 1) > 0 THEN
+			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) = ANY(@owner_usernames :: text[]) AND deleted = false)
 		ELSE true
 	END
-	-- Filter by template_name
+	-- Filter by template_names
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN @template_name :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+		WHEN array_length(@template_names :: text[], 1) > 0 THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY(@template_names :: text[]) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
