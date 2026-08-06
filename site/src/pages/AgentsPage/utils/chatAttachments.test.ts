@@ -38,11 +38,43 @@ describe("handleAttachmentDownloadClick", () => {
 		mediaType: "image/png",
 	};
 
+	// jsdom does not implement object URLs, so stub them on the URL constructor.
+	const originalURLDescriptors = new Map<
+		string,
+		PropertyDescriptor | undefined
+	>();
+	const stubObjectURLs = () => {
+		const createObjectURL = vi.fn().mockReturnValue("blob:inline");
+		const revokeObjectURL = vi.fn();
+		for (const [key, value] of Object.entries({
+			createObjectURL,
+			revokeObjectURL,
+		})) {
+			if (!originalURLDescriptors.has(key)) {
+				originalURLDescriptors.set(
+					key,
+					Object.getOwnPropertyDescriptor(URL, key),
+				);
+			}
+			Object.defineProperty(URL, key, { value, configurable: true });
+		}
+		return { createObjectURL, revokeObjectURL };
+	};
+
 	afterEach(() => {
 		for (const key of overriddenNavigatorKeys) {
 			Reflect.deleteProperty(navigator, key);
 		}
 		overriddenNavigatorKeys.clear();
+		for (const [key, descriptor] of originalURLDescriptors) {
+			if (descriptor) {
+				Object.defineProperty(URL, key, descriptor);
+			} else {
+				Reflect.deleteProperty(URL, key);
+			}
+		}
+		originalURLDescriptors.clear();
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 		vi.mocked(toast.error).mockClear();
 	});
@@ -228,13 +260,16 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(shared.files[0].size).toBe("png-bytes".length);
 	});
 
-	it("keeps permanent share failure toasts for data: hrefs action-free", async () => {
+	it("offers a blob-backed Open fallback for data: hrefs on permanent share failure", async () => {
 		enterIOSStandalonePWA();
 		overrideNavigator(
 			"share",
 			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
 		);
 		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const { createObjectURL, revokeObjectURL } = stubObjectURLs();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		vi.useFakeTimers();
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, {
@@ -244,9 +279,61 @@ describe("handleAttachmentDownloadClick", () => {
 		});
 
 		expect(toast.error).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(toast.error).mock.calls[0][1]).toEqual(
-			expect.objectContaining({ action: undefined }),
-		);
+		const options = vi.mocked(toast.error).mock.calls[0][1] as {
+			action: { label: string; onClick: () => void };
+		};
+		expect(options.action.label).toBe("Open");
+		options.action.onClick();
+		expect(createObjectURL).toHaveBeenCalledTimes(1);
+		expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(File);
+		expect(open).toHaveBeenCalledWith("blob:inline", "_blank", "noopener");
+		vi.runAllTimers();
+		expect(revokeObjectURL).toHaveBeenCalledWith("blob:inline");
+	});
+
+	it("opens inline attachments through a blob tab when file sharing is unavailable", () => {
+		enterIOSStandalonePWA();
+		const { createObjectURL, revokeObjectURL } = stubObjectURLs();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		const fetchSpy = vi.spyOn(globalThis, "fetch");
+		vi.useFakeTimers();
+		const event = { preventDefault: vi.fn() };
+
+		expect(
+			handleAttachmentDownloadClick(event, {
+				href: `data:image/png;base64,${btoa("png-bytes")}`,
+				fileName: "inline.png",
+				mediaType: "image/png",
+			}),
+		).toBeUndefined();
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(createObjectURL).toHaveBeenCalledTimes(1);
+		const decoded: File = createObjectURL.mock.calls[0][0];
+		expect(decoded.name).toBe("inline.png");
+		expect(decoded.type).toBe("image/png");
+		expect(open).toHaveBeenCalledWith("blob:inline", "_blank", "noopener");
+		vi.runAllTimers();
+		expect(revokeObjectURL).toHaveBeenCalledWith("blob:inline");
+	});
+
+	it("shows a decode error instead of a tab when undecodable inline data cannot be shared", () => {
+		enterIOSStandalonePWA();
+		stubObjectURLs();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		const event = { preventDefault: vi.fn() };
+
+		handleAttachmentDownloadClick(event, {
+			href: "data:image/png;base64,%%%",
+			fileName: "inline.png",
+			mediaType: "image/png",
+		});
+
+		expect(open).not.toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledWith("Couldn't download inline.png", {
+			description: "The attachment data could not be decoded.",
+		});
 	});
 
 	it("offers a tab fallback when the fetched file turns out unshareable", async () => {

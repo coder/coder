@@ -96,15 +96,33 @@ const errorHasName = (error: unknown, name: string): boolean =>
 	"name" in error &&
 	error.name === name;
 
-// iOS blocks top-level data: navigation, so the Open fallback is only
-// offered for hrefs a new tab can actually load.
-const openFallbackAction = (href: string) =>
-	href.startsWith("data:")
-		? undefined
-		: {
-				label: "Open",
-				onClick: () => void open(href, "_blank", "noopener"),
-			};
+// iOS blocks top-level data: navigation, so inline attachments open through
+// a short-lived blob URL instead of their data: href.
+const openBlobFileInTab = (file: File): void => {
+	const blobUrl = URL.createObjectURL(file);
+	open(blobUrl, "_blank", "noopener");
+	// Revoke after the new tab has had time to load the blob.
+	setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+};
+
+const openAttachmentInTab = (href: string, file: File): void => {
+	if (href.startsWith("data:")) {
+		openBlobFileInTab(file);
+	} else {
+		open(href, "_blank", "noopener");
+	}
+};
+
+const openFallbackAction = (href: string, file: File) => ({
+	label: "Open",
+	onClick: () => openAttachmentInTab(href, file),
+});
+
+const showDecodeFailureToast = (fileName: string): void => {
+	toast.error(`Couldn't download ${fileName}`, {
+		description: "The attachment data could not be decoded.",
+	});
+};
 
 const shareFileViaSheet = (
 	file: File,
@@ -128,11 +146,11 @@ const shareFileViaSheet = (
 			});
 			return;
 		}
-		// The share itself failed permanently, but the file was fetched,
+		// The share itself failed permanently, but the file is in hand,
 		// so the dismissible tab remains a way to reach it.
 		toast.error(`Couldn't download ${fileName}`, {
 			description: error instanceof Error ? error.message : undefined,
-			action: openFallbackAction(href),
+			action: openFallbackAction(href, file),
 		});
 	});
 
@@ -169,9 +187,7 @@ const shareAttachmentFile = async ({
 	if (href.startsWith("data:")) {
 		const decoded = fileFromDataURL(href, fileName, mediaType);
 		if (!decoded) {
-			toast.error(`Couldn't download ${fileName}`, {
-				description: "The attachment data could not be decoded.",
-			});
+			showDecodeFailureToast(fileName);
 			return;
 		}
 		file = decoded;
@@ -203,7 +219,7 @@ const shareAttachmentFile = async ({
 		// a fresh gesture.
 		toast.error(`Couldn't download ${fileName}`, {
 			description: "This file cannot be shared on this device.",
-			action: openFallbackAction(href),
+			action: openFallbackAction(href, file),
 		});
 		return;
 	}
@@ -227,7 +243,20 @@ export const handleAttachmentDownloadClick = (
 	if (!canShareFiles([probe])) {
 		// Open synchronously; after an await the user activation that
 		// popup blockers require may already be consumed.
-		open(target.href, "_blank", "noopener");
+		if (!target.href.startsWith("data:")) {
+			open(target.href, "_blank", "noopener");
+			return undefined;
+		}
+		const decoded = fileFromDataURL(
+			target.href,
+			target.fileName,
+			target.mediaType,
+		);
+		if (decoded) {
+			openBlobFileInTab(decoded);
+		} else {
+			showDecodeFailureToast(target.fileName);
+		}
 		return undefined;
 	}
 	return shareAttachmentFile(target);

@@ -1623,26 +1623,28 @@ export const DownloadInIOSStandaloneShowsErrorToastOnFailedFetch: Story = {
 	},
 };
 
+const inlineAttachmentStoryArgs: Story["args"] = {
+	...defaultArgs,
+	parsedMessages: parseMessagesWithMergedTools([
+		{
+			...baseMessage,
+			id: 1,
+			role: "assistant",
+			content: [
+				{
+					type: "file",
+					media_type: "image/png",
+					data: TEST_PNG_B64,
+					name: "inline-screenshot.png",
+				},
+			],
+		},
+	]),
+};
+
 /** Inline data: attachments cannot be fetched under the production CSP. */
 export const DownloadInIOSStandaloneSharesInlineAttachment: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				role: "assistant",
-				content: [
-					{
-						type: "file",
-						media_type: "image/png",
-						data: TEST_PNG_B64,
-						name: "inline-screenshot.png",
-					},
-				],
-			},
-		]),
-	},
+	args: inlineAttachmentStoryArgs,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const share = fn().mockResolvedValue(undefined);
@@ -1663,6 +1665,37 @@ export const DownloadInIOSStandaloneSharesInlineAttachment: Story = {
 			const shared: { files: File[] } = share.mock.calls[0][0];
 			expect(shared.files[0].name).toBe("inline-screenshot.png");
 			expect(shared.files[0].type).toBe("image/png");
+			expect(fetchSpy).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+/** iOS blocks data: tabs, so inline attachments open through a blob URL. */
+export const DownloadInIOSStandaloneOpensInlineAttachmentInTab: Story = {
+	args: inlineAttachmentStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share: undefined,
+			canShare: undefined,
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		const fetchSpy = spyOn(globalThis, "fetch");
+		try {
+			canvas
+				.getByRole("button", { name: "View inline-screenshot.png" })
+				.focus();
+			const downloadLink = await canvas.findByRole("link", {
+				name: "Download inline-screenshot.png",
+			});
+			await userEvent.click(downloadLink);
+			expect(open).toHaveBeenCalledTimes(1);
+			const [blobUrl, target, features] = open.mock.calls[0];
+			expect(blobUrl).toMatch(/^blob:/);
+			expect(target).toBe("_blank");
+			expect(features).toBe("noopener");
 			expect(fetchSpy).not.toHaveBeenCalled();
 		} finally {
 			restoreNavigator();
