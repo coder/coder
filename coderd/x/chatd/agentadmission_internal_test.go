@@ -585,6 +585,34 @@ func TestWorker_PrunesDepartedChatDespiteFullPoolBacklog(t *testing.T) {
 		"a chat acquired by another replica must leave the local capacity queue")
 }
 
+func TestWorker_QueuesChatArrivingBehindFullPoolBacklog(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
+	opts.AcquisitionBatchSize = 2
+
+	// The backlog exceeds one batch, so every later pass ends all-skipped.
+	chats := make([]database.Chat, 5)
+	for i := range chats {
+		chats[i] = f.createRunningChat(t)
+	}
+	worker := startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueLen() == len(chats)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	arrival := f.createRunningChat(t)
+	worker.Wake()
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueContains(arrival.ID)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"a chat arriving behind a full-pool backlog must enter the local capacity queue")
+}
+
 func TestWorker_PrunesDepartedChatsFromCapacityQueue(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
