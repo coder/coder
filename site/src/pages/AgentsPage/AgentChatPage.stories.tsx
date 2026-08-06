@@ -313,7 +313,6 @@ const buildQueries = (
 	];
 };
 
-/** Filter one seeded query entry out by key. */
 const withoutQuery = (
 	queries: ReturnType<typeof buildQueries>,
 	queryKey: readonly unknown[],

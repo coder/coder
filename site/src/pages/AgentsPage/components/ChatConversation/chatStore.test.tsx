@@ -1085,11 +1085,9 @@ describe("useChatStore", () => {
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
 		}>(chatMessagesKey(chatID));
-		// Page 0 must not gain a duplicate of the older-page ID.
 		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
 			3, 2,
 		]);
-		// The copy living in page 1 receives the fresh value in place.
 		expect(cached?.pages[1]?.messages.map((message) => message.id)).toEqual([
 			1,
 		]);
