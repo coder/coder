@@ -223,15 +223,18 @@ resource "docker_container" "workspace" {
   hostname = data.coder_workspace.me.name
 
   # bubblewrap builds the sandbox from an unprivileged user namespace, so no
-  # added capabilities are needed. Docker's default seccomp profile does
-  # block the mount and pivot_root calls bubblewrap issues inside that
-  # namespace, and on AppArmor hosts the docker-default profile denies
-  # unprivileged user namespace creation outright. Both relaxations apply to
-  # this container only; they do not weaken the boundary the driver builds
-  # around the child.
+  # added capabilities are needed. Docker's default seccomp profile blocks the
+  # mount and pivot_root calls bubblewrap issues inside that namespace, and on
+  # AppArmor hosts the docker-default profile denies unprivileged user namespace
+  # creation outright. Docker also masks and makes parts of /proc read-only by
+  # default; systempaths=unconfined is required so bubblewrap can mount the
+  # child's fresh procfs. These relaxations apply to the parent workspace
+  # container only; they do not weaken the boundary the driver builds around
+  # the child.
   security_opts = [
     "seccomp=unconfined",
     "apparmor=unconfined",
+    "systempaths=unconfined",
   ]
 
   # The shared project directory must exist and be owned by the workspace

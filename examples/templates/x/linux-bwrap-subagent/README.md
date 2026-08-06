@@ -150,15 +150,18 @@ warning is expected here.
   `/proc/sys/user/max_user_namespaces` must be greater than zero, and
   `kernel.unprivileged_userns_clone` must be `1` where that knob exists. The
   container adds no capabilities.
-- **`seccomp=unconfined` and `apparmor=unconfined` on the workspace
-  container.** Docker's default seccomp profile blocks the `mount` and
-  `pivot_root` calls bubblewrap issues inside its own user namespace, and on
-  AppArmor hosts (Ubuntu 23.10 and later set
-  `kernel.apparmor_restrict_unprivileged_userns=1`) the `docker-default`
-  profile denies unprivileged user namespace creation. Both are declared in
-  `main.tf`. They relax the parent container's confinement only; they are not
-  part of the boundary the driver builds around the child. A daemon whose
-  policy forbids relaxing either option cannot run this template.
+- **`seccomp=unconfined`, `apparmor=unconfined`, and
+  `systempaths=unconfined` on the workspace container.** Docker's default
+  seccomp profile blocks the `mount` and `pivot_root` calls bubblewrap issues
+  inside its own user namespace, and on AppArmor hosts (Ubuntu 23.10 and later
+  set `kernel.apparmor_restrict_unprivileged_userns=1`) the `docker-default`
+  profile denies unprivileged user namespace creation. Docker also masks and
+  makes parts of `/proc` read-only by default, which prevents bubblewrap from
+  mounting the child's fresh procfs unless system-path confinement is disabled.
+  All three settings are declared in `main.tf`. They relax the parent
+  container's confinement only; they are not part of the boundary the driver
+  builds around the child. A daemon whose policy forbids these options cannot
+  run this template.
 - **A statically linked Coder binary**, as described under
   [Build and version compatibility](#build-and-version-compatibility). A
   dynamically linked, CGO-enabled, or BoringCrypto/FIPS build cannot execute
@@ -386,11 +389,14 @@ sysctl kernel.unprivileged_userns_clone                # if present, must be 1
 sysctl kernel.apparmor_restrict_unprivileged_userns    # if present, 1 needs apparmor=unconfined
 ```
 
-**`bwrap: pivot_root: Operation not permitted` or a failure during mount
-setup**
+**`bwrap: pivot_root: Operation not permitted`, `Can't mount proc`, or a
+failure during mount setup**
 
-Docker's default seccomp profile is still in effect. Confirm the container
-was created with the `security_opts` this template declares.
+One of Docker's default security restrictions is still in effect. Confirm the
+container was recreated with all three `security_opts` this template declares:
+`seccomp=unconfined`, `apparmor=unconfined`, and
+`systempaths=unconfined`. Updating the template does not modify an existing
+container in place; update or recreate the workspace so Terraform replaces it.
 
 **The child agent never connects, and the driver fails with an exec format or
 loader error**
