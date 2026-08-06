@@ -1293,6 +1293,8 @@ func TestPaginatedGroups(t *testing.T) {
 		{name: "Dev"},
 		{name: "dev"},
 		{name: "zeta", displayName: "Frontend Squad"},
+		// A display name with a colon is searchable via a quoted search value.
+		{name: "team-fe", displayName: "Team: Frontend"},
 	}
 	for _, spec := range specs {
 		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -1340,12 +1342,14 @@ func TestPaginatedGroups(t *testing.T) {
 		}
 	})
 
-	t.Run("MemberHydration", func(t *testing.T) {
+	t.Run("MemberCount", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// The handler enriches each page group with its members and total
-		// count. Assert both so removing that logic would fail the test.
+		// The list endpoint returns each group's total member count but does
+		// not hydrate the member roster; callers page members separately via
+		// the group members endpoint. Assert the count is populated and the
+		// roster is empty so re-adding roster hydration would fail the test.
 		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 			SearchQuery: "alpha",
 		})
@@ -1353,8 +1357,7 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Len(t, resp.Groups, 1)
 		require.Equal(t, "alpha", resp.Groups[0].Name)
 		require.Equal(t, 1, resp.Groups[0].TotalMemberCount)
-		require.Len(t, resp.Groups[0].Members, 1)
-		require.Equal(t, member.ID, resp.Groups[0].Members[0].ID)
+		require.Empty(t, resp.Groups[0].Members)
 	})
 
 	t.Run("Search", func(t *testing.T) {
@@ -1428,6 +1431,22 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Equal(t, "zeta", resp.Groups[0].Name)
 	})
 
+	t.Run("SearchColonValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A display name containing a colon is searchable when the value is
+		// quoted via the search key, since an unquoted colon is a key:value
+		// delimiter.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: `search:"team: frontend"`,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "team-fe", resp.Groups[0].Name)
+	})
+
 	t.Run("PageBoundaries", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1447,6 +1466,50 @@ func TestPaginatedGroups(t *testing.T) {
 				require.False(t, dup, "group %q appeared on more than one page", g.Name)
 				seen[g.Name] = struct{}{}
 			}
+		}
+		require.Len(t, seen, totalGroups)
+	})
+
+	t.Run("AfterIDCursor", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Page through the results using after_id as a keyset cursor. The union
+		// must cover every group exactly once, in the same deterministic
+		// (LOWER(name), id) order, with no duplicates even across the
+		// "Dev"/"dev" case collision that relies on the id tiebreaker.
+		seen := make(map[uuid.UUID]struct{})
+		var after uuid.UUID
+		var prevName string
+		var prevID uuid.UUID
+		havePrev := false
+		for {
+			resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+				Pagination: codersdk.Pagination{Limit: 2, AfterID: after},
+			})
+			require.NoError(t, err)
+			if len(resp.Groups) == 0 {
+				break
+			}
+			require.LessOrEqual(t, len(resp.Groups), 2)
+			for _, g := range resp.Groups {
+				_, dup := seen[g.ID]
+				require.False(t, dup, "group %q returned on more than one page", g.Name)
+				seen[g.ID] = struct{}{}
+
+				name := strings.ToLower(g.Name)
+				if havePrev {
+					if name == prevName {
+						require.Less(t, prevID.String(), g.ID.String(),
+							"ties must advance by id")
+					} else {
+						require.Less(t, prevName, name,
+							"groups must stay ordered by lowercased name")
+					}
+				}
+				prevName, prevID, havePrev = name, g.ID, true
+			}
+			after = resp.Groups[len(resp.Groups)-1].ID
 		}
 		require.Len(t, seen, totalGroups)
 	})

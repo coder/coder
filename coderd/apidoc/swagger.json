@@ -5104,7 +5104,7 @@
 		},
 		"/api/v2/organizations/{organization}/paginated-groups": {
 			"get": {
-				"description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.",
+				"description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe `q` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. `search:` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. `search:\"team: frontend\"`; an\nunquoted colon fails with `Query element \"team:\" cannot start or end with ':'`.\n\nThis endpoint never returns member rosters: each group's `members` array is always\nempty and only `total_member_count` is populated. Callers that need the roster use\nthe group members endpoint (GET /groups/{group}/members).",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get groups by organization (paginated)",
@@ -5119,7 +5119,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Search query",
+						"description": "Search query (see description for syntax and colon-quoting)",
 						"name": "q",
 						"in": "query"
 					},
@@ -5133,6 +5133,13 @@
 						"type": "integer",
 						"description": "Page offset",
 						"name": "offset",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "After ID",
+						"name": "after_id",
 						"in": "query"
 					}
 				],

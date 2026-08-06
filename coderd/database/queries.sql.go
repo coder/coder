@@ -15124,23 +15124,35 @@ INNER JOIN
 WHERE
 		true
 		AND groups.organization_id = $1
+		-- Keyset pagination cursor. When @after_id is set, return only groups
+		-- ordered after it, matching the ORDER BY (LOWER(name), id) below. This
+		-- lets callers page without duplicated or skipped rows even if groups are
+		-- inserted or deleted between page requests.
+		AND CASE
+				WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+						(LOWER(groups.name), groups.id) > (
+								SELECT LOWER(name), id FROM groups WHERE id = $2
+						)
+				ELSE true
+		END
 		-- Filter by group name or display name (substring, case-insensitive).
-		AND CASE WHEN $2 :: text != '' THEN (
-				groups.name ILIKE concat('%', $2, '%')
-				OR groups.display_name ILIKE concat('%', $2, '%')
+		AND CASE WHEN $3 :: text != '' THEN (
+				groups.name ILIKE concat('%', $3, '%')
+				OR groups.display_name ILIKE concat('%', $3, '%')
 			)
 			ELSE true
 		END
 ORDER BY
 		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
-		LOWER(groups.name) ASC, groups.id ASC OFFSET $3
+		LOWER(groups.name) ASC, groups.id ASC OFFSET $4
 LIMIT
 		-- A null limit means "no limit", so 0 means return all
-		NULLIF($4 :: int, 0)
+		NULLIF($5 :: int, 0)
 `
 
 type GetGroupsByOrganizationIDPaginatedParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
 	Search         string    `db:"search" json:"search"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
@@ -15156,6 +15168,7 @@ type GetGroupsByOrganizationIDPaginatedRow struct {
 func (q *sqlQuerier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationIDPaginated,
 		arg.OrganizationID,
+		arg.AfterID,
 		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,

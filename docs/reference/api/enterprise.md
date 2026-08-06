@@ -2336,14 +2336,25 @@ organization-wide group read permission and does no per-group filtering. It is
 therefore not a drop-in replacement: callers without org-wide group read receive
 an error rather than a filtered subset.
 
+The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
+perform a free-text search over group name and display name. `search:` is the only
+accepted key and unknown keys return 400. Because group display names may contain
+colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
+unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
+
+This endpoint never returns member rosters: each group's `members` array is always
+empty and only `total_member_count` is populated. Callers that need the roster use
+the group members endpoint (GET /groups/{group}/members).
+
 ### Parameters
 
-| Name           | In    | Type    | Required | Description             |
-|----------------|-------|---------|----------|-------------------------|
-| `organization` | path  | string  | true     | Organization ID or name |
-| `q`            | query | string  | false    | Search query            |
-| `limit`        | query | integer | false    | Page limit              |
-| `offset`       | query | integer | false    | Page offset             |
+| Name           | In    | Type         | Required | Description                                                 |
+|----------------|-------|--------------|----------|-------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID or name                                     |
+| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting) |
+| `limit`        | query | integer      | false    | Page limit                                                  |
+| `offset`       | query | integer      | false    | Page offset                                                 |
+| `after_id`     | query | string(uuid) | false    | After ID                                                    |
 
 ### Example responses
 

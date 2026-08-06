@@ -104,6 +104,17 @@ INNER JOIN
 WHERE
 		true
 		AND groups.organization_id = @organization_id
+		-- Keyset pagination cursor. When @after_id is set, return only groups
+		-- ordered after it, matching the ORDER BY (LOWER(name), id) below. This
+		-- lets callers page without duplicated or skipped rows even if groups are
+		-- inserted or deleted between page requests.
+		AND CASE
+				WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+						(LOWER(groups.name), groups.id) > (
+								SELECT LOWER(name), id FROM groups WHERE id = @after_id
+						)
+				ELSE true
+		END
 		-- Filter by group name or display name (substring, case-insensitive).
 		AND CASE WHEN @search :: text != '' THEN (
 				groups.name ILIKE concat('%', @search, '%')
