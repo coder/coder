@@ -1273,7 +1273,7 @@ func fetchWithPostFilter[
 		}
 
 		// Authorize the action
-		return rbac.Filter(ctx, authorizer, act, action, objects)
+		return rbac.Filter(ctx, authorizer, act, action, objects, rbac.DefaultFilterThreshold)
 	}
 }
 
