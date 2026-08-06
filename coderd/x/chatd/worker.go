@@ -283,7 +283,7 @@ func (w *chatWorker) acquireCandidate(
 ) error {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	runningAtAcquire := false
+	queueableAtAcquire := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -292,7 +292,10 @@ func (w *chatWorker) acquireCandidate(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		runningAtAcquire = chat.Status == database.ChatStatusRunning
+		// Interrupting chats may have shown the queued banner while still
+		// running, so their acquisition must publish the clear too.
+		queueableAtAcquire = chat.Status == database.ChatStatusRunning ||
+			chat.Status == database.ChatStatusInterrupting
 		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("count queue: %w", err)
@@ -344,7 +347,7 @@ func (w *chatWorker) acquireCandidate(
 	// Another replica may have published this chat's queued event, so the
 	// clear cannot be gated on local refusal history alone.
 	_, capped := w.opts.AgentCapacityLimiter.Limits()
-	if wasQueued || (runningAtAcquire && capped) {
+	if wasQueued || (queueableAtAcquire && capped) {
 		w.publishCapacityChange(ctx, chatID, false)
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {

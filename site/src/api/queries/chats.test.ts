@@ -2501,6 +2501,25 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe(false);
 	});
 
+	it("rejects a stale queued capacity event after a newer clear", () => {
+		// Acquisition bumps updated_at, so a delayed queued snapshot from
+		// a refusing replica is strictly older than the applied clear.
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: false,
+		});
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity: true,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+			}).queued_for_capacity,
+		).toBe(false);
+	});
+
 	it("ignores queued_for_capacity carried by non-capacity events", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",

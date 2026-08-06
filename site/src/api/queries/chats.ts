@@ -549,12 +549,13 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Queued-for-capacity is derived server-side and only capacity_change
-	// events carry it; other events' snapshots always report false, so
-	// scope the field to its own event kind.
-	const nextQueuedForCapacity = isCapacityEvent
-		? (watchedChat.queued_for_capacity ?? false)
-		: (cachedChat.queued_for_capacity ?? false);
+	// Only capacity_change carries the derived queued state. An acquisition
+	// bumps updated_at while a refusal rolls back, so the freshness guard
+	// rejects a delayed queued snapshot arriving after an acquisition's clear.
+	const nextQueuedForCapacity =
+		isCapacityEvent && isFreshEnough
+			? (watchedChat.queued_for_capacity ?? false)
+			: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;

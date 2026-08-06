@@ -360,6 +360,28 @@ func TestWorker_AdmissionPublishesClearWithoutLocalRefusal(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+func TestWorker_InterruptAcquisitionPublishesClear(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentCapacityLimiter = newFakeAdmission()
+
+	// An interrupt can reach acquisition after a capacity wait, so it must
+	// clear the queued state.
+	chat := f.createRunningChat(t)
+	interruptChat(t, f, chat.ID)
+	startWorker(t, opts)
+
+	starter.waitCall(t, taskKindInterrupt, chat.ID)
+	require.Eventually(t, func() bool {
+		events := capacityEvents(t, recording, chat.ID)
+		return len(events) >= 1 && !events[len(events)-1].Chat.QueuedForCapacity
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
 func TestWorker_UncappedPolicySkipsClearEvents(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
