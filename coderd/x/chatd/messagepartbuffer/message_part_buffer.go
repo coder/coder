@@ -201,12 +201,6 @@ func (b *Buffer) CreateEpisode(key Key) error {
 
 // StartModelInvocation stamps the instant the episode opens its provider
 // stream, which starts the episode's billable model invocation window.
-//
-// Callers stamp it at the same instant a completed step starts measuring
-// its runtime, so an interrupted attempt bills the same window the step
-// would have reported had it finished. A repeat call re-stamps the start:
-// only the most recent invocation is billed, which errs toward
-// undercounting.
 func (b *Buffer) StartModelInvocation(key Key) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
