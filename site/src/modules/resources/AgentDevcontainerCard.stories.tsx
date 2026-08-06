@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
@@ -57,6 +64,37 @@ export const HasError: Story = {
 	},
 };
 
+export const FailedShowsDeleteAction: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			status: "error",
+			error: "exit status 1",
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = canvasElement.ownerDocument.body;
+
+		await expect(canvas.getByRole("button", { name: "Start" })).toBeEnabled();
+
+		const moreActionsButton = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		await expect(moreActionsButton).toBeEnabled();
+		await user.click(moreActionsButton);
+
+		const deleteItem = await within(body).findByRole("menuitem", {
+			name: "Delete…",
+		});
+		await waitFor(() => expect(deleteItem).toBeVisible());
+	},
+};
+
 export const NoPorts: Story = {};
 
 export const WithPorts: Story = {
@@ -109,6 +147,12 @@ export const Deleting: Story = {
 			status: "deleting",
 		},
 		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: "Dev Container actions" }),
+		).toBeDisabled();
 	},
 };
 

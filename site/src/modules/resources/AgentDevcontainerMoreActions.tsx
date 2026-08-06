@@ -11,11 +11,12 @@ import {
 
 type AgentDevcontainerMoreActionsProps = {
 	deleteDevContainer: () => void;
+	disabled?: boolean;
 };
 
 export const AgentDevcontainerMoreActions: FC<
 	AgentDevcontainerMoreActionsProps
-> = ({ deleteDevContainer }) => {
+> = ({ deleteDevContainer, disabled }) => {
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const [open, setOpen] = useState(false);
 	const menuContentId = useId();
@@ -23,7 +24,12 @@ export const AgentDevcontainerMoreActions: FC<
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
-				<Button size="icon-lg" variant="subtle" aria-controls={menuContentId}>
+				<Button
+					size="icon-lg"
+					variant="subtle"
+					aria-controls={menuContentId}
+					disabled={disabled}
+				>
 					<EllipsisVerticalIcon aria-hidden="true" />
 					<span className="sr-only">Dev Container actions</span>
 				</Button>

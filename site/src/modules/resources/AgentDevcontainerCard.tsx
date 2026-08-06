@@ -151,7 +151,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		},
 	});
 
-	const showDevcontainerControls = subAgent && devcontainer.container;
+	const showSubAgentControls = subAgent && devcontainer.container;
 	const isTransitioning =
 		devcontainer.status === "starting" ||
 		devcontainer.status === "stopping" ||
@@ -255,14 +255,14 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
-					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
+					{showSubAgentControls && displayApps.includes("ssh_helper") && (
 						<AgentSSHButton
 							workspaceName={workspace.name}
 							agentName={subAgent.name}
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
-					{showDevcontainerControls &&
+					{showSubAgentControls &&
 						displayApps.includes("port_forwarding_helper") &&
 						proxy.preferredWildcardHostname !== "" && (
 							<PortForwardButton
@@ -273,11 +273,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							/>
 						)}
 
-					{showDevcontainerControls && (
-						<AgentDevcontainerMoreActions
-							deleteDevContainer={deleteDevcontainerMutation.mutate}
-						/>
-					)}
+					<AgentDevcontainerMoreActions
+						disabled={isTransitioning}
+						deleteDevContainer={deleteDevcontainerMutation.mutate}
+					/>
 
 					<DevcontainerDeleteErrorDialog
 						open={deleteDevcontainerMutation.isError}
