@@ -1,0 +1,128 @@
+# As built: starting a workspace from the dogfood/coder template.
+#
+# Revision 6. An illustrative top level diagram. It shows when control flows,
+# how it flows, and what is being requested or commanded.
+#
+# Message naming: each message is named for what the control flow means, not
+# for its parameters and not by its internal API name.
+#
+# Label placement: messages use source-arrowhead labels so the text sits near
+# the origin of the arrow rather than centred on it. Long labels are clamped
+# back toward the centre by the layout engine.
+#
+# Scope:
+#   - Success paths only. Anything that could fail is taken to succeed.
+#   - Authentication and authorization are omitted, and assumed to succeed.
+#   - No prebuilds. One workspace, created directly at the request of a user.
+#   - No alternate paths.
+#   - Wait and loop mechanics are omitted. provisionerd is already waiting for
+#     work before the user acts, and returns to waiting afterward.
+#   - No audit journal lifeline. Auditable events will be marked on the
+#     timelines in a later revision.
+#
+# Collapsed on purpose:
+#   - All UI, CLI, and API flow is folded into the first user arrow.
+#   - Pubsub and backup polling are reduced to one message.
+#   - Terraform inspection commands are not shown.
+#   - Dependency resolution during terraform init is not shown. Providers
+#     resolve from the Terraform registry and are cached across builds via
+#     TF_PLUGIN_CACHE_DIR; modules resolve from Coder registries and, in one
+#     case, from Git. That is a supply chain concern rather than a control
+#     flow one, and needs its own treatment.
+#   - coder_script execution is a self message on the workspace_agent. That
+#     one arrow stands for N concurrent OS processes, started together in an
+#     errgroup, each with its own log file and timeout. The scripts come both
+#     from the template directly, such as install-deps and
+#     boundary_config_setup, and from Coder modules. Cron only scripts, such
+#     as go-cache-cleanup-cron, are scheduled rather than run at startup, so
+#     they are not part of this arrow at all.
+#   - Terraform providers other than coder and docker are not shown.
+#
+# Terminology follows poc_audit/audit_approach.md: workspace_agent is always
+# written in full and never shortened to "agent", since the bare word is
+# reserved for the principal and agent sense.
+
+startup: Workspace startup, as built, dogfood/coder {
+  shape: sequence_diagram
+
+  user: User
+  coderd: coderd
+  db: Postgres
+  pd: provisionerd
+  tf: terraform CLI
+  prov: terraform-provider-coder
+  docker: Docker daemon
+  ctr: workspace container
+  agent: workspace_agent, dev
+  dc: workspace_agent, coder (devcontainer)
+
+  request: {
+    user.req -> coderd.create: {
+      source-arrowhead.label: create workspace
+    }
+    coderd.create -> db.intent: {
+      source-arrowhead.label: record build intent
+    }
+    coderd.create -> user.req: {
+      source-arrowhead.label: accepted, build queued
+    }
+  }
+
+  dispatch: {
+    db.intent -> coderd.acquirer: {
+      source-arrowhead.label: notify work available
+    }
+    coderd.acquirer -> pd.run: {
+      source-arrowhead.label: dispatch build
+    }
+  }
+
+  provision: {
+    pd.run -> tf.init: {
+      source-arrowhead.label: terraform init
+    }
+    pd.run -> tf.plan: {
+      source-arrowhead.label: terraform plan
+    }
+    pd.run -> tf.apply: {
+      source-arrowhead.label: terraform apply
+    }
+    tf.apply -> prov.mat: {
+      source-arrowhead.label: materialize coder resources
+    }
+    tf.apply -> docker.create: {
+      source-arrowhead.label: create infrastructure
+    }
+    docker.create -> ctr.boot: {
+      source-arrowhead.label: start container
+    }
+  }
+
+  ingest: {
+    pd.run -> coderd.complete: {
+      source-arrowhead.label: report build complete
+    }
+    coderd.complete -> db.result: {
+      source-arrowhead.label: record build result
+    }
+  }
+
+  runtime: {
+    ctr.boot -> agent.up: {
+      source-arrowhead.label: workspace_agent starts
+    }
+    agent.up -> coderd.agentreg: {
+      source-arrowhead.label: register and fetch manifest
+    }
+    agent.up -> agent.up: {
+      source-arrowhead.label: run coder_scripts
+    }
+    agent.up.note: Module payloads run here, not at plan time
+    agent.up -> dc.up: {
+      source-arrowhead.label: start devcontainer
+    }
+    dc.up -> coderd.subagentreg: {
+      source-arrowhead.label: register child workspace_agent
+    }
+  }
+}
