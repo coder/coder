@@ -91,7 +91,12 @@ Section "Coder CLI" SecInstall
 
 	${INSTALL_TYPE}
 
-	SetOverwrite ifnewer
+	# Always replace the installed files. "ifnewer" compares file timestamps,
+	# which silently skips coder.exe whenever the installed build is newer than
+	# the one being installed. That happens on downgrades and on upgrades to a
+	# newer minor whose patch release was built earlier, leaving the registry
+	# reporting the new version while coder.exe reports the old one.
+	SetOverwrite on
 	SetOutPath "$INSTDIR"
 	File /r "bin"
 	File "${LICENSE_TXT}"
