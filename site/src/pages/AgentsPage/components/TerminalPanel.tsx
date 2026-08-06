@@ -1,5 +1,6 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
+import { v4 as uuidv4 } from "uuid";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
 import { workspaceUsage } from "#/api/queries/workspaces";
@@ -55,6 +56,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
+	const [sessionId] = useState(() => uuidv4());
 	const [isWarm, setIsWarm] = useState(Boolean(isHot));
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
@@ -167,6 +169,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 						onContentReady={signalReady}
 						onError={handleTerminalError}
 						reconnectionToken={reconnectionToken}
+						sessionId={sessionId}
 						initialCommand={initialCommand}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}

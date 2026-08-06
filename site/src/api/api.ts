@@ -2696,10 +2696,12 @@ class ApiMethods {
 
 	issueReconnectingPTYSignedToken = async (
 		params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+		sessionId: string,
 	): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
 		const response = await this.axios.post(
 			"/api/v2/applications/reconnecting-pty-signed-token",
 			params,
+			{ headers: { baggage: `session_id=${sessionId}` } },
 		);
 
 		return response.data;

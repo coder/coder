@@ -91,16 +91,16 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 func sessionIDFromHeaders(h http.Header) string {
 	ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
 	id := baggage.FromContext(ctx).Member(SessionIDBaggageKey).Value()
-	if !validSessionID(id) {
+	if !ValidSessionID(id) {
 		return ""
 	}
 	return id
 }
 
-// validSessionID reports whether s is a 32-character hexadecimal string, the
+// ValidSessionID reports whether s is a 32-character hexadecimal string, the
 // encoding the RFC mandates for the 16-byte session ID. Validating guards
-// against logging arbitrary client-controlled baggage values.
-func validSessionID(s string) bool {
+// against logging arbitrary client-controlled values.
+func ValidSessionID(s string) bool {
 	if len(s) != 32 {
 		return false
 	}

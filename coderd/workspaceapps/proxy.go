@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -764,12 +765,19 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	container := parser.String(values, "", "container")
 	containerUser := parser.String(values, "", "container_user")
 	backendType := parser.String(values, "", "backend_type")
+	sessionID := parser.String(values, "", tracing.SessionIDBaggageKey)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid query parameters.",
 			Validations: parser.Errors,
 		})
 		return
+	}
+	if tracing.ValidSessionID(sessionID) {
+		log = log.With(slog.F("session_id", sessionID))
+		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+			rl.WithFields(slog.F("session_id", sessionID))
+		}
 	}
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
