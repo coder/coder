@@ -3,14 +3,9 @@
  */
 const generateRandomString = (bytes: number): string => {
 	const byteArr = crypto.getRandomValues(new Uint8Array(bytes));
-	// The types for `map` don't seem to support mapping from one array type to
-	// another and `String.fromCharCode.apply` wants `number[]` so loop like this
-	// instead.
-	const strArr: string[] = [];
-	for (const byte of byteArr) {
-		strArr.push(byte.toString(16).padStart(2, "0"));
-	}
-	return strArr.join("");
+	return [...byteArr]
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("");
 };
 
 /**
