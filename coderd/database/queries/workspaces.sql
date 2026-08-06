@@ -473,6 +473,60 @@ WHERE
 )
 SELECT
 	fwos.*,
+	-- agent_metadata expands the response with the requested agent
+	-- metadata keys for the latest build's agents. The CASE keeps the
+	-- subquery unevaluated for every caller that does not opt in, and
+	-- it only runs for the returned page. Each element carries the
+	-- workspace_agent_id so multi-agent workspaces can map values onto
+	-- the right agent. Keys match case-insensitively because search
+	-- queries are lowercased.
+	CASE WHEN cardinality(@include_agent_metadata :: text[]) > 0 THEN
+		COALESCE((
+			SELECT
+				jsonb_agg(jsonb_build_object(
+					'workspace_agent_id', workspace_agents.id,
+					'display_name', workspace_agent_metadata.display_name,
+					'key', workspace_agent_metadata.key,
+					'script', workspace_agent_metadata.script,
+					'value', workspace_agent_metadata.value,
+					'error', workspace_agent_metadata.error,
+					'timeout', workspace_agent_metadata.timeout,
+					'interval', workspace_agent_metadata.interval,
+					'collected_at', workspace_agent_metadata.collected_at,
+					'display_order', workspace_agent_metadata.display_order
+				))
+			FROM
+				workspace_agents
+			JOIN
+				workspace_resources
+			ON
+				workspace_resources.id = workspace_agents.resource_id
+			JOIN
+				workspace_builds
+			ON
+				workspace_builds.job_id = workspace_resources.job_id
+			JOIN
+				workspace_agent_metadata
+			ON
+				workspace_agent_metadata.workspace_agent_id = workspace_agents.id
+			WHERE
+				workspace_builds.workspace_id = fwos.id
+				AND workspace_builds.build_number = (
+					SELECT
+						max(build_number)
+					FROM
+						workspace_builds
+					WHERE
+						workspace_builds.workspace_id = fwos.id
+				)
+				-- Filter out deleted sub agents.
+				AND workspace_agents.deleted = FALSE
+				AND LOWER(workspace_agent_metadata.key) = ANY(@include_agent_metadata :: text[])
+		), '[]'::jsonb)
+	ELSE
+		-- Never NULL: lib/pq cannot scan NULL into json.RawMessage.
+		'[]'::jsonb
+	END :: jsonb AS agent_metadata,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos

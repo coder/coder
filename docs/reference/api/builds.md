@@ -170,6 +170,23 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {
@@ -413,6 +430,23 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {
@@ -774,6 +808,23 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         ],
         "logs_length": 0,
         "logs_overflowed": true,
+        "metadata": [
+          {
+            "description": {
+              "display_name": "string",
+              "interval": 0,
+              "key": "string",
+              "script": "string",
+              "timeout": 0
+            },
+            "result": {
+              "age": 0,
+              "collected_at": "2019-08-24T14:15:22Z",
+              "error": "string",
+              "value": "string"
+            }
+          }
+        ],
         "name": "string",
         "operating_system": "string",
         "parent_id": {
@@ -904,6 +955,18 @@ Status Code **200**
 | `»»» workspace_agent_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» logs_length`                | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» metadata`                   | array                                                                                                  | false    |              | Metadata is only populated on the workspaces list endpoint when the request opts in with the include_agent_metadata search key, and it only carries the requested keys.                                                                        |
+| `»»» description`               | [codersdk.WorkspaceAgentMetadataDescription](schemas.md#codersdkworkspaceagentmetadatadescription)     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» display_name`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» interval`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» key`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» script`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» timeout`                  | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» result`                    | [codersdk.WorkspaceAgentMetadataResult](schemas.md#codersdkworkspaceagentmetadataresult)               | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» age`                      | integer                                                                                                | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew.                                                                                                        |
+| `»»»» collected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» error`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» value`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
@@ -1128,6 +1191,23 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {
@@ -1482,6 +1562,23 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -1675,6 +1772,18 @@ Status Code **200**
 | `»»»» workspace_agent_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» logs_length`                | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» metadata`                   | array                                                                                                  | false    |              | Metadata is only populated on the workspaces list endpoint when the request opts in with the include_agent_metadata search key, and it only carries the requested keys.                                                                        |
+| `»»»» description`               | [codersdk.WorkspaceAgentMetadataDescription](schemas.md#codersdkworkspaceagentmetadatadescription)     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» display_name`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» interval`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» key`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» script`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» timeout`                  | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» result`                    | [codersdk.WorkspaceAgentMetadataResult](schemas.md#codersdkworkspaceagentmetadataresult)               | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» age`                      | integer                                                                                                | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew.                                                                                                        |
+| `»»»»» collected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» error`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» value`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
@@ -1951,6 +2060,23 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {

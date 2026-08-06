@@ -10192,6 +10192,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -11544,6 +11561,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -15243,6 +15277,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -15528,6 +15579,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "logs_length": 0,
   "logs_overflowed": true,
+  "metadata": [
+    {
+      "description": {
+        "display_name": "string",
+        "interval": 0,
+        "key": "string",
+        "script": "string",
+        "timeout": 0
+      },
+      "result": {
+        "age": 0,
+        "collected_at": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "value": "string"
+      }
+    }
+  ],
   "name": "string",
   "operating_system": "string",
   "parent_id": {
@@ -15590,6 +15658,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource)                | false    |              |                                                                                                                                                                              |
 | `logs_length`                | integer                                                                                      | false    |              |                                                                                                                                                                              |
 | `logs_overflowed`            | boolean                                                                                      | false    |              |                                                                                                                                                                              |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadata](#codersdkworkspaceagentmetadata)                  | false    |              | Metadata is only populated on the workspaces list endpoint when the request opts in with the include_agent_metadata search key, and it only carries the requested keys.      |
 | `name`                       | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                              |
@@ -16004,6 +16073,75 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `icon`               | string | false    |              |             |
 | `id`                 | string | false    |              |             |
 | `workspace_agent_id` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadata
+
+```json
+{
+  "description": {
+    "display_name": "string",
+    "interval": 0,
+    "key": "string",
+    "script": "string",
+    "timeout": 0
+  },
+  "result": {
+    "age": 0,
+    "collected_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                     | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |             |
+| `result`      | [codersdk.WorkspaceAgentMetadataResult](#codersdkworkspaceagentmetadataresult)           | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadataDescription
+
+```json
+{
+  "display_name": "string",
+  "interval": 0,
+  "key": "string",
+  "script": "string",
+  "timeout": 0
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `display_name` | string  | false    |              |             |
+| `interval`     | integer | false    |              |             |
+| `key`          | string  | false    |              |             |
+| `script`       | string  | false    |              |             |
+| `timeout`      | integer | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadataResult
+
+```json
+{
+  "age": 0,
+  "collected_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                                             |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `age`          | integer | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew. |
+| `collected_at` | string  | false    |              |                                                                                                                                         |
+| `error`        | string  | false    |              |                                                                                                                                         |
+| `value`        | string  | false    |              |                                                                                                                                         |
 
 ## codersdk.WorkspaceAgentPortShare
 
@@ -16488,6 +16626,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {
@@ -16958,6 +17113,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "logs_length": 0,
       "logs_overflowed": true,
+      "metadata": [
+        {
+          "description": {
+            "display_name": "string",
+            "interval": 0,
+            "key": "string",
+            "script": "string",
+            "timeout": 0
+          },
+          "result": {
+            "age": 0,
+            "collected_at": "2019-08-24T14:15:22Z",
+            "error": "string",
+            "value": "string"
+          }
+        }
+      ],
       "name": "string",
       "operating_system": "string",
       "parent_id": {
@@ -17308,6 +17480,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "logs_length": 0,
                 "logs_overflowed": true,
+                "metadata": [
+                  {
+                    "description": {},
+                    "result": {}
+                  }
+                ],
                 "name": "string",
                 "operating_system": "string",
                 "parent_id": {
