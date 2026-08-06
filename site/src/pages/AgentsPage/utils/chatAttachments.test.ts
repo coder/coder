@@ -380,6 +380,28 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
+	it("suppresses share rejection UI when aborted while the sheet is pending", async () => {
+		enterIOSStandalonePWA();
+		const controller = new AbortController();
+		const share = vi.fn().mockImplementation(() => {
+			controller.abort();
+			return Promise.reject(new DOMException("expired", "NotAllowedError"));
+		});
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(new Blob(["png-bytes"], { type: "image/png" }), {
+				status: 200,
+			}),
+		);
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target, controller.signal);
+
+		expect(share).toHaveBeenCalledTimes(1);
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+
 	it("offers a tab fallback when the fetched file turns out unshareable", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);

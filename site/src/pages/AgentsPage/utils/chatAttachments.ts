@@ -129,10 +129,13 @@ const shareFileViaSheet = (
 	file: File,
 	fileName: string,
 	href: string,
+	signal?: AbortSignal,
 ): Promise<void> =>
 	navigator.share({ files: [file] }).catch((error: unknown) => {
-		// A dismissed share sheet rejects with AbortError.
-		if (errorHasName(error, "AbortError")) {
+		// A dismissed share sheet rejects with AbortError. An aborted
+		// signal means the attachment unmounted, so rejection UI would
+		// surface on an unrelated view.
+		if (errorHasName(error, "AbortError") || signal?.aborted) {
 			return;
 		}
 		// iOS transient activation can expire while the file is fetched.
@@ -223,7 +226,7 @@ const shareAttachmentFile = async (
 		});
 		return;
 	}
-	await shareFileViaSheet(file, fileName, href);
+	await shareFileViaSheet(file, fileName, href, signal);
 };
 
 /**
