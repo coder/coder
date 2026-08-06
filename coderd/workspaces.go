@@ -364,7 +364,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -425,7 +425,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Tags Workspaces
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (

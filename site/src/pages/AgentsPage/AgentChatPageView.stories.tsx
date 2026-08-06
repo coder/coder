@@ -26,13 +26,13 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import {
 	createChatStore,
 	useChatSelector,
 } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -1579,12 +1579,12 @@ const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}
 
 /**
  * When localStorage contains a persisted tab ID for this chat, the sidebar
- * should restore it on mount. Seed localStorage with "terminal" and verify
- * that the Terminal tab is selected instead of the default Git tab.
+ * should restore it on mount. Seed localStorage with "git" and verify that
+ * the Git tab is selected instead of the default Summary tab.
  */
 export const RestoresPersistedSidebarTab: Story = {
 	beforeEach: () => {
-		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		localStorage.setItem(sidebarTabStorageKey, "git");
 		return () => {
 			localStorage.removeItem(sidebarTabStorageKey);
 		};
@@ -1601,12 +1601,12 @@ export const RestoresPersistedSidebarTab: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const gitTab = canvas.getByRole("tab", { name: "Git" });
-		expect(gitTab).toHaveAttribute("aria-selected", "false");
+		const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+		expect(summaryTab).toHaveAttribute("aria-selected", "false");
 	},
 };
 
@@ -1637,14 +1637,14 @@ export const PersistsSidebarTabClick: Story = {
 			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
 
 		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("git");
 	},
 };
 
@@ -1711,11 +1711,11 @@ export const DoesNotPersistForArchivedChat: Story = {
 			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
 
 		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();

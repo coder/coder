@@ -151,7 +151,7 @@ module "git-clone" {
 
 # Infrastructure resources
 resource "docker_image" "main" {
-  name = "codercom/enterprise-base:ubuntu"
+  name = "codercom/example-base:ubuntu"
 }
 
 resource "docker_container" "workspace" {

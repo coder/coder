@@ -691,6 +691,20 @@
   "models": [
     "string"
   ],
+  "network_call_logs": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ],
   "network_calls": {
     "blocked": 0,
     "total": 0
@@ -785,24 +799,25 @@
 
 ### Properties
 
-| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
-|------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
-| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
-| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
-| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
-| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.          |
-| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                       |
-| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                       |
+| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                           |
+|------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_call_logs`    | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog)                          | false    |              | Network call logs is the chronological list of individual network calls made during the session, holding the earliest calls up to a server-side cap. NetworkCalls remains authoritative for whole-session totals, so a shorter list than NetworkCalls.Total means the list was truncated. Empty when the session did not pass through Agent Firewall. |
+| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
+| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.AIBridgeSessionThreadsTokenUsage
 
@@ -1067,6 +1082,7 @@
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
+    "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
     "hook_timeout": 0,
@@ -2440,6 +2456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
+  "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
   "hook_timeout": 0,
@@ -2465,6 +2482,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|----------------------------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer                    | false    |              |             |
 | `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_allow_insecure`   | boolean                    | false    |              |             |
 | `hook_enabled`          | boolean                    | false    |              |             |
 | `hook_secret`           | string                     | false    |              |             |
 | `hook_timeout`          | integer                    | false    |              |             |
@@ -2581,7 +2599,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name          | Type   | Required | Restrictions | Description                                                                                                       |
 |---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
-| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+| `name`        | string | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it. |
 
 ## codersdk.ChatCost
 
@@ -2869,6 +2887,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2964,6 +2983,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "valid": true
   },
   "file_name": "string",
+  "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
   "mcp_server_config_id": {
@@ -3020,6 +3040,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3133,6 +3154,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3215,6 +3237,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3444,6 +3467,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3609,6 +3633,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -3689,6 +3714,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3757,6 +3783,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3874,6 +3901,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "valid": true
     },
     "file_name": "string",
+    "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
     "mcp_server_config_id": {
@@ -4575,6 +4603,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -4656,6 +4685,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -4738,6 +4768,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -5027,6 +5058,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -5064,6 +5096,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
 |---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                    | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
+| `agents_allowed`                      | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. Defaults to true.                                                                                                                                                                                                           |
 | `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
 | `allow_user_autostop`                 | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
 | `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
@@ -5893,6 +5926,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
+        "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
         "hook_timeout": 0,
@@ -6519,6 +6553,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
+      "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
       "hook_timeout": 0,
@@ -7274,6 +7309,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -7355,6 +7391,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -7503,9 +7540,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -12284,6 +12321,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -12345,6 +12383,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `active_user_count`                | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                    |
 | `active_version_id`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `activity_bump_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `agents_allowed`                   | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                         |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
@@ -12748,6 +12787,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -13942,6 +13982,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -13982,6 +14023,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
 |------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                                                                                            |
+| `agents_allowed`                   | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. If omitted, the current value is preserved.                                                                                                                                                                                                                                                |
 | `allow_user_autostart`             | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |

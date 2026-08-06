@@ -40,6 +40,10 @@ It reads as a misspelling of the product name.
 
 *Enforced by `Coder.ProductTerms` (planned).*
 
+The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
+When you add, rename, or deprecate a product or feature name, update the glossary in the same change.
+The planned `Coder.ProductTerms` rule and the glossary should draw on one shared term list.
+
 ## Brand names
 
 Use the canonical casing for third-party brand and product names.
@@ -145,6 +149,30 @@ Treat them consistently across the docs.
 > Backup the database before the upgrade.
 
 *Enforced by `Coder.PhrasalVerbs` (planned).*
+
+## Whose for people, not things
+
+"Whose" is the possessive of "who", so it implies the antecedent is a person.
+When the antecedent is an inanimate object or an abstract concept, prefer "with", "where", or "that has".
+
+**Do**:
+
+> A chat with pruned gateway records reports no cost.
+>
+> A template that has conflicting variables fails validation.
+>
+> A region where every proxy is unhealthy drops workspace connections.
+
+**Don't**:
+
+> A chat whose gateway records have been pruned reports no cost.
+>
+> A template whose variables conflict fails validation.
+>
+> A region whose proxies are all unhealthy drops workspace connections.
+
+*Documentation-only.
+No Vale rule.*
 
 ## Refer to, check out, visit, not see
 
