@@ -172,10 +172,12 @@ const getAttachmentDownloadName = (
 	if (name.startsWith(".")) {
 		return name;
 	}
-	// text/plain is the server classifier's catch-all for source files
-	// (main.go, config.properties), whose suffixes identify them better
-	// than .txt would, so any dotted suffix is kept regardless of length.
-	if (block.media_type === "text/plain") {
+	// The server classifies text-like uploads (text/plain, markdown, CSV,
+	// JSON) by content while preserving their names, so an existing suffix
+	// (main.go, config.properties, map.geojson) identifies the file better
+	// than the canonical extension would. Keep any dotted suffix and only
+	// append the extension to extensionless names.
+	if (isTextPreviewAttachmentMediaType(block.media_type)) {
 		return /\.[^.\s]+$/.test(name) ? name : `${name}.${mediaExtension}`;
 	}
 	// iOS resolves the shared or saved file's type from the filename

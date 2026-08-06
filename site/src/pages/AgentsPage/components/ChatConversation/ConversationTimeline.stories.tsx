@@ -1348,6 +1348,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-json-1",
 						name: ".eslintrc",
 					},
+					{
+						type: "file",
+						media_type: "application/json",
+						file_id: "storybook-json-2",
+						name: "map.geojson",
+					},
 				],
 			},
 		]),
@@ -1404,6 +1410,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 			expect(
 				canvas.getByRole("link", { name: "Download .eslintrc" }),
 			).toHaveAttribute("download", ".eslintrc");
+		});
+		canvas.getByRole("button", { name: "View map.geojson" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download map.geojson" }),
+			).toHaveAttribute("download", "map.geojson");
 		});
 	},
 };
