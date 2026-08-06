@@ -421,18 +421,33 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 }
 
 type OrganizationProvisionerJobsOptions struct {
-	Limit     int
+	// Pagination controls page size and offset. A Limit of 0 uses the
+	// server default (100).
+	Pagination
 	IDs       []uuid.UUID
 	Status    []ProvisionerJobStatus
 	Tags      map[string]string
 	Initiator string
 }
 
-func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) ([]ProvisionerJob, error) {
+// ProvisionerJobsResponse is the paginated response for listing provisioner jobs.
+type ProvisionerJobsResponse struct {
+	Jobs []ProvisionerJob `json:"jobs"`
+	// Count is the total number of jobs matching the filter, capped by CountCap.
+	Count int64 `json:"count"`
+	// CountCap is the maximum number of jobs counted. When Count equals CountCap,
+	// there may be additional matching jobs beyond the cap.
+	CountCap int64 `json:"count_cap"`
+}
+
+func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) (ProvisionerJobsResponse, error) {
 	qp := url.Values{}
 	if opts != nil {
 		if opts.Limit > 0 {
 			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			qp.Add("offset", strconv.Itoa(opts.Offset))
 		}
 		if len(opts.IDs) > 0 {
 			qp.Add("ids", joinSliceStringer(opts.IDs))
@@ -443,7 +458,7 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		if len(opts.Tags) > 0 {
 			tagsRaw, err := json.Marshal(opts.Tags)
 			if err != nil {
-				return nil, xerrors.Errorf("marshal tags: %w", err)
+				return ProvisionerJobsResponse{}, xerrors.Errorf("marshal tags: %w", err)
 			}
 			qp.Add("tags", string(tagsRaw))
 		}
@@ -457,16 +472,16 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return ProvisionerJobsResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return ProvisionerJobsResponse{}, ReadBodyAsError(res)
 	}
 
-	var jobs []ProvisionerJob
-	return jobs, ReadBodyAsJSON(res, &jobs)
+	var jobsRes ProvisionerJobsResponse
+	return jobsRes, ReadBodyAsJSON(res, &jobsRes)
 }
 
 func (c *Client) OrganizationProvisionerJob(ctx context.Context, organizationID, jobID uuid.UUID) (job ProvisionerJob, err error) {

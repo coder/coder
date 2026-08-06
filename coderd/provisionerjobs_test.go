@@ -74,8 +74,8 @@ func TestProvisionerJobs(t *testing.T) {
 			TemplateVersionID: version.ID,
 		})
 
-		// Add more jobs than the default limit.
-		for i := range 60 {
+		// Add more jobs than the default limit (100).
+		for i := range 110 {
 			dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 				OrganizationID: owner.OrganizationID,
 				Tags:           database.StringMap{"count": strconv.Itoa(i)},
@@ -140,51 +140,56 @@ func TestProvisionerJobs(t *testing.T) {
 		t.Run("Default limit", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 			require.NoError(t, err)
-			require.Len(t, jobs, 50)
+			require.Len(t, jobsRes.Jobs, 100)
+			require.GreaterOrEqual(t, jobsRes.Count, int64(100))
+			require.Equal(t, int64(2000), jobsRes.CountCap)
 		})
 
 		t.Run("IDs", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				IDs: []uuid.UUID{workspace.LatestBuild.Job.ID, version.Job.ID},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 2)
+			require.Len(t, jobsRes.Jobs, 2)
+			require.Equal(t, int64(2), jobsRes.Count)
 		})
 
 		t.Run("Status", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobRunning},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 1)
+			require.Len(t, jobsRes.Jobs, 1)
+			require.Equal(t, int64(1), jobsRes.Count)
 		})
 
 		t.Run("Tags", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Tags: map[string]string{"count": "1"},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 1)
+			require.Len(t, jobsRes.Jobs, 1)
+			require.Equal(t, int64(1), jobsRes.Count)
 		})
 
 		t.Run("Initiator", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: member.ID.String(),
 			})
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, len(jobs), 1)
-			require.Equal(t, member.ID, jobs[0].InitiatorID)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			require.Equal(t, member.ID, jobsRes.Jobs[0].InitiatorID)
 		})
 
 		t.Run("InitiatorWithOtherFilters", func(t *testing.T) {
@@ -192,14 +197,14 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Test filtering by initiator ID combined with status filter
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: owner.UserID.String(),
 				Status:    []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobSucceeded},
 			})
 			require.NoError(t, err)
 
 			// Verify all returned jobs have the correct initiator and status
-			for _, job := range jobs {
+			for _, job := range jobsRes.Jobs {
 				require.Equal(t, owner.UserID, job.InitiatorID)
 				require.Equal(t, codersdk.ProvisionerJobSucceeded, job.Status)
 			}
@@ -210,15 +215,17 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Test filtering by initiator ID with limit
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: owner.UserID.String(),
-				Limit:     1,
+				Pagination: codersdk.Pagination{
+					Limit: 1,
+				},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 1)
+			require.Len(t, jobsRes.Jobs, 1)
 
 			// Verify the returned job has the correct initiator
-			require.Equal(t, owner.UserID, jobs[0].InitiatorID)
+			require.Equal(t, owner.UserID, jobsRes.Jobs[0].InitiatorID)
 		})
 
 		t.Run("InitiatorWithTags", func(t *testing.T) {
@@ -226,16 +233,16 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Test filtering by initiator ID combined with tags
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: member.ID.String(),
 				Tags:      map[string]string{"initiatorTest": "true"},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 1)
+			require.Len(t, jobsRes.Jobs, 1)
 
 			// Verify the returned job has the correct initiator and tags
-			require.Equal(t, member.ID, jobs[0].InitiatorID)
-			require.Equal(t, "true", jobs[0].Tags["initiatorTest"])
+			require.Equal(t, member.ID, jobsRes.Jobs[0].InitiatorID)
+			require.Equal(t, "true", jobsRes.Jobs[0].Tags["initiatorTest"])
 		})
 
 		t.Run("InitiatorNotFound", func(t *testing.T) {
@@ -244,11 +251,12 @@ func TestProvisionerJobs(t *testing.T) {
 
 			// Test with non-existent initiator ID
 			nonExistentID := uuid.New()
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: nonExistentID.String(),
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 0)
+			require.Len(t, jobsRes.Jobs, 0)
+			require.Equal(t, int64(0), jobsRes.Count)
 		})
 
 		t.Run("InitiatorNil", func(t *testing.T) {
@@ -256,21 +264,48 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Test with nil initiator ID (should return all jobs)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: "",
 			})
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, len(jobs), 50) // Should return all jobs (up to default limit)
+			require.Len(t, jobsRes.Jobs, 100) // Default page limit
+			require.GreaterOrEqual(t, jobsRes.Count, int64(100))
 		})
 
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				Limit: 1,
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Pagination: codersdk.Pagination{
+					Limit: 1,
+				},
 			})
 			require.NoError(t, err)
-			require.Len(t, jobs, 1)
+			require.Len(t, jobsRes.Jobs, 1)
+			require.GreaterOrEqual(t, jobsRes.Count, int64(1))
+		})
+
+		t.Run("Offset", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			page1, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Pagination: codersdk.Pagination{
+					Limit: 10,
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, page1.Jobs, 10)
+
+			page2, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Pagination: codersdk.Pagination{
+					Limit:  10,
+					Offset: 10,
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, page2.Jobs, 10)
+			require.Equal(t, page1.Count, page2.Count)
+			require.NotEqual(t, page1.Jobs[0].ID, page2.Jobs[0].ID)
 		})
 
 		// For now, this is not allowed even though the member has created a
@@ -279,20 +314,20 @@ func TestProvisionerJobs(t *testing.T) {
 		t.Run("MemberDenied", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			jobsRes, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 			require.Error(t, err)
-			require.Len(t, jobs, 0)
+			require.Len(t, jobsRes.Jobs, 0)
 		})
 
 		t.Run("MemberDeniedWithInitiator", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			// Member should not be able to access jobs even with initiator filter
-			jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 				Initiator: member.ID.String(),
 			})
 			require.Error(t, err)
-			require.Len(t, jobs, 0)
+			require.Len(t, jobsRes.Jobs, 0)
 		})
 	})
 
@@ -337,11 +372,12 @@ func TestProvisionerJobs(t *testing.T) {
 			}
 
 			// Get provisioner jobs
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 			require.NoError(t, err)
-			require.Equal(t, 2, len(jobs))
+			require.Equal(t, 2, len(jobsRes.Jobs))
+			require.Equal(t, int64(2), jobsRes.Count)
 
-			for _, job := range jobs {
+			for _, job := range jobsRes.Jobs {
 				require.Equal(t, owner.OrganizationID, job.OrganizationID)
 				require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(job.Status))
 
@@ -367,13 +403,13 @@ func TestProvisionerJobs(t *testing.T) {
 			}
 
 			// Get all provisioner jobs
-			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 			require.NoError(t, err)
-			require.Equal(t, 2, len(jobs))
+			require.Equal(t, 2, len(jobsRes.Jobs))
 
 			// Find workspace_build provisioner job ID
 			var workspaceProvisionerJobID uuid.UUID
-			for _, job := range jobs {
+			for _, job := range jobsRes.Jobs {
 				if job.Type == codersdk.ProvisionerJobTypeWorkspaceBuild {
 					workspaceProvisionerJobID = job.ID
 				}

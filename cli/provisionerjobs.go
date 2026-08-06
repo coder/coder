@@ -74,22 +74,24 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				initiator = user.ID.String()
 			}
 
-			jobs, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
+			jobsRes, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
+				Pagination: codersdk.Pagination{
+					Limit: int(limit),
+				},
 				Status:    slice.StringEnums[codersdk.ProvisionerJobStatus](status),
-				Limit:     int(limit),
 				Initiator: initiator,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)
 			}
 
-			if len(jobs) == 0 {
+			if len(jobsRes.Jobs) == 0 {
 				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner jobs found")
 				return nil
 			}
 
 			var rows []provisionerJobRow
-			for _, job := range jobs {
+			for _, job := range jobsRes.Jobs {
 				row := provisionerJobRow{
 					ProvisionerJob:   job,
 					OrganizationName: org.HumanName(),

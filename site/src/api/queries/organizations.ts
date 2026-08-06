@@ -290,7 +290,10 @@ export const provisionerJobs = (
 ) => {
 	return {
 		queryKey: provisionerJobsQueryKey(orgId, params),
-		queryFn: () => API.getProvisionerJobs(orgId, params),
+		queryFn: async () => {
+			const res = await API.getProvisionerJobs(orgId, params);
+			return res.jobs;
+		},
 	};
 };
 

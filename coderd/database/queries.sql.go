@@ -22594,6 +22594,50 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	return i, err
 }
 
+const countProvisionerJobsByOrganizationAndStatus = `-- name: CountProvisionerJobsByOrganizationAndStatus :one
+SELECT COUNT(*) FROM (
+	SELECT 1
+	FROM
+		provisioner_jobs pj
+	WHERE
+		pj.organization_id = $1::uuid
+		AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
+		AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
+		AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
+		AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
+	-- Avoid a slow scan on a large table. The caller passes the count
+	-- cap and we add 1 so the frontend can detect capping and show
+	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).
+	LIMIT NULLIF($6::int, 0) + 1
+) AS limited_count
+`
+
+type CountProvisionerJobsByOrganizationAndStatusParams struct {
+	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
+	IDs            []uuid.UUID            `db:"ids" json:"ids"`
+	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Tags           StringMap              `db:"tags" json:"tags"`
+	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
+	CountCap       int32                  `db:"count_cap" json:"count_cap"`
+}
+
+// Lean count for pagination. Uses the same filters as
+// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner
+// without the queue/metadata joins.
+func (q *sqlQuerier) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countProvisionerJobsByOrganizationAndStatus,
+		arg.OrganizationID,
+		pq.Array(arg.IDs),
+		pq.Array(arg.Status),
+		arg.Tags,
+		arg.InitiatorID,
+		arg.CountCap,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
@@ -22994,7 +23038,12 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$6::int
+	-- a limit of 0 means "no limit". The provisioner jobs table is
+	-- unbounded in size. Implement a default limit of 100 to prevent
+	-- accidental excessively large queries.
+	COALESCE(NULLIF($7::int, 0), 100)
+OFFSET
+	$6
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -23003,7 +23052,8 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
 	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
-	Limit          sql.NullInt32          `db:"limit" json:"limit"`
+	OffsetOpt      int32                  `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32                  `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow struct {
@@ -23029,7 +23079,8 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		pq.Array(arg.Status),
 		arg.Tags,
 		arg.InitiatorID,
-		arg.Limit,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err

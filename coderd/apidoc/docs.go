@@ -5960,6 +5960,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
                         "type": "array",
                         "format": "uuid",
                         "items": {
@@ -6009,10 +6015,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ProvisionerJob"
-                            }
+                            "$ref": "#/definitions/codersdk.ProvisionerJobsResponse"
                         }
                     }
                 },
@@ -23402,6 +23405,25 @@ const docTemplate = `{
                 "ProvisionerJobTypeWorkspaceBuild",
                 "ProvisionerJobTypeTemplateVersionDryRun"
             ]
+        },
+        "codersdk.ProvisionerJobsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the total number of jobs matching the filter, capped by CountCap.",
+                    "type": "integer"
+                },
+                "count_cap": {
+                    "description": "CountCap is the maximum number of jobs counted. When Count equals CountCap,\nthere may be additional matching jobs beyond the cap.",
+                    "type": "integer"
+                },
+                "jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerJob"
+                    }
+                }
+            }
         },
         "codersdk.ProvisionerKey": {
             "type": "object",

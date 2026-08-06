@@ -2014,6 +2014,15 @@ func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]databas
 	return q.db.CountPendingNonActivePrebuilds(ctx)
 }
 
+func (q *querier) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg database.CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
+	// Match the handler gate: org-scoped read on provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(arg.OrganizationID)); err != nil {
+		return 0, err
+	}
+	return q.db.CountProvisionerJobsByOrganizationAndStatus(ctx, arg)
+}
+
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
 		return 0, err

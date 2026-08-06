@@ -6890,8 +6890,7 @@ export interface OrganizationProvisionerDaemonsOptions {
 }
 
 // From codersdk/organizations.go
-export interface OrganizationProvisionerJobsOptions {
-	readonly Limit: number;
+export interface OrganizationProvisionerJobsOptions extends Pagination {
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
 	readonly Tags: Record<string, string>;
@@ -7419,6 +7418,23 @@ export const ProvisionerJobTypes: ProvisionerJobType[] = [
 	"template_version_import",
 	"workspace_build",
 ];
+
+// From codersdk/organizations.go
+/**
+ * ProvisionerJobsResponse is the paginated response for listing provisioner jobs.
+ */
+export interface ProvisionerJobsResponse {
+	readonly jobs: readonly ProvisionerJob[];
+	/**
+	 * Count is the total number of jobs matching the filter, capped by CountCap.
+	 */
+	readonly count: number;
+	/**
+	 * CountCap is the maximum number of jobs counted. When Count equals CountCap,
+	 * there may be additional matching jobs beyond the cap.
+	 */
+	readonly count_cap: number;
+}
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerKey {

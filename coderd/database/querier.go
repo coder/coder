@@ -110,6 +110,10 @@ type sqlcQuerier interface {
 	CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]CountOIDCLinkedIDsByIssuerRow, error)
 	// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
 	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
+	// Lean count for pagination. Uses the same filters as
+	// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner
+	// without the queue/metadata joins.
+	CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg CountProvisionerJobsByOrganizationAndStatusParams) (int64, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)

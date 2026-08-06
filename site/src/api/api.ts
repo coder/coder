@@ -404,6 +404,7 @@ export class ParameterValidationError extends Error {
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
+	offset?: number;
 	// IDs separated by comma
 	ids?: string;
 };
@@ -2904,7 +2905,7 @@ class ApiMethods {
 		orgId: string,
 		params: GetProvisionerJobsParams = {},
 	) => {
-		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
+		const res = await this.axios.get<TypesGen.ProvisionerJobsResponse>(
 			`/api/v2/organizations/${orgId}/provisionerjobs`,
 			{ params },
 		);

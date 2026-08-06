@@ -4619,6 +4619,16 @@ func (s *MethodTestSuite) TestExtraMethods() {
 			InitiatorID:    uuid.Nil,
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
+	s.Run("CountProvisionerJobsByOrganizationAndStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		arg := database.CountProvisionerJobsByOrganizationAndStatusParams{
+			OrganizationID: orgID,
+			InitiatorID:    uuid.Nil,
+			CountCap:       2000,
+		}
+		dbm.EXPECT().CountProvisionerJobsByOrganizationAndStatus(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs.InOrg(orgID), policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestTailnetFunctions() {

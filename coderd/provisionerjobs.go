@@ -66,6 +66,11 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobWithQueuePosition(jobs[0]))
 }
 
+// Limit the count query to avoid a slow sequential scan due to joins
+// on a large table. Set to 0 to disable capping (but also see the note
+// in the SQL query).
+const provisionerJobsCountCap = 2000
+
 // @Summary Get provisioner jobs
 // @ID get-provisioner-jobs
 // @Security CoderSessionToken
@@ -73,39 +78,108 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
-// @Success 200 {array} codersdk.ProvisionerJob
+// @Success 200 {object} codersdk.ProvisionerJobsResponse
 // @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, nil)
-	if !ok {
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(jobs, convertProvisionerJobWithQueuePosition))
-}
-
-// handleAuthAndFetchProvisionerJobs is an internal method shared by
-// provisionerJob and provisionerJobs. If ok is false the caller should
-// return immediately because the response has already been written.
-func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
 	// For now, only owners and template admins can access provisioner jobs.
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
 		httpapi.ResourceNotFound(rw)
-		return nil, false
+		return
 	}
 
+	page, ok := ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	filters, ok := parseProvisionerJobFilters(rw, r, nil)
+	if !ok {
+		return
+	}
+
+	count, err := api.Database.CountProvisionerJobsByOrganizationAndStatus(ctx, database.CountProvisionerJobsByOrganizationAndStatusParams{
+		OrganizationID: org.ID,
+		Status:         filters.Status,
+		IDs:            filters.IDs,
+		Tags:           filters.Tags,
+		InitiatorID:    filters.InitiatorID,
+		CountCap:       provisionerJobsCountCap,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error counting provisioner jobs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if count == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProvisionerJobsResponse{
+			Jobs:     []codersdk.ProvisionerJob{},
+			Count:    0,
+			CountCap: provisionerJobsCountCap,
+		})
+		return
+	}
+
+	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		OrganizationID: org.ID,
+		Status:         filters.Status,
+		IDs:            filters.IDs,
+		Tags:           filters.Tags,
+		InitiatorID:    filters.InitiatorID,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(page.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(page.Limit),
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner jobs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProvisionerJobsResponse{
+		Jobs:     slice.List(jobs, convertProvisionerJobWithQueuePosition),
+		Count:    count,
+		CountCap: provisionerJobsCountCap,
+	})
+}
+
+type provisionerJobFilters struct {
+	IDs         []uuid.UUID
+	Status      []database.ProvisionerJobStatus
+	Tags        database.StringMap
+	InitiatorID uuid.UUID
+}
+
+// parseProvisionerJobFilters parses filter query params shared by the list and
+// single-job endpoints. Pagination params are marked parsed so they are not
+// rejected when callers also use ParsePagination.
+func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (provisionerJobFilters, bool) {
+	ctx := r.Context()
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
-	limit := p.PositiveInt32(qp, 50, "limit")
+	_ = p.PositiveInt32(qp, 0, "limit")
+	_ = p.PositiveInt32(qp, 0, "offset")
+	_ = p.UUID(qp, uuid.Nil, "after_id")
 	status := p.Strings(qp, nil, "status")
 	if ids == nil {
 		ids = p.UUIDs(qp, nil, "ids")
@@ -118,16 +192,44 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 			Message:     "Invalid query parameters.",
 			Validations: p.Errors,
 		})
+		return provisionerJobFilters{}, false
+	}
+
+	return provisionerJobFilters{
+		IDs:         ids,
+		Status:      slice.StringEnums[database.ProvisionerJobStatus](status),
+		Tags:        tags,
+		InitiatorID: initiatorID,
+	}, true
+}
+
+// handleAuthAndFetchProvisionerJobs is used by the singular provisioner job
+// endpoint. If ok is false the caller should return immediately because the
+// response has already been written.
+func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return nil, false
+	}
+
+	filters, ok := parseProvisionerJobFilters(rw, r, ids)
+	if !ok {
 		return nil, false
 	}
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: org.ID,
-		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
-		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
-		IDs:            ids,
-		Tags:           tags,
-		InitiatorID:    initiatorID,
+		Status:         filters.Status,
+		IDs:            filters.IDs,
+		Tags:           filters.Tags,
+		InitiatorID:    filters.InitiatorID,
+		// Default page size is applied in SQL when LimitOpt is 0.
+		LimitOpt:  0,
+		OffsetOpt: 0,
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {

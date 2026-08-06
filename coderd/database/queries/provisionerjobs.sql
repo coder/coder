@@ -246,7 +246,32 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	sqlc.narg('limit')::int;
+	-- a limit of 0 means "no limit". The provisioner jobs table is
+	-- unbounded in size. Implement a default limit of 100 to prevent
+	-- accidental excessively large queries.
+	COALESCE(NULLIF(@limit_opt::int, 0), 100)
+OFFSET
+	@offset_opt;
+
+-- name: CountProvisionerJobsByOrganizationAndStatus :one
+-- Lean count for pagination. Uses the same filters as
+-- GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner
+-- without the queue/metadata joins.
+SELECT COUNT(*) FROM (
+	SELECT 1
+	FROM
+		provisioner_jobs pj
+	WHERE
+		pj.organization_id = @organization_id::uuid
+		AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
+		AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+		AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
+		AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
+	-- Avoid a slow scan on a large table. The caller passes the count
+	-- cap and we add 1 so the frontend can detect capping and show
+	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).
+	LIMIT NULLIF(@count_cap::int, 0) + 1
+) AS limited_count;
 
 -- name: GetProvisionerJobsCreatedAfter :many
 SELECT * FROM provisioner_jobs WHERE created_at > $1;

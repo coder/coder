@@ -573,6 +573,21 @@ func (mr *MockStoreMockRecorder) CountPendingNonActivePrebuilds(ctx any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingNonActivePrebuilds", reflect.TypeOf((*MockStore)(nil).CountPendingNonActivePrebuilds), ctx)
 }
 
+// CountProvisionerJobsByOrganizationAndStatus mocks base method.
+func (m *MockStore) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg database.CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountProvisionerJobsByOrganizationAndStatus", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountProvisionerJobsByOrganizationAndStatus indicates an expected call of CountProvisionerJobsByOrganizationAndStatus.
+func (mr *MockStoreMockRecorder) CountProvisionerJobsByOrganizationAndStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountProvisionerJobsByOrganizationAndStatus", reflect.TypeOf((*MockStore)(nil).CountProvisionerJobsByOrganizationAndStatus), ctx, arg)
+}
+
 // CountUnreadInboxNotificationsByUserID mocks base method.
 func (m *MockStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()

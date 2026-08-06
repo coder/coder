@@ -369,6 +369,14 @@ func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg database.CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountProvisionerJobsByOrganizationAndStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountProvisionerJobsByOrganizationAndStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountProvisionerJobsByOrganizationAndStatus").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)

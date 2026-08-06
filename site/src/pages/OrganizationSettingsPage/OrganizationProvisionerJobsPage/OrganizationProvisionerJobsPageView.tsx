@@ -74,7 +74,7 @@ type JobProvisionersFilter = {
 };
 
 type OrganizationProvisionerJobsPageViewProps = {
-	jobs: ProvisionerJob[] | undefined;
+	jobs: readonly ProvisionerJob[] | undefined;
 	organization: Organization | undefined;
 	error: unknown;
 	filter: JobProvisionersFilter;

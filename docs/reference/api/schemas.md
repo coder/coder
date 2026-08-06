@@ -10908,6 +10908,66 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 |--------------------------------------------------------------------------|
 | `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
+## codersdk.ProvisionerJobsResponse
+
+```json
+{
+  "count": 0,
+  "count_cap": 0,
+  "jobs": [
+    {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "input": {
+        "error": "string",
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "logs_overflowed": true,
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_build_transition": "start",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "queue_position": 0,
+      "queue_size": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "type": "template_version_import",
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                        | Required | Restrictions | Description                                                                                                                        |
+|-------------|-------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `count`     | integer                                                     | false    |              | Count is the total number of jobs matching the filter, capped by CountCap.                                                         |
+| `count_cap` | integer                                                     | false    |              | Count cap is the maximum number of jobs counted. When Count equals CountCap, there may be additional matching jobs beyond the cap. |
+| `jobs`      | array of [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |                                                                                                                                    |
+
 ## codersdk.ProvisionerKey
 
 ```json
