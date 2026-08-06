@@ -167,6 +167,11 @@ const getAttachmentDownloadName = (
 	if (mediaExtension === null) {
 		return name;
 	}
+	// Leading-dot names are dotfiles (.eslintrc, .gitignore) whose whole
+	// name carries the meaning; appending an extension would rename them.
+	if (name.startsWith(".")) {
+		return name;
+	}
 	// text/plain is the server classifier's catch-all for source files
 	// (main.go, config.properties), whose suffixes identify them better
 	// than .txt would, so any dotted suffix is kept regardless of length.

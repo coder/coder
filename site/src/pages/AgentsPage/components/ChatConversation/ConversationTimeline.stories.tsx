@@ -1342,6 +1342,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						data: TEST_PNG_B64,
 						name: "photo.jfif",
 					},
+					{
+						type: "file",
+						media_type: "application/json",
+						file_id: "storybook-json-1",
+						name: ".eslintrc",
+					},
 				],
 			},
 		]),
@@ -1392,6 +1398,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 			expect(
 				canvas.getByRole("link", { name: "Download photo.jfif" }),
 			).toHaveAttribute("download", "photo.jfif");
+		});
+		canvas.getByRole("button", { name: "View .eslintrc" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download .eslintrc" }),
+			).toHaveAttribute("download", ".eslintrc");
 		});
 	},
 };
