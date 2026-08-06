@@ -9,7 +9,6 @@ import { getErrorMessage, isApiValidationError } from "#/api/errors";
 import { createOrganization } from "#/api/queries/organizations";
 import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
@@ -83,162 +82,152 @@ export const CreateOrganizationPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 	const descriptionField = getFieldHelpers("description", {
 		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+		helperText: "Optional. Short summary of this organization.",
 	});
-	const iconField = getFieldHelpers("icon");
+	const iconField = getFieldHelpers("icon", {
+		helperText: "Optional. URL or emoji shown for this organization.",
+	});
 	const descriptionErrorId = `${descriptionField.id}-error`;
 	const descriptionHelperId = `${descriptionField.id}-helper`;
-	const avatarFallback =
-		form.values.display_name || form.values.name || "Organization";
 
 	return (
-		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
-			<div className="flex flex-col gap-4 w-full mx-auto max-w-4xl">
-				<Button variant="subtle" asChild>
-					<Link to="/organizations" className="-ml-3 self-start">
+		<>
+			<div className="sticky top-5 ml-10">
+				<Button asChild variant="subtle" className="translate-y-[68px]">
+					<Link to="/organizations">
 						<ArrowLeftIcon />
 						<span>Back to organizations</span>
 					</Link>
 				</Button>
-
-				<div className="flex flex-col">
-					<SettingsHeader className="gap-6">
-						<div className="flex items-center gap-4 min-w-0">
-							<Avatar
-								variant="icon"
-								size="lg"
-								src={form.values.icon ?? ""}
-								fallback={avatarFallback}
-							/>
+			</div>
+			<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
+				<div className="flex flex-col gap-4 w-full mx-auto max-w-4xl">
+					<div className="flex flex-col">
+						<SettingsHeader>
 							<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
-						</div>
-						<SettingsHeaderDescription>
-							Isolate members, templates, and provisioners for a team or
-							project.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+							<SettingsHeaderDescription>
+								Isolate members, templates, and provisioners for a team or
+								project.
+							</SettingsHeaderDescription>
+						</SettingsHeader>
 
-					{!isEntitled ? (
-						<PaywallPremium
-							message="Organizations"
-							description="Isolate members, templates, and provisioners for a team or project within a single Coder deployment."
-							documentationLink={docs("/admin/users/organizations")}
-						/>
-					) : (
-						<div className="border border-solid p-6 rounded-lg">
-							<form
-								onSubmit={form.handleSubmit}
-								aria-label="Organization settings form"
-								className="flex flex-col gap-6 w-full"
-							>
-								{Boolean(error) && !isApiValidationError(error) && (
-									<ErrorAlert error={error} />
-								)}
-								<fieldset
-									disabled={form.isSubmitting}
-									className="flex flex-col gap-6 w-full border-none p-0 m-0"
+						{!isEntitled ? (
+							<PaywallPremium
+								message="Organizations"
+								description="Isolate members, templates, and provisioners for a team or project within a single Coder deployment."
+								documentationLink={docs("/admin/users/organizations")}
+							/>
+						) : (
+							<div className="border border-solid p-6 rounded-lg">
+								<form
+									onSubmit={form.handleSubmit}
+									aria-label="Organization settings form"
+									className="flex flex-col gap-6 w-full"
 								>
-									<div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
-										<FormField
-											field={getFieldHelpers("name")}
-											label="Slug"
-											description="Unique identifier used in URLs."
-											required
-											className="w-full"
-											onChange={onChangeTrimmed(form)}
-										/>
-										<FormField
-											field={getFieldHelpers("display_name")}
-											label="Display name"
-											description="Friendly name. Defaults to the slug if blank."
-											className="w-full"
-										/>
-									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={descriptionField.id}>Description</Label>
-										<div className="text-xs text-content-secondary">
-											Optional. Short summary of this organization.
+									{Boolean(error) && !isApiValidationError(error) && (
+										<ErrorAlert error={error} />
+									)}
+									<fieldset
+										disabled={form.isSubmitting}
+										className="flex flex-col gap-6 w-full border-none p-0 m-0"
+									>
+										<div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+											<FormField
+												field={getFieldHelpers("name", {
+													helperText: "Unique identifier used in URLs.",
+												})}
+												label="Slug"
+												required
+												className="w-full"
+												onChange={onChangeTrimmed(form)}
+											/>
+											<FormField
+												field={getFieldHelpers("display_name", {
+													helperText: "Friendly name. Defaults to the slug if blank.",
+												})}
+												label="Display name"
+												className="w-full"
+											/>
 										</div>
-										<Textarea
-											id={descriptionField.id}
-											name={descriptionField.name}
-											value={descriptionField.value}
-											onChange={descriptionField.onChange}
-											onBlur={descriptionField.onBlur}
-											rows={2}
-											aria-invalid={descriptionField.error}
-											aria-describedby={
-												descriptionField.error
-													? descriptionErrorId
-													: descriptionField.helperText
-														? descriptionHelperId
-														: undefined
-											}
-											className={cn(
-												"resize-none",
+										<div className="flex flex-col gap-2">
+											<Label htmlFor={descriptionField.id}>Description</Label>
+											<Textarea
+												id={descriptionField.id}
+												name={descriptionField.name}
+												value={descriptionField.value}
+												onChange={descriptionField.onChange}
+												onBlur={descriptionField.onBlur}
+												rows={2}
+												aria-invalid={descriptionField.error}
+												aria-describedby={
+													descriptionField.error
+														? descriptionErrorId
+														: descriptionField.helperText
+															? descriptionHelperId
+															: undefined
+												}
+												className={cn(
+													"resize-none",
 												descriptionField.error && "border-border-destructive",
 											)}
-										/>
-										{descriptionField.error ? (
-											<span
-												id={descriptionErrorId}
-												className="text-xs text-content-destructive"
-											>
-												{descriptionField.helperText}
-											</span>
-										) : (
-											descriptionField.helperText && (
+											/>
+											{descriptionField.error ? (
 												<span
-													id={descriptionHelperId}
-													className="text-xs text-content-secondary"
+													id={descriptionErrorId}
+													className="text-xs text-content-destructive"
 												>
 													{descriptionField.helperText}
 												</span>
-											)
-										)}
-									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={iconField.id}>Icon</Label>
-										<div className="text-xs text-content-secondary">
-											Optional. URL or emoji shown for this organization.
+											) : (
+												descriptionField.helperText && (
+													<span
+														id={descriptionHelperId}
+														className="text-xs text-content-secondary"
+													>
+														{descriptionField.helperText}
+													</span>
+												)
+											)}
 										</div>
-										<IconPickerField
-											id={iconField.id}
-											value={form.values.icon ?? ""}
-											disabled={form.isSubmitting}
-											onChange={(value) => {
-												void form.setFieldValue("icon", value);
-												void form.setFieldTouched("icon", true);
-											}}
-										/>
-										{iconField.error ? (
-											<span className="text-xs text-content-destructive">
-												{iconField.helperText}
-											</span>
-										) : (
-											iconField.helperText && (
-												<span className="text-xs text-content-secondary">
+										<div className="flex flex-col gap-2">
+											<Label htmlFor={iconField.id}>Icon</Label>
+											<IconPickerField
+												id={iconField.id}
+												value={form.values.icon ?? ""}
+												disabled={form.isSubmitting}
+												onChange={(value) => {
+													void form.setFieldValue("icon", value);
+													void form.setFieldTouched("icon", true);
+												}}
+											/>
+											{iconField.error ? (
+												<span className="text-xs text-content-destructive">
 													{iconField.helperText}
 												</span>
-											)
-										)}
-									</div>
-								</fieldset>
-								<div className="flex justify-end gap-4">
-									<Link to="/organizations">
-										<Button variant="outline" type="button">
-											Cancel
+											) : (
+												iconField.helperText && (
+													<span className="text-xs text-content-secondary">
+														{iconField.helperText}
+													</span>
+												)
+											)}
+										</div>
+									</fieldset>
+									<div className="flex justify-end gap-4">
+										<Button asChild variant="outline">
+											<Link to="/organizations">Cancel</Link>
 										</Button>
-									</Link>
-									<Button type="submit" disabled={form.isSubmitting}>
-										<Spinner loading={form.isSubmitting} />
-										Create organization
-									</Button>
-								</div>
-							</form>
-						</div>
-					)}
+										<Button type="submit" disabled={form.isSubmitting}>
+											<Spinner loading={form.isSubmitting} />
+											Create organization
+										</Button>
+									</div>
+								</form>
+							</div>
+						)}
+					</div>
 				</div>
-			</div>
-		</section>
+			</section>
+		</>
 	);
 };
