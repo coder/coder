@@ -4816,6 +4816,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					assert.Equal(t, parentAgent.Architecture, subAgent.Architecture)
 					assert.Equal(t, parentAgent.OperatingSystem, subAgent.OperatingSystem)
 					assert.False(t, subAgent.ExecutionIsolation)
+					// Dev Container subagents keep serving their terminal via
+					// the parent agent, so they declare no display apps.
+					assert.Equal(t, []database.DisplayApp{}, subAgent.DisplayApps)
 
 					apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
 					require.NoError(t, err)
@@ -5229,7 +5232,7 @@ func TestInsertWorkspaceResourceSubagentExecutionEmpty(t *testing.T) {
 	require.Equal(t, parent.TroubleshootingURL, child.TroubleshootingURL)
 	require.False(t, child.AuthInstanceID.Valid)
 	require.Empty(t, child.AuthInstanceID.String)
-	require.Equal(t, []database.DisplayApp{}, child.DisplayApps)
+	require.Equal(t, []database.DisplayApp{database.DisplayAppWebTerminal}, child.DisplayApps)
 	require.True(t, child.ExecutionIsolation)
 	require.Equal(t, parent.APIKeyScope, child.APIKeyScope)
 	require.False(t, child.EnvironmentVariables.Valid)
@@ -5359,6 +5362,7 @@ func TestInsertWorkspaceResourceSubagentExecutionFull(t *testing.T) {
 	require.False(t, parent.EnvironmentVariables.Valid)
 	require.True(t, child.EnvironmentVariables.Valid)
 	require.JSONEq(t, `{"CHILD_ONLY":"true"}`, string(child.EnvironmentVariables.RawMessage))
+	require.Equal(t, []database.DisplayApp{database.DisplayAppWebTerminal}, child.DisplayApps)
 
 	parentApps, err := db.GetWorkspaceAppsByAgentID(ctx, parent.ID)
 	require.NoError(t, err)

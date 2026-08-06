@@ -3552,10 +3552,12 @@ func insertSubagentExecution(
 		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       parentAgent.TroubleshootingURL,
 		MOTDFile:                 "",
-		DisplayApps:              []database.DisplayApp{},
-		DisplayOrder:             0,
-		APIKeyScope:              parentAgent.APIKeyScope,
-		ExecutionIsolation:       true,
+		// The pre-created child serves its own reconnecting PTY inside the
+		// isolation boundary, so the web terminal targets the child directly.
+		DisplayApps:        []database.DisplayApp{database.DisplayAppWebTerminal},
+		DisplayOrder:       0,
+		APIKeyScope:        parentAgent.APIKeyScope,
+		ExecutionIsolation: true,
 	})
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert isolated child agent: %w", err)

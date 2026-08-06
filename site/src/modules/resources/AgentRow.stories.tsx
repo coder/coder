@@ -14,6 +14,7 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 const defaultAgentMetadata = [
 	{
@@ -571,6 +572,7 @@ const isolatedSubAgent = {
 	name: "isolated-child",
 	status: "connected",
 	execution_isolation: true,
+	display_apps: ["web_terminal"],
 	apps: [
 		{
 			...M.MockWorkspaceApp,
@@ -602,6 +604,43 @@ export const IsolatedSubAgent: Story = {
 				`/${M.MockWorkspace.name}.isolated-child/apps/sandbox/`,
 			),
 		);
+
+		const terminalLinks = await canvas.findAllByRole("link", {
+			name: DisplayAppNameMap.web_terminal,
+		});
+		const childTerminalLinks = terminalLinks.filter((link) =>
+			link
+				.getAttribute("href")
+				?.includes(`/${M.MockWorkspace.name}.isolated-child/terminal`),
+		);
+		await expect(childTerminalLinks).toHaveLength(1);
+		// The parent agent keeps its own terminal alongside the child's.
+		await expect(terminalLinks.length).toBeGreaterThan(
+			childTerminalLinks.length,
+		);
+	},
+};
+
+export const IsolatedSubAgentWithoutTerminal: Story = {
+	args: {
+		subAgents: [{ ...isolatedSubAgent, display_apps: [] }],
+	},
+	parameters: {
+		webSocket: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(await canvas.findByText("isolated-child")).toBeVisible();
+
+		const terminalLinks = await canvas.findAllByRole("link", {
+			name: DisplayAppNameMap.web_terminal,
+		});
+		for (const link of terminalLinks) {
+			await expect(link.getAttribute("href")).not.toContain(
+				`/${M.MockWorkspace.name}.isolated-child/terminal`,
+			);
+		}
 	},
 };
 

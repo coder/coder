@@ -4,6 +4,7 @@ import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentStatus } from "./AgentStatus";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 type GenericSubAgentCardProps = {
 	subAgent: WorkspaceAgent;
@@ -21,9 +22,10 @@ export const GenericSubAgentCard: FC<GenericSubAgentCardProps> = ({
 	workspace,
 }) => {
 	const appSections = organizeAgentApps(subAgent.apps);
-	const showApps =
-		subAgent.status === "connected" &&
-		appSections.some((section) => section.apps.length > 0);
+	const hasApps = appSections.some((section) => section.apps.length > 0);
+	const showTerminal = subAgent.display_apps.includes("web_terminal");
+	const showActions =
+		subAgent.status === "connected" && (hasApps || showTerminal);
 
 	return (
 		<div className="flex flex-col max-w-full relative py-4 border border-dashed border-border rounded">
@@ -59,7 +61,7 @@ export const GenericSubAgentCard: FC<GenericSubAgentCardProps> = ({
 				</div>
 			</header>
 
-			{showApps && (
+			{showActions && (
 				<div className="flex flex-col gap-8 px-8 pt-4">
 					<section className="flex flex-wrap gap-4 empty:hidden md:justify-start">
 						{appSections.map((section, i) => (
@@ -70,6 +72,14 @@ export const GenericSubAgentCard: FC<GenericSubAgentCardProps> = ({
 								workspace={workspace}
 							/>
 						))}
+
+						{showTerminal && (
+							<TerminalLink
+								workspaceName={workspace.name}
+								agentName={subAgent.name}
+								userName={workspace.owner_name}
+							/>
+						)}
 					</section>
 				</div>
 			)}
