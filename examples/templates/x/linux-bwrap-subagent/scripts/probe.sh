@@ -94,6 +94,17 @@ writable() {
 	return 1
 }
 
+# cannot_open_for_write succeeds only when the kernel refuses to open the file
+# for writing. Unlike `test -w`, this observes a read-only bind mount rather
+# than only the source file's mode bits. The empty append writes no token data
+# even if an unexpected writable mount makes the open succeed.
+cannot_open_for_write() {
+	if (: >>"$1") 2>/dev/null; then
+		return 1
+	fi
+	return 0
+}
+
 # equals compares an environment value against the exact path the driver
 # sets, so a mount that moved is a failure rather than a silent difference.
 equals() {
@@ -151,10 +162,10 @@ check "/dev/urandom is present" test -c "$probe_root/dev/urandom"
 check "/dev/kmsg is absent" absent "$probe_root/dev/kmsg"
 
 # The token file is bound read-only at a fixed path. Its contents are never
-# read here, and the write probe is a mode-bit test on purpose: writing to
-# the file would destroy the child's credential.
+# read here. The write probe opens it for an empty append, which verifies the
+# read-only mount without modifying the credential.
 check "child token file is readable: $child_token" test -r "$child_token"
-check "child token file is not writable" test ! -w "$child_token"
+check "child token file is not writable" cannot_open_for_write "$child_token"
 
 # The token value is not in the environment either. The expansion below
 # yields the word "set" when the variable exists and nothing when it does
