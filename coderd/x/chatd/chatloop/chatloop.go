@@ -76,15 +76,7 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration of the model invocation
 	// that produced this step's content, measured from just before
 	// the provider stream is opened until the stream is fully
-	// consumed. Interrupted attempts bill the same window, ending
-	// where the interrupt closed the stream. It is persisted as
-	// chat_messages.runtime_ms, the billable "active generation"
-	// time that usage reporting sums; that column's comment is the
-	// canonical definition. Steps without a model invocation (local
-	// tool execution batches) leave it zero, which persists as
-	// NULL: tool wall time includes idle waits such as wait_agent
-	// polling a sub-agent chat that already bills its own model
-	// invocations, so billing it would double count.
+	// consumed.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
