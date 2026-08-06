@@ -888,6 +888,15 @@ func createTestAIProvider(ctx context.Context, t *testing.T, client *codersdk.Cl
 func startTestStandaloneGateway(t *testing.T, coderd *testAIGatewayCoderd) *testStandaloneGateway {
 	t.Helper()
 
+	return startTestStandaloneGatewayWithURL(t, coderd, coderd.client.URL)
+}
+
+// startTestStandaloneGatewayWithURL starts a gateway that dials coderdURL,
+// which may be an intermediary such as [chaosProxy], while assertions against
+// coderd's API keep using the direct client.
+func startTestStandaloneGatewayWithURL(t *testing.T, coderd *testAIGatewayCoderd, coderdURL *url.URL) *testStandaloneGateway {
+	t.Helper()
+
 	modify := withGatewayParams(func(p *standaloneGatewayParams) {
 		// Losing the connection to coderd is exercised deliberately, so logged
 		// errors must not fail the test.
@@ -902,8 +911,8 @@ func startTestStandaloneGateway(t *testing.T, coderd *testAIGatewayCoderd) *test
 		require.NoError(t, err)
 
 		p.bridgeConfig = coderd.bridgeConfig
-		p.coderURL = coderd.client.URL.String()
-		p.dialer = aibridged.NewWebsocketDialer(coderd.client.URL, coderd.client.HTTPClient.Transport, coderd.key.Key)
+		p.coderURL = coderdURL.String()
+		p.dialer = aibridged.NewWebsocketDialer(coderdURL, coderd.client.HTTPClient.Transport, coderd.key.Key)
 		p.pool = pool
 		p.logger = logger
 		p.metrics = metrics
