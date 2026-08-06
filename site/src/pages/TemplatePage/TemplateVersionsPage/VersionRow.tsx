@@ -66,15 +66,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 								Active
 							</Badge>
 						)}
-						{isLatest && (
-							<Badge role="status">
-								Newest
-							</Badge>
-						)}
+						{isLatest && <Badge role="status">Newest</Badge>}
 						{jobStatus === "pending" && (
-							<Badge role="status">
-								Pending&hellip;
-							</Badge>
+							<Badge role="status">Pending&hellip;</Badge>
 						)}
 						{jobStatus === "running" && (
 							<Badge role="status" variant="info">
@@ -82,9 +76,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 							</Badge>
 						)}
 						{(jobStatus === "canceling" || jobStatus === "canceled") && (
-							<Badge role="status">
-								Canceled
-							</Badge>
+							<Badge role="status">Canceled</Badge>
 						)}
 						{jobStatus === "failed" && (
 							<Badge role="status" variant="destructive">
