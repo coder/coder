@@ -1388,6 +1388,18 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-mp3-1",
 						name: "song.mp3",
 					},
+					{
+						type: "file",
+						media_type: "application/xml",
+						file_id: "storybook-xml-1",
+						name: "build config",
+					},
+					{
+						type: "file",
+						media_type: "text/csv",
+						file_id: "storybook-csv-1",
+						name: "export data",
+					},
 				],
 			},
 		]),
@@ -1472,6 +1484,15 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Download song.mp3" }),
 		).toHaveAttribute("download", "song.mp3");
+		expect(
+			canvas.getByRole("link", { name: "Download build config" }),
+		).toHaveAttribute("download", "build config.xml");
+		canvas.getByRole("button", { name: "View export data" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download export data" }),
+			).toHaveAttribute("download", "export data.csv");
+		});
 	},
 };
 

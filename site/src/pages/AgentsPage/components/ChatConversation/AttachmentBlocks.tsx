@@ -61,9 +61,13 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
 		"docx",
 	"application/x-tar": "tar",
+	"application/xml": "xml",
 	"image/jpeg": "jpg",
+	"text/csv": "csv",
+	"text/html": "html",
 	"text/markdown": "md",
 	"text/plain": "txt",
+	"text/xml": "xml",
 };
 
 const sanitizeAttachmentExtension = (value: string): string => {
