@@ -1,0 +1,50 @@
+# Tooling smoke test, not a design artifact.
+#
+# Purpose: verify that d2 renders a wide sequence diagram, that groups and
+# notes work, and that the VS Code preview is usable. The participants and
+# messages are illustrative placeholders. Nothing here is a design position.
+#
+# Preview: right-click this file and choose the d2 preview, or Ctrl+Shift+D.
+# Render:  d2 poc_audit/diagram_tooling_test.d2 out.svg
+
+seq: Sandbox creation (tooling smoke test) {
+  shape: sequence_diagram
+
+  user: User
+  coderd: coderd
+  prov: provisionerd
+  wsagent: workspace_agent
+  host: Sandbox host
+  sandbox: Sandbox
+  aiagent: AI agent
+  journal: Audit journal
+
+  user -> coderd: request sandbox
+  coderd.note: Authority of the principal is checked here
+  coderd -> journal: entry, intent recorded
+  coderd -> prov: provision
+
+  prov -> wsagent: create sandbox
+  wsagent -> host: start container
+  host -> host: allocate resources
+
+  #// this is a test
+
+  outcome: {
+    started: {
+      host -> sandbox: boot
+      sandbox -> aiagent: launch
+      aiagent -> coderd: register, present identity
+      coderd -> journal: entry, effect confirmed
+    }
+
+    failed: {
+      host -> wsagent: error
+      wsagent -> coderd: report failure
+      coderd -> journal: entry, intent abandoned
+      journal.note: An orphan would be invisible here
+    }
+  }
+
+  coderd -> user: result
+}
