@@ -1,24 +1,15 @@
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem,
-} from "#/components/Sidebar/Sidebar";
+import { Sidebar as BaseSidebar, SidebarNavItem } from "#/components/Sidebar";
 
 export const Sidebar: React.FC = () => {
 	return (
 		<BaseSidebar>
 			<div className="flex flex-col gap-1">
-				<SettingsSidebarNavItem end href="">
+				<SidebarNavItem end href="">
 					General
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="permissions">
-					Permissions
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="variables">
-					Variables
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="schedule">
-					Schedule
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
+				<SidebarNavItem href="permissions">Permissions</SidebarNavItem>
+				<SidebarNavItem href="variables">Variables</SidebarNavItem>
+				<SidebarNavItem href="schedule">Schedule</SidebarNavItem>
 			</div>
 		</BaseSidebar>
 	);

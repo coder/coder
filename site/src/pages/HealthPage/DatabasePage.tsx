@@ -1,6 +1,6 @@
-import { useOutletContext } from "react-router";
-import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { pageTitle } from "#/utils/page";
 import {
 	GridData,
@@ -13,9 +13,19 @@ import {
 	Main,
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
+import { useHealthStatus } from "./useHealthStatus";
 
 const DatabasePage = () => {
-	const healthStatus = useOutletContext<HealthcheckReport>();
+	const { data: healthStatus, isLoading, error } = useHealthStatus();
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (error || !healthStatus) {
+		return <ErrorAlert error={error} />;
+	}
+
 	const database = healthStatus.database;
 
 	return (

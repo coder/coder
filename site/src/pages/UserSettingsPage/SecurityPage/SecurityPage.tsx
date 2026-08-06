@@ -6,6 +6,7 @@ import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -76,7 +77,10 @@ export const SecurityPageView: FC<SecurityPageViewProps> = ({
 		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
-					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
+					<SettingsHeaderTitle>Password</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Update your account password.
+					</SettingsHeaderDescription>
 				</SettingsHeader>
 				<SecurityForm {...security.form} />
 			</div>

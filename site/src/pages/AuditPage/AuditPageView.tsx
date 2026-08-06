@@ -1,16 +1,15 @@
 import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
-import { Margins } from "#/components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
@@ -46,16 +45,18 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	const isEmpty = !isLoading && auditLogs?.length === 0;
 
 	return (
-		<Margins className="pb-12">
-			<PageHeader>
-				<PageHeaderTitle>
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
-						<span>Audit</span>
+						<span>Audit Logs</span>
 						<AuditHelpPopover />
 					</div>
-				</PageHeaderTitle>
-				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
-			</PageHeader>
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					View events in your audit log.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{isAuditLogVisible ? (
 				<>
@@ -86,7 +87,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					documentationLink={docs("/admin/security/audit-logs")}
 				/>
 			)}
-		</Margins>
+		</>
 	);
 };
 

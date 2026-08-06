@@ -11,6 +11,7 @@ import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
@@ -30,6 +31,11 @@ const ExternalAuthPage: FC = () => {
 		<>
 			<SettingsHeader>
 				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Coder supports external authentication via OAuth2.0. This allows
+					enabling any OAuth provider as well as integrations with Git
+					providers, such as GitHub, GitLab, and Bitbucket.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 			<ExternalAuthPageView
 				isLoading={externalAuthsQuery.isLoading}

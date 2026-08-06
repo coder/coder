@@ -197,7 +197,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 									{canViewActivity && (
 										<DropdownMenuItem asChild disabled={!canViewActivity}>
 											<Link
-												to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
+												to={`/logs/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
 											>
 												View activity {!canViewActivity && <PremiumBadge />}
 											</Link>

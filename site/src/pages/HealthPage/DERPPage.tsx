@@ -1,13 +1,11 @@
 import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link, useOutletContext } from "react-router";
-import type {
-	HealthcheckReport,
-	HealthSeverity,
-	NetcheckReport,
-} from "#/api/typesGenerated";
+import { Link } from "react-router";
+import type { HealthSeverity, NetcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Table,
 	TableBody,
@@ -26,6 +24,7 @@ import {
 	StatusIcon,
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
+import { useHealthStatus } from "./useHealthStatus";
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
@@ -135,7 +134,17 @@ const severityColor = (severity: HealthSeverity): string => {
 };
 
 const DERPPage: FC = () => {
-	const { derp } = useOutletContext<HealthcheckReport>();
+	const { data: healthStatus, isLoading, error } = useHealthStatus();
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (error || !healthStatus) {
+		return <ErrorAlert error={error} />;
+	}
+
+	const { derp } = healthStatus;
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);
 

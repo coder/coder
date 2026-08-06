@@ -1,11 +1,18 @@
+import { LockIcon, SettingsIcon, UserLockIcon } from "lucide-react";
+import type { FC } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem,
-} from "#/components/Sidebar/Sidebar";
+	SidebarGroup,
+	SidebarHeader,
+	SidebarNavItem,
+} from "#/components/Sidebar";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: FC = () => {
+	const { user: me } = useAuthenticated();
 	const { entitlements, experiments, buildInfo } = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
@@ -14,35 +21,60 @@ export const Sidebar: React.FC = () => {
 
 	return (
 		<BaseSidebar>
+			<SidebarHeader
+				avatar={
+					<Avatar
+						fallback={me.username}
+						src={me.avatar_url}
+						className="-mx-0.5"
+					/>
+				}
+				title={me.username}
+				subtitle={me.email}
+			/>
 			<div className="flex flex-col gap-1">
-				<SettingsSidebarNavItem href="account">Account</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="appearance">
-					Appearance
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="external-auth">
-					External Authentication
-				</SettingsSidebarNavItem>
-				{showOAuth2Page && (
-					<SettingsSidebarNavItem href="oauth2-provider">
-						OAuth2 Applications
-					</SettingsSidebarNavItem>
-				)}
-				{showSchedulePage && (
-					<SettingsSidebarNavItem href="schedule">
-						Schedule
-					</SettingsSidebarNavItem>
-				)}
-				<SettingsSidebarNavItem href="security">
-					Security
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="secrets">Secrets</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="notifications">
-					Notifications
-				</SettingsSidebarNavItem>
+				<SidebarGroup
+					icon={SettingsIcon}
+					label="General"
+					href="/settings/account"
+				>
+					<SidebarNavItem end href="/settings/account">
+						Account
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/appearance">
+						Appearance
+					</SidebarNavItem>
+					{showSchedulePage && (
+						<SidebarNavItem href="/settings/schedule">Schedule</SidebarNavItem>
+					)}
+					<SidebarNavItem href="/settings/notifications">
+						Notifications
+					</SidebarNavItem>
+				</SidebarGroup>
+				<SidebarGroup
+					icon={UserLockIcon}
+					label="Authentication"
+					href="/settings/security"
+				>
+					<SidebarNavItem end href="/settings/security">
+						Password
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/external-auth">
+						External authentication
+					</SidebarNavItem>
+					{showOAuth2Page && (
+						<SidebarNavItem href="/settings/oauth2-provider">
+							OAuth2 applications
+						</SidebarNavItem>
+					)}
+					<SidebarNavItem href="/settings/ssh-keys">SSH keys</SidebarNavItem>
+				</SidebarGroup>
+				<SidebarGroup icon={LockIcon} label="Security" href="/settings/tokens">
+					<SidebarNavItem end href="/settings/tokens">
+						Tokens
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/secrets">Secrets</SidebarNavItem>
+				</SidebarGroup>
 			</div>
 		</BaseSidebar>
 	);

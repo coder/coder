@@ -168,7 +168,7 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 										{canViewActivity && (
 											<DropdownMenuItem asChild disabled={!canViewActivity}>
 												<Link
-													to={`/audit?filter=${encodeURIComponent(`username:${member.username} organization:${organizationName}`)}`}
+													to={`/logs/audit?filter=${encodeURIComponent(`username:${member.username} organization:${organizationName}`)}`}
 												>
 													View activity {!canViewActivity && <PremiumBadge />}
 												</Link>

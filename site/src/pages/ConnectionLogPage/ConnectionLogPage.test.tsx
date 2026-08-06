@@ -22,7 +22,7 @@ interface RenderPageOptions {
 }
 
 const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
-	let route = "/connectionlog";
+	let route = "/logs/connection";
 	const params = new URLSearchParams();
 
 	if (filter) {
@@ -39,7 +39,7 @@ const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
 
 	renderWithAuth(<ConnectionLogPage />, {
 		route,
-		path: "/connectionlog",
+		path: "/logs/connection",
 	});
 	await waitForLoaderToBeRemoved();
 };

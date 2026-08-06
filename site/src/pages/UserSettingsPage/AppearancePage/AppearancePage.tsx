@@ -7,6 +7,11 @@ import {
 import type { UpdateUserAppearanceSettingsRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 import { AppearanceForm } from "./AppearanceForm";
@@ -75,13 +80,21 @@ const AppearancePage: FC = () => {
 	}
 
 	return (
-		<AppearanceForm
-			isUpdating={updateAppearanceSettingsMutation.isPending}
-			error={updateAppearanceSettingsMutation.error}
-			initialValues={appearanceSettingsQuery.data}
-			activeScheme={osColorScheme}
-			onSubmit={submitAppearanceSettings}
-		/>
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Customize your Coder deployments appearance.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<AppearanceForm
+				isUpdating={updateAppearanceSettingsMutation.isPending}
+				error={updateAppearanceSettingsMutation.error}
+				initialValues={appearanceSettingsQuery.data}
+				activeScheme={osColorScheme}
+				onSubmit={submitAppearanceSettings}
+			/>
+		</>
 	);
 };
 

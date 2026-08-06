@@ -100,7 +100,7 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full pb-10">
 			{title}
 
 			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">

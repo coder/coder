@@ -42,7 +42,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	showPaywall,
 }) => {
 	return (
-		<div className="flex flex-col gap-4">
+		<div>
 			<SettingsHeader
 				actions={
 					<SettingsHeaderDocsLink

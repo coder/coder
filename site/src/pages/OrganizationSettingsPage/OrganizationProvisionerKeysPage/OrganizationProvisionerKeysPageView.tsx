@@ -48,7 +48,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 	);
 
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
+		<section className="w-full pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

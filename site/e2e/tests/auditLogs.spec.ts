@@ -49,7 +49,7 @@ test.describe("audit logs", () => {
 	test("logins are logged", async ({ page }) => {
 		// Go to the audit history
 		await login(page, users.auditor);
-		await page.goto("/audit");
+		await page.goto("/logs/audit");
 
 		// Make sure those things we did all actually show up
 		await resetSearch(page, users.auditor.username);
@@ -66,7 +66,7 @@ test.describe("audit logs", () => {
 
 		// Go to the audit history
 		await login(page, users.auditor);
-		await page.goto("/audit");
+		await page.goto("/logs/audit");
 
 		// Make sure those things we did all actually show up
 		await resetSearch(page, username);
@@ -102,7 +102,7 @@ test.describe("audit logs", () => {
 
 		// Go to the audit history
 		await login(page, users.auditor);
-		await page.goto("/audit");
+		await page.goto("/logs/audit");
 		const loginMessage = `${username} logged in`;
 		const startedWorkspaceMessage = `${username} started workspace ${workspaceName}`;
 

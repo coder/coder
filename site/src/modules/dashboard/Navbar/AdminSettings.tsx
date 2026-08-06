@@ -23,13 +23,20 @@ export type AdminSettingsPermissions = {
 
 /**
  * Builds the ordered list of Admin settings menu items for the given
- * permissions. Organizations is always available; the rest are gated behind
- * their respective permissions.
+ * permissions. Organizations is always available when permitted; the rest
+ * are gated behind their respective permissions. Logs appears when the
+ * user can view any of the log pages; the logs section's own sidebar
+ * handles per-page gating.
  */
 export const AdminSettingsItems: React.FC<AdminSettingsItemsProps> = ({
 	itemClassName,
 	permissions,
 }) => {
+	const canViewLogs =
+		permissions.canViewAuditLog ||
+		permissions.canViewConnectionLog ||
+		permissions.canViewAIBridge;
+
 	return (
 		<>
 			{permissions.canViewDeployment && (
@@ -47,19 +54,9 @@ export const AdminSettingsItems: React.FC<AdminSettingsItemsProps> = ({
 					<Link to="/ai/settings">AI</Link>
 				</DropdownMenuItem>
 			)}
-			{permissions.canViewAuditLog && (
+			{canViewLogs && (
 				<DropdownMenuItem asChild className={itemClassName}>
-					<Link to="/audit">Audit logs</Link>
-				</DropdownMenuItem>
-			)}
-			{permissions.canViewConnectionLog && (
-				<DropdownMenuItem asChild className={itemClassName}>
-					<Link to="/connectionlog">Connection logs</Link>
-				</DropdownMenuItem>
-			)}
-			{permissions.canViewAIBridge && (
-				<DropdownMenuItem asChild className={itemClassName}>
-					<Link to="/ai-gateway/sessions">AI sessions</Link>
+					<Link to="/logs">Logs</Link>
 				</DropdownMenuItem>
 			)}
 			{permissions.canViewHealth && (

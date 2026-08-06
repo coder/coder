@@ -46,7 +46,7 @@ test.describe("organization scoped audit logs", () => {
 	test("organization auditors cannot see logins", async ({ page }) => {
 		// Go to the audit history
 		await login(page, orgAuditor);
-		await page.goto("/audit");
+		await page.goto("/logs/audit");
 		const username = orgAuditor.username;
 
 		const loginMessage = `${username} logged in`;
@@ -58,7 +58,7 @@ test.describe("organization scoped audit logs", () => {
 		await login(page, orgAuditor);
 
 		// Go to the audit history
-		await page.goto("/audit", { waitUntil: "domcontentloaded" });
+		await page.goto("/logs/audit", { waitUntil: "domcontentloaded" });
 
 		const auditLogText = `${users.owner.username} created organization ${orgName}`;
 		const org = page.locator(".MuiTableRow-root", {
@@ -75,7 +75,7 @@ test.describe("organization scoped audit logs", () => {
 		await login(page, orgAuditor);
 
 		// Go to the audit history
-		await page.goto("/audit", { waitUntil: "domcontentloaded" });
+		await page.goto("/logs/audit", { waitUntil: "domcontentloaded" });
 
 		const auditLogText = `${users.owner.username} updated organization member ${orgAuditor.username}`;
 		const member = page.locator(".MuiTableRow-root", {

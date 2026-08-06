@@ -25,6 +25,10 @@ type MetaOptions = {
 	params?: Record<string, string>;
 };
 
+/**
+ * Full-page Health stories mount through HealthLayout (SidebarLayout +
+ * HealthSidebar). Mock HEALTH_QUERY_KEY so the sidebar and page share data.
+ */
 export const generateMeta = ({ element, path, params }: MetaOptions) => {
 	return {
 		component: HealthLayout,

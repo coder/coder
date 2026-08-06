@@ -6,6 +6,7 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
+	useLocation,
 	useParams,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
@@ -410,6 +411,12 @@ const AIBridgeListSessionsPage = lazy(
 const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
+const LogsLayout = lazy(() => import("./pages/LogsPage/LogsLayout"));
+const LogsIndexRedirect = lazy(() =>
+	import("./pages/LogsPage/LogsLayout").then((module) => ({
+		default: module.LogsIndexRedirect,
+	})),
+);
 
 const AISettingsLayout = lazy(
 	() => import("./pages/AISettingsPage/AISettingsLayout"),
@@ -541,10 +548,24 @@ const groupsRouter = () => {
 	);
 };
 
-/** Redirect /aibridge/sessions/:sessionId to /ai-gateway/sessions/:sessionId. */
+/** Preserves query string when redirecting a legacy path. */
+const RedirectWithSearch = ({ to }: { to: string }) => {
+	const { search } = useLocation();
+	return <Navigate to={`${to}${search}`} replace />;
+};
+
+/** Redirect /aibridge/sessions/:sessionId to /logs/ai-sessions/:sessionId. */
 const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
-	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
+	const { search } = useLocation();
+	return <Navigate to={`/logs/ai-sessions/${sessionId}${search}`} replace />;
+};
+
+/** Redirect /ai-gateway/sessions/:sessionId to /logs/ai-sessions/:sessionId. */
+const RedirectAIGatewaySession = () => {
+	const { sessionId } = useParams() as { sessionId: string };
+	const { search } = useLocation();
+	return <Navigate to={`/logs/ai-sessions/${sessionId}${search}`} replace />;
 };
 
 export const router = createBrowserRouter(
@@ -595,9 +616,38 @@ export const router = createBrowserRouter(
 						element={<Navigate to="/deployment/groups" replace />}
 					/>
 
-					<Route path="/audit" element={<AuditPage />} />
+					<Route path="/logs" element={<LogsLayout />}>
+						{/* Index redirects to the first permitted log page;
+						    the sidebar handles navigation between log pages. */}
+						<Route index element={<LogsIndexRedirect />} />
+						<Route path="audit" element={<AuditPage />} />
+						<Route path="connection" element={<ConnectionLogPage />} />
+						<Route path="ai-sessions" element={<AIBridgeSessionsLayout />}>
+							<Route index element={<AIBridgeListSessionsPage />} />
+							<Route
+								path=":sessionId"
+								element={<AIBridgeSessionThreadsPage />}
+							/>
+						</Route>
+					</Route>
 
-					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+					{/* Legacy log paths */}
+					<Route
+						path="/audit"
+						element={<RedirectWithSearch to="/logs/audit" />}
+					/>
+					<Route
+						path="/connectionlog"
+						element={<RedirectWithSearch to="/logs/connection" />}
+					/>
+					<Route
+						path="/ai-gateway/sessions"
+						element={<RedirectWithSearch to="/logs/ai-sessions" />}
+					/>
+					<Route
+						path="/ai-gateway/sessions/:sessionId"
+						element={<RedirectAIGatewaySession />}
+					/>
 
 					<Route path="/tasks" element={<TasksPage />} />
 
@@ -719,26 +769,18 @@ export const router = createBrowserRouter(
 					<Route path="/ai-gateway" element={<AIBridgeLayout />}>
 						<Route
 							index
-							element={<Navigate to="/ai-gateway/sessions" replace />}
+							element={<Navigate to="/logs/ai-sessions" replace />}
 						/>
 					</Route>
 
-					<Route
-						path="/ai-gateway/sessions"
-						element={<AIBridgeSessionsLayout />}
-					>
-						<Route index element={<AIBridgeListSessionsPage />} />
-						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
-					</Route>
-
-					{/* Legacy /aibridge routes redirect to /ai-gateway */}
+					{/* Legacy /aibridge routes redirect to /ai-gateway or logs */}
 					<Route
 						path="/aibridge"
 						element={<Navigate to="/ai-gateway" replace />}
 					/>
 					<Route
 						path="/aibridge/sessions"
-						element={<Navigate to="/ai-gateway/sessions" replace />}
+						element={<RedirectWithSearch to="/logs/ai-sessions" />}
 					/>
 					<Route
 						path="/aibridge/sessions/:sessionId"

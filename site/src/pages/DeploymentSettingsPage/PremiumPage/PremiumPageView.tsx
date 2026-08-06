@@ -17,7 +17,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({ isEnterprise }) => {
 
 const EnterpriseVersion: FC = () => {
 	return (
-		<div className="max-w-4xl">
+		<div>
 			<header className="flex flex-row justify-between align-baseline pb-5">
 				<div>
 					<h1 className="text-3xl m-0 font-semibold">Premium</h1>
@@ -83,7 +83,7 @@ const EnterpriseVersion: FC = () => {
 
 const OSSVersion: FC = () => {
 	return (
-		<div className="max-w-4xl">
+		<div>
 			<div className="flex flex-row justify-between align-baseline pb-10">
 				<div>
 					<h1 className="text-3xl m-0 text-content-primary font-semibold">

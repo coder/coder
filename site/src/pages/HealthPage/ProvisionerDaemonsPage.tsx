@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import { useOutletContext } from "react-router";
-import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { Provisioner } from "#/modules/provisioners/Provisioner";
 import { pageTitle } from "#/utils/page";
 import {
@@ -12,9 +12,19 @@ import {
 	Main,
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
+import { useHealthStatus } from "./useHealthStatus";
 
 const ProvisionerDaemonsPage: FC = () => {
-	const healthStatus = useOutletContext<HealthcheckReport>();
+	const { data: healthStatus, isLoading, error } = useHealthStatus();
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (error || !healthStatus) {
+		return <ErrorAlert error={error} />;
+	}
+
 	const { provisioner_daemons: daemons } = healthStatus;
 
 	return (

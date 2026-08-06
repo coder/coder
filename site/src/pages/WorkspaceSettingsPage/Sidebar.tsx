@@ -1,7 +1,4 @@
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem,
-} from "#/components/Sidebar/Sidebar";
+import { Sidebar as BaseSidebar, SidebarNavItem } from "#/components/Sidebar";
 import { useWorkspaceSettings } from "./useWorkspaceSettings";
 
 export const Sidebar: React.FC = () => {
@@ -10,19 +7,13 @@ export const Sidebar: React.FC = () => {
 	return (
 		<BaseSidebar>
 			<div className="flex flex-col gap-1">
-				<SettingsSidebarNavItem end href="">
+				<SidebarNavItem end href="">
 					General
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="parameters">
-					Parameters
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="schedule">
-					Schedule
-				</SettingsSidebarNavItem>
+				</SidebarNavItem>
+				<SidebarNavItem href="parameters">Parameters</SidebarNavItem>
+				<SidebarNavItem href="schedule">Schedule</SidebarNavItem>
 				{permissions?.shareWorkspace && (
-					<SettingsSidebarNavItem href="sharing">
-						Sharing
-					</SettingsSidebarNavItem>
+					<SidebarNavItem href="sharing">Sharing</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>
