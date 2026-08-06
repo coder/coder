@@ -49,8 +49,28 @@ type GroupMembersResponse struct {
 }
 
 type PaginatedGroupsResponse struct {
-	Groups []Group `json:"groups"`
-	Count  int     `json:"count"`
+	Groups []PaginatedGroup `json:"groups"`
+	Count  int              `json:"count"`
+}
+
+// PaginatedGroup is a group summary returned by the paginated groups endpoint.
+// It deliberately omits the member roster (which the endpoint does not return)
+// and exposes only the total member count. Fetch the roster via the group
+// members endpoint.
+type PaginatedGroup struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	Name           string    `json:"name"`
+	DisplayName    string    `json:"display_name"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// TotalMemberCount is the number of members in the group, shown even when
+	// the caller cannot read individual members. The roster itself is not
+	// returned by this endpoint.
+	TotalMemberCount        int         `json:"total_member_count"`
+	AvatarURL               string      `json:"avatar_url" format:"uri"`
+	QuotaAllowance          int         `json:"quota_allowance"`
+	Source                  GroupSource `json:"source"`
+	OrganizationName        string      `json:"organization_name"`
+	OrganizationDisplayName string      `json:"organization_display_name"`
 }
 
 // PaginatedGroupsRequest are the filters for a paginated groups request.

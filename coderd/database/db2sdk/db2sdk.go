@@ -377,6 +377,24 @@ func Group(row database.GetGroupsRow, members []database.GroupMember, totalMembe
 	}
 }
 
+// PaginatedGroup converts a group row into the slim summary returned by the
+// paginated groups endpoint, which omits the member roster and carries only
+// the total member count.
+func PaginatedGroup(row database.GetGroupsRow, totalMemberCount int) codersdk.PaginatedGroup {
+	return codersdk.PaginatedGroup{
+		ID:                      row.Group.ID,
+		Name:                    row.Group.Name,
+		DisplayName:             row.Group.DisplayName,
+		OrganizationID:          row.Group.OrganizationID,
+		AvatarURL:               row.Group.AvatarURL,
+		TotalMemberCount:        totalMemberCount,
+		QuotaAllowance:          int(row.Group.QuotaAllowance),
+		Source:                  codersdk.GroupSource(row.Group.Source),
+		OrganizationName:        row.OrganizationName,
+		OrganizationDisplayName: row.OrganizationDisplayName,
+	}
+}
+
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table

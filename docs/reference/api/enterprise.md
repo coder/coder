@@ -2342,9 +2342,9 @@ accepted key and unknown keys return 400. Because group display names may contai
 colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
 unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
 
-This endpoint never returns member rosters: each group's `members` array is always
-empty and only `total_member_count` is populated. Callers that need the roster use
-the group members endpoint (GET /groups/{group}/members).
+This endpoint returns group summaries without the member roster: each group
+carries only `total_member_count` and no `members` field. Callers that need the
+roster use the group members endpoint (GET /groups/{group}/members).
 
 ### Parameters
 
@@ -2368,22 +2368,6 @@ the group members endpoint (GET /groups/{group}/members).
       "avatar_url": "http://example.com",
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "members": [
-        {
-          "avatar_url": "http://example.com",
-          "created_at": "2019-08-24T14:15:22Z",
-          "email": "user@example.com",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "is_service_account": true,
-          "last_seen_at": "2019-08-24T14:15:22Z",
-          "login_type": "",
-          "name": "string",
-          "status": "active",
-          "theme_preference": "string",
-          "updated_at": "2019-08-24T14:15:22Z",
-          "username": "string"
-        }
-      ],
       "name": "string",
       "organization_display_name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",

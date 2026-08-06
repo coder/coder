@@ -1348,8 +1348,9 @@ func TestPaginatedGroups(t *testing.T) {
 
 		// The list endpoint returns each group's total member count but does
 		// not hydrate the member roster; callers page members separately via
-		// the group members endpoint. Assert the count is populated and the
-		// roster is empty so re-adding roster hydration would fail the test.
+		// the group members endpoint. Assert the count is populated. The
+		// roster is omitted entirely: the slim PaginatedGroup type has no
+		// Members field, so re-adding roster hydration would fail to compile.
 		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 			SearchQuery: "alpha",
 		})
@@ -1357,7 +1358,6 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Len(t, resp.Groups, 1)
 		require.Equal(t, "alpha", resp.Groups[0].Name)
 		require.Equal(t, 1, resp.Groups[0].TotalMemberCount)
-		require.Empty(t, resp.Groups[0].Members)
 	})
 
 	t.Run("Search", func(t *testing.T) {
