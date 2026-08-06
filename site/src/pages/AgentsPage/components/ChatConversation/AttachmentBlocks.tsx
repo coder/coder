@@ -131,9 +131,10 @@ const endsWithFileExtension = /\.([a-z0-9]{1,8})$/i;
 // Alternate name suffixes that identify the same type as the canonical
 // media-type extension, so "photo.jpeg" is not renamed to "photo.jpeg.jpg".
 const extensionAliases: Record<string, readonly string[]> = {
-	jpg: ["jpeg"],
+	html: ["htm"],
+	jpg: ["jpeg", "jfif", "jpe", "pjpeg", "pjp"],
 	md: ["markdown"],
-	txt: ["text", "log"],
+	tiff: ["tif"],
 };
 
 // Returns the extension implied by the media type alone, ignoring the

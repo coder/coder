@@ -1336,6 +1336,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-text-3",
 						name: "meeting notes",
 					},
+					{
+						type: "file",
+						media_type: "image/jpeg",
+						data: TEST_PNG_B64,
+						name: "photo.jfif",
+					},
 				],
 			},
 		]),
@@ -1380,6 +1386,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 			expect(
 				canvas.getByRole("link", { name: "Download meeting notes" }),
 			).toHaveAttribute("download", "meeting notes.txt");
+		});
+		canvas.getByRole("button", { name: "View photo.jfif" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download photo.jfif" }),
+			).toHaveAttribute("download", "photo.jfif");
 		});
 	},
 };
