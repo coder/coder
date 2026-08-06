@@ -25,7 +25,7 @@ const connectionLogCountCap = 2000
 // @Produce json
 // @Tags Enterprise
 // @Param q query string false "Search query"
-// @Param limit query int true "Page limit"
+// @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.ConnectionLogResponse
 // @Router /api/v2/connectionlog [get]

@@ -37,7 +37,7 @@ const auditLogCountCap = 2000
 // @Produce json
 // @Tags Audit
 // @Param q query string false "Search query"
-// @Param limit query int true "Page limit"
+// @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.AuditLogResponse
 // @Router /api/v2/audit [get]
