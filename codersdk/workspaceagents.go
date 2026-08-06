@@ -172,7 +172,8 @@ type WorkspaceAgent struct {
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
 	// Metadata is only populated on the workspaces list endpoint when the
 	// request opts in with the include_agent_metadata search key, and it
-	// only carries the requested keys.
+	// only carries the requested keys. The description's script is always
+	// empty here: it can be long, and list consumers want values.
 	Metadata []WorkspaceAgentMetadata `json:"metadata,omitempty"`
 
 	// StartupScriptBehavior is a legacy field that is deprecated in favor

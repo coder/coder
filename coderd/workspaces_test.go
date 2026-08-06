@@ -2933,6 +2933,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, metadata, 2)
 		require.Equal(t, "cpu", metadata[0].Description.Key)
 		require.Equal(t, "value-cpu", metadata[0].Result.Value)
+		// The collection script is deliberately not exposed on the list
+		// endpoint; it can be long.
+		require.Empty(t, metadata[0].Description.Script)
 		require.Equal(t, "byoc_status", metadata[1].Description.Key)
 		require.Equal(t, "value-byoc_status", metadata[1].Result.Value)
 		require.WithinDuration(t, collectedAt, metadata[1].Result.CollectedAt, time.Second)

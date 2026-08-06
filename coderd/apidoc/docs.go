@@ -27255,7 +27255,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "metadata": {
-                    "description": "Metadata is only populated on the workspaces list endpoint when the\nrequest opts in with the include_agent_metadata search key, and it\nonly carries the requested keys.",
+                    "description": "Metadata is only populated on the workspaces list endpoint when the\nrequest opts in with the include_agent_metadata search key, and it\nonly carries the requested keys. The description's script is always\nempty here: it can be long, and list consumers want values.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"

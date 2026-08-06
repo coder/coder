@@ -38893,7 +38893,8 @@ SELECT
 					'workspace_agent_id', workspace_agents.id,
 					'display_name', workspace_agent_metadata.display_name,
 					'key', workspace_agent_metadata.key,
-					'script', workspace_agent_metadata.script,
+					-- script is deliberately omitted: it can be long and
+					-- list consumers want values, not collection commands.
 					'value', workspace_agent_metadata.value,
 					'error', workspace_agent_metadata.error,
 					'timeout', workspace_agent_metadata.timeout,
