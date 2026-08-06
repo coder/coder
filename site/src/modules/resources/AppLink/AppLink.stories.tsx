@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
@@ -254,6 +262,74 @@ export const WithTooltip: Story = {
 				"This is a tooltip with Markdown: **bold**, _italic_, and [link](https://coder.com/docs)",
 		},
 		agent: MockWorkspaceAgent,
+	},
+};
+
+// Regression test for DEVEX-460: external apps that embed the session token
+// must not mint an API key on render. The key is minted only when the user
+// clicks the link.
+export const ExternalAppDefersSessionToken: Story = {
+	decorators: [withToaster],
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "jetbrains-gateway://connect?token=$SESSION_TOKEN",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement, step }) => {
+		// Never resolve: we only assert whether/when the request fires, and
+		// leaving it pending avoids the subsequent protocol-handler navigation.
+		const getApiKey = spyOn(API, "getApiKey").mockImplementation(
+			() => new Promise(() => {}),
+		);
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link");
+		const user = userEvent.setup();
+
+		await step("no API key is minted on render", async () => {
+			expect(getApiKey).not.toHaveBeenCalled();
+		});
+
+		await step("clicking mints the API key on demand", async () => {
+			await user.click(link);
+			await waitFor(() => expect(getApiKey).toHaveBeenCalledTimes(1));
+		});
+	},
+};
+
+// External apps that do not embed the session token must never mint a key,
+// even on click, so we don't create session keys for apps that don't need one.
+export const ExternalAppWithoutSessionTokenNeverMints: Story = {
+	decorators: [withToaster],
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "https://example.com",
+			open_in: "slim-window",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement, step }) => {
+		const getApiKey = spyOn(API, "getApiKey").mockResolvedValue({
+			key: "test-key",
+		});
+		// The app opens in a slim window, so stub window.open to keep the click
+		// from navigating the test frame.
+		spyOn(window, "open").mockReturnValue(null);
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link");
+		const user = userEvent.setup();
+
+		await step("no API key is minted on render or click", async () => {
+			expect(getApiKey).not.toHaveBeenCalled();
+			await user.click(link);
+			expect(getApiKey).not.toHaveBeenCalled();
+		});
 	},
 };
 
