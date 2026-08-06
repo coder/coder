@@ -2252,22 +2252,22 @@ export const StreamedReasoning: Story = {
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
 
-const fanOutNewestMessage: TypesGen.ChatMessage = {
+const mockNewestMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 30,
 	role: "assistant",
 	content: [{ type: "text", text: "Newest message" }],
 };
 
-const fanOutOlderRevision: TypesGen.ChatMessage = {
+const mockOlderRevision: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 20,
 	role: "assistant",
 	content: [{ type: "text", text: "Old revision" }],
 };
 
-const fanOutFreshRevision: TypesGen.ChatMessage = {
-	...fanOutOlderRevision,
+const mockFreshRevision: TypesGen.ChatMessage = {
+	...mockOlderRevision,
 	content: [{ type: "text", text: "Fresh revision" }],
 };
 
@@ -2291,12 +2291,12 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 				data: {
 					pages: [
 						{
-							messages: [fanOutNewestMessage],
+							messages: [mockNewestMessage],
 							queued_messages: [],
 							has_more: true,
 						},
 						{
-							messages: [fanOutOlderRevision],
+							messages: [mockOlderRevision],
 							queued_messages: [],
 							has_more: false,
 						},
@@ -2313,7 +2313,7 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 						{
 							type: "message",
 							chat_id: CHAT_ID,
-							message: fanOutFreshRevision,
+							message: mockFreshRevision,
 						},
 					] satisfies TypesGen.ChatStreamEvent[]),
 				},

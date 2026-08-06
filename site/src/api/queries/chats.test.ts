@@ -7,6 +7,7 @@ import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -3468,25 +3469,13 @@ describe("message upsert fan-out and history replacement", () => {
 		pageParams: (number | undefined)[];
 	};
 
-	const makeMessage = (
+	const mockChatMessage = (
 		id: number,
 		text = `msg ${id}`,
 	): TypesGen.ChatMessage => ({
+		...MockChatMessage,
 		id,
-		chat_id: "chat-1",
-		created_at: "2025-01-01T00:00:00.000Z",
-		role: "user" as const,
 		content: [{ type: "text" as const, text }],
-	});
-
-	const makePage = (
-		ids: readonly number[],
-		overrides?: Partial<TypesGen.ChatMessagesResponse>,
-	): TypesGen.ChatMessagesResponse => ({
-		messages: ids.map((id) => makeMessage(id)),
-		queued_messages: [],
-		has_more: false,
-		...overrides,
 	});
 
 	/** Seed and read back the canonical stored object so reference
@@ -3513,7 +3502,18 @@ describe("message upsert fan-out and history replacement", () => {
 	// pages[0] is the newest page and every page is DESC by ID,
 	// matching chatMessagesForInfiniteScroll.
 	const twoPageFixture = (): InfMessages => ({
-		pages: [makePage([60, 55], { has_more: true }), makePage([50, 45])],
+		pages: [
+			{
+				messages: [mockChatMessage(60), mockChatMessage(55)],
+				queued_messages: [],
+				has_more: true,
+			},
+			{
+				messages: [mockChatMessage(50), mockChatMessage(45)],
+				queued_messages: [],
+				has_more: false,
+			},
+		],
 		pageParams: [undefined, 55],
 	});
 
@@ -3521,7 +3521,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queryClient = createTestQueryClient();
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(45, "updated")]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(45, "updated")]);
 
 		const after = readMessagePages(queryClient);
 		expect(after?.pages[0]).toBe(before.pages[0]);
@@ -3535,11 +3535,22 @@ describe("message upsert fan-out and history replacement", () => {
 	it("upsertChatMessages gives every containing page the same fresh value for a duplicated ID", () => {
 		const queryClient = createTestQueryClient();
 		seedMessagePages(queryClient, {
-			pages: [makePage([60, 45], { has_more: true }), makePage([50, 45])],
+			pages: [
+				{
+					messages: [mockChatMessage(60), mockChatMessage(45)],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(50), mockChatMessage(45)],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
 			pageParams: [undefined, 45],
 		});
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(45, "fresh")]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(45, "fresh")]);
 
 		const after = readMessagePages(queryClient);
 		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 45]);
@@ -3556,7 +3567,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queryClient = createTestQueryClient();
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(45)]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(45)]);
 
 		const after = readMessagePages(queryClient);
 		expect(after).toBe(before);
@@ -3567,7 +3578,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queryClient = createTestQueryClient();
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(70)]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(70)]);
 
 		const after = readMessagePages(queryClient);
 		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([70, 60, 55]);
@@ -3578,7 +3589,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queryClient = createTestQueryClient();
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(57)]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(57)]);
 
 		const after = readMessagePages(queryClient);
 		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 57, 55]);
@@ -3590,8 +3601,8 @@ describe("message upsert fan-out and history replacement", () => {
 		seedMessagePages(queryClient, twoPageFixture());
 
 		upsertChatMessages(queryClient, "chat-1", [
-			makeMessage(70, "revision 1"),
-			makeMessage(70, "revision 2"),
+			mockChatMessage(70, "revision 1"),
+			mockChatMessage(70, "revision 2"),
 		]);
 
 		const after = readMessagePages(queryClient);
@@ -3606,8 +3617,8 @@ describe("message upsert fan-out and history replacement", () => {
 		seedMessagePages(queryClient, twoPageFixture());
 
 		upsertChatMessages(queryClient, "chat-1", [
-			makeMessage(45, "updated"),
-			makeMessage(70),
+			mockChatMessage(45, "updated"),
+			mockChatMessage(70),
 		]);
 
 		const after = readMessagePages(queryClient);
@@ -3623,8 +3634,8 @@ describe("message upsert fan-out and history replacement", () => {
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
 		upsertChatMessages(queryClient, "chat-1", [
-			makeMessage(45, "updated"),
-			makeMessage(70),
+			mockChatMessage(45, "updated"),
+			mockChatMessage(70),
 		]);
 
 		const after = readMessagePages(queryClient);
@@ -3637,8 +3648,8 @@ describe("message upsert fan-out and history replacement", () => {
 		const before = seedMessagePages(queryClient, twoPageFixture());
 
 		upsertChatMessages(queryClient, "chat-1", [
-			makeMessage(60),
-			makeMessage(45),
+			mockChatMessage(60),
+			mockChatMessage(45),
 		]);
 
 		expect(readMessagePages(queryClient)).toBe(before);
@@ -3647,7 +3658,7 @@ describe("message upsert fan-out and history replacement", () => {
 	it("upsertChatMessages is a no-op on an absent cache and creates no entry", () => {
 		const queryClient = createTestQueryClient();
 
-		upsertChatMessages(queryClient, "chat-1", [makeMessage(70)]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(70)]);
 
 		expect(
 			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
@@ -3664,19 +3675,28 @@ describe("message upsert fan-out and history replacement", () => {
 		};
 		seedMessagePages(queryClient, {
 			pages: [
-				makePage([60, 55], {
-					has_more: true,
+				{
+					messages: [mockChatMessage(60), mockChatMessage(55)],
 					queued_messages: [queuedMessage],
-				}),
-				makePage([50, 45], { has_more: true }),
-				makePage([40]),
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(50), mockChatMessage(45)],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(40)],
+					queued_messages: [],
+					has_more: false,
+				},
 			],
 			pageParams: [undefined, 55, 45],
 		});
 
 		replaceChatMessagesHistory(queryClient, "chat-1", [
-			makeMessage(55),
-			makeMessage(60, "rewritten"),
+			mockChatMessage(55),
+			mockChatMessage(60, "rewritten"),
 		]);
 
 		const after = readMessagePages(queryClient);
@@ -3691,13 +3711,19 @@ describe("message upsert fan-out and history replacement", () => {
 	it("replaceChatMessagesHistory preserves the previous reference when the replacement equals the current single page", () => {
 		const queryClient = createTestQueryClient();
 		const before = seedMessagePages(queryClient, {
-			pages: [makePage([60, 55])],
+			pages: [
+				{
+					messages: [mockChatMessage(60), mockChatMessage(55)],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
 			pageParams: [undefined],
 		});
 
 		replaceChatMessagesHistory(queryClient, "chat-1", [
-			makeMessage(55),
-			makeMessage(60),
+			mockChatMessage(55),
+			mockChatMessage(60),
 		]);
 
 		expect(readMessagePages(queryClient)).toBe(before);
@@ -3706,7 +3732,7 @@ describe("message upsert fan-out and history replacement", () => {
 	it("replaceChatMessagesHistory is a no-op on an absent cache and creates no entry", () => {
 		const queryClient = createTestQueryClient();
 
-		replaceChatMessagesHistory(queryClient, "chat-1", [makeMessage(60)]);
+		replaceChatMessagesHistory(queryClient, "chat-1", [mockChatMessage(60)]);
 
 		expect(
 			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
