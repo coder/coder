@@ -57,7 +57,7 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Badge variant="default" className="w-fit">
+		<Badge className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
 		</Badge>
@@ -76,11 +76,7 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Badge
-					variant="default"
-					className="w-fit"
-					data-testid="overflow-permissions-pill"
-				>
+				<Badge className="w-fit" data-testid="overflow-permissions-pill">
 					+{resources.length} more
 				</Badge>
 			</TooltipTrigger>

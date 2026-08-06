@@ -39,7 +39,7 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Badge variant="default" className="w-fit" data-testid="overflow-pill">
+				<Badge className="w-fit" data-testid="overflow-pill">
 					+{roles.length} more
 				</Badge>
 			</TooltipTrigger>
