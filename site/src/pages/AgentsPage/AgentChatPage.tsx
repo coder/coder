@@ -2098,7 +2098,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
-			queuedForCapacityAt={chatQuery.data?.queued_for_capacity_at}
+			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);

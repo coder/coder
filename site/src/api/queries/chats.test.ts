@@ -2466,78 +2466,61 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("applies a capacity mark with an unchanged updated_at", () => {
+	it("applies queued_for_capacity from a capacity event with an unchanged updated_at", () => {
 		const cachedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: undefined,
+			queued_for_capacity: false,
 		});
 
 		const watchedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+			queued_for_capacity: true,
 		});
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "capacity_change",
-			}).queued_for_capacity_at,
-		).toBe("2025-01-01T00:00:05.000Z");
+			}).queued_for_capacity,
+		).toBe(true);
 	});
 
-	it("keeps the queue mark when an equal-timestamp status event arrives after it", () => {
+	it("clears queued_for_capacity only from a capacity event", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "running",
 			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+			queued_for_capacity: true,
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "running",
 			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: undefined,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "status_change",
-			}).queued_for_capacity_at,
-		).toBe("2025-01-01T00:00:05.000Z");
-	});
-
-	it("clears the queue mark on a strictly newer status event", () => {
-		const cachedChat = makeChat("chat-1", {
-			status: "running",
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
-		});
-		const watchedChat = makeChat("chat-1", {
-			status: "waiting",
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity_at: undefined,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "status_change",
-			}).queued_for_capacity_at,
-		).toBeUndefined();
-	});
-
-	it("rejects a stale capacity mark reordered after a fresher clear", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity_at: undefined,
-		});
-
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity_at: "2025-01-01T00:00:05.000Z",
+			queued_for_capacity: false,
 		});
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "capacity_change",
-			}).queued_for_capacity_at,
-		).toBeUndefined();
+			}).queued_for_capacity,
+		).toBe(false);
+	});
+
+	it("ignores queued_for_capacity carried by non-capacity events", () => {
+		// Non-capacity event snapshots always report false because the flag
+		// is derived only for capacity events; a newer status event must not
+		// clear the banner.
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity: true,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: false,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).queued_for_capacity,
+		).toBe(true);
 	});
 
 	it("leaves context untouched for non-context events", () => {
@@ -3397,7 +3380,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 
 	describe(shouldInvalidateChatsByWorkspace.name, () => {
 		// created/deleted have their own watch branches; title, summary,
-		// diff, and context events do not move updated_at ordering.
+		// diff, capacity, and context events do not move updated_at ordering.
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
 			capacity_change: false,
@@ -3479,8 +3462,8 @@ describe("semantic cache operations: prefix invalidations", () => {
 
 	describe(shouldInvalidateChatSearches.name, () => {
 		// Search results render title, status, diff status, and the
-		// action-required badge. Summary and context events are excluded:
-		// stale last_turn_summary subtitles are accepted until
+		// action-required badge. Summary, context, and capacity events are
+		// excluded: stale last_turn_summary subtitles are accepted until
 		// reconciliation lands. The created and deleted kinds are handled
 		// by their own watch branches before the merge path runs.
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {

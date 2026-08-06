@@ -21,12 +21,13 @@ import (
 )
 
 const (
-	defaultAcquisitionInterval   = 30 * time.Second
-	defaultAcquisitionBatchSize  = int32(10)
-	defaultRunnerSyncInterval    = 15 * time.Second
-	defaultHeartbeatInterval     = 9 * time.Second
-	defaultHeartbeatCleanupEvery = 30 * time.Second
-	defaultHeartbeatStaleSeconds = int32(30)
+	defaultAcquisitionInterval     = 30 * time.Second
+	defaultAcquisitionBatchSize    = int32(10)
+	defaultCapacityMetricsInterval = 30 * time.Second
+	defaultRunnerSyncInterval      = 15 * time.Second
+	defaultHeartbeatInterval       = 9 * time.Second
+	defaultHeartbeatCleanupEvery   = 30 * time.Second
+	defaultHeartbeatStaleSeconds   = int32(30)
 	// The archive cutoff is based on UTC start-of-day and only moves
 	// once per day, so hourly runs are more than enough to keep up
 	// while still catching chats that cross the threshold shortly
@@ -192,9 +193,12 @@ type chatWorkerOptions struct {
 	Auditor               *atomic.Pointer[audit.Auditor]
 	AutoArchiveRecords    prometheus.Counter
 
-	AgentAdmission AgentAdmission
+	AgentAdmission      AgentAdmission
+	AgentCapacityPolicy AgentCapacityPolicy
+	CapacityMetrics     *capacityMetrics
 
 	AcquisitionInterval        time.Duration
+	CapacityMetricsInterval    time.Duration
 	AcquisitionBatchSize       int32
 	ArchiveInterval            time.Duration
 	ArchiveBatchSize           int32
@@ -227,6 +231,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.AcquisitionInterval <= 0 {
 		o.AcquisitionInterval = defaultAcquisitionInterval
+	}
+	if o.CapacityMetricsInterval <= 0 {
+		o.CapacityMetricsInterval = defaultCapacityMetricsInterval
 	}
 	if o.AcquisitionBatchSize <= 0 {
 		o.AcquisitionBatchSize = defaultAcquisitionBatchSize

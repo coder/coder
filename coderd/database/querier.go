@@ -91,15 +91,16 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
-	// Clears the queue marker without bumping updated_at.
-	ClearChatCapacityQueued(ctx context.Context, id uuid.UUID) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Counts root and subagent slots held by unarchived running or interrupting
 	// chats with a fresh owner heartbeat. @exclude_chat_id makes stale-owner
 	// takeovers capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
-	CountChatCapacityQueuedByPool(ctx context.Context) (CountChatCapacityQueuedByPoolRow, error)
+	// Counts unarchived running chats with no live owner heartbeat per pool.
+	// Callers compare pool activity against the caps to tell capacity waits
+	// from the ordinary sub-second wait for a worker pickup.
+	CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityUnownedByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -484,6 +485,11 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	// Derives whether a chat is waiting for a concurrent-agent capacity slot:
+	// generating, unarchived, unowned (no live owner heartbeat), and its pool
+	// at capacity. Pool fullness distinguishes a capacity wait from the
+	// ordinary sub-second wait for a worker pickup.
+	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
@@ -523,9 +529,10 @@ type sqlcQuerier interface {
 	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
 	// runner_id IS NULL while worker_id is set. Stale ownership is no
 	// heartbeat row for (chat_id, runner_id), or one older than
-	// Interrupting and requires_action bypass admission. Running chats are FIFO
-	// in interleaved root/subagent pools so one full pool cannot starve the
-	// other. @stale_seconds uses DB time; @exclude_ids skips refusals.
+	// @stale_seconds by database time. Interrupting and requires_action
+	// bypass admission. Running chats are FIFO by updated_at in interleaved
+	// root/subagent pools so one full pool cannot starve the other.
+	// @exclude_ids skips candidates already attempted this pass.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
@@ -1306,10 +1313,6 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
-	// Records the first capacity refusal without bumping updated_at. Status,
-	// archive, and heartbeat fences avoid stale marks; preserving the first
-	// timestamp maintains FIFO order across retries.
-	MarkChatCapacityQueued(ctx context.Context, arg MarkChatCapacityQueuedParams) (int64, error)
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint

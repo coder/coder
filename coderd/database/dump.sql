@@ -2108,7 +2108,6 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
-    capacity_queued_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2232,8 +2231,7 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at,
-    c.capacity_queued_at
+    c.compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4829,8 +4827,6 @@ CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id 
 CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
 
 CREATE INDEX idx_chats_capacity_active ON chats USING btree (parent_chat_id) WHERE ((archived = false) AND (status = ANY (ARRAY['running'::chat_status, 'interrupting'::chat_status])) AND (worker_id IS NOT NULL) AND (runner_id IS NOT NULL));
-
-CREATE INDEX idx_chats_capacity_queued_at ON chats USING btree (capacity_queued_at) WHERE (capacity_queued_at IS NOT NULL);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 

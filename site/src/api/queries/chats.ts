@@ -549,14 +549,12 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Queue marks keep chats.updated_at, but clears bump it. Apply capacity
-	// events at equal timestamps and require status events to be newer,
-	// preventing reordered snapshots from clearing or restoring the banner.
-	const nextQueuedForCapacityAt =
-		(isCapacityEvent && isFreshEnough) ||
-		(isStatusEvent && updatedAtComparison < 0)
-			? watchedChat.queued_for_capacity_at
-			: cachedChat.queued_for_capacity_at;
+	// Queued-for-capacity is derived server-side and only capacity_change
+	// events carry it; other events' snapshots always report false, so
+	// scope the field to its own event kind.
+	const nextQueuedForCapacity = isCapacityEvent
+		? (watchedChat.queued_for_capacity ?? false)
+		: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -604,7 +602,7 @@ export const mergeWatchedChatSummary = (
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context &&
-		nextQueuedForCapacityAt === cachedChat.queued_for_capacity_at
+		nextQueuedForCapacity === (cachedChat.queued_for_capacity ?? false)
 	) {
 		return cachedChat;
 	}
@@ -622,7 +620,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
-		queued_for_capacity_at: nextQueuedForCapacityAt,
+		queued_for_capacity: nextQueuedForCapacity,
 	};
 };
 

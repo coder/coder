@@ -1865,10 +1865,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
-	if c.CapacityQueuedAt.Valid {
-		queuedForCapacityAt := c.CapacityQueuedAt.Time
-		chat.QueuedForCapacityAt = &queuedForCapacityAt
-	}
 	// Always initialize Children to an empty slice so the JSON
 	// field serializes as [] rather than null. Root chats may
 	// later have children populated; child chats remain empty

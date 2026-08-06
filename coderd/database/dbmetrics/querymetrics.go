@@ -305,14 +305,6 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) ClearChatCapacityQueued(ctx context.Context, id uuid.UUID) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.ClearChatCapacityQueued(ctx, id)
-	m.queryLatencies.WithLabelValues("ClearChatCapacityQueued").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatCapacityQueued").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -337,11 +329,11 @@ func (m queryMetricsStore) CountChatCapacityActiveByPool(ctx context.Context, ar
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context) (database.CountChatCapacityQueuedByPoolRow, error) {
+func (m queryMetricsStore) CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityUnownedByPoolRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.CountChatCapacityQueuedByPool(ctx)
-	m.queryLatencies.WithLabelValues("CountChatCapacityQueuedByPool").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityQueuedByPool").Inc()
+	r0, r1 := m.s.CountChatCapacityUnownedByPool(ctx, staleSeconds)
+	m.queryLatencies.WithLabelValues("CountChatCapacityUnownedByPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityUnownedByPool").Inc()
 	return r0, r1
 }
 
@@ -1726,6 +1718,14 @@ func (m queryMetricsStore) GetChatPlanModeInstructions(ctx context.Context) (str
 	r0, r1 := m.s.GetChatPlanModeInstructions(ctx)
 	m.queryLatencies.WithLabelValues("GetChatPlanModeInstructions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatPlanModeInstructions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatQueuedForCapacity(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatQueuedForCapacity").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatQueuedForCapacity").Inc()
 	return r0, r1
 }
 
@@ -4903,14 +4903,6 @@ func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, 
 	m.queryLatencies.WithLabelValues("MarkAllInboxNotificationsAsRead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkAllInboxNotificationsAsRead").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) MarkChatCapacityQueued(ctx context.Context, id database.MarkChatCapacityQueuedParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.MarkChatCapacityQueued(ctx, id)
-	m.queryLatencies.WithLabelValues("MarkChatCapacityQueued").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkChatCapacityQueued").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {

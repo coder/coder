@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -87,21 +86,19 @@ func (f admissionFixture) occupiedSubagent(t *testing.T, root database.Chat) dat
 	return chat
 }
 
-func testAdmission(f admissionFixture, set *entitlements.Set) *admission {
-	return newAdmission(admissionOptions{
-		Entitlements:          set,
-		Store:                 f.db,
-		HeartbeatStaleSeconds: 30,
-		RootCapacity:          2,
-		SubagentCapacity:      2,
-	})
+// testAdmission shrinks both pools to two slots so tests fill them cheaply.
+func testAdmission(set *entitlements.Set) *admission {
+	a := newAdmission(set, 30)
+	a.rootCapacity = 2
+	a.subagentCapacity = 2
+	return a
 }
 
 func TestAdmission_RootPoolCap(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	root := f.occupiedRoot(t)
 	f.occupiedRoot(t)
@@ -119,33 +116,11 @@ func TestAdmission_RootPoolCap(t *testing.T) {
 	require.True(t, admitted)
 }
 
-func TestAdmission_QueueCounterCountsMarkerWinsOnly(t *testing.T) {
-	t.Parallel()
-	f := newAdmissionFixture(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
-
-	f.occupiedRoot(t)
-	f.occupiedRoot(t)
-
-	chat := f.chat(t, database.Chat{})
-	for range 2 {
-		admitted, err := a.Admit(ctx, f.db, chat)
-		require.NoError(t, err)
-		require.False(t, admitted)
-	}
-	require.Zero(t, promtestutil.ToFloat64(a.queueTotal),
-		"refusals must not count queue entries: concurrent replicas can refuse the same chat before one marker write wins")
-
-	a.RecordQueued()
-	require.Equal(t, float64(1), promtestutil.ToFloat64(a.queueTotal))
-}
-
 func TestAdmission_SubagentPoolCap(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	root := f.occupiedRoot(t)
 	f.occupiedSubagent(t, root)
@@ -168,7 +143,7 @@ func TestAdmission_InterruptingBypassesCap(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	f.occupiedRoot(t)
 	f.occupiedRoot(t)
@@ -183,7 +158,7 @@ func TestAdmission_RequiresActionBypassesCap(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	f.occupiedRoot(t)
 	f.occupiedRoot(t)
@@ -198,7 +173,7 @@ func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	counted := f.occupiedRoot(t)
 	f.occupiedRoot(t)
@@ -215,7 +190,7 @@ func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	a := testAdmission(f, nil)
+	a := testAdmission(nil)
 
 	const attempts = 8
 	chats := make([]database.Chat, attempts)
@@ -255,7 +230,7 @@ func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 	wg.Wait()
 
 	require.EqualValues(t, 0, unexpected.Load(), "admission attempts must not error")
-	require.EqualValues(t, 2, admitted.Load(), "exactly RootCapacity chats must admit")
+	require.EqualValues(t, 2, admitted.Load(), "exactly rootCapacity chats must admit")
 }
 
 func TestAdmission_StaleHeartbeatsFreeSlots(t *testing.T) {
@@ -267,12 +242,9 @@ func TestAdmission_StaleHeartbeatsFreeSlots(t *testing.T) {
 	f.occupiedRoot(t)
 
 	// A zero staleness window makes every heartbeat stale.
-	a := newAdmission(admissionOptions{
-		Store:                 f.db,
-		HeartbeatStaleSeconds: 0,
-		RootCapacity:          2,
-		SubagentCapacity:      2,
-	})
+	a := newAdmission(nil, 0)
+	a.rootCapacity = 2
+	a.subagentCapacity = 2
 	admitted, err := a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
 	require.NoError(t, err)
 	require.True(t, admitted)
@@ -329,7 +301,7 @@ func TestAdmission_LicensedBypass(t *testing.T) {
 			if tc.feature != nil {
 				set = agentHoursSet(t, *tc.feature)
 			}
-			a := testAdmission(f, set)
+			a := testAdmission(set)
 
 			f.occupiedRoot(t)
 			f.occupiedRoot(t)
@@ -337,6 +309,20 @@ func TestAdmission_LicensedBypass(t *testing.T) {
 			admitted, err := a.Admit(ctx, f.db, f.chat(t, database.Chat{}))
 			require.NoError(t, err)
 			require.Equal(t, tc.admit, admitted)
+
+			limits := a.CurrentLimits()
+			require.Equal(t, !tc.admit, limits.Capped,
+				"CurrentLimits must agree with Admit on whether the caps apply")
 		})
 	}
+}
+
+func TestAdmission_CurrentLimitsReportsCaps(t *testing.T) {
+	t.Parallel()
+	a := newAdmission(nil, 30)
+
+	limits := a.CurrentLimits()
+	require.True(t, limits.Capped)
+	require.EqualValues(t, maxConcurrentRootAgents, limits.Root)
+	require.EqualValues(t, maxConcurrentSubagents, limits.Subagent)
 }
