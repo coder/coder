@@ -1,6 +1,7 @@
 import type { FormikContextType } from "formik";
 import { type FC, useId } from "react";
 import { Button } from "#/components/Button/Button";
+import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -14,7 +15,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { IconPickerField } from "./IconPickerField";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
@@ -150,11 +150,17 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							/>
 						</Field>
 						<Field label="Icon" htmlFor={`${formId}-icon`}>
-							<IconPickerField
+							<IconField
 								id={`${formId}-icon`}
 								value={form.values.iconURL}
 								placeholder="file location"
-								onChange={(value) => void form.setFieldValue("iconURL", value)}
+								label={null}
+								onChange={(event) =>
+									void form.setFieldValue("iconURL", event.target.value)
+								}
+								onPickEmoji={(value) =>
+									void form.setFieldValue("iconURL", value)
+								}
 								disabled={isDisabled}
 							/>
 						</Field>

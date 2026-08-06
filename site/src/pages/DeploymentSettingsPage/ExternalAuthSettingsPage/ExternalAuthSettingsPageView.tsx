@@ -19,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { docs } from "#/utils/docs";
 
 type ExternalAuthSettingsPageViewProps = {
@@ -53,9 +54,20 @@ export const ExternalAuthSettingsPageView: FC<
 			/>
 
 			<div className="mt-6 mb-6">
-				<Alert severity="info" actions={<PremiumBadge key="enterprise" />}>
-					Integrating with multiple External authentication providers is an
-					Premium feature.
+				<Alert severity="info" actions={<PremiumBadge />}>
+					Integrating with multiple external authentication providers is a
+					Premium feature.{" "}
+					<a
+						href={docs(
+							"/admin/external-auth#multiple-external-providers-premium",
+						)}
+						target="_blank"
+						rel="noreferrer"
+						className="text-content-link font-medium"
+					>
+						Read the External Authentication documentation
+					</a>
+					.
 				</Alert>
 			</div>
 
@@ -68,16 +80,10 @@ export const ExternalAuthSettingsPageView: FC<
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{((config.external_auth === null ||
-						config.external_auth?.length === 0) && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div className="text-center">
-									No providers have been configured!
-								</div>
-							</TableCell>
-						</TableRow>
-					)) ||
+					{config.external_auth === null ||
+					config.external_auth?.length === 0 ? (
+						<TableEmpty message="No providers have been configured!" />
+					) : (
 						config.external_auth?.map((git: ExternalAuthConfig) => {
 							const name = git.id || git.type;
 							return (
@@ -87,7 +93,8 @@ export const ExternalAuthSettingsPageView: FC<
 									<TableCell>{git.regex || "Not Set"}</TableCell>
 								</TableRow>
 							);
-						})}
+						})
+					)}
 				</TableBody>
 			</Table>
 		</>

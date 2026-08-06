@@ -1,6 +1,7 @@
 import { CircleCheckBigIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
+import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
@@ -172,6 +173,38 @@ export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
 				{children}
 			</a>
 		</Button>
+	);
+};
+
+export const PaywallCTALink: FC<LinkProps> = ({
+	children,
+	className,
+	...props
+}) => {
+	return (
+		<Button asChild>
+			<RouterLink className={cn("mx-7", className)} {...props}>
+				{children}
+			</RouterLink>
+		</Button>
+	);
+};
+
+export const PaywallGuidance: FC<React.ComponentProps<"p">> = ({
+	children,
+	className,
+	...props
+}) => {
+	return (
+		<p
+			className={cn(
+				"font-inherit text-sm max-w-[280px] mx-7 my-0 text-content-secondary",
+				className,
+			)}
+			{...props}
+		>
+			{children}
+		</p>
 	);
 };
 

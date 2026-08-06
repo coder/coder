@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -34,7 +33,7 @@ func (c *Client) CreateTask(ctx context.Context, user string, request CreateTask
 	}
 
 	var task Task
-	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+	if err := ReadBodyAsJSON(res, &task); err != nil {
 		return Task{}, err
 	}
 
@@ -192,7 +191,7 @@ func (c *Client) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error)
 	}
 
 	var tres TasksListResponse
-	if err := json.NewDecoder(res.Body).Decode(&tres); err != nil {
+	if err := ReadBodyAsJSON(res, &tres); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +211,7 @@ func (c *Client) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	}
 
 	var task Task
-	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+	if err := ReadBodyAsJSON(res, &task); err != nil {
 		return Task{}, err
 	}
 
@@ -234,7 +233,7 @@ func (c *Client) TaskByOwnerAndName(ctx context.Context, owner, ident string) (T
 	}
 
 	var task Task
-	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+	if err := ReadBodyAsJSON(res, &task); err != nil {
 		return Task{}, err
 	}
 
@@ -346,7 +345,7 @@ func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (Paus
 	}
 
 	var resp PauseTaskResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+	if err := ReadBodyAsJSON(res, &resp); err != nil {
 		return PauseTaskResponse{}, err
 	}
 
@@ -369,7 +368,7 @@ func (c *Client) ResumeTask(ctx context.Context, user string, id uuid.UUID) (Res
 	}
 
 	var resp ResumeTaskResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+	if err := ReadBodyAsJSON(res, &resp); err != nil {
 		return ResumeTaskResponse{}, err
 	}
 
@@ -415,7 +414,7 @@ func (c *Client) TaskLogs(ctx context.Context, user string, id uuid.UUID) (TaskL
 	}
 
 	var logs TaskLogsResponse
-	if err := json.NewDecoder(res.Body).Decode(&logs); err != nil {
+	if err := ReadBodyAsJSON(res, &logs); err != nil {
 		return TaskLogsResponse{}, xerrors.Errorf("decoding task logs response: %w", err)
 	}
 

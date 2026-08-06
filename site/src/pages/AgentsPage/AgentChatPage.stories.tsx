@@ -12,13 +12,14 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
-	chatKey,
+	chatEntityKey,
+	chatListKey,
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
-	chatsKey,
-	mcpServerConfigsKey,
+	mcpServersKey,
+	toChatListParams,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -273,7 +274,7 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -284,7 +285,10 @@ const buildQueries = (
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatListKey(toChatListParams()),
+			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
 			data: {
@@ -299,7 +303,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServerConfigsKey, data: [] },
+		{ key: mcpServersKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -2986,7 +2990,7 @@ export const SendResponseAfterChatSwitch: Story = {
 				{ messages: [], queued_messages: [], has_more: false },
 				{ diffUrl: undefined },
 			),
-			{ key: chatKey(SWITCHED_CHAT_ID), data: switchedChat },
+			{ key: chatEntityKey(SWITCHED_CHAT_ID), data: switchedChat },
 			{
 				key: chatMessagesKey(SWITCHED_CHAT_ID),
 				data: {
@@ -3087,7 +3091,7 @@ export const DetailQueryError: Story = {
 				queued_messages: [],
 				has_more: false,
 			}),
-			chatKey(CHAT_ID),
+			chatEntityKey(CHAT_ID),
 		),
 	},
 	beforeEach: () => {
@@ -3134,7 +3138,7 @@ export const ErrorRetryRecovers: Story = {
 				queued_messages: [],
 				has_more: false,
 			}),
-			chatKey(CHAT_ID),
+			chatEntityKey(CHAT_ID),
 		),
 	},
 	beforeEach: ({ parameters }) => {
@@ -3164,7 +3168,7 @@ export const ChatNotFound: Story = {
 				queued_messages: [],
 				has_more: false,
 			}),
-			chatKey(CHAT_ID),
+			chatEntityKey(CHAT_ID),
 		),
 	},
 	beforeEach: () => {

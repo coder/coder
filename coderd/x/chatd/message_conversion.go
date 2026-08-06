@@ -195,9 +195,10 @@ func assistantMessage(
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
 	}
 	msg.ContextLimit = step.ContextLimit
-	if step.Runtime > 0 {
-		msg.RuntimeMs = sql.NullInt64{Int64: step.Runtime.Milliseconds(), Valid: true}
-	}
+	// InsertChatMessages maps a zero runtime to NULL, so a model
+	// invocation shorter than a millisecond persists the same way an
+	// unmeasured one does.
+	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
 	return msg
 }
 
@@ -306,6 +307,8 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool result: %w", err)
 	}
 
+	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
+	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -314,7 +317,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
 		},
-		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		assistantMsg,
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
 	}
 	for i := range messages {
@@ -547,6 +550,12 @@ type bufferedPartsToPartialMessagesInput struct {
 	contentVersion int16
 	logger         slog.Logger
 	interruptedAt  time.Time
+	// attemptRuntime is the interrupted attempt's billable model
+	// invocation window: the span from the provider stream opening to
+	// the interrupt closing its buffer episode. It is persisted as
+	// runtime_ms on the first partial assistant message when the
+	// attempt streamed model-generated assistant content.
+	attemptRuntime time.Duration
 }
 
 type partialToolCall struct {
@@ -597,6 +606,17 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
 		return nil, err
 	}
+	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
+		// Usage reporting sums runtime_ms across rows, so placing the
+		// whole span on the first assistant message is sufficient.
+		for i := range state.messages {
+			if state.messages[i].Role != database.ChatMessageRoleAssistant {
+				continue
+			}
+			state.messages[i].RuntimeMs = nullInt64IfNonZero(input.attemptRuntime.Milliseconds())
+			break
+		}
+	}
 	return state.messages, nil
 }
 
@@ -611,6 +631,14 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
+	// modelStreamedAssistant records whether any assistant part came
+	// from the model stream itself (text, reasoning, tool calls,
+	// sources). Tool execution also publishes assistant-role file
+	// parts for attachments; those alone must not attract the
+	// attempt's runtime, because tool batches are not billable. The
+	// buffer episode only carries a runtime when a provider stream
+	// was opened, so this is a second gate rather than the only one.
+	modelStreamedAssistant bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -630,6 +658,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	if part.Type == "" {
 		s.logSkippedPart(buffered, "empty buffered assistant part type")
 		return
+	}
+	if part.Type != codersdk.ChatMessagePartTypeFile {
+		s.modelStreamedAssistant = true
 	}
 	if part.Type != codersdk.ChatMessagePartTypeToolCall {
 		if part.Type == codersdk.ChatMessagePartTypeReasoning &&
