@@ -120,14 +120,22 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
+const endsWithFileExtension = /\.[a-z0-9]{1,8}$/i;
+
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
-	if (name) {
-		return name;
-	}
 	const extension = getAttachmentExtension(block);
+	if (name) {
+		// iOS resolves the shared or saved file's type from the filename
+		// extension, so an extensionless name like "About Page Screenshot"
+		// would land as a generic file even when the media type is known.
+		if (endsWithFileExtension.test(name) || extension === "file") {
+			return name;
+		}
+		return `${name}.${extension}`;
+	}
 	return extension === "file" ? "attachment" : `attachment.${extension}`;
 };
 

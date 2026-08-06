@@ -1289,6 +1289,43 @@ export const AssistantMessageWithImage: Story = {
 	},
 };
 
+export const ExtensionlessImageNameGainsDownloadExtension: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here is the screenshot:" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+						name: "About Page Screenshot",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const viewButton = canvas.getByRole("button", {
+			name: "View About Page Screenshot",
+		});
+		viewButton.focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download About Page Screenshot" }),
+			).toBeVisible();
+		});
+		expect(
+			canvas.getByRole("link", { name: "Download About Page Screenshot" }),
+		).toHaveAttribute("download", "About Page Screenshot.png");
+	},
+};
+
 export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	args: {
 		...defaultArgs,
