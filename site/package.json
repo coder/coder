@@ -133,7 +133,7 @@
 		"@storybook/addon-themes": "10.3.3",
 		"@storybook/addon-vitest": "10.3.3",
 		"@storybook/react-vite": "10.3.3",
-		"@tailwindcss/typography": "0.5.19",
+		"@tailwindcss/typography": "0.5.20",
 		"@testing-library/jest-dom": "6.9.1",
 		"@testing-library/react": "14.3.1",
 		"@testing-library/user-event": "14.6.1",
