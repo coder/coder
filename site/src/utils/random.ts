@@ -1,4 +1,19 @@
 /**
+ * Generate a random hexadecimal string from the specified number of bytes.
+ */
+const generateRandomString = (bytes: number): string => {
+	const byteArr = crypto.getRandomValues(new Uint8Array(bytes));
+	// The types for `map` don't seem to support mapping from one array type to
+	// another and `String.fromCharCode.apply` wants `number[]` so loop like this
+	// instead.
+	const strArr: string[] = [];
+	for (const byte of byteArr) {
+		strArr.push(byte.toString(16).padStart(2, "0"));
+	}
+	return strArr.join("");
+};
+
+/**
  * Generate a cryptographically secure random string using the specified number
  * of bytes then encode with base64.
  *
@@ -7,15 +22,7 @@
  * @see <https://developer.mozilla.org/en-US/docs/Glossary/Base64#encoded_size_increase>
  */
 export const generateRandomBase64String = (bytes: number): string => {
-	const byteArr = window.crypto.getRandomValues(new Uint8Array(bytes));
-	// The types for `map` don't seem to support mapping from one array type to
-	// another and `String.fromCharCode.apply` wants `number[]` so loop like this
-	// instead.
-	const strArr: string[] = [];
-	for (const byte of byteArr) {
-		strArr.push(String.fromCharCode(byte));
-	}
-	return btoa(strArr.join(""));
+	return btoa(generateRandomString(bytes));
 };
 
 /**
@@ -23,10 +30,5 @@ export const generateRandomBase64String = (bytes: number): string => {
  * workspace connection sessions.
  */
 export const generateSessionId = (): string => {
-	const byteArr = crypto.getRandomValues(new Uint8Array(16));
-	const strArr: string[] = [];
-	for (const byte of byteArr) {
-		strArr.push(byte.toString(16).padStart(2, "0"));
-	}
-	return strArr.join("");
+	return generateRandomString(16);
 };
