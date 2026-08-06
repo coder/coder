@@ -1,14 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	BotIcon,
-	CalendarCogIcon,
-	FingerprintIcon,
-	KeyIcon,
-	LockIcon,
-	SettingsIcon,
-	UserIcon,
-} from "lucide-react";
-import { Outlet } from "react-router";
+import { BotIcon, LockIcon, SettingsIcon, UserLockIcon } from "lucide-react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Sidebar,
@@ -26,16 +17,6 @@ export default meta;
 type Story = StoryObj<typeof Sidebar>;
 
 export const Default: Story = {
-	decorators: [
-		(Story) => {
-			return (
-				<div className="flex gap-2">
-					<Story />
-					<Outlet />
-				</div>
-			);
-		},
-	],
 	render: () => (
 		<Sidebar>
 			<SidebarHeader
@@ -43,55 +24,64 @@ export const Default: Story = {
 				title="Jon"
 				subtitle="jon@coder.com"
 			/>
-			<SidebarNavItem href="account" icon={UserIcon}>
-				Account
-			</SidebarNavItem>
-			<SidebarNavItem href="schedule" icon={CalendarCogIcon}>
-				Schedule
-			</SidebarNavItem>
-			<SidebarNavItem href="security" icon={LockIcon}>
-				Security
-			</SidebarNavItem>
-			<SidebarNavItem href="ssh-keys" icon={FingerprintIcon}>
-				SSH Keys
-			</SidebarNavItem>
-			<SidebarNavItem href="tokens" icon={KeyIcon}>
-				Tokens
-			</SidebarNavItem>
+			<div className="flex flex-col gap-1">
+				<SidebarGroup
+					icon={SettingsIcon}
+					label="General"
+					href="/settings/account"
+				>
+					<SidebarNavItem end href="/settings/account">
+						Account
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/appearance">
+						Appearance
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/schedule">Schedule</SidebarNavItem>
+					<SidebarNavItem href="/settings/notifications">
+						Notifications
+					</SidebarNavItem>
+				</SidebarGroup>
+				<SidebarGroup
+					icon={UserLockIcon}
+					label="Authentication"
+					href="/settings/security"
+				>
+					<SidebarNavItem end href="/settings/security">
+						Password
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/external-auth">
+						External authentication
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/oauth2-provider">
+						OAuth2 applications
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/ssh-keys">SSH keys</SidebarNavItem>
+				</SidebarGroup>
+				<SidebarGroup icon={LockIcon} label="Security" href="/settings/tokens">
+					<SidebarNavItem end href="/settings/tokens">
+						Tokens
+					</SidebarNavItem>
+					<SidebarNavItem href="/settings/secrets">Secrets</SidebarNavItem>
+				</SidebarGroup>
+			</div>
 		</Sidebar>
 	),
 	parameters: {
 		reactRouter: {
 			location: {
-				path: "/account",
+				path: "/settings/account",
 			},
 			routing: [
-				{
-					path: "/",
-					useStoryElement: true,
-					children: [
-						{
-							path: "account",
-							element: <>Account page</>,
-						},
-						{
-							path: "schedule",
-							element: <>Schedule page</>,
-						},
-						{
-							path: "security",
-							element: <>Security page</>,
-						},
-						{
-							path: "ssh-keys",
-							element: <>SSH Keys</>,
-						},
-						{
-							path: "tokens",
-							element: <>Tokens page</>,
-						},
-					],
-				},
+				{ path: "/settings/account", useStoryElement: true },
+				{ path: "/settings/appearance", useStoryElement: true },
+				{ path: "/settings/schedule", useStoryElement: true },
+				{ path: "/settings/notifications", useStoryElement: true },
+				{ path: "/settings/external-auth", useStoryElement: true },
+				{ path: "/settings/oauth2-provider", useStoryElement: true },
+				{ path: "/settings/security", useStoryElement: true },
+				{ path: "/settings/ssh-keys", useStoryElement: true },
+				{ path: "/settings/tokens", useStoryElement: true },
+				{ path: "/settings/secrets", useStoryElement: true },
 			],
 		},
 	},

@@ -6,6 +6,7 @@ import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { SSHKeysPageView } from "./SSHKeysPageView";
@@ -24,6 +25,15 @@ const SSHKeysPage: FC = () => {
 		<>
 			<SettingsHeader>
 				<SettingsHeaderTitle>SSH keys</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					The following public key is used to authenticate Git in workspaces.
+					You may add it to Git services (such as GitHub) that you need to
+					access from your workspace. Coder configures authentication via{" "}
+					<code className="rounded-sm border border-border bg-surface-secondary px-1 py-0.5 text-xs text-content-primary">
+						$GIT_SSH_COMMAND
+					</code>
+					.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 			<SSHKeysPageView
 				isLoading={userSSHKeyQuery.isLoading}

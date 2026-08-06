@@ -16,7 +16,7 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 	className,
 }) => {
 	return (
-		<hgroup className="flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row">
+		<hgroup className="flex flex-col justify-between items-start gap-6 pb-6 sm:flex-row ">
 			<div className={cn("text-sm flex flex-col gap-2 flex-1", className)}>
 				{children}
 			</div>

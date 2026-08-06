@@ -23,29 +23,27 @@ interface SidebarHeaderProps {
 	linkTo?: string;
 }
 
-const titleStyles = {
-	normal:
-		"text-semibold overflow-hidden whitespace-nowrap text-content-primary",
-};
-
 export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	avatar,
 	title,
 	subtitle,
 	linkTo,
 }) => {
+	const titleClassName =
+		"text-sm font-semibold truncate text-content-primary no-underline";
+
 	return (
-		<div className="flex flex-row gap-2 mb-4">
+		<div className="flex items-center gap-3 px-3 mb-4">
 			{avatar}
-			<div className="overflow-hidden flex flex-col">
+			<div className="min-w-0 flex flex-col gap-0.5">
 				{linkTo ? (
-					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
+					<Link className={titleClassName} to={linkTo}>
 						{title}
 					</Link>
 				) : (
-					<span className={titleStyles.normal}>{title}</span>
+					<span className={titleClassName}>{title}</span>
 				)}
-				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
+				<span className="text-content-secondary text-xs truncate">
 					{subtitle}
 				</span>
 			</div>
