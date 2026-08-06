@@ -6426,6 +6426,11 @@ export interface OAuth2ClientRegistrationResponse {
 	readonly registration_client_uri: string;
 }
 
+// From codersdk/oauth2.go
+export type OAuth2ClientType = "confidential" | "public";
+
+export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
