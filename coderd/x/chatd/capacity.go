@@ -85,6 +85,13 @@ func (w *chatWorker) pruneCapacityQueue(seen map[uuid.UUID]struct{}) {
 	}
 }
 
+// The noop limiter never refuses, so no queued event can exist and clears
+// would be pure noise.
+func (w *chatWorker) capacityEventsEnabled() bool {
+	_, noop := w.opts.AgentCapacityLimiter.(noopAgentCapacityLimiter)
+	return !noop
+}
+
 func (w *chatWorker) capacityMetricsLoop(ctx context.Context) {
 	ticker := w.opts.Clock.NewTicker(w.opts.CapacityMetricsInterval, "chatworker", "capacity-metrics")
 	defer ticker.Stop()
