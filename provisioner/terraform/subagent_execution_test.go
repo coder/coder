@@ -576,6 +576,26 @@ func TestConvertStateSubagentExecutionAmbiguousInstances(t *testing.T) {
 	require.ErrorContains(t, err, "ambiguous coder_subagent_execution association with multiple matches")
 }
 
+func TestConvertStateSubagentExecutionStopPlanOmitsUnattachedParent(t *testing.T) {
+	t.Parallel()
+
+	// Stop plans retain provider-only resources in state while the compute
+	// resource is absent from the graph. The parent agent and its execution are
+	// both omitted instead of treating the unattached agent as a nested parent.
+	module := &tfjson.StateModule{Resources: []*tfjson.StateResource{
+		subagentTestAgentResource("coder_agent.parent", "parent", "parent-id"),
+		subagentTestExecutionResource("coder_subagent_execution.child", "child", "parent-id", "association-id"),
+	}}
+	graph := subagentTestGraph(
+		[]string{"coder_agent.parent", "coder_subagent_execution.child"},
+		[2]string{"coder_subagent_execution.child", "coder_agent.parent"},
+	)
+
+	state, err := subagentTestConvert(t, module, graph)
+	require.NoError(t, err)
+	require.Empty(t, state.Resources)
+}
+
 func TestConvertStateSubagentExecutionUnresolvedParent(t *testing.T) {
 	t.Parallel()
 

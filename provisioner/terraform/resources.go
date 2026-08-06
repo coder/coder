@@ -585,6 +585,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if resolveErr != nil {
 			return nil, resolveErr
 		}
+		// A stop plan can retain coder_agent and coder_subagent_execution in
+		// Terraform state after the compute resource has disappeared from the
+		// graph. The unattached agent is omitted from the converted state, so its
+		// execution declaration must be omitted as well.
+		if parent == nil {
+			continue
+		}
 		parent.SubagentExecutions = append(parent.SubagentExecutions, executionResource.execution)
 	}
 
@@ -1500,6 +1507,12 @@ func resolveSubagentExecutionParent(
 			executionResource.resource.Address,
 			formatTerraformAssociationMatches(matches),
 		)
+	}
+	if matches[0].target.kind == terraformAssociationTargetNonTopLevelAgent {
+		// Terraform stop plans can retain the coder_agent state after its compute
+		// resource has been removed from the graph. ConvertState already omits
+		// that unattached agent, so omit its execution declarations too.
+		return nil, nil
 	}
 	if matches[0].target.kind != terraformAssociationTargetTopLevelAgent {
 		return nil, xerrors.Errorf("coder_subagent_execution %q parent %s is not a top-level coder_agent", executionResource.resource.Address, matches[0].target.kind)
