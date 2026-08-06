@@ -145,7 +145,7 @@ function activeDeveloperLabel(count: number): string {
 }
 
 function sortTemplatesByUsersDesc(templates: readonly Template[]) {
-	return [...templates].sort(
+	return templates.toSorted(
 		(t1, t2) => t2.active_user_count - t1.active_user_count,
 	);
 }
