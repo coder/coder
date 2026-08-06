@@ -649,6 +649,16 @@ const AgentsPageLayout: FC = () => {
 								updatedChat,
 								updatedChat.parent_chat_id,
 							);
+							// A new sub-agent spawn also emits `created`; only an
+							// already cached, archived entity marks a family
+							// unarchive, so spawns skip the recovery.
+							if (
+								queryClient.getQueryData<TypesGen.Chat>(
+									chatEntityKey(updatedChat.id),
+								)?.archived
+							) {
+								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
+							}
 						} else {
 							// `created` also fires for unarchive transitions;
 							// the helper detects that via the cached entity.
