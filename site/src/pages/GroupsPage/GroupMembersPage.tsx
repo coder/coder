@@ -1,12 +1,11 @@
 import dayjs from "dayjs";
-import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	addMembers,
 	groupAIBudget,
 	groupMembersAISpend,
 	removeMember,
@@ -15,18 +14,11 @@ import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	GroupMemberAISpend,
-	OrganizationMemberWithUserData,
 	ReducedUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -35,9 +27,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
-import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -49,7 +39,6 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
@@ -75,7 +64,6 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMembersMutation = useMutation(addMembers(queryClient, organization));
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
@@ -137,21 +125,7 @@ const GroupMembersPage: FC = () => {
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
-			<div className="flex flex-row justify-between">
-				<UsersFilter {...filterProps} />
-
-				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddUsersDialog
-						organizationId={groupData.organization_id}
-						onSubmit={async (users) => {
-							await addMembersMutation.mutateAsync({
-								groupId: groupData.id,
-								userIds: users.map((u) => u.user_id),
-							});
-						}}
-					/>
-				)}
-			</div>
+			<UsersFilter {...filterProps} />
 
 			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
 				<Table aria-label="Group members">
@@ -244,98 +218,6 @@ const GroupMembersPage: FC = () => {
 				/>
 			)}
 		</div>
-	);
-};
-
-interface AddUsersDialogProps {
-	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
-	organizationId: string;
-}
-
-const AddUsersDialog: FC<AddUsersDialogProps> = ({
-	onSubmit,
-	organizationId,
-}) => {
-	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-	const [submitting, setSubmitting] = useState(false);
-	const [filter, setFilter] = useState("");
-	const [selected, setSelected] = useState<OrganizationMemberWithUserData[]>(
-		[],
-	);
-	const closeDialog = () => {
-		setAddUserDialogOpen(false);
-		setFilter("");
-		setSelected([]);
-	};
-
-	return (
-		<>
-			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
-				<UserPlusIcon />
-				Add users
-			</Button>
-			<Dialog
-				open={addUserDialogOpen}
-				onOpenChange={(open) => {
-					if (!open) {
-						closeDialog();
-					}
-				}}
-			>
-				<DialogContent
-					data-testid="dialog"
-					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
-				>
-					<DialogTitle className="font-semibold text-content-primary">
-						Add user(s)
-					</DialogTitle>
-					<MultiMemberSelect
-						organizationId={organizationId}
-						filter={filter}
-						setFilter={setFilter}
-						onChange={(user, checked) => {
-							if (checked) {
-								setSelected([...selected, user]);
-							} else {
-								setSelected(selected.filter((s) => s.user_id !== user.user_id));
-							}
-						}}
-						selected={selected}
-					/>
-					<DialogFooter className="mt-4 flex-row justify-end gap-3">
-						<Button
-							variant="outline"
-							onClick={closeDialog}
-							disabled={submitting}
-						>
-							Cancel
-						</Button>
-						<Button
-							disabled={submitting || selected.length === 0}
-							onClick={async () => {
-								try {
-									setSubmitting(true);
-									await onSubmit(selected);
-									closeDialog();
-								} catch (error) {
-									toast.error(
-										getErrorMessage(error, "Failed to add members."),
-										{
-											description: getErrorDetail(error),
-										},
-									);
-								} finally {
-									setSubmitting(false);
-								}
-							}}
-						>
-							<Spinner loading={submitting} />
-							Add users
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</>
 	);
 };
 
