@@ -1,15 +1,15 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
@@ -45,17 +45,17 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 
 	return (
 		<>
-			<PageHeader>
-				<PageHeaderTitle>
+			<SettingsHeader>
+				<SettingsHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
-						<span>Connection Log</span>
+						<span>Connection Logs</span>
 						<ConnectionLogHelpPopover />
 					</div>
-				</PageHeaderTitle>
-				<PageHeaderSubtitle>
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
 					View workspace connection events.
-				</PageHeaderSubtitle>
-			</PageHeader>
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{isConnectionLogVisible ? (
 				<>
