@@ -102,7 +102,7 @@ export const useFilter = ({
 	};
 };
 
-export const parseFilterQuery = (filterQuery: string): FilterValues => {
+const parseFilterQuery = (filterQuery: string): FilterValues => {
 	if (filterQuery === "") {
 		return {};
 	}

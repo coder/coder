@@ -401,7 +401,7 @@ export class ParameterValidationError extends Error {
 	}
 }
 
-export type GetProvisionerJobsParams = {
+type GetProvisionerJobsParams = {
 	q?: string;
 	limit?: number;
 	offset?: number;

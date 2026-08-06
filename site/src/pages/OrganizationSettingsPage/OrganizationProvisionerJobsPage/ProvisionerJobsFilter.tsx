@@ -84,7 +84,7 @@ export const useProvisionerJobStatusFilterMenu = ({
 	});
 };
 
-export type ProvisionerJobStatusFilterMenu = ReturnType<
+type ProvisionerJobStatusFilterMenu = ReturnType<
 	typeof useProvisionerJobStatusFilterMenu
 >;
 
@@ -102,7 +102,7 @@ export const useProvisionerJobTypeFilterMenu = ({
 	});
 };
 
-export type ProvisionerJobTypeFilterMenu = ReturnType<
+type ProvisionerJobTypeFilterMenu = ReturnType<
 	typeof useProvisionerJobTypeFilterMenu
 >;
 
@@ -141,7 +141,7 @@ export const useProvisionerJobTemplateFilterMenu = ({
 	});
 };
 
-export type ProvisionerJobTemplateFilterMenu = ReturnType<
+type ProvisionerJobTemplateFilterMenu = ReturnType<
 	typeof useProvisionerJobTemplateFilterMenu
 >;
 
