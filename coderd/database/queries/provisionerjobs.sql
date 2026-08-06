@@ -232,6 +232,16 @@ WHERE
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 	AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
 	AND (@template_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = @template_id::uuid)
+	-- Free-text search against workspace name, template name / display
+	-- name, or job ID (substring, case-insensitive).
+	AND CASE WHEN @search :: text != '' THEN (
+			COALESCE(w.name, '') ILIKE concat('%', @search, '%')
+			OR COALESCE(t.name, '') ILIKE concat('%', @search, '%')
+			OR COALESCE(t.display_name, '') ILIKE concat('%', @search, '%')
+			OR pj.id::text ILIKE concat('%', @search, '%')
+		)
+		ELSE true
+	END
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -258,13 +268,19 @@ OFFSET
 -- name: CountProvisionerJobsByOrganizationAndStatus :one
 -- Count for pagination. Uses the same filters as
 -- GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
--- Joins template metadata only as needed for the template_id filter.
+-- Joins template and workspace metadata as needed for template_id and
+-- search filters.
 SELECT COUNT(*) FROM (
 	SELECT 1
 	FROM
 		provisioner_jobs pj
 	LEFT JOIN
 		workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
+	LEFT JOIN
+		workspaces w ON (
+			w.id = wb.workspace_id
+			AND w.organization_id = pj.organization_id
+		)
 	LEFT JOIN
 		template_versions tv ON (
 			tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
@@ -283,6 +299,14 @@ SELECT COUNT(*) FROM (
 		AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 		AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
 		AND (@template_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = @template_id::uuid)
+		AND CASE WHEN @search :: text != '' THEN (
+				COALESCE(w.name, '') ILIKE concat('%', @search, '%')
+				OR COALESCE(t.name, '') ILIKE concat('%', @search, '%')
+				OR COALESCE(t.display_name, '') ILIKE concat('%', @search, '%')
+				OR pj.id::text ILIKE concat('%', @search, '%')
+			)
+			ELSE true
+		END
 	-- Avoid a slow scan on a large table. The caller passes the count
 	-- cap and we add 1 so the frontend can detect capping and show
 	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).

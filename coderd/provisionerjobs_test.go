@@ -195,6 +195,55 @@ func TestProvisionerJobs(t *testing.T) {
 			}
 		})
 
+		t.Run("SearchWorkspaceName", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Search: w.Name,
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			for _, found := range jobsRes.Jobs {
+				require.Equal(t, w.Name, found.Metadata.WorkspaceName)
+			}
+		})
+
+		t.Run("SearchTemplateName", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Search: template.Name,
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			for _, found := range jobsRes.Jobs {
+				require.Equal(t, template.Name, found.Metadata.TemplateName)
+			}
+		})
+
+		t.Run("SearchJobID", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Search: job.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Len(t, jobsRes.Jobs, 1)
+			require.Equal(t, job.ID, jobsRes.Jobs[0].ID)
+			require.Equal(t, int64(1), jobsRes.Count)
+		})
+
+		t.Run("SearchNoMatch", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Search: "this-name-definitely-does-not-exist-" + uuid.NewString(),
+			})
+			require.NoError(t, err)
+			require.Empty(t, jobsRes.Jobs)
+			require.Equal(t, int64(0), jobsRes.Count)
+		})
+
 		t.Run("Tags", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)

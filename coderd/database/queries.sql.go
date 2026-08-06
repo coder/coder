@@ -22602,6 +22602,11 @@ SELECT COUNT(*) FROM (
 	LEFT JOIN
 		workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
 	LEFT JOIN
+		workspaces w ON (
+			w.id = wb.workspace_id
+			AND w.organization_id = pj.organization_id
+		)
+	LEFT JOIN
 		template_versions tv ON (
 			tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
 			AND tv.organization_id = pj.organization_id
@@ -22619,10 +22624,18 @@ SELECT COUNT(*) FROM (
 		AND ($5::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $5::tagset))
 		AND ($6::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $6::uuid)
 		AND ($7::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = $7::uuid)
+		AND CASE WHEN $8 :: text != '' THEN (
+				COALESCE(w.name, '') ILIKE concat('%', $8, '%')
+				OR COALESCE(t.name, '') ILIKE concat('%', $8, '%')
+				OR COALESCE(t.display_name, '') ILIKE concat('%', $8, '%')
+				OR pj.id::text ILIKE concat('%', $8, '%')
+			)
+			ELSE true
+		END
 	-- Avoid a slow scan on a large table. The caller passes the count
 	-- cap and we add 1 so the frontend can detect capping and show
 	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).
-	LIMIT NULLIF($8::int, 0) + 1
+	LIMIT NULLIF($9::int, 0) + 1
 ) AS limited_count
 `
 
@@ -22634,12 +22647,14 @@ type CountProvisionerJobsByOrganizationAndStatusParams struct {
 	Tags           StringMap              `db:"tags" json:"tags"`
 	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	TemplateID     uuid.UUID              `db:"template_id" json:"template_id"`
+	Search         string                 `db:"search" json:"search"`
 	CountCap       int32                  `db:"count_cap" json:"count_cap"`
 }
 
 // Count for pagination. Uses the same filters as
 // GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
-// Joins template metadata only as needed for the template_id filter.
+// Joins template and workspace metadata as needed for template_id and
+// search filters.
 func (q *sqlQuerier) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countProvisionerJobsByOrganizationAndStatus,
 		arg.OrganizationID,
@@ -22649,6 +22664,7 @@ func (q *sqlQuerier) CountProvisionerJobsByOrganizationAndStatus(ctx context.Con
 		arg.Tags,
 		arg.InitiatorID,
 		arg.TemplateID,
+		arg.Search,
 		arg.CountCap,
 	)
 	var count int64
@@ -23042,6 +23058,16 @@ WHERE
 	AND ($5::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $5::tagset))
 	AND ($6::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $6::uuid)
 	AND ($7::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = $7::uuid)
+	-- Free-text search against workspace name, template name / display
+	-- name, or job ID (substring, case-insensitive).
+	AND CASE WHEN $8 :: text != '' THEN (
+			COALESCE(w.name, '') ILIKE concat('%', $8, '%')
+			OR COALESCE(t.name, '') ILIKE concat('%', $8, '%')
+			OR COALESCE(t.display_name, '') ILIKE concat('%', $8, '%')
+			OR pj.id::text ILIKE concat('%', $8, '%')
+		)
+		ELSE true
+	END
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -23061,9 +23087,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The provisioner jobs table is
 	-- unbounded in size. Implement a default limit of 100 to prevent
 	-- accidental excessively large queries.
-	COALESCE(NULLIF($9::int, 0), 100)
+	COALESCE(NULLIF($10::int, 0), 100)
 OFFSET
-	$8
+	$9
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -23074,6 +23100,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	Tags           StringMap              `db:"tags" json:"tags"`
 	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	TemplateID     uuid.UUID              `db:"template_id" json:"template_id"`
+	Search         string                 `db:"search" json:"search"`
 	OffsetOpt      int32                  `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32                  `db:"limit_opt" json:"limit_opt"`
 }
@@ -23103,6 +23130,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		arg.Tags,
 		arg.InitiatorID,
 		arg.TemplateID,
+		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

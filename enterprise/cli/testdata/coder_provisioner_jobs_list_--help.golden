@@ -23,6 +23,10 @@ OPTIONS:
   -o, --output table|json (default: table)
           Output format.
 
+  -q, --search string, $CODER_PROVISIONER_JOB_LIST_SEARCH
+          Free-text search against workspace name, template name, template
+          display name, or job ID.
+
   -s, --status [pending|running|succeeded|canceling|canceled|failed|unknown], $CODER_PROVISIONER_JOB_LIST_STATUS
           Filter by job status.
 

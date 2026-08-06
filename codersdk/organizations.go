@@ -432,6 +432,9 @@ type OrganizationProvisionerJobsOptions struct {
 	// Template is a template ID used to filter jobs associated with that
 	// template (via template version import, dry-run, or workspace build).
 	Template string
+	// Search is a free-text filter matched against workspace name, template
+	// name, template display name, or job ID.
+	Search string
 }
 
 // ProvisionerJobsResponse is the paginated response for listing provisioner jobs.
@@ -474,6 +477,9 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		}
 		if opts.Template != "" {
 			qp.Add("template", opts.Template)
+		}
+		if opts.Search != "" {
+			qp.Add("search", opts.Search)
 		}
 	}
 

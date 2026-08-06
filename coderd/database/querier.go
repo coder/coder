@@ -112,7 +112,8 @@ type sqlcQuerier interface {
 	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
 	// Count for pagination. Uses the same filters as
 	// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
-	// Joins template metadata only as needed for the template_id filter.
+	// Joins template and workspace metadata as needed for template_id and
+	// search filters.
 	CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg CountProvisionerJobsByOrganizationAndStatusParams) (int64, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)

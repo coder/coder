@@ -6901,6 +6901,11 @@ export interface OrganizationProvisionerJobsOptions extends Pagination {
 	 * template (via template version import, dry-run, or workspace build).
 	 */
 	readonly Template: string;
+	/**
+	 * Search is a free-text filter matched against workspace name, template
+	 * name, template display name, or job ID.
+	 */
+	readonly Search: string;
 }
 
 // From codersdk/idpsync.go

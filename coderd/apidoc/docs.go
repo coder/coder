@@ -6030,6 +6030,12 @@ const docTemplate = `{
                         "description": "Filter results by template ID",
                         "name": "template",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Free-text search against workspace name, template name, template display name, or job ID",
+                        "name": "search",
+                        "in": "query"
                     }
                 ],
                 "responses": {

@@ -48,6 +48,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		limit     int64
 		initiator string
 		template  string
+		search    string
 	)
 
 	cmd := &serpent.Command{
@@ -84,6 +85,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				Types:     slice.StringEnums[codersdk.ProvisionerJobType](jobTypes),
 				Initiator: initiator,
 				Template:  template,
+				Search:    search,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)
@@ -161,6 +163,13 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Env:         "CODER_PROVISIONER_JOB_LIST_TEMPLATE",
 			Description: "Filter by template ID.",
 			Value:       serpent.StringOf(&template),
+		},
+		{
+			Flag:          "search",
+			FlagShorthand: "q",
+			Env:           "CODER_PROVISIONER_JOB_LIST_SEARCH",
+			Description:   "Free-text search against workspace name, template name, template display name, or job ID.",
+			Value:         serpent.StringOf(&search),
 		},
 	}...)
 

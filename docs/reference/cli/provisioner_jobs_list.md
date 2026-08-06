@@ -61,6 +61,15 @@ Filter by initiator (user ID or username).
 
 Filter by template ID.
 
+### -q, --search
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_PROVISIONER_JOB_LIST_SEARCH</code> |
+
+Free-text search against workspace name, template name, template display name, or job ID.
+
 ### -O, --org
 
 |             |                                  |

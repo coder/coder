@@ -405,6 +405,7 @@ export type GetProvisionerJobsParams = {
 	status?: string;
 	type?: string;
 	template?: string;
+	search?: string;
 	limit?: number;
 	offset?: number;
 	// IDs separated by comma

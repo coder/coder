@@ -288,6 +288,7 @@ export type ProvisionerJobsFilterPayload = {
 	type: string;
 	template: string;
 	ids: string;
+	search: string;
 };
 
 export const paginatedProvisionerJobs = (
@@ -300,14 +301,19 @@ export const paginatedProvisionerJobs = (
 	return {
 		searchParams,
 		queryPayload: () => {
-			const values = parseFilterQuery(
-				searchParams.get(useFilterParamsKey) ?? "",
-			);
+			const filterQuery = searchParams.get(useFilterParamsKey) ?? "";
+			const values = parseFilterQuery(filterQuery);
 			return {
 				status: values.status ?? "",
 				type: values.type ?? "",
 				template: values.template ?? "",
 				ids: values.ids ?? "",
+				// Bare text in the filter box (not key:value) maps to the
+				// API search param.
+				search: filterQuery
+					.replace(/(\w+):"[^"]+"|(\w+):\S+/g, " ")
+					.trim()
+					.replace(/\s+/g, " "),
 			};
 		},
 		queryKey: ({ payload, pageNumber }) =>
@@ -318,6 +324,7 @@ export const paginatedProvisionerJobs = (
 				type: payload.type || undefined,
 				template: payload.template || undefined,
 				ids: payload.ids || undefined,
+				search: payload.search || undefined,
 				limit,
 				offset,
 			}),

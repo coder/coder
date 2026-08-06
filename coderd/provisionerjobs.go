@@ -85,6 +85,7 @@ const provisionerJobsCountCap = 2000
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
 // @Param template query string false "Filter results by template ID" format(uuid)
+// @Param search query string false "Free-text search against workspace name, template name, template display name, or job ID"
 // @Success 200 {object} codersdk.ProvisionerJobsResponse
 // @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
@@ -115,6 +116,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
 		TemplateID:     filters.TemplateID,
+		Search:         filters.Search,
 		CountCap:       provisionerJobsCountCap,
 	})
 	if err != nil {
@@ -145,6 +147,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
 		TemplateID:     filters.TemplateID,
+		Search:         filters.Search,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(page.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -176,6 +179,7 @@ type provisionerJobFilters struct {
 	Tags        database.StringMap
 	InitiatorID uuid.UUID
 	TemplateID  uuid.UUID
+	Search      string
 }
 
 // parseProvisionerJobFilters parses filter query params shared by the list and
@@ -196,6 +200,7 @@ func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []u
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	initiatorID := p.UUID(qp, uuid.Nil, "initiator")
 	templateID := p.UUID(qp, uuid.Nil, "template")
+	search := p.String(qp, "", "search")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -212,6 +217,7 @@ func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []u
 		Tags:        tags,
 		InitiatorID: initiatorID,
 		TemplateID:  templateID,
+		Search:      search,
 	}, true
 }
 
@@ -241,6 +247,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
 		TemplateID:     filters.TemplateID,
+		Search:         filters.Search,
 		// Default page size is applied in SQL when LimitOpt is 0.
 		LimitOpt:  0,
 		OffsetOpt: 0,
