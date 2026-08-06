@@ -10929,7 +10929,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 		"original token should be preserved when refresh fails")
 }
 
-func TestChatTemplateAllowlistEnforcement(t *testing.T) {
+func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -10984,25 +10984,20 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "allowed-template",
+		AgentsAllowed:  true,
 	})
 	tplBlocked = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "blocked-template",
+		AgentsAllowed:  false,
 	})
-
-	// Set the allowlist to only tplAllowed.
-	allowlistJSON, err := json.Marshal([]string{tplAllowed.ID.String()})
-	require.NoError(t, err)
-	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		// Provide a CreateWorkspace function so the tool reaches
-		// the allowlist check instead of bailing with "not
-		// configured". If the allowlist is enforced correctly
-		// this function will never be called.
+		// Provide a CreateWorkspace function so the tool reaches the template
+		// access check instead of returning "not configured". The blocked
+		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
 			_ uuid.UUID,
@@ -11016,10 +11011,10 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-		Title:          "allowlist-test",
+		Title:          "template-access-test",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Test allowlist enforcement"),
+			codersdk.ChatMessageText("Test template access enforcement"),
 		},
 	})
 	require.NoError(t, err)
@@ -11072,19 +11067,16 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 			len(toolResults["create_workspace"]) >= 1
 	}, testutil.IntervalFast)
 
-	// list_templates: only the allowed template should appear.
 	require.Contains(t, toolResults["list_templates"][0], tplAllowed.ID.String(),
 		"allowed template should appear in list_templates result")
 	require.NotContains(t, toolResults["list_templates"][0], tplBlocked.ID.String(),
-		"blocked template should NOT appear in list_templates result")
+		"blocked template should not appear in list_templates result")
 
-	// read_template: blocked ID → error, allowed ID → success.
-	require.Contains(t, toolResults["read_template"][0], "not found",
-		"read_template for blocked template should return not-found error")
+	require.Contains(t, toolResults["read_template"][0], "not available",
+		"read_template for blocked template should return an actionable error")
 	require.Contains(t, toolResults["read_template"][1], tplAllowed.ID.String(),
 		"read_template for allowed template should return template details")
 
-	// create_workspace: blocked ID → rejected.
 	require.Contains(t, toolResults["create_workspace"][0], "not available",
 		"create_workspace for blocked template should be rejected")
 }
@@ -11145,6 +11137,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "code-2",
 		DisplayName:    "typescript-alpha",
 		Description:    "this is a long description",
+		AgentsAllowed:  true,
 	})
 	tplDocker = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
@@ -11152,6 +11145,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "docker",
 		DisplayName:    "Docker Containers",
 		Description:    "Provision Docker containers as Coder workspaces",
+		AgentsAllowed:  true,
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {

@@ -949,6 +949,7 @@ export const MockTemplate: TypesGen.Template = {
 	created_by_name: "test_creator",
 	icon: "/icon/code.svg",
 	allow_user_cancel_workspace_jobs: true,
+	agents_allowed: true,
 	failure_ttl_ms: 0,
 	time_til_dormant_ms: 0,
 	time_til_dormant_autodelete_ms: 0,

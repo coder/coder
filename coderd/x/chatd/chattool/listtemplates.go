@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -80,13 +79,11 @@ const (
 )
 
 // ListTemplatesOptions configures the list_templates tool. OwnerID is
-// required; Clock defaults to a real clock when nil. AllowedTemplateIDs
-// optionally restricts which templates can be returned.
+// required; Clock defaults to a real clock when nil.
 type ListTemplatesOptions struct {
-	OwnerID            uuid.UUID
-	Logger             slog.Logger
-	Clock              quartz.Clock
-	AllowedTemplateIDs func() map[uuid.UUID]bool
+	OwnerID uuid.UUID
+	Logger  slog.Logger
+	Clock   quartz.Clock
 }
 
 type listTemplatesArgs struct {
@@ -140,14 +137,10 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 					Bool:  false,
 					Valid: true,
 				},
-			}
-
-			var allowlist map[uuid.UUID]bool
-			if options.AllowedTemplateIDs != nil {
-				allowlist = options.AllowedTemplateIDs()
-			}
-			if len(allowlist) > 0 {
-				filterParams.IDs = slices.Collect(maps.Keys(allowlist))
+				AgentsAllowed: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
 			}
 			templates, err := db.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
