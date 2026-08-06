@@ -29,9 +29,9 @@ type chatWorker struct {
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
 
-	// capacityQueue tracks chats this replica refused for capacity, keyed to
-	// the first observed refusal. It drives capacity_change events and the
-	// wait histogram; queued state itself is derived from the database.
+	// capacityQueue tracks chats this replica refused, keyed by first
+	// refusal. It drives capacity_change events and wait metrics; API
+	// reads derive queued state from the database.
 	capacityMu    sync.Mutex
 	capacityQueue map[uuid.UUID]time.Time
 }
@@ -246,12 +246,10 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 			}
 		}
 		if len(rows) < int(w.opts.AcquisitionBatchSize) {
-			// A complete scan proves absent chats left the queue.
 			w.pruneCapacityQueue(seen)
 			return
 		}
 		// An all-skipped batch means the available pool heads were tried.
-		// The scan is partial, so skip pruning.
 		if !progressed {
 			return
 		}

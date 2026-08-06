@@ -2502,9 +2502,6 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it("ignores queued_for_capacity carried by non-capacity events", () => {
-		// Non-capacity event snapshots always report false because the flag
-		// is derived only for capacity events; a newer status event must not
-		// clear the banner.
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
 			updated_at: "2025-01-01T00:00:00.000Z",

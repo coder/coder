@@ -8616,10 +8616,9 @@ type GetChatQueuedForCapacityParams struct {
 	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// Derives whether a chat is waiting for a concurrent-agent capacity slot:
-// generating, unarchived, unowned (no live owner heartbeat), and its pool
-// at capacity. Pool fullness distinguishes a capacity wait from the
-// ordinary sub-second wait for a worker pickup.
+// A chat waits for capacity only when it is running, unarchived, unowned,
+// and its pool is full. Pool fullness distinguishes capacity waits from
+// ordinary worker pickup delay.
 func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedForCapacity,
 		arg.StaleSeconds,
@@ -8993,9 +8992,9 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 // runner_id IS NULL while worker_id is set. Stale ownership is no
 // heartbeat row for (chat_id, runner_id), or one older than
 // @stale_seconds by database time. Interrupting and requires_action
-// bypass admission. Running chats are FIFO by updated_at in interleaved
-// root/subagent pools so one full pool cannot starve the other.
-// @exclude_ids skips candidates already attempted this pass.
+// bypass admission. Interleaved per-pool FIFO ordering by updated_at
+// prevents one full pool starving the other; @exclude_ids skips prior
+// attempts within a pass.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, pq.Array(arg.ExcludeIds), arg.LimitCount)
 	if err != nil {

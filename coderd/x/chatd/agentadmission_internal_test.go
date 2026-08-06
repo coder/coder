@@ -490,7 +490,6 @@ func TestWorker_CapacityMetricsCountQueuedOnlyWhenPoolFull(t *testing.T) {
 	require.Equal(t, float64(1), promtestutil.ToFloat64(metrics.queued.WithLabelValues("root")),
 		"an unowned running chat counts as queued when its pool is full")
 
-	// Freeing the slot leaves the same unowned chat an ordinary pickup.
 	forceExecutionState(t, f, occupied.ID, database.ChatStatusWaiting, false)
 	worker.refreshCapacityMetrics(ctx)
 	require.Equal(t, float64(0), promtestutil.ToFloat64(metrics.queued.WithLabelValues("root")))
@@ -515,8 +514,6 @@ func TestGetChatQueuedForCapacity(t *testing.T) {
 	t.Run("PoolNotFull", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkerTestFixture(t)
-		// An unowned running chat with free slots is an ordinary pickup,
-		// not a capacity wait.
 		chat := f.createRunningChat(t)
 		require.False(t, queued(t, f, chat.ID, 1, 1))
 	})
