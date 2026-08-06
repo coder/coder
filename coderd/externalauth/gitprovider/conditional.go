@@ -84,10 +84,9 @@ func (c *responseCache) store(key, etag string, body []byte) {
 		return
 	}
 
+	stored := bytes.Clone(body)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	stored := bytes.Clone(body)
 
 	if elem, found := c.entries[key]; found {
 		c.ll.MoveToFront(elem)
