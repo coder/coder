@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	entcoderd "github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -58,6 +59,7 @@ const e2eUpstreamResponse = `{
 // session token authenticates LLM traffic.
 type e2eDeployment struct {
 	client       *codersdk.Client
+	api          *entcoderd.API
 	userClient   *codersdk.Client
 	user         codersdk.User
 	key          string
@@ -69,7 +71,7 @@ func setupE2EDeployment(ctx context.Context, t *testing.T) *e2eDeployment {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{codersdk.FeatureAIBridge: 1},
@@ -103,6 +105,7 @@ func setupE2EDeployment(ctx context.Context, t *testing.T) *e2eDeployment {
 
 	return &e2eDeployment{
 		client:       client,
+		api:          api,
 		userClient:   userClient,
 		user:         user,
 		key:          key.Key,
