@@ -212,7 +212,46 @@ Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
 labeled by `provider` and `model`, to detect unpriced usage. Any non-zero value
 means spend is under-counted. Because the price book ships with the release, a
-newly launched model can remain unpriced until you upgrade Coder.
+newly launched model is unpriced until you upgrade Coder or set a price for it
+yourself.
+
+### Set model prices
+
+Use the experimental `coder exp ai-model-prices` command to set prices for
+models the price book does not cover. It requires the AI Governance add-on and
+the `ai_model_price:update` permission. Run
+`coder exp ai-model-prices --help` for the full reference.
+
+List the prices this deployment holds, optionally narrowed to one provider or
+model:
+
+```sh
+coder exp ai-model-prices list --provider anthropic
+```
+
+Price a single model. Prices are micro-units per million tokens, so `3000000`
+is $3.00 per million tokens. Use `null` for a price you do not have, and `0` to
+declare a model free:
+
+```sh
+coder exp ai-model-prices update --provider anthropic --model my-model \
+  --input-price 3000000 --output-price 15000000 \
+  --cache-read-price null --cache-write-price null
+```
+
+Price several models at once from a JSON document in the same shape as the
+price book:
+
+```sh
+coder exp ai-model-prices update prices.json
+```
+
+> [!IMPORTANT]
+>
+> - Prices are not retroactive. Usage recorded before you set a price stays
+>   unpriced, so past spend does not change.
+> - You can only set prices for models the price book does not cover.
+> - This command is experimental and can change without notice.
 
 ## Monitor spend
 

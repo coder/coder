@@ -23,20 +23,9 @@ import (
 	"sort"
 
 	"golang.org/x/xerrors"
-)
 
-// supportedProviders lists the providers we ship prices for. Adding a
-// provider here is enough to include it on the next regeneration.
-var supportedProviders = []string{
-	"anthropic",
-	"azure",
-	"bedrock",
-	"copilot",
-	"google",
-	"openai",
-	"openrouter",
-	"vercel",
-}
+	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
+)
 
 // upstreamProvider is the subset of a models.dev per-provider entry we read.
 type upstreamProvider struct {
@@ -135,7 +124,7 @@ func readUpstream(path string) (map[string]upstreamProvider, error) {
 }
 
 func runPrices(upstream map[string]upstreamProvider) error {
-	rows, err := convert(upstream, supportedProviders)
+	rows, err := convert(upstream, providers.Supported)
 	if err != nil {
 		return err
 	}
@@ -145,7 +134,7 @@ func runPrices(upstream map[string]upstreamProvider) error {
 	if err := write(os.Stdout, rows); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(supportedProviders))
+	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(providers.Supported))
 	return nil
 }
 
@@ -169,12 +158,12 @@ func runCatalog(upstream map[string]upstreamProvider) error {
 // providers. If any configured provider is absent from the upstream payload,
 // every missing provider is reported and the function returns an error so the
 // caller doesn't ship an incomplete seed.
-func convert(upstream map[string]upstreamProvider, providers []string) ([]priceRow, error) {
+func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]priceRow, error) {
 	var (
 		rows    []priceRow
 		missing []string
 	)
-	for _, providerID := range providers {
+	for _, providerID := range providerIDs {
 		provider, ok := upstream[providerID]
 		if !ok || len(provider.Models) == 0 {
 			missing = append(missing, providerID)
