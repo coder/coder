@@ -46,9 +46,8 @@ func newCapacityMetrics(registerer prometheus.Registerer) *capacityMetrics {
 }
 
 // enterCapacityQueue records a capacity refusal and reports whether the chat
-// was newly queued on this replica. The first entry publishes the queued
-// event; replicas refusing the same chat concurrently each publish once,
-// which watch consumers absorb as a repeated flag.
+// was newly queued on this replica. Only the first local entry publishes the
+// queued event; other replicas refusing the chat publish their own.
 func (w *chatWorker) enterCapacityQueue(ctx context.Context, chatID uuid.UUID) bool {
 	w.capacityMu.Lock()
 	_, exists := w.capacityQueue[chatID]
@@ -63,8 +62,6 @@ func (w *chatWorker) enterCapacityQueue(ctx context.Context, chatID uuid.UUID) b
 	return true
 }
 
-// dropCapacityQueue removes the chat from the local queue view and returns
-// the first refusal time this replica observed.
 func (w *chatWorker) dropCapacityQueue(chatID uuid.UUID) (time.Time, bool) {
 	w.capacityMu.Lock()
 	defer w.capacityMu.Unlock()

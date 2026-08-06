@@ -757,10 +757,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRowsWithChildren (which joins the
-	// read-cursor query), not by Chat. Warnings is a transient
-	// field populated by handlers. QueuedForCapacity is derived on
-	// read by chatd, not stored. All are expected to remain zero here.
+	// These fields are populated outside db2sdk.Chat or derived on read,
+	// so this converter test expects their zero values.
 	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)

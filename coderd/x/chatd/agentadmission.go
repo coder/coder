@@ -10,10 +10,9 @@ import (
 // before ownership is written. Implementations must support concurrent workers
 // and replicas. A nil AgentAdmission admits every chat.
 type AgentAdmission interface {
-	// Admit reports whether the worker may acquire the chat. Refused chats
-	// remain unowned and are retried on later acquisition passes. The store
-	// is the acquisition transaction: admission checks must run inside it so
-	// their serialization holds until the ownership write commits.
+	// Admit runs inside the acquisition transaction so its serialization
+	// extends through the ownership write. Refused chats remain unowned
+	// for later acquisition passes.
 	Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error)
 }
 
@@ -36,8 +35,8 @@ type AgentCapacityLimits struct {
 	Subagent int64
 }
 
-// AgentAdmissionFactory builds the admission gate and its read-side capacity
-// policy. heartbeatStaleSeconds must match the worker's threshold so admission
-// counts and ownership checks agree which runners are alive. A nil factory
-// leaves capacity uncapped.
+// AgentAdmissionFactory builds capacity admission and its read-side policy.
+// heartbeatStaleSeconds must match the worker's threshold so admission counts
+// and ownership checks agree which runners are alive. A nil factory leaves
+// capacity uncapped.
 type AgentAdmissionFactory func(heartbeatStaleSeconds int32) (AgentAdmission, AgentCapacityPolicy)
