@@ -412,7 +412,11 @@ export const applyWatchedChatArchived = (
 	chat: TypesGen.Chat,
 ) => {
 	void cancelChatListRefetches(queryClient);
-	void cancelLoadedChatEntityRefetch(queryClient, chat.id);
+	if (queryClient.getQueryData(chatEntityKey(chat.id)) === undefined) {
+		void resetUnloadedChatEntity(queryClient, chat.id);
+	} else {
+		void cancelLoadedChatEntityRefetch(queryClient, chat.id);
+	}
 	applyChatArchiveStateToCaches(queryClient, chat.id, true);
 	removeChatFromChatsByWorkspace(queryClient, chat.id);
 	void invalidateChatListQueries(queryClient);
@@ -435,7 +439,9 @@ export const applyWatchedChatCreatedOrUnarchived = (
 	const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
 		chatEntityKey(chat.id),
 	);
-	if (cachedChat?.archived) {
+	if (cachedChat === undefined) {
+		void resetUnloadedChatEntity(queryClient, chat.id);
+	} else if (cachedChat.archived) {
 		applyChatArchiveStateToCaches(queryClient, chat.id, false);
 	}
 	void invalidateChatListQueries(queryClient);
@@ -907,6 +913,23 @@ export const cancelLoadedChatEntityRefetch = (
 		return;
 	}
 	return queryClient.cancelQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
+};
+
+/**
+ * Restarts an active first-time fetch after a durable watch transition.
+ * Invalidation reuses the stale initial promise when no data is loaded.
+ */
+export const resetUnloadedChatEntity = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	if (queryClient.getQueryData(chatEntityKey(chatId)) !== undefined) {
+		return;
+	}
+	return queryClient.resetQueries({
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});

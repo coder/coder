@@ -1,4 +1,4 @@
-import { QueryClient } from "react-query";
+import { QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -7,6 +7,7 @@ import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
+import { createDeferred } from "#/testHelpers/deferred";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -66,6 +67,7 @@ import {
 	removeChildFromParentInCache,
 	removeHardDeletedChatFromCaches,
 	reorderPinnedChat,
+	resetUnloadedChatEntity,
 	setChatGroupRole,
 	setChatUserRole,
 	shouldInvalidateChatSearches,
@@ -173,6 +175,34 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+const observeChatWithDeferredFirstFetch = (
+	queryClient: QueryClient,
+	staleChat: TypesGen.Chat,
+	durableChat: TypesGen.Chat,
+) => {
+	const firstFetch = createDeferred<TypesGen.Chat>();
+	const durableResult = createDeferred<TypesGen.Chat>();
+	let fetchCount = 0;
+	const observer = new QueryObserver<TypesGen.Chat>(queryClient, {
+		queryKey: chatEntityKey(staleChat.id),
+		queryFn: () => {
+			fetchCount++;
+			return fetchCount === 1 ? firstFetch.promise : durableChat;
+		},
+	});
+	const unsubscribe = observer.subscribe((result) => {
+		if (result.data === durableChat) {
+			durableResult.resolve(result.data);
+		}
+	});
+	return {
+		durableResult,
+		firstFetch,
+		fetchCount: () => fetchCount,
+		unsubscribe,
+	};
+};
 
 describe("advisor config query factories", () => {
 	it("builds the advisor config query and delegates to the API", async () => {
@@ -3379,6 +3409,28 @@ describe("semantic cache operations: cancellation", () => {
 		});
 	});
 
+	it("resetUnloadedChatEntity resets exactly when detail data is absent", async () => {
+		const queryClient = createTestQueryClient();
+		const resetSpy = vi.spyOn(queryClient, "resetQueries");
+
+		await resetUnloadedChatEntity(queryClient, "chat-1");
+
+		expect(resetSpy).toHaveBeenCalledWith({
+			queryKey: chatEntityKey("chat-1"),
+			exact: true,
+		});
+	});
+
+	it("resetUnloadedChatEntity is a no-op when detail data exists", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		const resetSpy = vi.spyOn(queryClient, "resetQueries");
+
+		await resetUnloadedChatEntity(queryClient, "chat-1");
+
+		expect(resetSpy).not.toHaveBeenCalled();
+	});
+
 	it("cancelChatMessages cancels the exact messages entry", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
@@ -3584,6 +3636,37 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 });
 
 describe("applyWatchedChatArchived", () => {
+	it("restarts an active initial entity fetch so stale data cannot overwrite archive", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const staleChat = makeChat(chatId, { archived: false });
+		const durableChat = makeChat(chatId, { archived: true });
+		const fetch = observeChatWithDeferredFirstFetch(
+			queryClient,
+			staleChat,
+			durableChat,
+		);
+
+		applyWatchedChatArchived(queryClient, durableChat);
+		fetch.firstFetch.resolve(staleChat);
+		await fetch.durableResult.promise;
+
+		expect(fetch.fetchCount()).toBe(2);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.archived,
+		).toBe(true);
+		fetch.unsubscribe();
+	});
+
+	it("does not create an entity query when no observer is mounted", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		expect(queryClient.getQueryState(chatEntityKey(chatId))).toBeUndefined();
+	});
+
 	it("patches the entity in place instead of removing it", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -3687,6 +3770,50 @@ describe("applyWatchedChatArchived", () => {
 });
 
 describe("applyWatchedChatCreatedOrUnarchived", () => {
+	it("restarts an active initial entity fetch so stale data cannot overwrite unarchive", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const staleChat = makeChat(chatId, { archived: true });
+		const durableChat = makeChat(chatId, { archived: false });
+		const fetch = observeChatWithDeferredFirstFetch(
+			queryClient,
+			staleChat,
+			durableChat,
+		);
+
+		applyWatchedChatCreatedOrUnarchived(queryClient, durableChat);
+		fetch.firstFetch.resolve(staleChat);
+		await fetch.durableResult.promise;
+
+		expect(fetch.fetchCount()).toBe(2);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.archived,
+		).toBe(false);
+		fetch.unsubscribe();
+	});
+
+	it("restarts an active initial fetch for a genuinely new chat", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-new";
+		const staleChat = makeChat(chatId, { title: "stale" });
+		const durableChat = makeChat(chatId, { title: "durable" });
+		const fetch = observeChatWithDeferredFirstFetch(
+			queryClient,
+			staleChat,
+			durableChat,
+		);
+
+		applyWatchedChatCreatedOrUnarchived(queryClient, durableChat);
+		fetch.firstFetch.resolve(staleChat);
+		await fetch.durableResult.promise;
+
+		expect(fetch.fetchCount()).toBe(2);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
+		).toBe("durable");
+		fetch.unsubscribe();
+	});
+
 	it("flips a cached archived entity back to active and repairs list rows", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

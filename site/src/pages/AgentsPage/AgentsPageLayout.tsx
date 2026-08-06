@@ -649,19 +649,21 @@ const AgentsPageLayout: FC = () => {
 								updatedChat,
 								updatedChat.parent_chat_id,
 							);
-							// A new sub-agent spawn also emits `created`; only an
-							// already cached, archived entity marks a family
-							// unarchive, so spawns skip the recovery.
+							// A family unarchive and a new sub-agent with a
+							// mounted initial fetch both need entity recovery.
+							const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
+								chatEntityKey(updatedChat.id),
+							);
 							if (
-								queryClient.getQueryData<TypesGen.Chat>(
-									chatEntityKey(updatedChat.id),
-								)?.archived
+								cachedChat?.archived ||
+								(cachedChat === undefined &&
+									queryClient.getQueryState(chatEntityKey(updatedChat.id)) !==
+										undefined)
 							) {
 								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							}
 						} else {
-							// `created` also fires for unarchive transitions;
-							// the helper detects that via the cached entity.
+							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							prependToInfiniteChatsCache(queryClient, updatedChat);
 						}
