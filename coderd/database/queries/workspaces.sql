@@ -117,7 +117,8 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_external_agent as latest_build_has_external_agent
+	latest_build.has_external_agent as latest_build_has_external_agent,
+	latest_build.provisioner_job_id as latest_build_provisioner_job_id
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -462,7 +463,8 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false -- latest_build_has_external_agent
+		false, -- latest_build_has_external_agent
+		'00000000-0000-0000-0000-000000000000'::uuid -- latest_build_provisioner_job_id
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -503,23 +505,13 @@ SELECT
 			ON
 				workspace_resources.id = workspace_agents.resource_id
 			JOIN
-				workspace_builds
-			ON
-				workspace_builds.job_id = workspace_resources.job_id
-			JOIN
 				workspace_agent_metadata
 			ON
 				workspace_agent_metadata.workspace_agent_id = workspace_agents.id
 			WHERE
-				workspace_builds.workspace_id = fwos.id
-				AND workspace_builds.build_number = (
-					SELECT
-						max(build_number)
-					FROM
-						workspace_builds
-					WHERE
-						workspace_builds.workspace_id = fwos.id
-				)
+				-- The latest build's job was already resolved by the
+				-- latest_build lateral; resources hang off its job.
+				workspace_resources.job_id = fwos.latest_build_provisioner_job_id
 				-- Filter out deleted sub agents.
 				AND workspace_agents.deleted = FALSE
 				AND LOWER(workspace_agent_metadata.key) = ANY(@include_agent_metadata :: text[])
