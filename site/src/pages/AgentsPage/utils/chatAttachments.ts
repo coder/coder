@@ -145,8 +145,16 @@ const shareAttachmentFile = async ({
 		return;
 	}
 	if (!canShareFiles([file])) {
+		// The pre-fetch probe can pass while the real file fails canShare
+		// (for example over the size limit). The native anchor action was
+		// already prevented, so offer the dismissible-tab fallback through
+		// a fresh gesture.
 		toast.error(`Couldn't download ${fileName}`, {
 			description: "This file cannot be shared on this device.",
+			action: {
+				label: "Open",
+				onClick: () => void open(href, "_blank", "noopener"),
+			},
 		});
 		return;
 	}

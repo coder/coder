@@ -203,7 +203,7 @@ describe("handleAttachmentDownloadClick", () => {
 		);
 	});
 
-	it("skips sharing when the fetched file turns out unshareable", async () => {
+	it("offers a tab fallback when the fetched file turns out unshareable", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
 		overrideNavigator("share", share);
@@ -216,14 +216,19 @@ describe("handleAttachmentDownloadClick", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(new Blob(["png-bytes"], { type: "image/png" })),
 		);
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, target);
 
 		expect(share).not.toHaveBeenCalled();
+		expect(open).not.toHaveBeenCalled();
 		expect(toast.error).toHaveBeenCalledWith(
 			"Couldn't download 01-agents-list.png",
-			{ description: "This file cannot be shared on this device." },
+			expect.objectContaining({
+				description: "This file cannot be shared on this device.",
+				action: expect.objectContaining({ label: "Open" }),
+			}),
 		);
 	});
 });
