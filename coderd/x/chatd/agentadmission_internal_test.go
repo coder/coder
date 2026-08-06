@@ -413,8 +413,8 @@ func TestWorker_QueuedEventPublishesForStaleOwnedCandidate(t *testing.T) {
 	opts.AgentCapacityLimiter = newFakeAdmission()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// A crashed owner leaves stale ownership; the chat genuinely waits for
-	// capacity, so revalidation must not swallow its queued event.
+	// A crashed owner leaves stale ownership, so revalidation must still
+	// publish the queued event.
 	chat := f.createRunningChat(t)
 	runnerID := uuid.New()
 	acquireChat(t, f, chat.ID, uuid.New(), runnerID)
@@ -554,6 +554,35 @@ func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 		}
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestWorker_PrunesDepartedChatDespiteFullPoolBacklog(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
+	opts.AcquisitionBatchSize = 2
+
+	// The backlog exceeds one batch, so every later pass ends all-skipped;
+	// prune must still reconcile the chat another replica acquired.
+	chats := make([]database.Chat, 5)
+	for i := range chats {
+		chats[i] = f.createRunningChat(t)
+	}
+	worker := startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueLen() == len(chats)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	acquireChat(t, f, chats[len(chats)-1].ID, uuid.New(), uuid.New())
+	worker.Wake()
+
+	require.Eventually(t, func() bool {
+		return !worker.capacityQueueContains(chats[len(chats)-1].ID)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"a chat acquired by another replica must leave the local capacity queue")
 }
 
 func TestWorker_PrunesDepartedChatsFromCapacityQueue(t *testing.T) {
