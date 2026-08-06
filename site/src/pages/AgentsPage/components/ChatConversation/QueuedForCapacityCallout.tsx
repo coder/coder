@@ -1,6 +1,11 @@
 import type { FC } from "react";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
+import { docs } from "#/utils/docs";
+
+const concurrencyDocsUrl = docs(
+	"/ai-coder/agents/platform-controls#concurrent-agents",
+);
 
 interface QueuedForCapacityCalloutProps {
 	hasLicense: boolean;
@@ -48,7 +53,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 							</Link>{" "}
 							or{" "}
 							<Link
-								href="https://coder.com/pricing"
+								href={concurrencyDocsUrl}
 								target="_blank"
 								rel="noreferrer"
 								size="sm"
@@ -61,7 +66,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 				) : (
 					<>
 						<Link
-							href="https://coder.com/pricing"
+							href={concurrencyDocsUrl}
 							target="_blank"
 							rel="noreferrer"
 							size="sm"

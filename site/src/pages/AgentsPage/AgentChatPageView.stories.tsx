@@ -21,6 +21,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { docs } from "#/utils/docs";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -337,7 +338,10 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		});
 		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
 	},
 };
 
@@ -353,7 +357,10 @@ export const QueuedForCapacityCommunityMember: Story = {
 			canvas.queryByRole("link", { name: /start an unlimited trial/i }),
 		).not.toBeInTheDocument();
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
 	},
 };
 
@@ -395,7 +402,10 @@ export const QueuedForCapacityPremiumMember: Story = {
 			canvas.queryByRole("link", { name: /sales@coder\.com/ }),
 		).not.toBeInTheDocument();
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute("href", "https://coder.com/pricing");
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
 	},
 };
 
