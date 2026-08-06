@@ -1406,6 +1406,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-csv-1",
 						name: "export data",
 					},
+					{
+						type: "file",
+						media_type: "application/ld+json",
+						file_id: "storybook-jsonld-1",
+						name: "context.jsonld",
+					},
 				],
 			},
 		]),
@@ -1502,6 +1508,9 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 				canvas.getByRole("link", { name: "Download export data" }),
 			).toHaveAttribute("download", "export data.csv");
 		});
+		expect(
+			canvas.getByRole("link", { name: "Download context.jsonld" }),
+		).toHaveAttribute("download", "context.jsonld");
 	},
 };
 

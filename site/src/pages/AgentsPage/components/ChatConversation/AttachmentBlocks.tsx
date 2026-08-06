@@ -116,10 +116,15 @@ const getAttachmentExtension = (
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
+// Text-like types whose payloads the server classifies by content while
+// preserving the name. Structured +json/+xml types (application/ld+json)
+// belong here too: their registered extensions (.jsonld) differ from the
+// base format's, so an existing suffix always wins.
 const isSuffixPreservingMediaType = (mediaType: string): boolean =>
 	mediaType.startsWith("text/") ||
 	mediaType === "application/json" ||
-	mediaType === "application/xml";
+	mediaType === "application/xml" ||
+	/\+(json|xml)$/i.test(mediaType);
 
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
