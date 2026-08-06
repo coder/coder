@@ -1516,6 +1516,35 @@ export const DownloadInIOSStandaloneSuppressesDuplicateClicks: Story = {
 	},
 };
 
+export const DownloadInIOSStandaloneReportsPermanentShareFailure: Story = {
+	decorators: [withToaster],
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share: fn().mockRejectedValue(
+				new DOMException("share failed", "DataError"),
+			),
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await screen.findByText("Couldn't download deployment-report.pdf");
+			// A permanent failure gets a plain toast: retrying would fail
+			// identically, so no Save action is offered.
+			expect(
+				screen.queryByRole("button", { name: "Save" }),
+			).not.toBeInTheDocument();
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
 export const DownloadInIOSStandaloneOffersTabForUnshareableFile: Story = {
 	decorators: [withToaster],
 	args: iosDownloadStoryArgs,
