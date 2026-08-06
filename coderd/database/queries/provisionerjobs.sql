@@ -228,8 +228,10 @@ WHERE
 	pj.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
 	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+	AND (COALESCE(array_length(@types::provisioner_job_type[], 1), 0) = 0 OR pj.type = ANY(@types::provisioner_job_type[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 	AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
+	AND (@template_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = @template_id::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -254,19 +256,33 @@ OFFSET
 	@offset_opt;
 
 -- name: CountProvisionerJobsByOrganizationAndStatus :one
--- Lean count for pagination. Uses the same filters as
--- GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner
--- without the queue/metadata joins.
+-- Count for pagination. Uses the same filters as
+-- GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
+-- Joins template metadata only as needed for the template_id filter.
 SELECT COUNT(*) FROM (
 	SELECT 1
 	FROM
 		provisioner_jobs pj
+	LEFT JOIN
+		workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
+	LEFT JOIN
+		template_versions tv ON (
+			tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+			AND tv.organization_id = pj.organization_id
+		)
+	LEFT JOIN
+		templates t ON (
+			t.id = tv.template_id
+			AND t.organization_id = pj.organization_id
+		)
 	WHERE
 		pj.organization_id = @organization_id::uuid
 		AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
 		AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+		AND (COALESCE(array_length(@types::provisioner_job_type[], 1), 0) = 0 OR pj.type = ANY(@types::provisioner_job_type[]))
 		AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 		AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
+		AND (@template_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = @template_id::uuid)
 	-- Avoid a slow scan on a large table. The caller passes the count
 	-- cap and we add 1 so the frontend can detect capping and show
 	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).

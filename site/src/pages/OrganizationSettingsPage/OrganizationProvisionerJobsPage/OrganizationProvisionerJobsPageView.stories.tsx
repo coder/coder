@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import type { ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ProvisionerJob } from "#/api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	mockInitialRenderResult,
@@ -31,6 +35,25 @@ const mockMultiPageResult = {
 	goToPreviousPage: fn(),
 } as const satisfies PaginationResult;
 
+type FilterProps = ComponentProps<
+	typeof OrganizationProvisionerJobsPageView
+>["filterProps"];
+
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+	query: "",
+	values: {
+		status: undefined,
+		type: undefined,
+		template: undefined,
+		ids: undefined,
+	},
+	menus: {
+		status: MockMenu,
+		type: MockMenu,
+		template: MockMenu,
+	},
+});
+
 const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 	title: "pages/OrganizationProvisionerJobsPage",
 	component: OrganizationProvisionerJobsPageView,
@@ -38,10 +61,9 @@ const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 		organization: MockOrganization,
 		jobs: MockProvisionerJobs,
 		jobsQuery: mockMultiPageResult,
-		filter: { status: "", ids: "" },
+		filterProps: defaultFilterProps,
 		isNonInitialPage: false,
 		onRetry: fn(),
-		onFilterChange: fn(),
 	},
 };
 
@@ -140,35 +162,35 @@ export const Pagination: Story = {
 	},
 };
 
-export const OnFilter: Story = {
-	render: function FilterWithState({ ...args }) {
-		const [jobs, setJobs] = useState<ProvisionerJob[]>([]);
-		const [filter, setFilter] = useState({ status: "pending", ids: "" });
-		const handleFilterChange = (newFilter: { status: string; ids: string }) => {
-			setFilter(newFilter);
-			const filteredJobs = MockProvisionerJobs.filter((job) =>
-				newFilter.status ? job.status === newFilter.status : true,
-			);
-			setJobs(filteredJobs);
-		};
-
-		return (
-			<OrganizationProvisionerJobsPageView
-				{...args}
-				filter={filter}
-				jobs={jobs}
-				onFilterChange={handleFilterChange}
-			/>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const statusFilter = canvas.getByTestId("status-filter");
-		await userEvent.click(statusFilter);
-
-		const body = within(canvasElement.ownerDocument.body);
-		const option = await body.findByRole("option", { name: "succeeded" });
-		await userEvent.click(option);
+export const WithFilters: Story = {
+	args: {
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "status:running type:workspace_build",
+			used: true,
+			values: {
+				status: "running",
+				type: "workspace_build",
+				template: undefined,
+				ids: undefined,
+			},
+			menus: {
+				status: {
+					...MockMenu,
+					selectedOption: {
+						label: "Running",
+						value: "running",
+					},
+				},
+				type: {
+					...MockMenu,
+					selectedOption: {
+						label: "Workspace build",
+						value: "workspace_build",
+					},
+				},
+				template: MockMenu,
+			},
+		}),
 	},
 };
 
@@ -180,9 +202,20 @@ export const FilterByID: Story = {
 			totalRecords: 1,
 			totalPages: 1,
 		},
-		filter: {
-			ids: MockProvisionerJob.id,
-			status: "",
-		},
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: `ids:${MockProvisionerJob.id}`,
+			used: true,
+			values: {
+				status: undefined,
+				type: undefined,
+				template: undefined,
+				ids: MockProvisionerJob.id,
+			},
+			menus: {
+				status: MockMenu,
+				type: MockMenu,
+				template: MockMenu,
+			},
+		}),
 	},
 };

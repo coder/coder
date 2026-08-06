@@ -160,7 +160,7 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 										<span>{provisioner.previous_job.id}</span>
 										<Button size="xs" variant="outline" asChild>
 											<RouterLink
-												to={`../provisioner-jobs?${new URLSearchParams({ ids: provisioner.previous_job.id })}`}
+												to={`../provisioner-jobs?${new URLSearchParams({ filter: `ids:${provisioner.previous_job.id}` })}`}
 											>
 												View job
 											</RouterLink>

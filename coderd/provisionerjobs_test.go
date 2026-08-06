@@ -169,6 +169,32 @@ func TestProvisionerJobs(t *testing.T) {
 			require.Equal(t, int64(1), jobsRes.Count)
 		})
 
+		t.Run("Type", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Types: []codersdk.ProvisionerJobType{codersdk.ProvisionerJobTypeWorkspaceBuild},
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			for _, job := range jobsRes.Jobs {
+				require.Equal(t, codersdk.ProvisionerJobTypeWorkspaceBuild, job.Type)
+			}
+		})
+
+		t.Run("Template", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Template: template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			for _, job := range jobsRes.Jobs {
+				require.Equal(t, template.ID, job.Metadata.TemplateID)
+			}
+		})
+
 		t.Run("Tags", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)

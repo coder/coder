@@ -12,6 +12,10 @@ import type {
 	UpdateWorkspaceSharingSettingsRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
+import {
+	parseFilterQuery,
+	useFilterParamsKey,
+} from "#/components/Filter/Filter";
 import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
@@ -281,6 +285,8 @@ export const provisionerJobsQueryKey = (orgId: string) =>
 
 export type ProvisionerJobsFilterPayload = {
 	status: string;
+	type: string;
+	template: string;
 	ids: string;
 };
 
@@ -293,15 +299,24 @@ export const paginatedProvisionerJobs = (
 > => {
 	return {
 		searchParams,
-		queryPayload: () => ({
-			status: searchParams.get("status") ?? "",
-			ids: searchParams.get("ids") ?? "",
-		}),
+		queryPayload: () => {
+			const values = parseFilterQuery(
+				searchParams.get(useFilterParamsKey) ?? "",
+			);
+			return {
+				status: values.status ?? "",
+				type: values.type ?? "",
+				template: values.template ?? "",
+				ids: values.ids ?? "",
+			};
+		},
 		queryKey: ({ payload, pageNumber }) =>
 			[...provisionerJobsQueryKey(orgId), payload, pageNumber] as const,
 		queryFn: ({ payload, limit, offset }) =>
 			API.getProvisionerJobs(orgId, {
 				status: payload.status || undefined,
+				type: payload.type || undefined,
+				template: payload.template || undefined,
 				ids: payload.ids || undefined,
 				limit,
 				offset,

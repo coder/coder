@@ -81,8 +81,10 @@ const provisionerJobsCountCap = 2000
 // @Param offset query int false "Page offset"
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
+// @Param type query codersdk.ProvisionerJobType false "Filter results by job type" enums(template_version_import,workspace_build,template_version_dry_run)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
+// @Param template query string false "Filter results by template ID" format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJobsResponse
 // @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
@@ -108,9 +110,11 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	count, err := api.Database.CountProvisionerJobsByOrganizationAndStatus(ctx, database.CountProvisionerJobsByOrganizationAndStatusParams{
 		OrganizationID: org.ID,
 		Status:         filters.Status,
+		Types:          filters.Types,
 		IDs:            filters.IDs,
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
+		TemplateID:     filters.TemplateID,
 		CountCap:       provisionerJobsCountCap,
 	})
 	if err != nil {
@@ -136,9 +140,11 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: org.ID,
 		Status:         filters.Status,
+		Types:          filters.Types,
 		IDs:            filters.IDs,
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
+		TemplateID:     filters.TemplateID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(page.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -166,8 +172,10 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 type provisionerJobFilters struct {
 	IDs         []uuid.UUID
 	Status      []database.ProvisionerJobStatus
+	Types       []database.ProvisionerJobType
 	Tags        database.StringMap
 	InitiatorID uuid.UUID
+	TemplateID  uuid.UUID
 }
 
 // parseProvisionerJobFilters parses filter query params shared by the list and
@@ -181,11 +189,13 @@ func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []u
 	_ = p.PositiveInt32(qp, 0, "offset")
 	_ = p.UUID(qp, uuid.Nil, "after_id")
 	status := p.Strings(qp, nil, "status")
+	jobTypes := p.Strings(qp, nil, "type")
 	if ids == nil {
 		ids = p.UUIDs(qp, nil, "ids")
 	}
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	initiatorID := p.UUID(qp, uuid.Nil, "initiator")
+	templateID := p.UUID(qp, uuid.Nil, "template")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -198,8 +208,10 @@ func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []u
 	return provisionerJobFilters{
 		IDs:         ids,
 		Status:      slice.StringEnums[database.ProvisionerJobStatus](status),
+		Types:       slice.StringEnums[database.ProvisionerJobType](jobTypes),
 		Tags:        tags,
 		InitiatorID: initiatorID,
+		TemplateID:  templateID,
 	}, true
 }
 
@@ -224,9 +236,11 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: org.ID,
 		Status:         filters.Status,
+		Types:          filters.Types,
 		IDs:            filters.IDs,
 		Tags:           filters.Tags,
 		InitiatorID:    filters.InitiatorID,
+		TemplateID:     filters.TemplateID,
 		// Default page size is applied in SQL when LimitOpt is 0.
 		LimitOpt:  0,
 		OffsetOpt: 0,

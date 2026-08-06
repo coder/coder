@@ -161,6 +161,14 @@ const (
 	ProvisionerJobTypeTemplateVersionDryRun ProvisionerJobType = "template_version_dry_run"
 )
 
+func ProvisionerJobTypeEnums() []ProvisionerJobType {
+	return []ProvisionerJobType{
+		ProvisionerJobTypeTemplateVersionImport,
+		ProvisionerJobTypeWorkspaceBuild,
+		ProvisionerJobTypeTemplateVersionDryRun,
+	}
+}
+
 // JobErrorCode defines the error code returned by job runner.
 type JobErrorCode string
 

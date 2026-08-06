@@ -44,8 +44,10 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 		status    []string
+		jobTypes  []string
 		limit     int64
 		initiator string
+		template  string
 	)
 
 	cmd := &serpent.Command{
@@ -79,7 +81,9 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 					Limit: int(limit),
 				},
 				Status:    slice.StringEnums[codersdk.ProvisionerJobStatus](status),
+				Types:     slice.StringEnums[codersdk.ProvisionerJobType](jobTypes),
 				Initiator: initiator,
+				Template:  template,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)
@@ -132,6 +136,12 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerJobStatusEnums())...),
 		},
 		{
+			Flag:        "type",
+			Env:         "CODER_PROVISIONER_JOB_LIST_TYPE",
+			Description: "Filter by job type.",
+			Value:       serpent.EnumArrayOf(&jobTypes, slice.ToStrings(codersdk.ProvisionerJobTypeEnums())...),
+		},
+		{
 			Flag:          "limit",
 			FlagShorthand: "l",
 			Env:           "CODER_PROVISIONER_JOB_LIST_LIMIT",
@@ -145,6 +155,12 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Env:           "CODER_PROVISIONER_JOB_LIST_INITIATOR",
 			Description:   "Filter by initiator (user ID or username).",
 			Value:         serpent.StringOf(&initiator),
+		},
+		{
+			Flag:        "template",
+			Env:         "CODER_PROVISIONER_JOB_LIST_TEMPLATE",
+			Description: "Filter by template ID.",
+			Value:       serpent.StringOf(&template),
 		},
 	}...)
 

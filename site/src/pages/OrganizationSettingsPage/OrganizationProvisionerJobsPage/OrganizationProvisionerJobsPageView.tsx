@@ -1,11 +1,5 @@
-import { XIcon } from "lucide-react";
-import type { FC } from "react";
-import type {
-	Organization,
-	ProvisionerJob,
-	ProvisionerJobStatus,
-} from "#/api/typesGenerated";
-import { Badge } from "#/components/Badge/Badge";
+import type { ComponentProps, FC } from "react";
+import type { Organization, ProvisionerJob } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
@@ -14,23 +8,10 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
-import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -40,52 +21,19 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { JobRow } from "./JobRow";
-
-const variantByStatus: Record<
-	ProvisionerJobStatus,
-	StatusIndicatorProps["variant"]
-> = {
-	succeeded: "success",
-	failed: "failed",
-	pending: "pending",
-	running: "pending",
-	canceling: "pending",
-	canceled: "inactive",
-	unknown: "inactive",
-};
-
-const StatusFilters: ProvisionerJobStatus[] = [
-	"succeeded",
-	"pending",
-	"running",
-	"canceling",
-	"canceled",
-	"failed",
-	"unknown",
-];
-
-type JobProvisionersFilter = {
-	status: string;
-	ids: string;
-};
+import { ProvisionerJobsFilter } from "./ProvisionerJobsFilter";
 
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: readonly ProvisionerJob[] | undefined;
 	jobsQuery: PaginationResult;
 	organization: Organization | undefined;
 	error: unknown;
-	filter: JobProvisionersFilter;
 	isNonInitialPage: boolean;
 	onRetry: () => void;
-	onFilterChange: (filter: JobProvisionersFilter) => void;
+	filterProps: ComponentProps<typeof ProvisionerJobsFilter>;
 };
 
 const OrganizationProvisionerJobsPageView: FC<
@@ -95,10 +43,9 @@ const OrganizationProvisionerJobsPageView: FC<
 	jobsQuery,
 	organization,
 	error,
-	filter,
 	isNonInitialPage,
-	onFilterChange,
 	onRetry,
+	filterProps,
 }) => {
 	if (!organization) {
 		return (
@@ -113,6 +60,7 @@ const OrganizationProvisionerJobsPageView: FC<
 	const isLoading =
 		(jobs === undefined || jobsQuery.totalRecords === undefined) && !error;
 	const isEmpty = !isLoading && jobs?.length === 0;
+	const openJobIds = filterProps.filter.values.ids ?? "";
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -123,7 +71,7 @@ const OrganizationProvisionerJobsPageView: FC<
 				)}
 			</title>
 
-			<section>
+			<section className="flex flex-col gap-4">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Provisioner Jobs</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -133,66 +81,9 @@ const OrganizationProvisionerJobsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<div className="flex items-center gap-2">
-					{filter.ids && (
-						<div className="relative">
-							<Badge className="h-10 text-sm pl-3 pr-10 font-mono">
-								{filter.ids}
-							</Badge>
-							<div className="size-10 flex items-center justify-center absolute top-0 right-0">
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											onClick={() => {
-												onFilterChange({ ...filter, ids: "" });
-											}}
-										>
-											<span className="sr-only">Clear ID</span>
-											<XIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Clear ID</TooltipContent>
-								</Tooltip>
-							</div>
-						</div>
-					)}
+				<ProvisionerJobsFilter {...filterProps} />
 
-					<Select
-						value={filter.status}
-						onValueChange={(status) => {
-							onFilterChange({
-								...filter,
-								status,
-							});
-						}}
-					>
-						<SelectTrigger className="w-[180px]" data-testid="status-filter">
-							<SelectValue placeholder="All statuses" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectGroup>
-								{StatusFilters.map((status) => (
-									<SelectItem key={status} value={status}>
-										<StatusIndicator variant={variantByStatus[status]}>
-											<StatusIndicatorDot />
-											<span className="block first-letter:uppercase">
-												{status}
-											</span>
-										</StatusIndicator>
-									</SelectItem>
-								))}
-							</SelectGroup>
-						</SelectContent>
-					</Select>
-				</div>
-
-				<PaginationContainer
-					query={jobsQuery}
-					paginationUnitLabel="jobs"
-					className="mt-6"
-				>
+				<PaginationContainer query={jobsQuery} paginationUnitLabel="jobs">
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -227,7 +118,7 @@ const OrganizationProvisionerJobsPageView: FC<
 							) : (
 								jobs?.map((j) => (
 									<JobRow
-										defaultIsOpen={filter.ids.includes(j.id)}
+										defaultIsOpen={openJobIds.includes(j.id)}
 										key={j.id}
 										job={j}
 									/>

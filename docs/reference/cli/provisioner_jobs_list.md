@@ -24,6 +24,15 @@ coder provisioner jobs list [flags]
 
 Filter by job status.
 
+### --type
+
+|             |                                                                                   |
+|-------------|-----------------------------------------------------------------------------------|
+| Type        | <code>[template_version_import\|workspace_build\|template_version_dry_run]</code> |
+| Environment | <code>$CODER_PROVISIONER_JOB_LIST_TYPE</code>                                     |
+
+Filter by job type.
+
 ### -l, --limit
 
 |             |                                                |
@@ -42,6 +51,15 @@ Limit the number of jobs returned.
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_INITIATOR</code> |
 
 Filter by initiator (user ID or username).
+
+### --template
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_PROVISIONER_JOB_LIST_TEMPLATE</code> |
+
+Filter by template ID.
 
 ### -O, --org
 

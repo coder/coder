@@ -6893,8 +6893,14 @@ export interface OrganizationProvisionerDaemonsOptions {
 export interface OrganizationProvisionerJobsOptions extends Pagination {
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Types: readonly ProvisionerJobType[];
 	readonly Tags: Record<string, string>;
 	readonly Initiator: string;
+	/**
+	 * Template is a template ID used to filter jobs associated with that
+	 * template (via template version import, dry-run, or workspace build).
+	 */
+	readonly Template: string;
 }
 
 // From codersdk/idpsync.go

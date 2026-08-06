@@ -26,5 +26,11 @@ OPTIONS:
   -s, --status [pending|running|succeeded|canceling|canceled|failed|unknown], $CODER_PROVISIONER_JOB_LIST_STATUS
           Filter by job status.
 
+      --template string, $CODER_PROVISIONER_JOB_LIST_TEMPLATE
+          Filter by template ID.
+
+      --type [template_version_import|workspace_build|template_version_dry_run], $CODER_PROVISIONER_JOB_LIST_TYPE
+          Filter by job type.
+
 ———
 Run `coder --help` for a list of global options.

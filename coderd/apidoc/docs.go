@@ -5998,6 +5998,20 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "template_version_import",
+                            "workspace_build",
+                            "template_version_dry_run",
+                            "template_version_import",
+                            "workspace_build",
+                            "template_version_dry_run"
+                        ],
+                        "type": "string",
+                        "description": "Filter results by job type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
                         "type": "object",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
@@ -6008,6 +6022,13 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Filter results by initiator",
                         "name": "initiator",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter results by template ID",
+                        "name": "template",
                         "in": "query"
                     }
                 ],

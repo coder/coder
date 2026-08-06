@@ -22599,16 +22599,30 @@ SELECT COUNT(*) FROM (
 	SELECT 1
 	FROM
 		provisioner_jobs pj
+	LEFT JOIN
+		workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
+	LEFT JOIN
+		template_versions tv ON (
+			tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+			AND tv.organization_id = pj.organization_id
+		)
+	LEFT JOIN
+		templates t ON (
+			t.id = tv.template_id
+			AND t.organization_id = pj.organization_id
+		)
 	WHERE
 		pj.organization_id = $1::uuid
 		AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 		AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
-		AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
-		AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
+		AND (COALESCE(array_length($4::provisioner_job_type[], 1), 0) = 0 OR pj.type = ANY($4::provisioner_job_type[]))
+		AND ($5::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $5::tagset))
+		AND ($6::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $6::uuid)
+		AND ($7::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = $7::uuid)
 	-- Avoid a slow scan on a large table. The caller passes the count
 	-- cap and we add 1 so the frontend can detect capping and show
 	-- "... of N+". A cap of 0 means no limit (NULLIF -> NULL + 1 = NULL).
-	LIMIT NULLIF($6::int, 0) + 1
+	LIMIT NULLIF($8::int, 0) + 1
 ) AS limited_count
 `
 
@@ -22616,21 +22630,25 @@ type CountProvisionerJobsByOrganizationAndStatusParams struct {
 	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Types          []ProvisionerJobType   `db:"types" json:"types"`
 	Tags           StringMap              `db:"tags" json:"tags"`
 	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
+	TemplateID     uuid.UUID              `db:"template_id" json:"template_id"`
 	CountCap       int32                  `db:"count_cap" json:"count_cap"`
 }
 
-// Lean count for pagination. Uses the same filters as
-// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner
-// without the queue/metadata joins.
+// Count for pagination. Uses the same filters as
+// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
+// Joins template metadata only as needed for the template_id filter.
 func (q *sqlQuerier) CountProvisionerJobsByOrganizationAndStatus(ctx context.Context, arg CountProvisionerJobsByOrganizationAndStatusParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countProvisionerJobsByOrganizationAndStatus,
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
+		pq.Array(arg.Types),
 		arg.Tags,
 		arg.InitiatorID,
+		arg.TemplateID,
 		arg.CountCap,
 	)
 	var count int64
@@ -23020,8 +23038,10 @@ WHERE
 	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
-	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
-	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
+	AND (COALESCE(array_length($4::provisioner_job_type[], 1), 0) = 0 OR pj.type = ANY($4::provisioner_job_type[]))
+	AND ($5::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $5::tagset))
+	AND ($6::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $6::uuid)
+	AND ($7::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR t.id = $7::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -23041,17 +23061,19 @@ LIMIT
 	-- a limit of 0 means "no limit". The provisioner jobs table is
 	-- unbounded in size. Implement a default limit of 100 to prevent
 	-- accidental excessively large queries.
-	COALESCE(NULLIF($7::int, 0), 100)
+	COALESCE(NULLIF($9::int, 0), 100)
 OFFSET
-	$6
+	$8
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
 	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Types          []ProvisionerJobType   `db:"types" json:"types"`
 	Tags           StringMap              `db:"tags" json:"tags"`
 	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
+	TemplateID     uuid.UUID              `db:"template_id" json:"template_id"`
 	OffsetOpt      int32                  `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32                  `db:"limit_opt" json:"limit_opt"`
 }
@@ -23077,8 +23099,10 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
+		pq.Array(arg.Types),
 		arg.Tags,
 		arg.InitiatorID,
+		arg.TemplateID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

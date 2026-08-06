@@ -426,8 +426,12 @@ type OrganizationProvisionerJobsOptions struct {
 	Pagination
 	IDs       []uuid.UUID
 	Status    []ProvisionerJobStatus
+	Types     []ProvisionerJobType
 	Tags      map[string]string
 	Initiator string
+	// Template is a template ID used to filter jobs associated with that
+	// template (via template version import, dry-run, or workspace build).
+	Template string
 }
 
 // ProvisionerJobsResponse is the paginated response for listing provisioner jobs.
@@ -455,6 +459,9 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		if len(opts.Status) > 0 {
 			qp.Add("status", joinSlice(opts.Status))
 		}
+		if len(opts.Types) > 0 {
+			qp.Add("type", joinSlice(opts.Types))
+		}
 		if len(opts.Tags) > 0 {
 			tagsRaw, err := json.Marshal(opts.Tags)
 			if err != nil {
@@ -464,6 +471,9 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		}
 		if opts.Initiator != "" {
 			qp.Add("initiator", opts.Initiator)
+		}
+		if opts.Template != "" {
+			qp.Add("template", opts.Template)
 		}
 	}
 
