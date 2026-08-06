@@ -7,6 +7,7 @@ import {
 	chatEntityKey,
 	chatMessagesKey,
 	chatPromptsKey,
+	chatsByWorkspace,
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
@@ -124,7 +125,7 @@ describe("useChatToolInvalidations", () => {
 				queryKey: getWorkspaceQuotaQueryKey(ORGANIZATION_NAME, USERNAME),
 				exact: true,
 			});
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
 
@@ -135,6 +136,9 @@ describe("useChatToolInvalidations", () => {
 			pageParams: [],
 		});
 		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
 		const { setStreamState } = renderInvalidations();
 
 		await act(async () => {
@@ -147,6 +151,11 @@ describe("useChatToolInvalidations", () => {
 				"detail entry should be invalidated",
 			).toBe(true);
 		});
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should be invalidated",
+		).toBe(true);
 		expect(
 			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
 			"messages entry should NOT be invalidated",
@@ -228,7 +237,7 @@ describe("useChatToolInvalidations", () => {
 					predicate: expect.any(Function),
 				}),
 			);
-			expect(invalidateSpy).toHaveBeenCalledTimes(2);
+			expect(invalidateSpy).toHaveBeenCalledTimes(3);
 		});
 	});
 
@@ -251,7 +260,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 
 		await act(async () => {
@@ -259,7 +268,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
 
@@ -271,7 +280,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 
 		rerender({
@@ -285,7 +294,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(6);
+			expect(invalidateSpy).toHaveBeenCalledTimes(8);
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: chatEntityKey("chat-2"),
 				exact: true,
@@ -311,7 +320,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
 
