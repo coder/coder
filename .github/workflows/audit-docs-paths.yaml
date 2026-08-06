@@ -185,6 +185,22 @@ jobs:
             fi
           fi
 
+      - name: Send Slack notification on drift
+        # Mirrors weekly-docs.yaml's link-check Slack step and reuses the docs
+        # webhook. Fires only on drift (findings > 0); clean runs and audit
+        # errors stay silent. Turns on with the job's AUDIT_DOCS_PATHS_ENABLED gate.
+        if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
+        env:
+          COUNT: ${{ steps.audit.outputs.count }}
+          LOGS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":warning: *Docs URL drift detected by audit-docs-paths.*\n'"${COUNT}"' stale docs path reference(s) resolve to a redirect source. See the tracked issue and logs: '"${LOGS_URL}"'"}' \
+            "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+          echo "Sent Slack notification"
+
       - name: Fail the run when findings exist
         if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
         env:
