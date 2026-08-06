@@ -1324,6 +1324,18 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-text-1",
 						name: "main.go",
 					},
+					{
+						type: "file",
+						media_type: "text/plain",
+						file_id: "storybook-text-2",
+						name: "config.properties",
+					},
+					{
+						type: "file",
+						media_type: "text/plain",
+						file_id: "storybook-text-3",
+						name: "meeting notes",
+					},
 				],
 			},
 		]),
@@ -1339,15 +1351,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 				canvas.getByRole("link", { name: "Download About Page Screenshot" }),
 			).toBeVisible();
 		});
-		// An extensionless name gains the media-type extension.
 		expect(
 			canvas.getByRole("link", { name: "Download About Page Screenshot" }),
 		).toHaveAttribute("download", "About Page Screenshot.png");
-		// A dotted qualifier is not mistaken for a file extension.
 		expect(
 			canvas.getByRole("link", { name: "Download report.final" }),
 		).toHaveAttribute("download", "report.final.pdf");
-		// A name that already carries the right extension is unchanged.
 		expect(
 			canvas.getByRole("link", { name: "Download quarterly-report.pdf" }),
 		).toHaveAttribute("download", "quarterly-report.pdf");
@@ -1359,6 +1368,18 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 			expect(
 				canvas.getByRole("link", { name: "Download main.go" }),
 			).toHaveAttribute("download", "main.go");
+		});
+		canvas.getByRole("button", { name: "View config.properties" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download config.properties" }),
+			).toHaveAttribute("download", "config.properties");
+		});
+		canvas.getByRole("button", { name: "View meeting notes" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download meeting notes" }),
+			).toHaveAttribute("download", "meeting notes.txt");
 		});
 	},
 };
