@@ -21,6 +21,10 @@ import type { ParsedMessageEntry } from "./types";
 const TEST_PNG_B64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
+const TEST_SVG_B64 = btoa(
+	'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+);
+
 const buildMessages = (messages: TypesGen.ChatMessage[]) =>
 	parseMessagesWithMergedTools(messages);
 
@@ -1354,6 +1358,24 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-json-2",
 						name: "map.geojson",
 					},
+					{
+						type: "file",
+						media_type: "image/svg+xml",
+						data: TEST_SVG_B64,
+						name: "diagram.svg",
+					},
+					{
+						type: "file",
+						media_type: "image/svg+xml",
+						data: TEST_SVG_B64,
+						name: "architecture sketch",
+					},
+					{
+						type: "file",
+						media_type: "application/vnd.oasis.opendocument.text",
+						file_id: "storybook-odt-1",
+						name: "notes.odt",
+					},
 				],
 			},
 		]),
@@ -1417,6 +1439,21 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 				canvas.getByRole("link", { name: "Download map.geojson" }),
 			).toHaveAttribute("download", "map.geojson");
 		});
+		canvas.getByRole("button", { name: "View diagram.svg" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download diagram.svg" }),
+			).toHaveAttribute("download", "diagram.svg");
+		});
+		canvas.getByRole("button", { name: "View architecture sketch" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download architecture sketch" }),
+			).toHaveAttribute("download", "architecture sketch.svg");
+		});
+		expect(
+			canvas.getByRole("link", { name: "Download notes.odt" }),
+		).toHaveAttribute("download", "notes.odt");
 	},
 };
 

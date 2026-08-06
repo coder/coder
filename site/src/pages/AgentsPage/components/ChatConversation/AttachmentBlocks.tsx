@@ -74,6 +74,19 @@ const sanitizeAttachmentExtension = (value: string): string => {
 	return sanitized || "file";
 };
 
+// Structured MIME suffixes (RFC 6839) carry the real format before the
+// plus sign, so image/svg+xml maps to svg rather than a mangled subtype.
+const structuredSubtypeExtension = (subtype: string): string | null => {
+	if (subtype.endsWith("+json")) {
+		return "json";
+	}
+	if (subtype.endsWith("+xml")) {
+		const base = subtype.slice(0, -"+xml".length);
+		return /^[a-z0-9]{1,8}$/i.test(base) ? base.toLowerCase() : "xml";
+	}
+	return null;
+};
+
 const getAttachmentExtension = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
@@ -91,10 +104,9 @@ const getAttachmentExtension = (
 		}
 	}
 	const subtype = block.media_type.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	return sanitizeAttachmentExtension(subtype);
+	return (
+		structuredSubtypeExtension(subtype) ?? sanitizeAttachmentExtension(subtype)
+	);
 };
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
@@ -148,11 +160,14 @@ const getMediaTypeExtension = (mediaType: string): string | null => {
 		return mapped;
 	}
 	const subtype = mediaType.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
+	const structured = structuredSubtypeExtension(subtype);
+	if (structured) {
+		return structured;
 	}
-	const sanitized = sanitizeAttachmentExtension(subtype);
-	return sanitized === "file" ? null : sanitized;
+	// Only simple subtypes (png, gif, webp) map reliably onto an
+	// extension. Sanitizing structured or vendor subtypes would append
+	// a mangled suffix, so those keep the attachment's own name.
+	return /^[a-z0-9]{1,8}$/i.test(subtype) ? subtype.toLowerCase() : null;
 };
 
 const getAttachmentDownloadName = (

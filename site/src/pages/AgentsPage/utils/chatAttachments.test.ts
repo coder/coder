@@ -260,16 +260,13 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(shared.files[0].size).toBe("png-bytes".length);
 	});
 
-	it("offers a blob-backed Open fallback for data: hrefs on permanent share failure", async () => {
+	it("offers an Open fallback for data: hrefs on permanent share failure", async () => {
 		enterIOSStandalonePWA();
 		overrideNavigator(
 			"share",
 			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
 		);
 		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		const { createObjectURL, revokeObjectURL } = stubObjectURLs();
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		vi.useFakeTimers();
 		const event = { preventDefault: vi.fn() };
 
 		await handleAttachmentDownloadClick(event, {
@@ -278,17 +275,14 @@ describe("handleAttachmentDownloadClick", () => {
 			mediaType: "image/png",
 		});
 
-		expect(toast.error).toHaveBeenCalledTimes(1);
-		const options = vi.mocked(toast.error).mock.calls[0][1] as {
-			action: { label: string; onClick: () => void };
-		};
-		expect(options.action.label).toBe("Open");
-		options.action.onClick();
-		expect(createObjectURL).toHaveBeenCalledTimes(1);
-		expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(File);
-		expect(open).toHaveBeenCalledWith("blob:inline", "_blank", "noopener");
-		vi.runAllTimers();
-		expect(revokeObjectURL).toHaveBeenCalledWith("blob:inline");
+		// Clicking Open in the rendered toast is exercised in Storybook
+		// (DownloadInIOSStandaloneOpensInlineAttachmentFromToast).
+		expect(toast.error).toHaveBeenCalledWith(
+			"Couldn't download inline.png",
+			expect.objectContaining({
+				action: expect.objectContaining({ label: "Open" }),
+			}),
+		);
 	});
 
 	it("opens inline attachments through a blob tab when file sharing is unavailable", () => {
