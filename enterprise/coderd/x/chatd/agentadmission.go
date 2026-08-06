@@ -18,12 +18,11 @@ const (
 	maxConcurrentSubagents  = int64(10)
 )
 
-// NewAgentAdmissionFactory builds a gate that evaluates current entitlements
-// and pool capacity for each acquisition.
-func NewAgentAdmissionFactory(set *entitlements.Set) osschatd.AgentAdmissionFactory {
-	return func(heartbeatStaleSeconds int32) (osschatd.AgentAdmission, osschatd.AgentCapacityPolicy) {
-		a := newAdmission(set, heartbeatStaleSeconds)
-		return a, a
+// NewAgentCapacityLimiterFactory builds a limiter that evaluates current
+// entitlements and pool capacity for each acquisition.
+func NewAgentCapacityLimiterFactory(set *entitlements.Set) osschatd.AgentCapacityLimiterFactory {
+	return func(heartbeatStaleSeconds int32) osschatd.AgentCapacityLimiter {
+		return newAdmission(set, heartbeatStaleSeconds)
 	}
 }
 
@@ -62,27 +61,25 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 	if err := store.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
 		return false, err
 	}
-	counts, err := store.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{
+	counts, err := store.CountChatCapacityByPool(ctx, database.CountChatCapacityByPoolParams{
 		ExcludeChatID: chat.ID,
 		StaleSeconds:  a.staleSeconds,
 	})
 	if err != nil {
 		return false, err
 	}
-	used, capacity := counts.RootCount, a.rootCapacity
+	used, capacity := counts.ActiveRootCount, a.rootCapacity
 	if chat.ParentChatID.Valid {
-		used, capacity = counts.SubagentCount, a.subagentCapacity
+		used, capacity = counts.ActiveSubagentCount, a.subagentCapacity
 	}
 	return used < capacity, nil
 }
 
-// CurrentLimits reports the caps and whether they currently apply.
-func (a *admission) CurrentLimits() osschatd.AgentCapacityLimits {
+func (a *admission) Limits() (osschatd.AgentCapacityLimits, bool) {
 	return osschatd.AgentCapacityLimits{
-		Capped:   !a.uncapped(),
 		Root:     a.rootCapacity,
 		Subagent: a.subagentCapacity,
-	}
+	}, !a.uncapped()
 }
 
 // uncapped returns true for an enabled entitlement with remaining hours.

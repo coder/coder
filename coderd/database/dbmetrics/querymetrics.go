@@ -329,19 +329,11 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+func (m queryMetricsStore) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.CountChatCapacityActiveByPool(ctx, arg)
-	m.queryLatencies.WithLabelValues("CountChatCapacityActiveByPool").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityActiveByPool").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityUnownedByPoolRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.CountChatCapacityUnownedByPool(ctx, staleSeconds)
-	m.queryLatencies.WithLabelValues("CountChatCapacityUnownedByPool").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityUnownedByPool").Inc()
+	r0, r1 := m.s.CountChatCapacityByPool(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountChatCapacityByPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityByPool").Inc()
 	return r0, r1
 }
 

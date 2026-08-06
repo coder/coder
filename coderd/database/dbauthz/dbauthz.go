@@ -1971,18 +1971,11 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
-func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+func (q *querier) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return database.CountChatCapacityActiveByPoolRow{}, err
+		return database.CountChatCapacityByPoolRow{}, err
 	}
-	return q.db.CountChatCapacityActiveByPool(ctx, arg)
-}
-
-func (q *querier) CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityUnownedByPoolRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return database.CountChatCapacityUnownedByPoolRow{}, err
-	}
-	return q.db.CountChatCapacityUnownedByPool(ctx, staleSeconds)
+	return q.db.CountChatCapacityByPool(ctx, arg)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {

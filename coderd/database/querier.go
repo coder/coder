@@ -96,14 +96,10 @@ type sqlcQuerier interface {
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
-	// Counts root and subagent slots held by unarchived running or interrupting
-	// chats with a fresh owner heartbeat. @exclude_chat_id makes stale-owner
+	// Counts fresh-owner active slots and unowned running chats by pool.
+	// @exclude_chat_id excludes active counts only, keeping stale-owner
 	// takeovers capacity-neutral.
-	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
-	// Counts unarchived running chats with no live owner heartbeat per pool.
-	// Callers compare pool activity against the caps to tell capacity waits
-	// from the ordinary sub-second wait for a worker pickup.
-	CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityUnownedByPoolRow, error)
+	CountChatCapacityByPool(ctx context.Context, arg CountChatCapacityByPoolParams) (CountChatCapacityByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
