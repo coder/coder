@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { isApiErrorResponse } from "#/api/errors";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -161,21 +162,13 @@ const fileFromDataURL = (
 	fileName: string,
 	fallbackMediaType: string,
 ): File | null => {
-	const match = /^data:([^,]*?)(;base64)?,(.*)$/.exec(href);
-	if (!match) {
+	const decoded = decodeDataURL(href);
+	if (!decoded) {
 		return null;
 	}
-	const [, type, isBase64, payload] = match;
-	try {
-		const bytes = isBase64
-			? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
-			: new TextEncoder().encode(decodeURIComponent(payload));
-		return new File([bytes], fileName, {
-			type: type || fallbackMediaType || "application/octet-stream",
-		});
-	} catch {
-		return null;
-	}
+	return new File([decoded.bytes], fileName, {
+		type: decoded.mediaType || fallbackMediaType || "application/octet-stream",
+	});
 };
 
 const shareAttachmentFile = async ({

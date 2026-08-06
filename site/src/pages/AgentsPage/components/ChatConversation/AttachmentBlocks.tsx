@@ -116,6 +116,11 @@ const getAttachmentExtension = (
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
+const isSuffixPreservingMediaType = (mediaType: string): boolean =>
+	mediaType.startsWith("text/") ||
+	mediaType === "application/json" ||
+	mediaType === "application/xml";
+
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
 		return getChatFileURL(block.file_id);
@@ -147,9 +152,7 @@ const endsWithFileExtension = /\.([a-z0-9]{1,8})$/i;
 // Alternate name suffixes that identify the same type as the canonical
 // media-type extension, so "photo.jpeg" is not renamed to "photo.jpeg.jpg".
 const extensionAliases: Record<string, readonly string[]> = {
-	html: ["htm"],
 	jpg: ["jpeg", "jfif", "jpe", "pjpeg", "pjp"],
-	md: ["markdown"],
 	tiff: ["tif"],
 };
 
@@ -194,12 +197,12 @@ const getAttachmentDownloadName = (
 	if (name.startsWith(".")) {
 		return name;
 	}
-	// The server classifies text-like uploads (text/plain, markdown, CSV,
-	// JSON) by content while preserving their names, so an existing suffix
-	// (main.go, config.properties, map.geojson) identifies the file better
-	// than the canonical extension would. Keep any dotted suffix and only
-	// append the extension to extensionless names.
-	if (isTextPreviewAttachmentMediaType(block.media_type)) {
+	// The server classifies text-like uploads (text/*, JSON, XML) by
+	// content while preserving their names, so an existing suffix
+	// (main.go, map.geojson, schema.xsd) identifies the file better
+	// than the canonical extension would. Keep any dotted suffix and
+	// only append the extension to extensionless names.
+	if (isSuffixPreservingMediaType(block.media_type)) {
 		return /\.[^.\s]+$/.test(name) ? name : `${name}.${mediaExtension}`;
 	}
 	// iOS resolves the shared or saved file's type from the filename

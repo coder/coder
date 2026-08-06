@@ -1396,6 +1396,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 					},
 					{
 						type: "file",
+						media_type: "application/xml",
+						file_id: "storybook-xml-2",
+						name: "schema.xsd",
+					},
+					{
+						type: "file",
 						media_type: "text/csv",
 						file_id: "storybook-csv-1",
 						name: "export data",
@@ -1487,6 +1493,9 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Download build config" }),
 		).toHaveAttribute("download", "build config.xml");
+		expect(
+			canvas.getByRole("link", { name: "Download schema.xsd" }),
+		).toHaveAttribute("download", "schema.xsd");
 		canvas.getByRole("button", { name: "View export data" }).focus();
 		await waitFor(() => {
 			expect(
