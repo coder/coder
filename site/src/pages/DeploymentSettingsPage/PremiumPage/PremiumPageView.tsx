@@ -5,6 +5,7 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
@@ -20,7 +21,10 @@ const EnterpriseVersion: FC = () => {
 		<div className="max-w-4xl">
 			<header className="flex flex-row justify-between align-baseline pb-5">
 				<div>
-					<h1 className="text-3xl m-0 font-semibold">Premium</h1>
+					<div className="flex flex-row items-center gap-3">
+						<h1 className="text-3xl m-0 font-semibold">Premium</h1>
+						<PremiumBadge />
+					</div>
 					<p className="text-sm max-w-xl mt-2 text-content-secondary font-medium">
 						As an Enterprise license holder, you already benefit from Coder’s
 						features for secure, large-scale deployments. Upgrade to Coder
@@ -86,9 +90,12 @@ const OSSVersion: FC = () => {
 		<div className="max-w-4xl">
 			<div className="flex flex-row justify-between align-baseline pb-10">
 				<div>
-					<h1 className="text-3xl m-0 text-content-primary font-semibold">
-						Premium
-					</h1>
+					<div className="flex flex-row items-center gap-3">
+						<h1 className="text-3xl m-0 text-content-primary font-semibold">
+							Premium
+						</h1>
+						<PremiumBadge />
+					</div>
 					<p className="text-sm max-w-xl mt-2 text-content-secondary">
 						Coder Premium is designed for enterprises that need to scale their
 						Coder deployment efficiently, securely, and with full control. By
