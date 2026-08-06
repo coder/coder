@@ -14,6 +14,7 @@ import { watchChat } from "#/api/api";
 import {
 	chatMessagesKey,
 	invalidateChatPrompts,
+	invalidateChatSearches,
 	patchChatMessages,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
@@ -234,6 +235,7 @@ export const useChatStore = (
 			if (hasNewUserPrompt) {
 				void invalidateChatPrompts(queryClient, chatID);
 			}
+			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
 	);
@@ -255,6 +257,7 @@ export const useChatStore = (
 					pageParams: currentData.pageParams.slice(0, 1),
 				};
 			});
+			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
 	);

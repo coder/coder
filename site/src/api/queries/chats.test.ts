@@ -2,6 +2,7 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
@@ -46,6 +47,7 @@ import {
 	invalidateChatListQueries,
 	invalidateChatMessages,
 	invalidateChatPrompts,
+	invalidateChatSearches,
 	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
@@ -60,6 +62,7 @@ import {
 	reorderPinnedChat,
 	setChatGroupRole,
 	setChatUserRole,
+	shouldInvalidateChatSearches,
 	TERMINAL_RUN_STATUSES,
 	toChatListParams,
 	unarchiveChat,
@@ -945,6 +948,7 @@ describe("mutation invalidation scope", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
 
 		const mutation = createChatMessage(queryClient, chatId);
 		await mutation.onSuccess?.();
@@ -956,6 +960,14 @@ describe("mutation invalidation scope", () => {
 				`${label} should NOT be invalidated by createChatMessage`,
 			).not.toBe(true);
 		}
+		// The send path invalidates searches through
+		// useChatStore.upsertCacheMessages; doing it here too would
+		// double-invalidate every send.
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+			"chat searches should NOT be invalidated by createChatMessage",
+		).not.toBe(true);
 	});
 
 	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
@@ -1549,6 +1561,51 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
 			"chat list should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "archiveChat onSettled",
+			settle: (queryClient) =>
+				archiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "unarchiveChat onSettled",
+			settle: (queryClient) =>
+				unarchiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "updateChatTitle onSettled",
+			settle: (queryClient) =>
+				updateChatTitle(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					title: "New",
+				}),
+		},
+		{
+			name: "editChatMessage onSettled",
+			settle: (queryClient) =>
+				editChatMessage(queryClient, "chat-1").onSettled(),
+		},
+		{
+			name: "createChat onSuccess",
+			settle: (queryClient) => createChat(queryClient).onSuccess(),
+		},
+	])("$name invalidates chat searches", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+			"chat search entry should be invalidated",
+		).toBe(true);
 	});
 });
 
@@ -3056,6 +3113,63 @@ describe("semantic cache operations: prefix invalidations", () => {
 			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
 			"messages entry should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it("invalidateChatSearches touches every search entry and nothing outside the family", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+		queryClient.setQueryData(chatSearch({ q: "beta" }).queryKey, []);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
+
+		await invalidateChatSearches(queryClient);
+
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "beta" }).queryKey)
+				?.isInvalidated,
+		).toBe(true);
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["by-workspace", chatsByWorkspace(["ws-1"]).queryKey],
+			["chat detail", chatEntityKey("chat-1")],
+			["messages", chatMessagesKey("chat-1")],
+			["cost tree", chatCostTreeKey("chat-1")],
+		] as const) {
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should NOT be invalidated`,
+			).not.toBe(true);
+		}
+	});
+
+	describe(shouldInvalidateChatSearches.name, () => {
+		// Search results render title, status, diff status, and the
+		// action-required badge. Summary and context events are excluded:
+		// stale last_turn_summary subtitles are accepted until
+		// reconciliation lands. The created and deleted kinds are handled
+		// by their own watch branches before the merge path runs.
+		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
+			action_required: true,
+			chat_summary_change: false,
+			context_dirty: false,
+			created: false,
+			deleted: false,
+			diff_status_change: true,
+			status_change: true,
+			summary_change: false,
+			title_change: true,
+		};
+
+		it.each(ChatWatchEventKinds)("%s", (kind) => {
+			expect(shouldInvalidateChatSearches(kind)).toBe(expectedByKind[kind]);
+		});
 	});
 });
 
