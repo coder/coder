@@ -1866,13 +1866,13 @@ func TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T)
 }
 
 //nolint:tparallel,paralleltest // Subtests share one database and exercise sequential migration state.
-func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
+func TestMigration000563TemplateAgentsAllowedBackfill(t *testing.T) {
 	t.Parallel()
 
-	sqlDB, ctx, orgID, userID, templateIDs := setupMigration000562Templates(t)
-	upSQL, err := os.ReadFile("000562_template_agents_allowed.up.sql")
+	sqlDB, ctx, orgID, userID, templateIDs := setupMigration000563Templates(t)
+	upSQL, err := os.ReadFile("000563_template_agents_allowed.up.sql")
 	require.NoError(t, err)
-	downSQL, err := os.ReadFile("000562_template_agents_allowed.down.sql")
+	downSQL, err := os.ReadFile("000563_template_agents_allowed.down.sql")
 	require.NoError(t, err)
 
 	staleID := uuid.New()
@@ -2051,7 +2051,7 @@ func TestMigration000562TemplateAgentsAllowedBackfill(t *testing.T) {
 	}
 }
 
-func setupMigration000562Templates(t *testing.T) (
+func setupMigration000563Templates(t *testing.T) (
 	sqlDB *sql.DB,
 	ctx context.Context,
 	orgID uuid.UUID,
