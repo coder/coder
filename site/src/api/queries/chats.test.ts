@@ -3475,7 +3475,7 @@ describe("message upsert fan-out and history replacement", () => {
 	): TypesGen.ChatMessage => ({
 		...MockChatMessage,
 		id,
-		content: [{ type: "text" as const, text }],
+		content: [{ type: "text", text }],
 	});
 
 	/** Seed and read back the canonical stored object so reference
