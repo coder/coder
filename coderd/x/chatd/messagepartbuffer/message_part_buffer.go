@@ -290,17 +290,17 @@ func (b *Buffer) GetParts(key Key) ([]Part, error) {
 	return slices.Clone(episode.parts), nil
 }
 
-// ModelInvocationDuration returns the wall-clock span between
-// StartModelInvocation and CloseEpisode. It returns 0 when the episode is
-// unknown, never opened a provider stream, or is not closed yet.
-func (b *Buffer) ModelInvocationDuration(key Key) time.Duration {
+// ModelInvokedAt returns the instant stamped by StartModelInvocation, or the
+// zero time if there is none. Read it before CloseEpisode: closed episodes
+// are garbage collected, so reading afterwards races the cleanup loop.
+func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
-	if episode == nil || episode.modelStartedAt.IsZero() || !episode.closed {
-		return 0
+	if episode == nil {
+		return time.Time{}
 	}
-	return episode.closedAt.Sub(episode.modelStartedAt)
+	return episode.modelStartedAt
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/quartz"
 )
 
 const (
@@ -146,6 +145,9 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if opts.Model == nil {
 		return CompactionResult{}, xerrors.New("chat model is required")
 	}
+	if opts.Clock == nil {
+		return CompactionResult{}, xerrors.New("clock is required")
+	}
 	config, ok := normalizedCompactionGenerateConfig(opts)
 	if !ok {
 		return CompactionResult{}, nil
@@ -177,11 +179,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		)
 	}
 
-	clock := opts.Clock
-	if clock == nil {
-		clock = quartz.NewReal()
-	}
-	summaryStart := clock.Now()
+	summaryStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
 		opts.OnModelStreamStart()
 	}
@@ -190,7 +188,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		publishCompactionError(config, "failed to generate compaction summary")
 		return CompactionResult{}, err
 	}
-	summaryRuntime := clock.Since(summaryStart)
+	summaryRuntime := opts.Clock.Since(summaryStart)
 	if summary == "" {
 		publishCompactionError(config, "compaction produced an empty summary")
 		return CompactionResult{}, xerrors.New("compaction produced an empty summary")

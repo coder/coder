@@ -311,7 +311,7 @@ type GenerateCompactionOptions struct {
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
-	// Clock measures the summary call duration. Nil uses a real clock.
+	// Clock measures the summary call duration. Required.
 	Clock quartz.Clock
 
 	// OnModelStreamStart runs immediately before the summary model call,
