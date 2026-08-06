@@ -426,6 +426,24 @@ func UsersFilter(
 			},
 		},
 		{
+			Name: "ExactUsername",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "username:" + strings.ToUpper(users[0].Username),
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return strings.EqualFold(u.Username, users[0].Username)
+			},
+		},
+		{
+			Name: "ExactEmail",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "email:" + strings.ToUpper(users[0].Email),
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return strings.EqualFold(u.Email, users[0].Email)
+			},
+		},
+		{
 			Name: "NameNoMatch",
 			Filter: codersdk.UsersRequest{
 				Search: "nonexistent",

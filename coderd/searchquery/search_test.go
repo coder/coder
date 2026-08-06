@@ -854,6 +854,26 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UsernameFilter",
+			Query: "username:Alice",
+			Expected: database.GetUsersParams{
+				ExactUsername: "alice",
+				Status:        []database.UserStatus{},
+				RbacRole:      []string{},
+				LoginType:     []database.LoginType{},
+			},
+		},
+		{
+			Name:  "EmailFilter",
+			Query: "email:Alice@Example.com",
+			Expected: database.GetUsersParams{
+				ExactEmail: "alice@example.com",
+				Status:     []database.UserStatus{},
+				RbacRole:   []string{},
+				LoginType:  []database.LoginType{},
+			},
+		},
+		{
 			Name:  "NameFilterWithOtherParams",
 			Query: "name:John status:active role:owner",
 			Expected: database.GetUsersParams{

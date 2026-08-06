@@ -390,6 +390,8 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		AfterID:          paginationParams.AfterID,
 		Search:           params.Search,
 		Name:             params.Name,
+		ExactUsername:    params.ExactUsername,
+		ExactEmail:       params.ExactEmail,
 		Status:           params.Status,
 		IsServiceAccount: params.IsServiceAccount,
 		RbacRole:         params.RbacRole,
