@@ -5376,14 +5376,10 @@ export interface Feature {
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
-	 * license).
-	 *
-	 * These dates are determined from the license that this entitlement comes
-	 * from, see enterprise/coderd/license/license.go.
-	 *
-	 * Only certain features set these fields:
-	 * - FeatureManagedAgentLimit
-	 * - FeatureAgentRuntimeHours
+	 * license). These dates are determined from the license that this
+	 * entitlement comes from, see enterprise/coderd/license/license.go.
+	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	 * field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5944,6 +5940,20 @@ export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
 
 // From codersdk/licenses.go
 /**
+ * LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
+ * license carries Coder Agent runtime hour claims that do not fit
+ * together (for example a soft limit at or above the allocation, or a
+ * threshold without an allocation). The unusable claims are ignored
+ * rather than invalidating the signed license, so without this warning a
+ * incorrectly issued license would be undetectable from the deployment. The
+ * dashboard recognizes the exact text and renders it as a muted
+ * diagnostic without a sales link.
+ */
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"The current license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of the license is unaffected. Contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
+/**
  * LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
  * deployment reaches the advisory soft limit but is still within its
  * runtime hour allocation. All placeholders are whole hours: the runtime
@@ -5963,20 +5973,11 @@ export const LicenseAgentRuntimeHoursSoftLimitWarningText =
 
 // From codersdk/licenses.go
 /**
- * LicenseAgentRuntimeUsageNotConfiguredWarningText is the Coder Agent
- * runtime hours sibling of
- * LicenseManagedAgentUsageNotConfiguredWarningText.
- */
-export const LicenseAgentRuntimeUsageNotConfiguredWarningText =
-	"Coder Agent runtime usage measurement is not configured. This is a bug in Coder; please report it. Reported runtime hours may be stale or missing; workspaces are unaffected.";
-
-// From codersdk/licenses.go
-/**
  * LicenseAgentRuntimeUsageUnavailableWarningText is the Coder Agent
  * runtime hours sibling of LicenseManagedAgentUsageUnavailableWarningText.
  */
 export const LicenseAgentRuntimeUsageUnavailableWarningText =
-	"Unable to determine Coder Agent runtime usage. Reported runtime hours may be stale or missing; workspaces are unaffected. Check the coderd logs for details.";
+	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
@@ -5987,23 +5988,17 @@ export const LicenseManagedAgentLimitExceededWarningText =
 
 // From codersdk/licenses.go
 /**
- * LicenseManagedAgentUsageNotConfiguredWarningText is emitted when the
- * managed agent usage measurement function was never wired up. That is a
- * bug in coderd rather than a runtime failure, so unlike the
- * "unavailable" texts it does not point at the logs: nothing was logged.
- */
-export const LicenseManagedAgentUsageNotConfiguredWarningText =
-	"Managed agent usage measurement is not configured. This is a bug in Coder; please report it. The reported count may be stale or missing; workspaces are unaffected.";
-
-// From codersdk/licenses.go
-/**
  * LicenseManagedAgentUsageUnavailableWarningText is emitted when the
  * managed agent usage query fails while computing entitlements. The
  * cause is logged by the query closure; this stable text is served on
- * the unauthenticated entitlements payload instead of the raw error.
+ * the unauthenticated entitlements payload instead of the raw error. It
+ * travels in the entitlements Errors channel so the alertable
+ * coderd_license_errors gauge keeps counting measurement failures; the
+ * dashboard recognizes the exact text and renders it as a muted
+ * diagnostic rather than a license error.
  */
 export const LicenseManagedAgentUsageUnavailableWarningText =
-	"Unable to determine managed agent usage. The reported count may be stale or missing; workspaces are unaffected. Check the coderd logs for details.";
+	"Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =

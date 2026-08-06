@@ -20658,7 +20658,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "usage_period": {
-                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense). These dates are determined from the license that this\nentitlement comes from, see enterprise/coderd/license/license.go.\nOnly FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this\nfield.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UsagePeriod"

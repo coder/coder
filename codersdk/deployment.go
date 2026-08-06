@@ -404,14 +404,10 @@ type Feature struct {
 
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
-	// license).
-	//
-	// These dates are determined from the license that this entitlement comes
-	// from, see enterprise/coderd/license/license.go.
-	//
-	// Only certain features set these fields:
-	// - FeatureManagedAgentLimit
-	// - FeatureAgentRuntimeHours
+	// license). These dates are determined from the license that this
+	// entitlement comes from, see enterprise/coderd/license/license.go.
+	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	// field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 

@@ -39,20 +39,24 @@ const (
 	// LicenseManagedAgentUsageUnavailableWarningText is emitted when the
 	// managed agent usage query fails while computing entitlements. The
 	// cause is logged by the query closure; this stable text is served on
-	// the unauthenticated entitlements payload instead of the raw error.
-	LicenseManagedAgentUsageUnavailableWarningText = "Unable to determine managed agent usage. The reported count may be stale or missing; workspaces are unaffected. Check the coderd logs for details."
+	// the unauthenticated entitlements payload instead of the raw error. It
+	// travels in the entitlements Errors channel so the alertable
+	// coderd_license_errors gauge keeps counting measurement failures; the
+	// dashboard recognizes the exact text and renders it as a muted
+	// diagnostic rather than a license error.
+	LicenseManagedAgentUsageUnavailableWarningText = "Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	// LicenseAgentRuntimeUsageUnavailableWarningText is the Coder Agent
 	// runtime hours sibling of LicenseManagedAgentUsageUnavailableWarningText.
-	LicenseAgentRuntimeUsageUnavailableWarningText = "Unable to determine Coder Agent runtime usage. Reported runtime hours may be stale or missing; workspaces are unaffected. Check the coderd logs for details."
-	// LicenseManagedAgentUsageNotConfiguredWarningText is emitted when the
-	// managed agent usage measurement function was never wired up. That is a
-	// bug in coderd rather than a runtime failure, so unlike the
-	// "unavailable" texts it does not point at the logs: nothing was logged.
-	LicenseManagedAgentUsageNotConfiguredWarningText = "Managed agent usage measurement is not configured. This is a bug in Coder; please report it. The reported count may be stale or missing; workspaces are unaffected."
-	// LicenseAgentRuntimeUsageNotConfiguredWarningText is the Coder Agent
-	// runtime hours sibling of
-	// LicenseManagedAgentUsageNotConfiguredWarningText.
-	LicenseAgentRuntimeUsageNotConfiguredWarningText = "Coder Agent runtime usage measurement is not configured. This is a bug in Coder; please report it. Reported runtime hours may be stale or missing; workspaces are unaffected."
+	LicenseAgentRuntimeUsageUnavailableWarningText = "Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
+	// LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
+	// license carries Coder Agent runtime hour claims that do not fit
+	// together (for example a soft limit at or above the allocation, or a
+	// threshold without an allocation). The unusable claims are ignored
+	// rather than invalidating the signed license, so without this warning a
+	// incorrectly issued license would be undetectable from the deployment. The
+	// dashboard recognizes the exact text and renders it as a muted
+	// diagnostic without a sales link.
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText = "The current license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of the license is unaffected. Contact support to have the license re-issued."
 )
 
 type AddLicenseRequest struct {

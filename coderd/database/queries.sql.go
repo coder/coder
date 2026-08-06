@@ -29354,8 +29354,9 @@ type GetTotalUsageHBAgentRuntimeV1Params struct {
 //
 // SUM is only correct because there is at most one row per bucket, which
 // the unique index enforces regardless of id: a second hb_agent_runtime_v1
-// row for a bucket that already has one is suppressed by InsertUsageEvent's
-// ON CONFLICT DO NOTHING instead of double counting. This also depends on
+// row for a bucket that already has one either re-uses the deterministic id
+// (a no-op via InsertUsageEvent's ON CONFLICT (id) DO NOTHING) or raises a
+// unique violation instead of double counting. This also depends on
 // usage_events rows being retained; if a retention policy ever lands, this
 // must move to the usage_events_daily rollup and accept day-granularity
 // bounds.
@@ -29379,7 +29380,7 @@ INSERT INTO
     )
 VALUES
     ($1, $2, $3, $4, NULL, NULL, NULL)
-ON CONFLICT DO NOTHING
+ON CONFLICT (id) DO NOTHING
 `
 
 type InsertUsageEventParams struct {
@@ -29389,13 +29390,15 @@ type InsertUsageEventParams struct {
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
-// Duplicate events are ignored intentionally to allow for multiple replicas to
-// publish heartbeat events. DO NOTHING carries no arbiter on purpose: an
-// insert must be suppressed whichever unique constraint it collides with,
-// both a duplicate id and, for hb_agent_runtime_v1, a duplicate bucket under
-// idx_usage_events_agent_runtime. With an (id) arbiter, two replicas racing
-// the same bucket could surface the conflict on the non-arbiter index as an
-// error instead.
+// Duplicate events are ignored intentionally to allow for multiple replicas
+// to publish heartbeat events. The (id) arbiter scopes that tolerance to
+// exact re-inserts of the same event: for hb_agent_runtime_v1, a duplicate
+// bucket under a different id conflicts on idx_usage_events_agent_runtime,
+// which is not the arbiter, so it raises instead of being silently dropped.
+// The arbiter's pre-check only sees committed rows, so two replicas
+// inserting the same id concurrently can also surface that unique violation;
+// the generator recognizes this race and treats it as benign (see
+// enterprise/coderd/usage/generator.go).
 func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
 	_, err := q.db.ExecContext(ctx, insertUsageEvent,
 		arg.ID,

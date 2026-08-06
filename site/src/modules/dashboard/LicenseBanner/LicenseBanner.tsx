@@ -1,12 +1,11 @@
 import type { FC } from "react";
 import {
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
-	LicenseAgentRuntimeUsageNotConfiguredWarningText,
 	LicenseAgentRuntimeUsageUnavailableWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageNotConfiguredWarningText,
 	LicenseManagedAgentUsageUnavailableWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
@@ -31,12 +30,30 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
+// Diagnostics about the license or the usage measurement rather than about
+// usage itself. They point the operator at the coderd logs or at Coder
+// support, so they render muted, without the exceedance heading, and without
+// a sales link. The "unavailable" pair arrives via entitlements.errors so
+// the alertable coderd_license_errors gauge keeps counting measurement
+// failures, but nothing about the license is wrong, so they must not render
+// as license errors.
+const diagnosticMessages: readonly string[] = [
+	LicenseManagedAgentUsageUnavailableWarningText,
+	LicenseAgentRuntimeUsageUnavailableWarningText,
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+];
+
+const isDiagnosticMessage = (message: string): boolean =>
+	diagnosticMessages.includes(message);
+
 // Advisory warnings render in the muted variant: nothing is wrong yet, so
 // they must be visually distinct from warnings that demand action, such as
-// reaching the runtime hours allocation.
+// reaching the runtime hours allocation. Diagnostics are muted for the same
+// reason, whichever channel they arrive on.
 const isMutedWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
-	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
+	message.startsWith(agentRuntimeSoftLimitWarningPrefix) ||
+	isDiagnosticMessage(message);
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
@@ -110,15 +127,6 @@ const normalizeAIGovernanceWarning = (
 	);
 };
 
-// Usage-measurement diagnostics point the operator at the coderd logs or at
-// a Coder bug; a sales link under them would contradict the message.
-const diagnosticWarnings: readonly string[] = [
-	LicenseManagedAgentUsageUnavailableWarningText,
-	LicenseManagedAgentUsageNotConfiguredWarningText,
-	LicenseAgentRuntimeUsageUnavailableWarningText,
-	LicenseAgentRuntimeUsageNotConfiguredWarningText,
-];
-
 const messageLink = (message: string): LicenseBannerLink | undefined => {
 	if (message === LicenseManagedAgentLimitExceededWarningText) {
 		return {
@@ -135,7 +143,14 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 			showExternalIcon: false,
 		};
 	}
-	if (diagnosticWarnings.includes(message)) {
+	// Diagnostics tell the operator to check the logs or contact support; a
+	// sales link would contradict them. The advisory soft-limit warning
+	// fires inside the purchased allocation with nothing owed, so it gets no
+	// sales call-to-action either.
+	if (
+		isDiagnosticMessage(message) ||
+		message.startsWith(agentRuntimeSoftLimitWarningPrefix)
+	) {
 		return undefined;
 	}
 	return {
@@ -169,7 +184,12 @@ export const LicenseBanner: FC = () => {
 	const messages: LicenseBannerMessage[] = [
 		...errors.map((message) => ({
 			message,
-			variant: "error" as const,
+			// Measurement diagnostics travel in the errors channel for the
+			// Prometheus gauge but are not license errors; see
+			// diagnosticMessages.
+			variant: isDiagnosticMessage(message)
+				? ("warning" as const)
+				: ("error" as const),
 			link: messageLink(message),
 		})),
 		...normalizedWarnings.map((message) => ({

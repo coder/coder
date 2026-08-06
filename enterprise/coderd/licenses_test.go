@@ -111,9 +111,9 @@ func TestPostLicense(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		// A soft limit claim without an allocation claim is unusable, but it
-		// never rejects the whole license: the license stays valid and the
-		// runtime hours feature is simply not granted. See
-		// decodeAgentRuntimeHours.
+		// never rejects the whole license: the license stays valid, the
+		// runtime hours feature is simply not granted, and the dropped claim
+		// is surfaced as a warning. See decodeAgentRuntimeHours.
 		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureUserLimit:               100,
@@ -130,6 +130,8 @@ func TestPostLicense(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Empty(t, entitlements.Errors)
+		require.Contains(t, entitlements.Warnings,
+			codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
 		feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 		require.Nil(t, feature.Limit)
 		require.Nil(t, feature.UsagePeriod)

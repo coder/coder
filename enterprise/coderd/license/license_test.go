@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1049,13 +1050,15 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := license.Entitlements(context.Background(), logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Empty(t, entitlements.Errors)
 
-		// Both failures surface their stable warning without the raw cause.
-		require.Contains(t, entitlements.Warnings, codersdk.LicenseManagedAgentUsageUnavailableWarningText)
-		require.Contains(t, entitlements.Warnings, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText)
-		for _, warning := range entitlements.Warnings {
-			require.NotContains(t, warning, "kaboom")
+		// Both failures surface their stable text without the raw cause.
+		// They land in Errors so the coderd_license_errors gauge keeps
+		// counting measurement failures; the dashboard renders these exact
+		// texts as muted diagnostics rather than license errors.
+		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableWarningText)
+		require.Contains(t, entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText)
+		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
+			require.NotContains(t, entry, "kaboom")
 		}
 
 		logs := logBuf.String()
@@ -1469,19 +1472,19 @@ func TestLicenseEntitlements(t *testing.T) {
 	}
 
 	// agentRuntimeHoursLicense builds an enterprise license carrying the agent
-	// runtime hour claims. A softLimit of 0 omits the soft limit claim, which
-	// a license is allowed to do. For a positive allocation the helper also
-	// carries a hard limit as a convenience; it picks a value above the
-	// allocation because decodeAgentRuntimeHours ignores a lower one.
-	agentRuntimeHoursLicense := func(allocation, softLimit int64) *coderdenttest.LicenseOptions {
-		var soft, hard *int64
-		if softLimit > 0 {
-			soft = &softLimit
-		}
+	// runtime hour claims. A nil softLimit omits the soft limit claim, which
+	// a license is allowed to do; any non-nil value is minted verbatim,
+	// matching LicenseOptions.AgentRuntimeHours, so tests can construct
+	// explicit zero or nonsensical soft limits. For a positive allocation the
+	// helper also carries a hard limit as a convenience; it picks a value
+	// above the allocation because decodeAgentRuntimeHours ignores a lower
+	// one.
+	agentRuntimeHoursLicense := func(allocation int64, softLimit *int64) *coderdenttest.LicenseOptions {
+		var hard *int64
 		if allocation > 0 {
 			hard = ptr.Ref(allocation + 20)
 		}
-		return enterpriseLicense().UserLimit(100).AgentRuntimeHours(allocation, soft, hard)
+		return enterpriseLicense().UserLimit(100).AgentRuntimeHours(allocation, softLimit, hard)
 	}
 
 	// hoursToMsFn reports whole hours of runtime as the milliseconds the usage
@@ -1515,6 +1518,9 @@ func TestLicenseEntitlements(t *testing.T) {
 		// KeepNilAgentRuntimeMsFn skips the default AgentRuntimeMsFn
 		// injection below so the nil dev-error path can be exercised.
 		KeepNilAgentRuntimeMsFn bool
+		// KeepNilManagedAgentCountFn is the managed agent sibling of
+		// KeepNilAgentRuntimeMsFn.
+		KeepNilManagedAgentCountFn bool
 
 		ExpectedErrorContains string
 		AssertEntitlements    func(t *testing.T, entitlements codersdk.Entitlements)
@@ -1771,7 +1777,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// warning fires.
 			Name: "AgentRuntimeHours/UnderSoftLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(79),
@@ -1794,7 +1800,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// the soft limit.
 			Name: "AgentRuntimeHours/AtSoftLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(80),
@@ -1812,7 +1818,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		{
 			Name: "AgentRuntimeHours/BetweenSoftLimitAndAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(99),
@@ -1829,7 +1835,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// warning is emitted rather than both.
 			Name: "AgentRuntimeHours/AtAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(100),
@@ -1846,7 +1852,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		{
 			Name: "AgentRuntimeHours/OverAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(150),
@@ -1866,7 +1872,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// below the allocation then warns about nothing.
 			Name: "AgentRuntimeHours/NoSoftLimitClaim",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 0),
+				agentRuntimeHoursLicense(100, nil),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(99),
@@ -1884,7 +1890,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// The allocation still warns when there is no soft limit claim.
 			Name: "AgentRuntimeHours/NoSoftLimitClaimAtAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 0),
+				agentRuntimeHoursLicense(100, nil),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(100),
@@ -1902,7 +1908,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// reported. See decodeAgentRuntimeHours.
 			Name: "AgentRuntimeHours/ZeroAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(0, 0),
+				agentRuntimeHoursLicense(0, nil),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(50),
@@ -1923,7 +1929,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// 100 hour allocation.
 			Name: "AgentRuntimeHours/PartialHourFloored",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -1964,12 +1970,12 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A query failure is surfaced as a stable warning, not a license
-			// error, and leaves Actual unset without aborting the rest of
-			// the entitlements.
+			// A query failure is surfaced as a stable text in Errors (the
+			// channel the coderd_license_errors gauge counts) and leaves
+			// Actual unset without aborting the rest of the entitlements.
 			Name: "AgentRuntimeHours/QueryError",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -1977,12 +1983,12 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoErrors(t, entitlements)
-				require.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText, entitlements.Warnings[0])
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText, entitlements.Errors[0])
 				// The raw error is logged rather than exposed on the
 				// unauthenticated entitlements payload.
-				assert.NotContains(t, entitlements.Warnings[0], "kaboom")
+				assert.NotContains(t, entitlements.Errors[0], "kaboom")
 				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 				assert.Nil(t, feature.Actual)
 				// The rest of the entitlements are still computed.
@@ -1991,7 +1997,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// The managed agent sibling of QueryError: the stable warning
+			// The managed agent sibling of QueryError: the stable text
 			// hides the raw cause the same way.
 			Name: "ManagedAgentLimit/QueryError",
 			Licenses: []*coderdenttest.LicenseOptions{
@@ -2003,38 +2009,40 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoErrors(t, entitlements)
-				require.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableWarningText, entitlements.Warnings[0])
-				assert.NotContains(t, entitlements.Warnings[0], "kaboom")
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableWarningText, entitlements.Errors[0])
+				assert.NotContains(t, entitlements.Errors[0], "kaboom")
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Nil(t, feature.Actual)
 			},
 		},
 		{
-			// Forgetting to wire AgentRuntimeMsFn is a dev error. It is
-			// surfaced with its own warning text, distinct from a query
-			// failure: no query ran, so nothing was logged and pointing the
-			// operator at the logs would be false.
+			// Forgetting to wire AgentRuntimeMsFn is a dev error: production
+			// always provides both closures, so it fails the whole call
+			// loudly instead of degrading into an operator-facing message.
 			Name: "AgentRuntimeHours/NilRuntimeFnDevError",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			KeepNilAgentRuntimeMsFn: true,
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoErrors(t, entitlements)
-				require.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageNotConfiguredWarningText, entitlements.Warnings[0])
-				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
-				assert.Nil(t, feature.Actual)
+			ExpectedErrorContains:   "developer error: no closure provided to measure agent runtime usage",
+		},
+		{
+			// The managed agent sibling of NilRuntimeFnDevError.
+			Name: "ManagedAgentLimit/NilFnDevError",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
 			},
+			KeepNilManagedAgentCountFn: true,
+			ExpectedErrorContains:      "developer error: no closure provided to measure managed agent count usage",
 		},
 		{
 			// A canceled context aborts the whole call rather than degrading
 			// to an entitlements error.
 			Name: "AgentRuntimeHours/ContextCanceled",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -2044,11 +2052,40 @@ func TestLicenseEntitlements(t *testing.T) {
 			ExpectedErrorContains: "get agent runtime",
 		},
 		{
+			// The managed agent sibling of ContextCanceled.
+			Name: "ManagedAgentLimit/ContextCanceled",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, context.Canceled
+				},
+			},
+			ExpectedErrorContains: "get managed agent count",
+		},
+		{
+			// A cancel that reached Postgres comes back as SQLSTATE 57014
+			// rather than a context sentinel; it must abort the call the
+			// same way instead of publishing a false "usage unavailable"
+			// diagnostic.
+			Name: "AgentRuntimeHours/QueryCanceledInPostgres",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.Errorf("query: %w", &pq.Error{Code: "57014"})
+				},
+			},
+			ExpectedErrorContains: "get agent runtime",
+		},
+		{
 			// A grace-period license still reports Actual and still warns at
 			// its thresholds.
 			Name: "AgentRuntimeHours/GracePeriod",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, 80).GracePeriod(time.Now()),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)).GracePeriod(time.Now()),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(100),
@@ -2094,7 +2131,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			}
 
 			// Default to 0 managed agent count.
-			if tc.Arguments.ManagedAgentCountFn == nil {
+			if tc.Arguments.ManagedAgentCountFn == nil && !tc.KeepNilManagedAgentCountFn {
 				tc.Arguments.ManagedAgentCountFn = func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 					return 0, nil
 				}
@@ -2131,6 +2168,18 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 
+	// A Premium license grants a managed agent limit by default, and a nil
+	// usage closure is a hard developer error, so these subtests wire
+	// zero-usage measurement closures.
+	zeroUsageArgs := license.FeatureArguments{
+		ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+			return 0, nil
+		},
+		AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+			return 0, nil
+		},
+	}
+
 	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
 		// License without addon and AI Bridge disabled should NOT show warning.
@@ -2150,7 +2199,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -2177,7 +2226,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -2209,7 +2258,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -2240,7 +2289,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -2253,7 +2302,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 		t.Parallel()
 		// No license with AI Bridge enabled should NOT show the soft warning
 		// (it will show the generic "not entitled" warning instead).
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -3083,6 +3132,11 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 
 		// expectFeature is nil when the feature must be absent.
 		expectFeature *codersdk.Feature
+		// expectClaimsIgnored is true when at least one present claim is
+		// dropped, which must surface the claims-ignored warning: tolerating
+		// a claim and signaling nothing would make a incorrectly issued license
+		// undetectable from the deployment.
+		expectClaimsIgnored bool
 	}{
 		{
 			name: "AllClaims",
@@ -3110,7 +3164,9 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 		},
 		{
 			// A zero soft limit would warn at zero usage forever, so it is
-			// treated as "no soft limit" rather than rejecting the license.
+			// dropped rather than rejecting the license. The canonical way
+			// to express "no soft limit" is omitting the claim, so a
+			// present-but-dropped zero still warns.
 			name: "ZeroSoft",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: 100,
@@ -3120,6 +3176,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: true,
 				Limit:   ptr.Ref[int64](100),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "NegativeSoft",
@@ -3131,6 +3188,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: true,
 				Limit:   ptr.Ref[int64](100),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			// A soft limit at or above the allocation could never fire
@@ -3144,6 +3202,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: true,
 				Limit:   ptr.Ref[int64](100),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "SoftAboveAllocation",
@@ -3155,6 +3214,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: true,
 				Limit:   ptr.Ref[int64](100),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "HardEqualsAllocation",
@@ -3178,6 +3238,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: true,
 				Limit:   ptr.Ref[int64](100),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "ZeroAllocation",
@@ -3191,7 +3252,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 		},
 		{
 			// A zero allocation has no hour budget, so threshold claims
-			// alongside it are ignored.
+			// alongside it are dropped, with the warning.
 			name: "ZeroAllocationWithLimits",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: 0,
@@ -3202,24 +3263,28 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				Enabled: false,
 				Limit:   ptr.Ref[int64](0),
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "NegativeAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: -1,
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "SoftWithoutAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursLimitSoft: 80,
 			},
+			expectClaimsIgnored: true,
 		},
 		{
 			name: "HardWithoutAllocation",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursLimitHard: 120,
 			},
+			expectClaimsIgnored: true,
 		},
 	}
 
@@ -3260,6 +3325,15 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 			require.NotNil(t, userLimit.Limit)
 			require.EqualValues(t, 100, *userLimit.Limit)
+
+			// Dropped claims are tolerated but never silent.
+			if tc.expectClaimsIgnored {
+				require.Contains(t, entitlements.Warnings,
+					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+			} else {
+				require.NotContains(t, entitlements.Warnings,
+					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+			}
 
 			// Every known feature name has a default entry in the map, so
 			// "the license does not grant the feature" surfaces as the
