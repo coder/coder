@@ -731,7 +731,6 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
-		CapacityQueuedAt:     sql.NullTime{Time: now, Valid: true},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
@@ -760,9 +759,9 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	typ := v.Type()
 	// HasUnread is populated by ChatRowsWithChildren (which joins the
 	// read-cursor query), not by Chat. Warnings is a transient
-	// field populated by handlers, not the converter. Both are
-	// expected to remain zero here.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true}
+	// field populated by handlers. QueuedForCapacity is derived on
+	// read by chatd, not stored. All are expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {

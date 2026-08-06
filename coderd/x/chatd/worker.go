@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // chatWorker owns chat acquisition and runner lifecycle for one process.
@@ -29,6 +28,12 @@ type chatWorker struct {
 	unsubscribe func()
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
+
+	// capacityQueue tracks chats this replica refused for capacity, keyed to
+	// the first observed refusal. It drives capacity_change events and the
+	// wait histogram; queued state itself is derived from the database.
+	capacityMu    sync.Mutex
+	capacityQueue map[uuid.UUID]time.Time
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -41,7 +46,11 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{server: server, opts: withDefaults}, nil
+	return &chatWorker{
+		server:        server,
+		opts:          withDefaults,
+		capacityQueue: map[uuid.UUID]time.Time{},
+	}, nil
 }
 
 // chatWorkerID returns this worker's configured worker ID.
@@ -98,6 +107,11 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
+	if w.opts.CapacityMetrics != nil && w.opts.AgentCapacityPolicy != nil {
+		w.wg.Go(func() {
+			w.capacityMetricsLoop(workerCtx)
+		})
+	}
 	wake(wakeCh)
 	return nil
 }
@@ -194,6 +208,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 	// One refusal marks the pool full for the rest of the pass. The key is
 	// parent_chat_id presence: false for roots, true for subagents.
 	refusedPools := map[bool]bool{}
+	seen := map[uuid.UUID]struct{}{}
 	for {
 		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 			StaleSeconds: w.opts.HeartbeatStaleSeconds,
@@ -206,16 +221,13 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 			}
 			return
 		}
-		if len(rows) == 0 {
-			return
-		}
 		progressed := false
 		for _, row := range rows {
 			excludeIDs = append(excludeIDs, row.ID)
+			seen[row.ID] = struct{}{}
 			if row.Status == database.ChatStatusRunning && refusedPools[row.ParentChatID.Valid] {
-				if !row.CapacityQueuedAt.Valid {
+				if w.enterCapacityQueue(ctx, row.ID) {
 					progressed = true
-					w.markCapacityQueued(ctx, row.ID)
 				}
 				continue
 			}
@@ -223,6 +235,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 			err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
 			if errors.Is(err, errCapacityRefused) {
 				refusedPools[row.ParentChatID.Valid] = true
+				w.enterCapacityQueue(ctx, row.ID)
 				continue
 			}
 			if err != nil {
@@ -232,8 +245,14 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 				w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
 			}
 		}
+		if len(rows) < int(w.opts.AcquisitionBatchSize) {
+			// A complete scan proves absent chats left the queue.
+			w.pruneCapacityQueue(seen)
+			return
+		}
 		// An all-skipped batch means the available pool heads were tried.
-		if !progressed || len(rows) < int(w.opts.AcquisitionBatchSize) {
+		// The scan is partial, so skip pruning.
+		if !progressed {
 			return
 		}
 	}
@@ -266,7 +285,6 @@ func (w *chatWorker) acquireCandidate(
 ) error {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	admittedFromQueue := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -306,29 +324,26 @@ func (w *chatWorker) acquireCandidate(
 				return errCapacityRefused
 			}
 		}
-		// Clear markers left by deployments with admission enabled, even when
-		// this worker has no admission hook.
-		if chat.CapacityQueuedAt.Valid {
-			if _, err := store.ClearChatCapacityQueued(ctx, chat.ID); err != nil {
-				return xerrors.Errorf("clear capacity queue marker: %w", err)
-			}
-			admittedFromQueue = true
-		}
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
-		w.markCapacityQueued(ctx, chatID)
 		return errCapacityRefused
 	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
+		// The chat is owned elsewhere or stopped being runnable, so it left
+		// the capacity queue without a local admission.
+		w.dropCapacityQueue(chatID)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if admittedFromQueue {
-		w.publishCapacityChange(ctx, chatID)
+	if firstRefusedAt, wasQueued := w.dropCapacityQueue(chatID); wasQueued {
+		if w.opts.CapacityMetrics != nil {
+			w.opts.CapacityMetrics.waitSeconds.Observe(max(0, w.opts.Clock.Since(firstRefusedAt).Seconds()))
+		}
+		w.publishCapacityChange(ctx, chatID, false)
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
@@ -339,30 +354,9 @@ func (w *chatWorker) acquireCandidate(
 	return nil
 }
 
-// SQL fences prevent marking chats that were archived, left a generating
-// status, or gained a live owner after refusal.
-func (w *chatWorker) markCapacityQueued(ctx context.Context, chatID uuid.UUID) {
-	marked, err := w.opts.Store.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-		ID:           chatID,
-		StaleSeconds: w.opts.HeartbeatStaleSeconds,
-	})
-	if err != nil {
-		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "chatworker mark capacity queued failed", slogError(err))
-		}
-		return
-	}
-	if marked == 0 {
-		return
-	}
-	if w.opts.AgentAdmission != nil {
-		w.opts.AgentAdmission.RecordQueued()
-	}
-	w.publishCapacityChange(ctx, chatID)
-}
-
-// Capacity writes do not bump updated_at, so clients need a dedicated event.
-func (w *chatWorker) publishCapacityChange(ctx context.Context, chatID uuid.UUID) {
+// Capacity refusals leave no database trace, so clients need a dedicated
+// event carrying the derived queued state.
+func (w *chatWorker) publishCapacityChange(ctx context.Context, chatID uuid.UUID, queued bool) {
 	chat, err := w.opts.Store.GetChatByID(ctx, chatID)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -370,7 +364,7 @@ func (w *chatWorker) publishCapacityChange(ctx context.Context, chatID uuid.UUID
 		}
 		return
 	}
-	w.server.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCapacityChange, nil)
+	w.server.publishChatCapacityChange(chat, queued)
 }
 
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {

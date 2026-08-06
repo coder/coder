@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
@@ -19,8 +21,7 @@ type fakeAdmission struct {
 	mu      sync.Mutex
 	refused map[uuid.UUID]bool
 
-	admitCalls    int
-	queuedRecords int
+	admitCalls int
 }
 
 func newFakeAdmission() *fakeAdmission {
@@ -46,29 +47,31 @@ func (f *fakeAdmission) Admit(_ context.Context, _ database.Store, chat database
 	return !f.refused[chat.ID], nil
 }
 
-func (f *fakeAdmission) RecordQueued() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.queuedRecords++
-}
-
 func (f *fakeAdmission) admitCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.admitCalls
 }
 
-func (f *fakeAdmission) queuedRecordCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.queuedRecords
+type fakeCapacityPolicy struct {
+	limits AgentCapacityLimits
 }
 
-func capacityQueuedAt(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) *database.Chat {
-	t.Helper()
-	chat, err := db.GetChatByID(ctx, chatID)
-	require.NoError(t, err)
-	return &chat
+func (p fakeCapacityPolicy) CurrentLimits() AgentCapacityLimits {
+	return p.limits
+}
+
+func (w *chatWorker) capacityQueueContains(chatID uuid.UUID) bool {
+	w.capacityMu.Lock()
+	defer w.capacityMu.Unlock()
+	_, ok := w.capacityQueue[chatID]
+	return ok
+}
+
+func (w *chatWorker) capacityQueueLen() int {
+	w.capacityMu.Lock()
+	defer w.capacityMu.Unlock()
+	return len(w.capacityQueue)
 }
 
 func chatOwnershipMessages(t *testing.T, ps *recordingPubsub, chatID uuid.UUID) int {
@@ -105,50 +108,23 @@ func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
 
 	chat := f.createRunningChat(t)
 	admission.refuse(chat.ID)
-	startWorker(t, opts)
+	worker := startWorker(t, opts)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	require.Eventually(t, func() bool {
-		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+		return worker.capacityQueueContains(chat.ID)
 	}, testutil.WaitLong, testutil.IntervalFast)
 	starter.assertNoCall(t)
 
 	events := capacityEvents(t, recording, chat.ID)
 	require.NotEmpty(t, events)
-	require.NotNil(t, events[len(events)-1].Chat.QueuedForCapacityAt)
+	require.True(t, events[len(events)-1].Chat.QueuedForCapacity)
 
 	// The recorder wraps only worker pubsub, so an ownership hint here would
 	// prove a refusal can wake workers into an immediate retry loop.
 	require.Equal(t, 0, chatOwnershipMessages(t, recording, chat.ID))
 }
 
-func TestWorker_RefusalRecordsQueueEntryOnce(t *testing.T) {
-	t.Parallel()
-	f := newWorkerTestFixture(t)
-	starter := newRecordingTaskStarter()
-	admission := newFakeAdmission()
-	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = admission
-
-	chat := f.createRunningChat(t)
-	admission.refuse(chat.ID)
-	worker := startWorker(t, opts)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	require.Eventually(t, func() bool {
-		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
-	}, testutil.WaitLong, testutil.IntervalFast)
-	require.Equal(t, 1, admission.queuedRecordCount())
-
-	admitCallsAfterMark := admission.admitCallCount()
-	worker.Wake()
-	require.Eventually(t, func() bool {
-		return admission.admitCallCount() > admitCallsAfterMark
-	}, testutil.WaitLong, testutil.IntervalFast)
-	require.Equal(t, 1, admission.queuedRecordCount())
-}
-
-func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
+func TestWorker_RefusalPublishesQueuedEventOnce(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	recording := newRecordingPubsub(f.pubsub)
@@ -162,9 +138,38 @@ func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
 	admission.refuse(chat.ID)
 	worker := startWorker(t, opts)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	require.Eventually(t, func() bool {
-		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+		return worker.capacityQueueContains(chat.ID)
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Len(t, capacityEvents(t, recording, chat.ID), 1)
+
+	admitCallsAfterQueue := admission.admitCallCount()
+	worker.Wake()
+	require.Eventually(t, func() bool {
+		return admission.admitCallCount() > admitCallsAfterQueue
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Len(t, capacityEvents(t, recording, chat.ID), 1,
+		"repeated refusals of an already-queued chat must not republish the queued event")
+}
+
+func TestWorker_AdmissionAdmitPublishesClear(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	metrics := newCapacityMetrics(prometheus.NewRegistry())
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = admission
+	opts.CapacityMetrics = metrics
+
+	chat := f.createRunningChat(t)
+	admission.refuse(chat.ID)
+	worker := startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueContains(chat.ID)
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	admission.allow(chat.ID)
@@ -172,26 +177,22 @@ func TestWorker_AdmissionAdmitClearsQueueMark(t *testing.T) {
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, chat.ID, call.input.ChatID)
-	require.False(t, capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid)
+	require.False(t, worker.capacityQueueContains(chat.ID))
 
 	require.Eventually(t, func() bool {
 		events := capacityEvents(t, recording, chat.ID)
-		return len(events) >= 2 && events[len(events)-1].Chat.QueuedForCapacityAt == nil
+		return len(events) >= 2 && !events[len(events)-1].Chat.QueuedForCapacity
 	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, 1, promtestutil.CollectAndCount(metrics.waitSeconds),
+		"admitting a queued chat must observe its capacity wait")
 }
 
-func TestWorker_InterruptingSortsBeforeCapacityQueue(t *testing.T) {
+func TestWorker_InterruptingSortsBeforeRunning(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	queued := f.createRunningChat(t)
-	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-		ID:           queued.ID,
-		StaleSeconds: 30,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, marked)
+	running := f.createRunningChat(t)
 	interrupting := f.createRunningChat(t)
 	interruptChat(t, f, interrupting.ID)
 	requiresAction := f.createRequiresActionChat(t)
@@ -202,9 +203,33 @@ func TestWorker_InterruptingSortsBeforeCapacityQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(rows), 3)
-	require.Equal(t, interrupting.ID, rows[0].ID, "interrupting chats must sort before the capacity queue")
-	require.Equal(t, requiresAction.ID, rows[1].ID, "requires_action chats bypass admission and must sort before the capacity queue")
-	require.Equal(t, queued.ID, rows[2].ID)
+	require.Equal(t, interrupting.ID, rows[0].ID, "interrupting chats must sort before running chats")
+	require.Equal(t, requiresAction.ID, rows[1].ID, "requires_action chats bypass admission and must sort before running chats")
+	require.Equal(t, running.ID, rows[2].ID)
+}
+
+func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	older := f.createRunningChat(t)
+	newer := f.createRunningChat(t)
+
+	// updated_at is the FIFO key, so any write that bumps it (for example a
+	// message sent to a capacity-queued chat) re-queues the chat at the back.
+	_, err := f.sqlDB.ExecContext(ctx,
+		"UPDATE chats SET updated_at = NOW() + INTERVAL '1 hour' WHERE id = $1", older.ID)
+	require.NoError(t, err)
+
+	rows, err := f.db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
+		StaleSeconds: 30,
+		LimitCount:   10,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(rows), 2)
+	require.Equal(t, newer.ID, rows[0].ID)
+	require.Equal(t, older.ID, rows[1].ID)
 }
 
 type rootRefusingAdmission struct {
@@ -222,8 +247,6 @@ func (a *rootRefusingAdmission) Admit(_ context.Context, _ database.Store, chat 
 	return chat.ParentChatID.Valid, nil
 }
 
-func (*rootRefusingAdmission) RecordQueued() {}
-
 func (a *rootRefusingAdmission) callCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -236,20 +259,12 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.AgentAdmission = &rootRefusingAdmission{}
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// The root backlog is deep enough to hide the later subagent without
 	// pool-interleaved ordering.
 	roots := make([]database.Chat, 0, 2*int(opts.AcquisitionBatchSize)+5)
 	for range cap(roots) {
-		chat := f.createRunningChat(t)
-		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-			ID:           chat.ID,
-			StaleSeconds: 30,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, marked)
-		roots = append(roots, chat)
+		roots = append(roots, f.createRunningChat(t))
 	}
 	sub := f.createRunningSubagentChat(t, roots[0].ID)
 
@@ -266,17 +281,8 @@ func TestWorker_BatchSizeOneCannotHideAPool(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.AgentAdmission = &rootRefusingAdmission{}
 	opts.AcquisitionBatchSize = 1
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	roots := []database.Chat{f.createRunningChat(t), f.createRunningChat(t)}
-	for _, chat := range roots {
-		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-			ID:           chat.ID,
-			StaleSeconds: 30,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, marked)
-	}
 	sub := f.createRunningSubagentChat(t, roots[0].ID)
 
 	startWorker(t, opts)
@@ -292,17 +298,16 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	admission := &rootRefusingAdmission{}
 	opts.AgentAdmission = admission
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chats := make([]database.Chat, 5)
 	for i := range chats {
 		chats[i] = f.createRunningChat(t)
 	}
-	startWorker(t, opts)
+	worker := startWorker(t, opts)
 
 	require.Eventually(t, func() bool {
 		for _, chat := range chats {
-			if !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid {
+			if !worker.capacityQueueContains(chat.ID) {
 				return false
 			}
 		}
@@ -312,56 +317,49 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 		"a full pool must be skipped after one refusal, not re-refused per chat")
 }
 
-func TestWorker_AcquisitionWithoutAdmissionClearsQueueMark(t *testing.T) {
+func TestWorker_WithoutAdmissionPublishesNoCapacityEvents(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
 	require.Nil(t, opts.AgentAdmission)
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chat := f.createRunningChat(t)
-	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-		ID:           chat.ID,
-		StaleSeconds: 30,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, marked)
 	startWorker(t, opts)
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, chat.ID, call.input.ChatID)
-	require.Eventually(t, func() bool {
-		return !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
-	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Empty(t, capacityEvents(t, recording, chat.ID))
 }
 
-func TestWorker_AdmissionAdmitsInQueueOrder(t *testing.T) {
+func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = newFakeAdmission()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	admission := newFakeAdmission()
+	opts.AgentAdmission = admission
 
-	// Queue the newer chat first so FIFO order by capacity_queued_at
-	// disagrees with the fallback updated_at order.
 	older := f.createRunningChat(t)
 	newer := f.createRunningChat(t)
-	for _, id := range []uuid.UUID{newer.ID, older.ID} {
-		marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-			ID:           id,
-			StaleSeconds: 30,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, marked)
-	}
-	startWorker(t, opts)
+	admission.refuse(older.ID)
+	admission.refuse(newer.ID)
+	worker := startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueContains(older.ID) && worker.capacityQueueContains(newer.ID)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	admission.allow(older.ID)
+	admission.allow(newer.ID)
+	worker.Wake()
 
 	first := starter.waitCall(t, taskKindGeneration, uuid.Nil)
-	require.Equal(t, newer.ID, first.input.ChatID, "the longer-queued chat must admit first")
+	require.Equal(t, older.ID, first.input.ChatID, "the longer-waiting chat must admit first")
 	second := starter.waitCall(t, taskKindGeneration, uuid.Nil)
-	require.Equal(t, older.ID, second.input.ChatID)
+	require.Equal(t, newer.ID, second.input.ChatID)
 }
 
 type runningRefusingAdmission struct{}
@@ -369,8 +367,6 @@ type runningRefusingAdmission struct{}
 func (runningRefusingAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
 	return chat.Status != database.ChatStatusRunning, nil
 }
-
-func (runningRefusingAdmission) RecordQueued() {}
 
 func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	t.Parallel()
@@ -382,9 +378,8 @@ func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	chat := f.createRunningChat(t)
 	worker := startWorker(t, opts)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	require.Eventually(t, func() bool {
-		return capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid
+		return worker.capacityQueueContains(chat.ID)
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	interruptChat(t, f, chat.ID)
@@ -401,22 +396,48 @@ func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.AgentAdmission = &rootRefusingAdmission{}
 	opts.AcquisitionBatchSize = 2
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chats := make([]database.Chat, 5)
 	for i := range chats {
 		chats[i] = f.createRunningChat(t)
 	}
-	startWorker(t, opts)
+	worker := startWorker(t, opts)
 
 	require.Eventually(t, func() bool {
 		for _, chat := range chats {
-			if !capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid {
+			if !worker.capacityQueueContains(chat.ID) {
 				return false
 			}
 		}
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestWorker_PrunesDepartedChatsFromCapacityQueue(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	admission := newFakeAdmission()
+	opts := testOptions(t, f, starter)
+	opts.AgentAdmission = admission
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chat := f.createRunningChat(t)
+	admission.refuse(chat.ID)
+	worker := startWorker(t, opts)
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueContains(chat.ID)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	_, err := f.db.ArchiveChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	worker.Wake()
+
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueLen() == 0
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"archived chats must leave the local capacity queue")
 }
 
 func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {
@@ -448,26 +469,137 @@ func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
-func TestChat_StatusTransitionClearsCapacityQueueMark(t *testing.T) {
+func TestWorker_CapacityMetricsCountQueuedOnlyWhenPoolFull(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	metrics := newCapacityMetrics(prometheus.NewRegistry())
+	opts := testOptions(t, f, newRecordingTaskStarter())
+	opts.CapacityMetrics = metrics
+	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	occupied := f.createRunningChat(t)
+	acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+	f.createRunningChat(t)
+
+	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
+	require.NoError(t, err)
+	worker.refreshCapacityMetrics(ctx)
+
+	require.Equal(t, float64(1), promtestutil.ToFloat64(metrics.active.WithLabelValues("root")))
+	require.Equal(t, float64(1), promtestutil.ToFloat64(metrics.queued.WithLabelValues("root")),
+		"an unowned running chat counts as queued when its pool is full")
+
+	// Freeing the slot leaves the same unowned chat an ordinary pickup.
+	forceExecutionState(t, f, occupied.ID, database.ChatStatusWaiting, false)
+	worker.refreshCapacityMetrics(ctx)
+	require.Equal(t, float64(0), promtestutil.ToFloat64(metrics.queued.WithLabelValues("root")))
+}
+
+func TestGetChatQueuedForCapacity(t *testing.T) {
+	t.Parallel()
+
+	queued := func(t *testing.T, f *workerTestFixture, chatID uuid.UUID, rootCap, subagentCap int64) bool {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		got, err := f.db.GetChatQueuedForCapacity(ctx, database.GetChatQueuedForCapacityParams{
+			ChatID:           chatID,
+			StaleSeconds:     30,
+			RootCapacity:     rootCap,
+			SubagentCapacity: subagentCap,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	t.Run("PoolNotFull", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		// An unowned running chat with free slots is an ordinary pickup,
+		// not a capacity wait.
+		chat := f.createRunningChat(t)
+		require.False(t, queued(t, f, chat.ID, 1, 1))
+	})
+
+	t.Run("PoolFull", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		occupied := f.createRunningChat(t)
+		acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+		chat := f.createRunningChat(t)
+		require.True(t, queued(t, f, chat.ID, 1, 1))
+	})
+
+	t.Run("OwnedChatIsNotQueued", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		occupied := f.createRunningChat(t)
+		acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+		require.False(t, queued(t, f, occupied.ID, 1, 1))
+	})
+
+	t.Run("NonRunningChatIsNotQueued", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		occupied := f.createRunningChat(t)
+		acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+		requiresAction := f.createRequiresActionChat(t)
+		require.False(t, queued(t, f, requiresAction.ID, 1, 1))
+	})
+
+	t.Run("PoolsAreIndependent", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		occupied := f.createRunningChat(t)
+		acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+		sub := f.createRunningSubagentChat(t, occupied.ID)
+		require.False(t, queued(t, f, sub.ID, 1, 1),
+			"a full root pool must not mark subagents queued")
+	})
+}
+
+func TestServer_ChatQueuedForCapacity(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	chat := f.createRunningChat(t)
-	marked, err := f.db.MarkChatCapacityQueued(ctx, database.MarkChatCapacityQueuedParams{
-		ID:           chat.ID,
-		StaleSeconds: 30,
-	})
+	occupied := f.createRunningChat(t)
+	acquireChat(t, f, occupied.ID, uuid.New(), uuid.New())
+	waiting := f.createRunningChat(t)
+
+	server := newUnstartedServer(t, f.pubsub, f.db)
+
+	queued, err := server.ChatQueuedForCapacity(ctx, waiting)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, marked)
+	require.False(t, queued, "no capacity policy must mean never queued")
 
-	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.FinishError(chatstate.FinishErrorInput{
-			LastError: pqtype.NullRawMessage{RawMessage: []byte(`{"message":"boom"}`), Valid: true},
-		})
-		return err
-	}))
+	server.agentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: false}}
+	queued, err = server.ChatQueuedForCapacity(ctx, waiting)
+	require.NoError(t, err)
+	require.False(t, queued, "uncapped deployments must never report queued")
 
-	require.False(t, capacityQueuedAt(ctx, t, f.db, chat.ID).CapacityQueuedAt.Valid)
+	server.agentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+	queued, err = server.ChatQueuedForCapacity(ctx, waiting)
+	require.NoError(t, err)
+	require.True(t, queued)
+
+	queued, err = server.ChatQueuedForCapacity(ctx, occupied)
+	require.NoError(t, err)
+	require.False(t, queued, "owned chats are active, not queued")
+}
+
+func TestCountChatCapacityUnownedByPool(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	owned := f.createRunningChat(t)
+	acquireChat(t, f, owned.ID, uuid.New(), uuid.New())
+	f.createRunningChat(t)
+	f.createRunningSubagentChat(t, owned.ID)
+
+	counts, err := f.db.CountChatCapacityUnownedByPool(ctx, 30)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, counts.RootCount)
+	require.EqualValues(t, 1, counts.SubagentCount)
 }

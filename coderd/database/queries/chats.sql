@@ -1,7 +1,7 @@
 -- name: ArchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats
-    SET archived = true, pin_order = 0, capacity_queued_at = NULL, updated_at = NOW()
+    SET archived = true, pin_order = 0, updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
 ),
@@ -53,8 +53,7 @@ chats_expanded AS (
         updated_chats.context_dirty_since,
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
-        updated_chats.compaction_requested_at,
-        updated_chats.capacity_queued_at
+        updated_chats.compaction_requested_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -124,8 +123,7 @@ chats_expanded AS (
         updated_chats.context_dirty_since,
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
-        updated_chats.compaction_requested_at,
-        updated_chats.capacity_queued_at
+        updated_chats.compaction_requested_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -866,8 +864,7 @@ chats_expanded AS (
         inserted_chat.context_dirty_since,
         inserted_chat.context_dirty_resources,
         inserted_chat.context_error,
-        inserted_chat.compaction_requested_at,
-        inserted_chat.capacity_queued_at
+        inserted_chat.compaction_requested_at
     FROM
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
@@ -1031,8 +1028,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1102,8 +1098,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1171,8 +1166,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1240,8 +1234,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1309,8 +1302,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1398,8 +1390,7 @@ chats_expanded AS (
         result_chat.context_dirty_since,
         result_chat.context_dirty_resources,
         result_chat.context_error,
-        result_chat.compaction_requested_at,
-        result_chat.capacity_queued_at
+        result_chat.compaction_requested_at
     FROM
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
@@ -1466,8 +1457,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1563,8 +1553,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1721,7 +1710,6 @@ SET
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::jsonb,
-    capacity_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') THEN capacity_queued_at ELSE NULL END,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -1775,8 +1763,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -2057,8 +2044,7 @@ chats_expanded AS (
         locked_chat.context_dirty_since,
         locked_chat.context_dirty_resources,
         locked_chat.context_error,
-        locked_chat.compaction_requested_at,
-        locked_chat.capacity_queued_at
+        locked_chat.compaction_requested_at
     FROM
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
@@ -2122,8 +2108,7 @@ chats_expanded AS (
         shared_chat.context_dirty_since,
         shared_chat.context_dirty_resources,
         shared_chat.context_error,
-        shared_chat.compaction_requested_at,
-        shared_chat.capacity_queued_at
+        shared_chat.compaction_requested_at
     FROM
         shared_chat
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
@@ -2336,9 +2321,10 @@ WHERE chat_id = @chat_id::uuid
 -- Missing ownership is worker_id IS NULL. Inconsistent ownership is
 -- runner_id IS NULL while worker_id is set. Stale ownership is no
 -- heartbeat row for (chat_id, runner_id), or one older than
--- Interrupting and requires_action bypass admission. Running chats are FIFO
--- in interleaved root/subagent pools so one full pool cannot starve the
--- other. @stale_seconds uses DB time; @exclude_ids skips refusals.
+-- @stale_seconds by database time. Interrupting and requires_action
+-- bypass admission. Running chats are FIFO by updated_at in interleaved
+-- root/subagent pools so one full pool cannot starve the other.
+-- @exclude_ids skips candidates already attempted this pass.
 SELECT
     chats_expanded.*,
     chat_heartbeats.heartbeat_at AS current_heartbeat_at,
@@ -2373,7 +2359,7 @@ ORDER BY
     (chats_expanded.status = 'requires_action'::chat_status) DESC,
     ROW_NUMBER() OVER (
         PARTITION BY (chats_expanded.parent_chat_id IS NULL)
-        ORDER BY chats_expanded.capacity_queued_at ASC NULLS LAST, chats_expanded.updated_at ASC, chats_expanded.id ASC
+        ORDER BY chats_expanded.updated_at ASC, chats_expanded.id ASC
     ) ASC,
     (chats_expanded.parent_chat_id IS NULL) DESC,
     chats_expanded.id ASC
@@ -2490,8 +2476,7 @@ chats_expanded AS (
         bumped_chat.context_dirty_since,
         bumped_chat.context_dirty_resources,
         bumped_chat.context_error,
-        bumped_chat.compaction_requested_at,
-        bumped_chat.capacity_queued_at
+        bumped_chat.compaction_requested_at
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
@@ -2516,7 +2501,6 @@ WITH updated_chat AS (
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
-        capacity_queued_at = CASE WHEN @status::chat_status IN ('running', 'interrupting') AND NOT @archived::boolean THEN capacity_queued_at ELSE NULL END,
         updated_at = NOW()
     WHERE id = @id::uuid
     RETURNING *
@@ -2569,8 +2553,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2637,8 +2620,7 @@ chats_expanded AS (
         updated_chat.context_dirty_since,
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.capacity_queued_at
+        updated_chat.compaction_requested_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2812,7 +2794,7 @@ WITH to_archive AS (
 ),
 archived AS (
     UPDATE chats c
-    SET archived = true, pin_order = 0, capacity_queued_at = NULL, updated_at = NOW()
+    SET archived = true, pin_order = 0, updated_at = NOW()
     FROM to_archive t
     WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
       AND c.archived = false
@@ -2831,31 +2813,6 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
-
--- name: MarkChatCapacityQueued :execrows
--- Records the first capacity refusal without bumping updated_at. Status,
--- archive, and heartbeat fences avoid stale marks; preserving the first
--- timestamp maintains FIFO order across retries.
-UPDATE chats
-SET capacity_queued_at = NOW()
-WHERE id = @id::uuid
-  AND capacity_queued_at IS NULL
-  AND archived = false
-  AND status IN ('running'::chat_status, 'interrupting'::chat_status)
-  AND NOT EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = chats.id
-        AND hb.runner_id = chats.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-  );
-
--- name: ClearChatCapacityQueued :execrows
--- Clears the queue marker without bumping updated_at.
-UPDATE chats
-SET capacity_queued_at = NULL
-WHERE id = @id::uuid
-  AND capacity_queued_at IS NOT NULL;
 
 -- name: CountChatCapacityActiveByPool :one
 -- Counts root and subagent slots held by unarchived running or interrupting
@@ -2878,9 +2835,55 @@ WHERE status IN ('running'::chat_status, 'interrupting'::chat_status)
         AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
   );
 
--- name: CountChatCapacityQueuedByPool :one
+-- name: CountChatCapacityUnownedByPool :one
+-- Counts unarchived running chats with no live owner heartbeat per pool.
+-- Callers compare pool activity against the caps to tell capacity waits
+-- from the ordinary sub-second wait for a worker pickup.
 SELECT
     COUNT(*) FILTER (WHERE parent_chat_id IS NULL)::bigint AS root_count,
     COUNT(*) FILTER (WHERE parent_chat_id IS NOT NULL)::bigint AS subagent_count
-FROM chats
-WHERE capacity_queued_at IS NOT NULL;
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND NOT EXISTS (
+      SELECT 1
+      FROM chat_heartbeats hb
+      WHERE hb.chat_id = c.id
+        AND hb.runner_id = c.runner_id
+        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+  );
+
+-- name: GetChatQueuedForCapacity :one
+-- Derives whether a chat is waiting for a concurrent-agent capacity slot:
+-- generating, unarchived, unowned (no live owner heartbeat), and its pool
+-- at capacity. Pool fullness distinguishes a capacity wait from the
+-- ordinary sub-second wait for a worker pickup.
+SELECT (
+    c.status = 'running'::chat_status
+    AND c.archived = false
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_heartbeats hb
+        WHERE hb.chat_id = c.id
+          AND hb.runner_id = c.runner_id
+          AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+    )
+    AND (
+        SELECT COUNT(*)
+        FROM chats a
+        WHERE a.status IN ('running'::chat_status, 'interrupting'::chat_status)
+          AND a.archived = false
+          AND a.worker_id IS NOT NULL
+          AND a.runner_id IS NOT NULL
+          AND (a.parent_chat_id IS NULL) = (c.parent_chat_id IS NULL)
+          AND EXISTS (
+              SELECT 1
+              FROM chat_heartbeats ahb
+              WHERE ahb.chat_id = a.id
+                AND ahb.runner_id = a.runner_id
+                AND ahb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+          )
+    ) >= CASE WHEN c.parent_chat_id IS NULL THEN @root_capacity::bigint ELSE @subagent_capacity::bigint END
+)::boolean AS queued_for_capacity
+FROM chats c
+WHERE c.id = @chat_id::uuid;

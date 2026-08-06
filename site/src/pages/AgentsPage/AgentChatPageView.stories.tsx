@@ -321,7 +321,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 	parameters: {
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const callout = within(canvas.getByRole("alert"));
@@ -342,7 +342,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 };
 
 export const QueuedForCapacityCommunityMember: Story = {
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -362,7 +362,7 @@ export const QueuedForCapacityPremiumAdmin: Story = {
 		features: ["multiple_organizations"],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -384,7 +384,7 @@ export const QueuedForCapacityPremiumMember: Story = {
 	parameters: {
 		features: ["multiple_organizations"],
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -407,7 +407,7 @@ export const QueuedForCapacityPremiumExhaustedHours: Story = {
 		],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacityAt={oneWeekAgo} />,
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(

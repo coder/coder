@@ -123,7 +123,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
-	queuedForCapacityAt?: string;
+	queuedForCapacity?: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -325,7 +325,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	isSharedChat,
 	chatOwner,
-	queuedForCapacityAt,
+	queuedForCapacity,
 	canShareChat,
 	workspaceAgent,
 	workspace,
@@ -813,7 +813,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
-	const isQueuedForCapacity = queuedForCapacityAt !== undefined;
+	const isQueuedForCapacity = queuedForCapacity === true;
 	const hasLicense = entitlements.has_license;
 	const canManageLicenses = permissions.viewAllLicenses;
 	const runtimeHours = entitlements.features.agent_runtime_hours;
