@@ -3585,6 +3585,22 @@ describe("message upsert fan-out and history replacement", () => {
 		expect(after?.pages[1]).toBe(before.pages[1]);
 	});
 
+	it("upsertChatMessages inserts each unseen ID once when the batch carries two revisions of it", () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [
+			makeMessage(70, "revision 1"),
+			makeMessage(70, "revision 2"),
+		]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([70, 60, 55]);
+		expect(after?.pages[0]?.messages[0]?.content).toEqual([
+			{ type: "text", text: "revision 2" },
+		]);
+	});
+
 	it("upsertChatMessages applies a mixed replace-and-insert batch in a single call", () => {
 		const queryClient = createTestQueryClient();
 		seedMessagePages(queryClient, twoPageFixture());

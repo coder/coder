@@ -873,7 +873,7 @@ const upsertMessagesAcrossPages = (
 		(page, index) => page !== currentData.pages[index],
 	);
 
-	const messagesToInsert = messages.filter(
+	const messagesToInsert = [...incomingByID.values()].filter(
 		(message) => !foundIDs.has(message.id),
 	);
 	if (messagesToInsert.length === 0) {

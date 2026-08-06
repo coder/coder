@@ -313,6 +313,12 @@ const buildQueries = (
 	];
 };
 
+/** Filter one seeded query entry out by key. */
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
+
 // ---------------------------------------------------------------------------
 // Every-tool showcase: a single completed assistant turn that exercises
 // every tool renderer registered in Tool.tsx, plus the SubagentRenderer
@@ -2248,6 +2254,93 @@ export const StreamedReasoning: Story = {
 // tests in both local and CI environments.
 
 /**
+ * A durable WebSocket message event revises a message that only exists in
+ * an older page of the messages cache. Fan-out must replace it in place
+ * inside page 1 rather than re-inserting it into page 0, so the refreshed
+ * content renders exactly once and the stale copy is gone.
+ */
+export const DurableUpdateFansOutToOlderPage: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Fan-out chat",
+						status: "waiting",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				chatMessagesKey(CHAT_ID),
+			),
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [
+								{
+									id: 30,
+									chat_id: CHAT_ID,
+									created_at: "2026-01-01T00:00:00.000Z",
+									role: "assistant",
+									content: [{ type: "text", text: "Newest message" }],
+								},
+							],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [
+								{
+									id: 20,
+									chat_id: CHAT_ID,
+									created_at: "2026-01-01T00:00:00.000Z",
+									role: "assistant",
+									content: [{ type: "text", text: "Old revision" }],
+								},
+							],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 30],
+				},
+			},
+		],
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message",
+							chat_id: CHAT_ID,
+							message: {
+								id: 20,
+								chat_id: CHAT_ID,
+								created_at: "2026-01-01T00:00:00.000Z",
+								role: "assistant",
+								content: [{ type: "text", text: "Fresh revision" }],
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Fresh revision")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
+		});
+		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
+
+/**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
  * (an earlier completed read+write pair); the WebSocket then streams an
@@ -3077,11 +3170,6 @@ const mockServerError = {
 	...mockApiError({ message: "Internal server error." }),
 	status: 500,
 };
-
-const withoutQuery = (
-	queries: ReturnType<typeof buildQueries>,
-	queryKey: readonly unknown[],
-) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 export const DetailQueryError: Story = {
 	parameters: {
