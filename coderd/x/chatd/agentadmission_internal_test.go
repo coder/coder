@@ -108,15 +108,15 @@ func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
 
 	chat := f.createRunningChat(t)
 	admission.refuse(chat.ID)
-	worker := startWorker(t, opts)
+	startWorker(t, opts)
 
+	// The queued event publishes after the map insert, so wait on the event.
 	require.Eventually(t, func() bool {
-		return worker.capacityQueueContains(chat.ID)
+		return len(capacityEvents(t, recording, chat.ID)) >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)
 	starter.assertNoCall(t)
 
 	events := capacityEvents(t, recording, chat.ID)
-	require.NotEmpty(t, events)
 	require.True(t, events[len(events)-1].Chat.QueuedForCapacity)
 
 	// The recorder wraps only worker pubsub, so an ownership hint here would
@@ -138,10 +138,10 @@ func TestWorker_RefusalPublishesQueuedEventOnce(t *testing.T) {
 	admission.refuse(chat.ID)
 	worker := startWorker(t, opts)
 
+	// The queued event publishes after the map insert, so wait on the event.
 	require.Eventually(t, func() bool {
-		return worker.capacityQueueContains(chat.ID)
+		return len(capacityEvents(t, recording, chat.ID)) == 1
 	}, testutil.WaitLong, testutil.IntervalFast)
-	require.Len(t, capacityEvents(t, recording, chat.ID), 1)
 
 	admitCallsAfterQueue := admission.admitCallCount()
 	worker.Wake()
@@ -344,6 +344,12 @@ func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 
 	older := f.createRunningChat(t)
 	newer := f.createRunningChat(t)
+	// Back-to-back inserts can collide at timestamp resolution, which would
+	// leave FIFO order to the random UUID tiebreak.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := f.sqlDB.ExecContext(ctx,
+		"UPDATE chats SET updated_at = NOW() - INTERVAL '1 hour' WHERE id = $1", older.ID)
+	require.NoError(t, err)
 	admission.refuse(older.ID)
 	admission.refuse(newer.ID)
 	worker := startWorker(t, opts)
