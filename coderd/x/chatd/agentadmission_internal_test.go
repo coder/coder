@@ -382,7 +382,7 @@ func TestWorker_InterruptAcquisitionPublishesClear(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
-func TestWorker_UncappedPolicySkipsClearEvents(t *testing.T) {
+func TestWorker_UncappedAcquisitionStillPublishesClear(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	recording := newRecordingPubsub(f.pubsub)
@@ -393,12 +393,16 @@ func TestWorker_UncappedPolicySkipsClearEvents(t *testing.T) {
 	admission.uncapped = true
 	opts.AgentCapacityLimiter = admission
 
+	// A license update can uncap the deployment after another replica
+	// published queued=true, so the clear must not be gated on the cap.
 	chat := f.createRunningChat(t)
 	startWorker(t, opts)
 
 	starter.waitCall(t, taskKindGeneration, chat.ID)
-	require.Empty(t, capacityEvents(t, recording, chat.ID),
-		"uncapped deployments must not publish clear events on every acquisition")
+	require.Eventually(t, func() bool {
+		events := capacityEvents(t, recording, chat.ID)
+		return len(events) >= 1 && !events[len(events)-1].Chat.QueuedForCapacity
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestWorker_WithoutAdmissionPublishesNoCapacityEvents(t *testing.T) {

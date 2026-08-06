@@ -344,10 +344,10 @@ func (w *chatWorker) acquireCandidate(
 	if wasQueued && w.opts.CapacityMetrics != nil {
 		w.opts.CapacityMetrics.waitSeconds.Observe(max(0, w.opts.Clock.Since(firstRefusedAt).Seconds()))
 	}
-	// Another replica may have published this chat's queued event, so the
-	// clear cannot be gated on local refusal history alone.
-	_, capped := w.opts.AgentCapacityLimiter.Limits()
-	if wasQueued || (queueableAtAcquire && capped) {
+	// Another replica may have published this chat's queued event, and the
+	// cap can change between refusal and admission (license updates), so the
+	// clear is gated only on limiter presence, never on dynamic state.
+	if wasQueued || (queueableAtAcquire && w.capacityEventsEnabled()) {
 		w.publishCapacityChange(ctx, chatID, false)
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
