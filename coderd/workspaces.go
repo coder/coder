@@ -2769,22 +2769,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-// attachAgentMetadata maps the agent_metadata JSON the workspaces query
+// attachAgentMetadata maps the agent metadata the workspaces query
 // aggregated per workspace onto the agents in the converted response.
-// The aggregate elements have the database.WorkspaceAgentMetadatum JSON
-// shape, each carrying its workspace_agent_id.
+// Each aggregated datum carries its workspace_agent_id.
 func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) error {
 	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
 	for _, row := range rows {
-		if len(row.AgentMetadata) == 0 {
-			continue
-		}
-		var data []database.WorkspaceAgentMetadatum
-		err := json.Unmarshal(row.AgentMetadata, &data)
+		metadata, err := row.ParseAgentMetadata()
 		if err != nil {
-			return xerrors.Errorf("unmarshal agent metadata for workspace %q: %w", row.ID, err)
+			return err
 		}
-		for _, datum := range data {
+		for _, datum := range metadata {
 			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)
 		}
 	}
