@@ -1376,6 +1376,18 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-odt-1",
 						name: "notes.odt",
 					},
+					{
+						type: "file",
+						media_type: "application/msword",
+						file_id: "storybook-doc-1",
+						name: "report.doc",
+					},
+					{
+						type: "file",
+						media_type: "audio/mpeg",
+						file_id: "storybook-mp3-1",
+						name: "song.mp3",
+					},
 				],
 			},
 		]),
@@ -1454,6 +1466,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Download notes.odt" }),
 		).toHaveAttribute("download", "notes.odt");
+		expect(
+			canvas.getByRole("link", { name: "Download report.doc" }),
+		).toHaveAttribute("download", "report.doc");
+		expect(
+			canvas.getByRole("link", { name: "Download song.mp3" }),
+		).toHaveAttribute("download", "song.mp3");
 	},
 };
 

@@ -159,15 +159,18 @@ const getMediaTypeExtension = (mediaType: string): string | null => {
 	if (mapped) {
 		return mapped;
 	}
-	const subtype = mediaType.split("/")[1] ?? "";
+	const [type, subtype = ""] = mediaType.split("/");
 	const structured = structuredSubtypeExtension(subtype);
 	if (structured) {
 		return structured;
 	}
-	// Only simple subtypes (png, gif, webp) map reliably onto an
-	// extension. Sanitizing structured or vendor subtypes would append
-	// a mangled suffix, so those keep the attachment's own name.
-	return /^[a-z0-9]{1,8}$/i.test(subtype) ? subtype.toLowerCase() : null;
+	// Only image subtypes reliably double as filename extensions (png,
+	// gif, webp). Other subtypes are MIME names, not extensions
+	// (application/msword, audio/mpeg), so without an explicit mapping
+	// the attachment keeps its own name.
+	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
+		? subtype.toLowerCase()
+		: null;
 };
 
 const getAttachmentDownloadName = (
