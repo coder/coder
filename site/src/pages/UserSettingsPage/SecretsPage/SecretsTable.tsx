@@ -96,14 +96,14 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			<Table aria-label="User secrets">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[14%]">Name</TableHead>
-						<TableHead className="w-[13%]">Environment variable</TableHead>
-						<TableHead className="w-[16%]">File path</TableHead>
-						<TableHead className="w-[10%]">Type</TableHead>
-						<TableHead className="w-[20%]">Description</TableHead>
-						<TableHead className="w-[11%]">Updated</TableHead>
-						<TableHead className="w-[15%]">Enabled</TableHead>
-						<TableHead className="w-[1%]" />
+						<TableHead className="w-9"></TableHead>
+						<TableHead>Name</TableHead>
+						<TableHead>Env var</TableHead>
+						<TableHead className="whitespace-nowrap">File path</TableHead>
+						<TableHead>Type</TableHead>
+						<TableHead className="w-full">Description</TableHead>
+						<TableHead>Updated</TableHead>
+						<TableHead></TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -122,8 +122,15 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 					{!isLoading &&
 						secrets?.map((secret) => (
 							<TableRow key={secret.id}>
+								<TableCell>
+									<EnabledToggle
+										secret={secret}
+										isPending={togglingSecretId === secret.id}
+										onToggle={handleToggle}
+									/>
+								</TableCell>
 								<TableCell className="font-semibold text-content-primary">
-									{secret.name}
+									<span>{secret.name}</span>
 								</TableCell>
 								<TableCell>
 									<OptionalSecretValue value={secret.env_name} />
@@ -134,28 +141,28 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 								<TableCell>
 									<SecretTypeBadge secret={secret} />
 								</TableCell>
-								<TableCell>
-									<OptionalSecretValue
-										value={secret.description}
-										fallback="No description"
-									/>
+								<TableCell className="max-w-0">
+									{secret.description ? (
+										<span className="block truncate" title={secret.description}>
+											{secret.description}
+										</span>
+									) : (
+										<span className="text-content-disabled">
+											No description
+										</span>
+									)}
 								</TableCell>
-								<TableCell data-pixel="ignore">
+								<TableCell data-pixel="ignore" className="whitespace-nowrap">
 									{relativeTime(secret.updated_at)}
 								</TableCell>
 								<TableCell>
-									<EnabledToggle
-										secret={secret}
-										isPending={togglingSecretId === secret.id}
-										onToggle={handleToggle}
-									/>
-								</TableCell>
-								<TableCell>
-									<SecretRowActions
-										secret={secret}
-										onEditSecret={onEditSecret}
-										onDeleteSecret={setSecretToDelete}
-									/>
+									<div className="flex justify-end flex-1">
+										<SecretRowActions
+											secret={secret}
+											onEditSecret={onEditSecret}
+											onDeleteSecret={setSecretToDelete}
+										/>
+									</div>
 								</TableCell>
 							</TableRow>
 						))}
@@ -210,48 +217,32 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 	// An enabled secret must have at least one injection target. Prevent
 	// enabling a target-less secret; the user must add a target first.
 	const cannotEnable = !secret.enabled && !hasTarget;
-	const label = `Toggle secret ${secret.name}`;
 	const stateLabel = secret.enabled ? "Enabled" : "Disabled";
 
-	const control = (
-		<Switch
-			aria-label={label}
-			checked={secret.enabled}
-			disabled={isPending || cannotEnable}
-			onCheckedChange={(checked) => onToggle(secret, checked)}
-		/>
-	);
-
-	if (cannotEnable) {
-		return (
-			<div className="flex items-center gap-2">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						{/*
-						 * Wrap the disabled Switch in a focusable span so the
-						 * tooltip can be triggered by keyboard and pointer.
-						 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
-						 * surface the tooltip on a disabled control via keyboard focus.
-						 */}
-						<span tabIndex={0} className="inline-flex">
-							{control}
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="top">
-						Add an environment variable or file path before enabling this
-						secret.
-					</TooltipContent>
-				</Tooltip>
-				<span className="text-content-secondary text-xs">{stateLabel}</span>
-			</div>
-		);
-	}
-
 	return (
-		<div className="flex items-center gap-2">
-			{control}
-			<span className="text-content-secondary text-xs">{stateLabel}</span>
-		</div>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{/*
+				 * Wrap the disabled Switch in a focusable span so the
+				 * tooltip can be triggered by keyboard and pointer.
+				 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
+				 * surface the tooltip on a disabled control via keyboard focus.
+				 */}
+				<span tabIndex={0} className="inline-flex">
+					<Switch
+						aria-label={stateLabel}
+						checked={secret.enabled}
+						disabled={isPending || cannotEnable}
+						onCheckedChange={(checked) => onToggle(secret, checked)}
+					/>
+				</span>
+			</TooltipTrigger>
+			{cannotEnable && (
+				<TooltipContent side="top">
+					Add an environment variable or file path before enabling this secret.
+				</TooltipContent>
+			)}
+		</Tooltip>
 	);
 };
 
@@ -284,7 +275,6 @@ const SecretRowActions: FC<SecretRowActionsProps> = ({
 					<EllipsisVerticalIcon aria-hidden="true" />
 				</Button>
 			</DropdownMenuTrigger>
-
 			<DropdownMenuContent align="end">
 				<DropdownMenuItem
 					onSelect={() => onEditSecret(secret, triggerRef.current)}
