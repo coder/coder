@@ -139,13 +139,9 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 		return xerrors.Errorf("invalid refresh token")
 	}
 
-	// Verify ownership
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
-	if err != nil {
-		return xerrors.Errorf("get oauth2 provider app secret: %w", err)
-	}
-	if appSecret.AppID != appID {
+	// Verify ownership directly via app_id, avoiding a join through
+	// app_secret_id, which is not always present.
+	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
 
@@ -199,14 +195,9 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 		return xerrors.Errorf("get oauth2 provider app token by api key id: %w", err)
 	}
 
-	// Verify the token belongs to the requesting app
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
-	if err != nil {
-		return xerrors.Errorf("get oauth2 provider app secret for api key verification: %w", err)
-	}
-
-	if appSecret.AppID != appID {
+	// Verify the token belongs to the requesting app directly via app_id,
+	// avoiding a join through app_secret_id, which is not always present.
+	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
 

@@ -33,6 +33,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
@@ -70,7 +71,6 @@ import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
 } from "./utils/sidebarTabStorage";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 

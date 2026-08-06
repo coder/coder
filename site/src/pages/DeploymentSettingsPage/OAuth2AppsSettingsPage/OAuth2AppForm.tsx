@@ -1,79 +1,189 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
+import { TriangleAlertIcon } from "lucide-react";
+import { type FC, useEffect, useRef } from "react";
+import { Link } from "react-router";
+import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { getFormHelpers } from "#/utils/formUtils";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
+import {
+	getFormHelpers,
+	iconValidator,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
+
+type OAuth2AppFormValues = {
+	name: string;
+	callback_url: string;
+	icon: string;
+};
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: TypesGen.PostOAuth2ProviderAppRequest) => void;
+	onSubmit: (data: OAuth2AppFormValues) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
-	actions?: ReactNode;
-	defaultValues?: TypesGen.PostOAuth2ProviderAppRequest;
+	defaultValues?: OAuth2AppFormValues;
 	disabled: boolean;
+	onIconChange?: (icon: string) => void;
 };
+
+const BACK_HREF = "/deployment/oauth2-provider/apps";
+
+const isHttpUrl = (value: string | undefined): boolean => {
+	if (!value) {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return url.protocol === "http:" || url.protocol === "https:";
+	} catch {
+		return false;
+	}
+};
+
+const validationSchema = Yup.object({
+	name: nameValidator("Name"),
+	callback_url: Yup.string()
+		.trim()
+		.required("Please enter a callback URL.")
+		.test("http-url", "Callback URL must be a valid URL.", (value) =>
+			isHttpUrl(value),
+		),
+	icon: iconValidator,
+});
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	app,
 	onSubmit,
 	error,
 	isUpdating,
-	actions,
 	defaultValues,
 	disabled,
+	onIconChange,
 }) => {
-	const form = useFormik<TypesGen.PostOAuth2ProviderAppRequest>({
+	const didSubmit = useRef(false);
+	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
 			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
 			icon: app?.icon ?? defaultValues?.icon ?? "",
 		},
-		// Mark fields touched from the start so server-side validation errors
-		// surface as soon as they arrive instead of waiting for the user to
-		// interact with each field.
-		initialTouched: { name: true, callback_url: true, icon: true },
-		onSubmit,
+		validationSchema,
+		validateOnMount: true,
+		onSubmit: async (values) => {
+			didSubmit.current = true;
+			await onSubmit(values);
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
+	const iconField = getFieldHelpers("icon");
+	const formDisabled = disabled || isUpdating;
+	const editing = Boolean(app);
+	const submitDisabled =
+		formDisabled || !form.isValid || (editing && !form.dirty);
+
+	// When the parent's mutation finishes without an error, treat the just-
+	// submitted values as the new baseline so the unsaved-changes prompt does
+	// not fire on subsequent navigations.
+	const previousIsUpdating = useRef(isUpdating);
+	useEffect(() => {
+		if (previousIsUpdating.current && !isUpdating) {
+			if (didSubmit.current && !error) {
+				form.resetForm({ values: form.values });
+			}
+			didSubmit.current = false;
+		}
+		previousIsUpdating.current = isUpdating;
+	}, [isUpdating, error, form]);
+
+	const unsavedChanges = useUnsavedChangesPrompt(
+		form.dirty && !form.isSubmitting,
+	);
 
 	return (
-		<form className="mt-2.5" onSubmit={form.handleSubmit}>
-			<div className="flex flex-col gap-5">
+		<Form onSubmit={form.handleSubmit}>
+			<FormFields>
+				{Boolean(error) && <ErrorAlert error={error} />}
 				<FormField
-					field={getFieldHelpers("name", {
-						helperText: "The name of your Coder app.",
-					})}
-					label="Application name"
-					disabled={disabled}
+					field={getFieldHelpers("name")}
+					label="Name"
+					description="The name of your Coder app."
+					disabled={formDisabled}
+					onChange={onChangeTrimmed(form)}
 					autoFocus
+					required
 				/>
 				<FormField
-					field={getFieldHelpers("callback_url", {
-						helperText:
-							"The full URL to redirect to after a user authorizes an installation.",
-					})}
+					field={getFieldHelpers("callback_url")}
 					label="Callback URL"
-					disabled={disabled}
+					description="The full URL to redirect to after a user authorizes an installation."
+					disabled={formDisabled}
+					required
 				/>
-				<FormField
-					field={getFieldHelpers("icon", {
-						helperText: "A full or relative URL to an icon.",
-					})}
-					label="Application icon"
-					disabled={disabled}
-				/>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="icon">Icon</Label>
+					<div className="text-xs text-content-secondary">
+						Optional. URL or emoji shown for this application.
+					</div>
+					<IconPickerField
+						id="icon"
+						value={form.values.icon}
+						disabled={formDisabled}
+						onChange={(value) => {
+							void form.setFieldValue("icon", value);
+							void form.setFieldTouched("icon", true);
+							onIconChange?.(value);
+						}}
+					/>
+					{iconField.error ? (
+						<span className="text-xs text-content-destructive">
+							{iconField.helperText}
+						</span>
+					) : (
+						iconField.helperText && (
+							<span className="text-xs text-content-secondary">
+								{iconField.helperText}
+							</span>
+						)
+					)}
+				</div>
 
-				<div className="flex flex-row gap-4">
-					<Button disabled={isUpdating || disabled} type="submit">
+				<div className="flex justify-end gap-4">
+					<Button variant="outline" asChild>
+						<Link to={BACK_HREF}>Cancel</Link>
+					</Button>
+					<Button disabled={submitDisabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}
 					</Button>
-					{actions}
 				</div>
-			</div>
-		</form>
+			</FormFields>
+			<ConfirmDialog
+				type="info"
+				hideCancel={false}
+				open={unsavedChanges.isOpen}
+				onClose={unsavedChanges.onCancel}
+				onConfirm={unsavedChanges.onConfirm}
+				title="Unsaved changes"
+				confirmText="Confirm"
+				description={
+					<div className="flex items-start gap-3">
+						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
+						<p className="m-0">
+							Your updates haven't been saved. Leave anyway?
+						</p>
+					</div>
+				}
+			/>
+		</Form>
 	);
 };

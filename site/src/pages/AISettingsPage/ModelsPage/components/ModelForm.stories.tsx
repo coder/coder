@@ -4,6 +4,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
+	MockAzureProviderState,
 	MockDisabledProviderState,
 	MockOpenAIProviderState,
 	mockGPT5,
@@ -262,6 +263,29 @@ export const EditSaveSubmits: Story = {
 	},
 };
 
+export const EditClearingLastOptionSendsEmptyConfig: Story = {
+	args: {
+		editingModel: { ...mockGPT5, model_config: { temperature: 1 } },
+		onDeleteModel: fn(async () => undefined),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /advanced/i }));
+		const temperature = canvas.getByLabelText(/temperature/i);
+		await expect(temperature).toHaveValue("1");
+		await userEvent.clear(temperature);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /^update model$/i }),
+		);
+		// The empty object must be sent explicitly: omitting model_config
+		// preserves the stored options server-side.
+		await expect(args.onUpdateModel).toHaveBeenCalledWith(
+			mockGPT5.id,
+			expect.objectContaining({ model_config: {} }),
+		);
+	},
+};
+
 export const EditUpdateDisabledUntilDirty: Story = {
 	args: {
 		editingModel: mockGPT5,
@@ -387,14 +411,70 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
-export const CostTrackingExpanded: Story = {
+export const NativeCostTrackingIsUnavailable: Story = {
 	args: {
 		editingModel: mockGPT5,
 		onDeleteModel: fn(async () => undefined),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button", { name: /cost tracking/i });
-		await userEvent.click(toggle);
+		await expect(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /cost tracking/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UseResponsesAPIForOpenAI: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
+		await userEvent.click(canvas.getByRole("button", { name: /advanced/i }));
+
+		const toggle = canvas.getByRole("radiogroup", {
+			name: /use responses api/i,
+		});
+		await userEvent.click(within(toggle).getByRole("radio", { name: "On" }));
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		await expect(args.onCreateModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model_config: expect.objectContaining({
+					openai_config: { use_responses_api: true },
+				}),
+			}),
+		);
+	},
+};
+
+export const UseResponsesAPIHiddenForAnthropic: Story = {
+	args: {
+		selectedProviderState: MockAnthropicProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /advanced/i }));
+		await expect(
+			canvas.queryByRole("radiogroup", { name: /use responses api/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// Azure resolves to the OpenAI option schema through provider_aliases, so
+// scoping has to gate on the raw provider type to keep this control out.
+export const UseResponsesAPIHiddenForAzure: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockAzureProviderState],
+		selectedProviderState: MockAzureProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /advanced/i }));
+		await expect(
+			canvas.queryByRole("radiogroup", { name: /use responses api/i }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByLabelText(/temperature/i)).toBeInTheDocument();
 	},
 };

@@ -22,8 +22,8 @@ import type {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { DeprecatedBadge } from "#/components/Badges/Badges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

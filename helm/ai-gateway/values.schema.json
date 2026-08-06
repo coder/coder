@@ -92,7 +92,7 @@
     },
     "service": {
       "type": "object", "additionalProperties": false,
-      "required": ["enable", "type", "port", "annotations", "sessionAffinity", "externalTrafficPolicy", "loadBalancerClass", "loadBalancerIP", "nodePort"],
+      "required": ["enable", "type", "port", "annotations", "sessionAffinity", "externalTrafficPolicy", "loadBalancerClass", "loadBalancerIP"],
       "properties": {
         "enable": {"type": "boolean"},
         "type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]},

@@ -1,4 +1,3 @@
-import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
@@ -14,7 +13,7 @@ interface PillListProps {
 
 export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{roles.length > 0 ? (
 				<Badge
 					className="w-fit"
@@ -27,7 +26,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 			)}
 
 			{roles.length > 1 && <OverflowPill roles={roles.slice(1)} />}
-		</Stack>
+		</div>
 	);
 };
 

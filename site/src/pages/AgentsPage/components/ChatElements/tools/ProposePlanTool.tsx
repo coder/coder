@@ -1,7 +1,8 @@
 import { LoaderIcon, PlayIcon } from "lucide-react";
 import type React from "react";
-import { useMutation, useQuery } from "react-query";
+import { skipToken, useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
+import { chatFilesKey, chatFileTextKey } from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -34,15 +35,11 @@ export const ProposePlanTool: React.FC<{
 }) => {
 	const hasInlineContent = (inlineContent?.trim().length ?? 0) > 0;
 	const fileQuery = useQuery({
-		queryKey: ["chatFile", fileID],
-		queryFn: async () => {
-			if (!fileID) {
-				throw new Error("Missing file ID");
-			}
-
-			return API.experimental.getChatFileText(fileID);
-		},
-		enabled: Boolean(fileID) && !hasInlineContent,
+		queryKey: fileID ? chatFileTextKey(fileID) : chatFilesKey,
+		queryFn:
+			fileID && !hasInlineContent
+				? () => API.experimental.getChatFileText(fileID)
+				: skipToken,
 		staleTime: Number.POSITIVE_INFINITY,
 	});
 

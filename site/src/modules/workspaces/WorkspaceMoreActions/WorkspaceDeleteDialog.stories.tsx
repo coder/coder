@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	MockFailedWorkspace,
 	MockTaskWorkspace,
@@ -20,13 +21,27 @@ const meta: Meta<typeof WorkspaceDeleteDialog> = {
 		},
 		canDeleteFailedWorkspace: false,
 		isOpen: true,
+		onCancel: fn(),
+		onConfirm: fn(),
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof WorkspaceDeleteDialog>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const confirm = body.getByTestId("delete-dialog-name-confirmation");
+		const deleteButton = body.getByRole("button", { name: "Delete" });
+
+		await expect(deleteButton).toBeDisabled();
+		await userEvent.type(confirm, MockWorkspace.name);
+		await expect(deleteButton).toBeEnabled();
+		await userEvent.click(deleteButton);
+		await expect(args.onConfirm).toHaveBeenCalledWith(false);
+	},
+};
 
 // Should look the same as `Example`
 export const Unhealthy: Story = {
@@ -48,10 +63,43 @@ export const UnhealthyAdminView: Story = {
 		workspace: MockFailedWorkspace,
 		canDeleteFailedWorkspace: true,
 	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const orphan = body.getByTestId("orphan-checkbox");
+		const confirm = body.getByTestId("delete-dialog-name-confirmation");
+
+		await userEvent.click(orphan);
+		await userEvent.type(confirm, MockFailedWorkspace.name);
+		await userEvent.click(body.getByRole("button", { name: "Delete" }));
+		await expect(args.onConfirm).toHaveBeenCalledWith(true);
+	},
 };
 
 export const WithTask: Story = {
 	args: {
 		workspace: MockTaskWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			body.getByText("This workspace is related to a task"),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("link", { name: /this task/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const FilledWrong: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const confirm = body.getByTestId("delete-dialog-name-confirmation");
+
+		await userEvent.type(confirm, "wrong-name");
+		await userEvent.tab();
+		await expect(
+			body.getByText("wrong-name does not match the name of this workspace"),
+		).toBeVisible();
+		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
 	},
 };

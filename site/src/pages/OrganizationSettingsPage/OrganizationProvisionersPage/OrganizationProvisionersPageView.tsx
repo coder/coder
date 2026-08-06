@@ -4,9 +4,7 @@ import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
@@ -16,11 +14,12 @@ import {
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -145,41 +144,29 @@ export const OrganizationProvisionersPageView: FC<
 										/>
 									))
 								) : (
-									<TableRow>
-										<TableCell colSpan={999}>
-											<EmptyState
-												message="No provisioners found"
-												description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
-												cta={
-													<Button size="sm" asChild>
-														<Link href={docs("/admin/provisioners")}>
-															Create a provisioner
-														</Link>
-													</Button>
-												}
-											/>
-										</TableCell>
-									</TableRow>
+									<TableEmpty
+										message="No provisioners found"
+										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+										cta={
+											<Button size="sm" asChild>
+												<Link href={docs("/admin/provisioners")}>
+													Create a provisioner
+												</Link>
+											</Button>
+										}
+									/>
 								)
 							) : error ? (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="Error loading the provisioner jobs"
-											cta={
-												<Button onClick={onRetry} size="sm">
-													Retry
-												</Button>
-											}
-										/>
-									</TableCell>
-								</TableRow>
+								<TableEmpty
+									message="Error loading the provisioner jobs"
+									cta={
+										<Button onClick={onRetry} size="sm">
+											Retry
+										</Button>
+									}
+								/>
 							) : (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<Loader />
-									</TableCell>
-								</TableRow>
+								<TableLoader />
 							)}
 						</TableBody>
 					</Table>

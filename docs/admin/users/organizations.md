@@ -120,6 +120,38 @@ their organization. Users can be in multiple organizations.
 
 ![Workspace List](../../images/admin/users/organizations/workspace-list.png)
 
+## Default member roles
+
+> [!NOTE]
+> Editing default member roles requires a Premium license.
+> ([learn more](https://coder.com/pricing#compare-plans)).
+
+Each organization carries a `default_org_member_roles` list of built-in role
+names. Coder unions this list into every member's effective roles at request
+time, so changes propagate to all current and future members on their next
+request without re-issuing tokens or editing per-user role assignments.
+
+The default value is `["organization-workspace-access"]`. With that default,
+every organization member can read, build, ssh into, and execute commands in
+workspaces they own. Removing `organization-workspace-access` from the list
+creates organization members that cannot create or use workspaces unless the
+role is assigned to them directly, which is useful for restricted accounts
+that should only hold the minimal member permissions.
+
+To edit the default roles in the dashboard, go to
+**Admin settings** > **Organizations** > **Roles** > **Default Roles**, or
+set `default_org_member_roles` via
+`PATCH /organizations/{organization}`.
+
+### Limitations
+
+- `default_org_member_roles` accepts built-in role names only. Custom
+  organization roles are rejected; assign them directly to members instead.
+- Removing a role from the list removes it from every member that does not
+  hold the role through a direct assignment, including existing members.
+  Review the per-organization [audit log](../security/audit-logs.md) if you
+  need to trace who changed the defaults.
+
 ## Next steps
 
 - [Organizations - best practices](../../tutorials/best-practices/organizations.md)
