@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { chatMessagesEqualByValue } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
@@ -14,10 +15,10 @@ const buildOrderedMessageIDs = (
 ): readonly number[] => {
 	// created_at is shared across an insert batch, so only id tracks append order.
 	const sorted = messages.toSorted((left, right) => left.id - right.id);
-	// Deduplicate by ID. The input can contain duplicate IDs when
-	// cross-page duplication occurs in the React Query cache (e.g.
-	// upsertCacheMessages writes to page 0 while the same message
-	// still exists in a later page). The Map-based messagesByID
+	// Deduplicate by ID as a defense against duplicate IDs in the
+	// input. Cache upserts fan the same fresh value out to every
+	// page containing an ID, so cross-page duplicates in the React
+	// Query cache are value-identical. The Map-based messagesByID
 	// already deduplicates, but orderedMessageIDs must match.
 	const seen = new Set<number>();
 	const orderedMessageIDs: number[] = [];
@@ -52,29 +53,6 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	}
 	return true;
 };
-
-const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
-	if (left === right) {
-		return true;
-	}
-	try {
-		return JSON.stringify(left) === JSON.stringify(right);
-	} catch {
-		return false;
-	}
-};
-
-export const chatMessagesEqualByValue = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): boolean =>
-	left.id === right.id &&
-	left.chat_id === right.chat_id &&
-	left.model_config_id === right.model_config_id &&
-	left.created_at === right.created_at &&
-	left.role === right.role &&
-	jsonValuesEqual(left.content, right.content) &&
-	jsonValuesEqual(left.usage, right.usage);
 
 export const chatQueuedMessagesEqualByID = (
 	left: readonly TypesGen.ChatQueuedMessage[],

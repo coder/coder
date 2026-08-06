@@ -61,6 +61,7 @@ import {
 	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	replaceChatMessagesHistory,
 	setChatGroupRole,
 	setChatUserRole,
 	shouldInvalidateChatSearches,
@@ -75,6 +76,7 @@ import {
 	updateChatWorkspace,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	upsertChatMessages,
 } from "./chats";
 
 vi.mock("#/api/api", () => ({
@@ -3457,5 +3459,241 @@ describe("semantic cache operations: removal and patching", () => {
 		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
 			before,
 		);
+	});
+});
+
+describe("message upsert fan-out and history replacement", () => {
+	type InfMessages = {
+		pages: TypesGen.ChatMessagesResponse[];
+		pageParams: (number | undefined)[];
+	};
+
+	const makeMessage = (
+		id: number,
+		text = `msg ${id}`,
+	): TypesGen.ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: "2025-01-01T00:00:00.000Z",
+		role: "user" as const,
+		content: [{ type: "text" as const, text }],
+	});
+
+	const makePage = (
+		ids: readonly number[],
+		overrides?: Partial<TypesGen.ChatMessagesResponse>,
+	): TypesGen.ChatMessagesResponse => ({
+		messages: ids.map((id) => makeMessage(id)),
+		queued_messages: [],
+		has_more: false,
+		...overrides,
+	});
+
+	/** Seed and read back the canonical stored object so reference
+	 *  assertions compare against what the cache actually holds. */
+	const seedMessagePages = (
+		queryClient: QueryClient,
+		data: InfMessages,
+	): InfMessages => {
+		queryClient.setQueryData<InfMessages>(chatMessagesKey("chat-1"), data);
+		const seeded = queryClient.getQueryData<InfMessages>(
+			chatMessagesKey("chat-1"),
+		);
+		if (!seeded) {
+			throw new Error("failed to seed messages cache");
+		}
+		return seeded;
+	};
+
+	const readMessagePages = (
+		queryClient: QueryClient,
+	): InfMessages | undefined =>
+		queryClient.getQueryData<InfMessages>(chatMessagesKey("chat-1"));
+
+	// pages[0] is the newest page and every page is DESC by ID,
+	// matching chatMessagesForInfiniteScroll.
+	const twoPageFixture = (): InfMessages => ({
+		pages: [makePage([60, 55], { has_more: true }), makePage([50, 45])],
+		pageParams: [undefined, 55],
+	});
+
+	it("upsertChatMessages replaces a message found only in an older page in place", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(45, "updated")]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]).toBe(before.pages[0]);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 55]);
+		expect(after?.pages[1]?.messages.map((m) => m.id)).toEqual([50, 45]);
+		expect(after?.pages[1]?.messages[1]?.content).toEqual([
+			{ type: "text", text: "updated" },
+		]);
+	});
+
+	it("upsertChatMessages gives every containing page the same fresh value for a duplicated ID", () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, {
+			pages: [makePage([60, 45], { has_more: true }), makePage([50, 45])],
+			pageParams: [undefined, 45],
+		});
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(45, "fresh")]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 45]);
+		expect(after?.pages[1]?.messages.map((m) => m.id)).toEqual([50, 45]);
+		expect(after?.pages[0]?.messages[1]?.content).toEqual([
+			{ type: "text", text: "fresh" },
+		]);
+		expect(after?.pages[1]?.messages[1]?.content).toEqual([
+			{ type: "text", text: "fresh" },
+		]);
+	});
+
+	it("upsertChatMessages preserves the previous reference for a found-but-equal ID in an older page", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(45)]);
+
+		const after = readMessagePages(queryClient);
+		expect(after).toBe(before);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 55]);
+	});
+
+	it("upsertChatMessages prepends an unknown newest message to page 0 in descending order", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(70)]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([70, 60, 55]);
+		expect(after?.pages[1]).toBe(before.pages[1]);
+	});
+
+	it("upsertChatMessages inserts an unknown interleaving message mid-page-0 in descending order", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(57)]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 57, 55]);
+		expect(after?.pages[1]).toBe(before.pages[1]);
+	});
+
+	it("upsertChatMessages applies a mixed replace-and-insert batch in a single call", () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [
+			makeMessage(45, "updated"),
+			makeMessage(70),
+		]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([70, 60, 55]);
+		expect(after?.pages[1]?.messages.map((m) => m.id)).toEqual([50, 45]);
+		expect(after?.pages[1]?.messages[1]?.content).toEqual([
+			{ type: "text", text: "updated" },
+		]);
+	});
+
+	it("upsertChatMessages never changes the pageParams reference", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [
+			makeMessage(45, "updated"),
+			makeMessage(70),
+		]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pageParams).toBe(before.pageParams);
+		expect(after?.pageParams).toEqual([undefined, 55]);
+	});
+
+	it("upsertChatMessages returns the previous reference for a same-value batch", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, twoPageFixture());
+
+		upsertChatMessages(queryClient, "chat-1", [
+			makeMessage(60),
+			makeMessage(45),
+		]);
+
+		expect(readMessagePages(queryClient)).toBe(before);
+	});
+
+	it("upsertChatMessages is a no-op on an absent cache and creates no entry", () => {
+		const queryClient = createTestQueryClient();
+
+		upsertChatMessages(queryClient, "chat-1", [makeMessage(70)]);
+
+		expect(
+			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
+		).toBeUndefined();
+	});
+
+	it("replaceChatMessagesHistory collapses to one page and one pageParam, preserving queued messages", () => {
+		const queryClient = createTestQueryClient();
+		const queuedMessage: TypesGen.ChatQueuedMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2025-01-01T00:10:00.000Z",
+			content: [{ type: "text", text: "queued" }],
+		};
+		seedMessagePages(queryClient, {
+			pages: [
+				makePage([60, 55], {
+					has_more: true,
+					queued_messages: [queuedMessage],
+				}),
+				makePage([50, 45], { has_more: true }),
+				makePage([40]),
+			],
+			pageParams: [undefined, 55, 45],
+		});
+
+		replaceChatMessagesHistory(queryClient, "chat-1", [
+			makeMessage(55),
+			makeMessage(60, "rewritten"),
+		]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages).toHaveLength(1);
+		expect(after?.pageParams).toHaveLength(1);
+		expect(after?.pageParams).toEqual([undefined]);
+		expect(after?.pages[0]?.messages.map((m) => m.id)).toEqual([60, 55]);
+		expect(after?.pages[0]?.has_more).toBe(false);
+		expect(after?.pages[0]?.queued_messages).toEqual([queuedMessage]);
+	});
+
+	it("replaceChatMessagesHistory preserves the previous reference when the replacement equals the current single page", () => {
+		const queryClient = createTestQueryClient();
+		const before = seedMessagePages(queryClient, {
+			pages: [makePage([60, 55])],
+			pageParams: [undefined],
+		});
+
+		replaceChatMessagesHistory(queryClient, "chat-1", [
+			makeMessage(55),
+			makeMessage(60),
+		]);
+
+		expect(readMessagePages(queryClient)).toBe(before);
+	});
+
+	it("replaceChatMessagesHistory is a no-op on an absent cache and creates no entry", () => {
+		const queryClient = createTestQueryClient();
+
+		replaceChatMessagesHistory(queryClient, "chat-1", [makeMessage(60)]);
+
+		expect(
+			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
+		).toBeUndefined();
 	});
 });
