@@ -315,8 +315,7 @@ type GenerateCompactionOptions struct {
 	Clock quartz.Clock
 
 	// OnModelStreamStart runs immediately before the summary model call,
-	// at the instant CompactionResult.Runtime starts measuring. See
-	// GenerateAssistantOptions.OnModelStreamStart.
+	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()
 }
 
