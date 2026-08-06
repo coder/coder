@@ -51,9 +51,9 @@ data "coder_workspace_owner" "me" {}
 # path policy judges the declaration against: a declared shared host path
 # has to resolve inside this directory.
 resource "coder_agent" "main" {
-  arch      = data.coder_provisioner.me.arch
-  os        = "linux"
-  directory = local.project_host_path
+  arch = data.coder_provisioner.me.arch
+  os   = "linux"
+  dir  = local.project_host_path
 
   startup_script = <<-EOT
     set -e
