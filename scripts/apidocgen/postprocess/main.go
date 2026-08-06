@@ -22,9 +22,10 @@ import (
 const (
 	apiSubdir    = "reference/api"
 	apiIndexFile = "index.md"
-	// apiIndexBody is the index page content below its front matter. The front
-	// matter is generated from the "REST API" manifest route (see writeDocs) so
-	// the index mirrors the manifest like every other generated page.
+	// apiIndexBody is the index page content below its front matter and the
+	// generated-content banner. The front matter is generated from the "REST
+	// API" manifest route (see writeDocs) so the index mirrors the manifest like
+	// every other generated page.
 	apiIndexBody = `Get started with the Coder API:
 
 ## Quickstart
@@ -159,7 +160,7 @@ func writeDocs(sections [][]byte) error {
 	// matter matches the manifest like every other generated page.
 	indexRoute := *restAPI
 	indexRoute.Children = nil
-	indexContent := append([]byte(docgenenv.FrontMatter(indexRoute)), []byte(apiIndexBody)...)
+	indexContent := append([]byte(docgenenv.GeneratedHeader(indexRoute)), []byte(apiIndexBody)...)
 	if err := atomicwrite.File(path.Join(apiDir, apiIndexFile), indexContent); err != nil {
 		return xerrors.Errorf(`can't write the index file: %w`, err)
 	}
@@ -184,7 +185,7 @@ func writeDocs(sections [][]byte) error {
 
 		mdFilename := toMdFilename(sectionName)
 		docPath := path.Join(apiDir, mdFilename)
-		if err := atomicwrite.File(docPath, prependFrontMatter(section, r)); err != nil {
+		if err := atomicwrite.File(docPath, prependGeneratedHeader(section, r)); err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}
 		mdFiles = append(mdFiles, mdFile{
@@ -260,13 +261,14 @@ func toMdFilename(sectionName string) string {
 	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ReplaceAll(strings.ToLower(sectionName), " ", ""), "-") + ".md"
 }
 
-// prependFrontMatter replaces the leading "# {name}" heading of a raw API
-// section with r's front matter block. Callers pass sections that have already
-// cleared extractSectionName, whose fail-fast on a missing "# " heading is the
+// prependGeneratedHeader replaces the leading "# {name}" heading of a raw API
+// section with r's generated-page header (front matter plus the shared
+// generated-content banner). Callers pass sections that have already cleared
+// extractSectionName, whose fail-fast on a missing "# " heading is the
 // load-bearing guarantee. The prefix check here is a defensive backstop: if a
 // section without the heading ever reached this function, it keeps the body
 // intact instead of dropping the first real content line.
-func prependFrontMatter(section []byte, r docgenenv.Route) []byte {
+func prependGeneratedHeader(section []byte, r docgenenv.Route) []byte {
 	body := section
 	if bytes.HasPrefix(section, []byte("# ")) {
 		if _, rest, found := bytes.Cut(section, []byte{'\n'}); found {
@@ -276,5 +278,5 @@ func prependFrontMatter(section []byte, r docgenenv.Route) []byte {
 		}
 	}
 	body = bytes.TrimLeft(body, "\r\n")
-	return append([]byte(docgenenv.FrontMatter(r)), body...)
+	return append([]byte(docgenenv.GeneratedHeader(r)), body...)
 }

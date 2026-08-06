@@ -70,6 +70,12 @@ func init() {
 				}
 				return docgenenv.FrontMatter(cliCommandRoute(cmd))
 			},
+			// generatedContentBanner emits the shared body banner that marks
+			// the whole page as generated, sourced from one constant so the CLI
+			// and API generators cannot drift on its wording.
+			"generatedContentBanner": func() string {
+				return docgenenv.GeneratedContentBanner
+			},
 			"tableHeader": func() string {
 				return `| | |
 | --- | --- |`
