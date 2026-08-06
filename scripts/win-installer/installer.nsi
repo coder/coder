@@ -10,10 +10,6 @@ Unicode true
 !define APP_NAME "Coder"
 !define COMP_NAME "Coder Technologies, Inc."
 !define VERSION "${CODER_NSIS_VERSION}"
-# The version shown in Add/Remove Programs. VERSION is padded to the four
-# numeric components that VIProductVersion requires, which appends a ".0" that
-# no Coder release actually has, so report the release version here instead.
-!define DISPLAY_VERSION "${CODER_VERSION}"
 !define COPYRIGHT "Copyright (c) ${CODER_YEAR} Coder Technologies, Inc."
 !define DESCRIPTION "Remote development environments on your infrastructure provisioned with Terraform"
 !define INSTALLER_NAME "installer.exe"
@@ -112,7 +108,7 @@ Section "Coder CLI" SecInstall
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayName" "${APP_NAME}"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "UninstallString" "$INSTDIR\uninstall.exe"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayIcon" "$INSTDIR\${MAIN_APP_EXE_PATH}"
-	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayVersion" "${DISPLAY_VERSION}"
+	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayVersion" "${VERSION}"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "Publisher" "${COMP_NAME}"
 SectionEnd
 
