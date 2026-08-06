@@ -316,8 +316,8 @@ importers:
         specifier: 10.3.3
         version: 10.3.3(esbuild@0.25.12)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(typescript@6.0.2)(vite@8.0.10(@types/node@20.19.41)(esbuild@0.25.12)(jiti@1.21.7)(tsx@4.22.4)(yaml@2.8.3))
       '@tailwindcss/typography':
-        specifier: 0.5.19
-        version: 0.5.19(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.3))
+        specifier: 0.5.20
+        version: 0.5.20(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.3))
       '@testing-library/jest-dom':
         specifier: 6.9.1
         version: 6.9.1
@@ -2570,10 +2570,10 @@ packages:
     resolution: {integrity: sha512-r5bClKrcIusDoo049dSL8CawnHR6mRdDwhlQuIgZRNty68q0x8k3Lf1BtPAMxRf/GgnHBnIO4ujd3+GQdLWzxQ==, tarball: https://registry.npmjs.org/@tabby_ai/hijri-converter/-/hijri-converter-1.0.5.tgz}
     engines: {node: '>=16.0.0'}
 
-  '@tailwindcss/typography@0.5.19':
-    resolution: {integrity: sha512-w31dd8HOx3k9vPtcQh5QHP9GwKcgbMp87j58qi6xgiBnFFtKEAgCWnDw4qUT8aHwkCp8bKvb/KGKWWHedP0AAg==, tarball: https://registry.npmjs.org/@tailwindcss/typography/-/typography-0.5.19.tgz}
+  '@tailwindcss/typography@0.5.20':
+    resolution: {integrity: sha512-hwbzQuNUfcPvbegQFatVPl/MY/tcM9KLl963hQ5laJKPh81TEZ1+dNG9PirGvcaDBkp+BCshExAyKVPW91dozw==, tarball: https://registry.npmjs.org/@tailwindcss/typography/-/typography-0.5.20.tgz}
     peerDependencies:
-      tailwindcss: '>=3.0.0 || insiders || >=4.0.0-alpha.20 || >=4.0.0-beta.1'
+      tailwindcss: '>=3.0.0 || >=4.0.0 || insiders'
 
   '@tanstack/query-core@5.82.0':
     resolution: {integrity: sha512-JrjoVuaajBQtnoWSg8iaPHaT4mW73lK2t+exxHNOSMqy0+13eKLqJgTKXKImLejQIfdAHQ6Un0njEhOvUtOd5w==, tarball: https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.82.0.tgz}
@@ -3456,6 +3456,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==, tarball: https://registry.npmjs.org/cron-parser/-/cron-parser-4.9.0.tgz}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cronstrue@2.59.0:
     resolution: {integrity: sha512-YKGmAy84hKH+hHIIER07VCAHf9u0Ldelx1uU6EBxsRPDXIA1m5fsKmJfyC3xBhw6cVC/1i83VdbL4PvepTrt8A==, tarball: https://registry.npmjs.org/cronstrue/-/cronstrue-2.59.0.tgz}
@@ -8676,7 +8677,7 @@ snapshots:
 
   '@tabby_ai/hijri-converter@1.0.5': {}
 
-  '@tailwindcss/typography@0.5.19(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.3))':
+  '@tailwindcss/typography@0.5.20(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.3))':
     dependencies:
       postcss-selector-parser: 6.0.10
       tailwindcss: 3.4.19(tsx@4.22.4)(yaml@2.8.3)
