@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -106,30 +107,39 @@ func TestPostLicense(t *testing.T) {
 		require.Contains(t, errResp.Message, "Invalid license")
 	})
 
-	t.Run("InvalidAgentRuntimeClaims", func(t *testing.T) {
+	t.Run("UnusableAgentRuntimeClaims", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
-		// A soft limit claim without an allocation claim rejects the whole
-		// license.
+		// A soft limit claim without an allocation claim is unusable, but it
+		// never rejects the whole license: the license stays valid and the
+		// runtime hours feature is simply not granted. See
+		// decodeAgentRuntimeHours.
 		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 			Features: license.Features{
+				codersdk.FeatureUserLimit:               100,
 				license.ClaimAgentRuntimeHoursLimitSoft: 80,
 			},
 		})
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: lic,
 		})
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
-		require.Contains(t, errResp.Message, "Invalid license")
+		require.NoError(t, err)
+		// The claims round-trip through GET /api/v2/entitlements.
+		//nolint:gocritic // This test asserts license state, not authz behavior.
+		entitlements, err := client.Entitlements(context.Background())
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Empty(t, entitlements.Errors)
+		feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+		require.Nil(t, feature.Limit)
+		require.Nil(t, feature.UsagePeriod)
 	})
 
 	t.Run("AgentRuntimeClaims", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		coderdenttest.AddLicense(t, client,
-			*(&coderdenttest.LicenseOptions{}).AgentRuntimeHours(100, 80, 120))
+			*(&coderdenttest.LicenseOptions{}).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120)))
 		// The claims round-trip through GET /api/v2/entitlements.
 		//nolint:gocritic // This test asserts license state, not authz behavior.
 		entitlements, err := client.Entitlements(context.Background())
@@ -144,9 +154,9 @@ func TestPostLicense(t *testing.T) {
 		require.NotNil(t, feature.HardLimit)
 		require.EqualValues(t, 120, *feature.HardLimit)
 		require.NotNil(t, feature.UsagePeriod)
-		// Actual is read from the usage_events_daily rollup, which has no
-		// runtime events in this deployment. It is reported in whole hours,
-		// matching the unit of the claims above.
+		// Actual is read from usage_events, which has no runtime events in
+		// this deployment. It is reported in whole hours, matching the unit
+		// of the claims above.
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, 0, *feature.Actual)
 		require.Empty(t, entitlements.Errors)

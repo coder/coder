@@ -175,10 +175,10 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 	}
 }
 
-func TestAgentRuntimeMsToHoursNoOverflow(t *testing.T) {
+func TestAgentRuntimeMsToHoursDivisor(t *testing.T) {
 	t.Parallel()
 
 	// Pins the divisor: the maximum int64 of milliseconds converts to the
-	// exact whole-hour count rather than wrapping to a negative value.
+	// exact whole-hour count only when the divisor is milliseconds per hour.
 	assert.EqualValues(t, math.MaxInt64/3_600_000, agentRuntimeMsToHours(math.MaxInt64))
 }

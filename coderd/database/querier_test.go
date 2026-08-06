@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -10817,12 +10818,18 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	hour := func(d, h int) time.Time {
 		return time.Date(2025, 1, d, h, 0, 0, 0, time.UTC)
 	}
+	// The event type and payload are built from the producer's types rather
+	// than hand-written literals, so a rename in usagetypes fails this test
+	// instead of leaving the query silently summing a key nothing writes.
 	insert := func(id string, runtimeMs int64, createdAt time.Time) {
 		t.Helper()
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		event := usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs}
+		eventData, err := json.Marshal(event.Fields())
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        id,
-			EventType: "hb_agent_runtime_v1",
-			EventData: []byte(fmt.Sprintf(`{"runtime_ms": %d}`, runtimeMs)),
+			EventType: string(event.EventType()),
+			EventData: eventData,
 			CreatedAt: createdAt,
 		})
 		require.NoError(t, err)
@@ -10830,8 +10837,8 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	total := func(start, end time.Time) int64 {
 		t.Helper()
 		got, err := db.GetTotalUsageHBAgentRuntimeV1(ctx, database.GetTotalUsageHBAgentRuntimeV1Params{
-			StartDate: start,
-			EndDate:   end,
+			StartTime: start,
+			EndTime:   end,
 		})
 		require.NoError(t, err)
 		return got

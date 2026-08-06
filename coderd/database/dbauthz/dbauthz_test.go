@@ -6728,8 +6728,8 @@ func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("GetTotalUsageHBAgentRuntimeV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 		check.Args(database.GetTotalUsageHBAgentRuntimeV1Params{
-			StartDate: time.Time{},
-			EndDate:   time.Time{},
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 

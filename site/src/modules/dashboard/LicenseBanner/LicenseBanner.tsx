@@ -1,8 +1,13 @@
 import type { FC } from "react";
 import {
+	LicenseAgentRuntimeHoursSoftLimitWarningText,
+	LicenseAgentRuntimeUsageNotConfiguredWarningText,
+	LicenseAgentRuntimeUsageUnavailableWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
+	LicenseManagedAgentUsageNotConfiguredWarningText,
+	LicenseManagedAgentUsageUnavailableWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -17,6 +22,8 @@ const aiGovernanceOverLimitWarningPrefix =
 	LicenseAIGovernanceOverLimitWarningText.split("%d")[0];
 const aiGovernanceNearLimitWarningPrefix =
 	LicenseAIGovernance90PercentWarningText.split("%d%%")[0];
+const agentRuntimeSoftLimitWarningPrefix =
+	LicenseAgentRuntimeHoursSoftLimitWarningText.split("%d")[0];
 const AI_GOVERNANCE_NEAR_LIMIT_FALLBACK_MESSAGE =
 	"You are approaching your AI Governance add-on seat limit.";
 
@@ -24,8 +31,12 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
-const isAIGovernanceNearLimitWarning = (message: string): boolean =>
-	message.startsWith(aiGovernanceNearLimitWarningPrefix);
+// Advisory warnings render in the muted variant: nothing is wrong yet, so
+// they must be visually distinct from warnings that demand action, such as
+// reaching the runtime hours allocation.
+const isMutedWarning = (message: string): boolean =>
+	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
+	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
@@ -99,7 +110,16 @@ const normalizeAIGovernanceWarning = (
 	);
 };
 
-const messageLink = (message: string): LicenseBannerLink => {
+// Usage-measurement diagnostics point the operator at the coderd logs or at
+// a Coder bug; a sales link under them would contradict the message.
+const diagnosticWarnings: readonly string[] = [
+	LicenseManagedAgentUsageUnavailableWarningText,
+	LicenseManagedAgentUsageNotConfiguredWarningText,
+	LicenseAgentRuntimeUsageUnavailableWarningText,
+	LicenseAgentRuntimeUsageNotConfiguredWarningText,
+];
+
+const messageLink = (message: string): LicenseBannerLink | undefined => {
 	if (message === LicenseManagedAgentLimitExceededWarningText) {
 		return {
 			href: docs("/ai-coder/ai-governance"),
@@ -114,6 +134,9 @@ const messageLink = (message: string): LicenseBannerLink => {
 			label: "Contact sales@coder.com if you need an exception.",
 			showExternalIcon: false,
 		};
+	}
+	if (diagnosticWarnings.includes(message)) {
+		return undefined;
 	}
 	return {
 		href: "mailto:sales@coder.com",
@@ -151,7 +174,7 @@ export const LicenseBanner: FC = () => {
 		})),
 		...normalizedWarnings.map((message) => ({
 			message,
-			variant: isAIGovernanceNearLimitWarning(message)
+			variant: isMutedWarning(message)
 				? ("warning" as const)
 				: ("warningProminent" as const),
 			link: messageLink(message),

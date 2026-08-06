@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import {
+	LicenseAgentRuntimeHoursAllocationReachedWarningText,
+	LicenseAgentRuntimeHoursSoftLimitWarningText,
+	LicenseAgentRuntimeUsageUnavailableWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
@@ -180,6 +183,36 @@ export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	},
 };
 
+// Renders a warning template the way the backend does, substituting each
+// %d placeholder in order.
+const formatWarning = (template: string, ...values: number[]): string =>
+	values.reduce<string>(
+		(message, value) => message.replace("%d", `${value}`),
+		template,
+	);
+
+const renderLicenseBannerWithWarnings = (warnings: string[]) => {
+	const mockDashboardValue: DashboardValue = {
+		entitlements: {
+			...MockEntitlements,
+			has_license: true,
+			warnings,
+		},
+		experiments: MockExperiments,
+		appearance: MockAppearanceConfig,
+		buildInfo: MockBuildInfo,
+		organizations: [MockDefaultOrganization],
+		showOrganizations: false,
+		canViewOrganizationSettings: false,
+	};
+
+	return (
+		<DashboardContext.Provider value={mockDashboardValue}>
+			<LicenseBanner />
+		</DashboardContext.Provider>
+	);
+};
+
 const renderLicenseBannerWithAIGovernance = ({
 	actual,
 	entitlement = "entitled",
@@ -265,5 +298,63 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		);
+	},
+};
+
+export const AgentRuntimeHoursSoftLimit: Story = {
+	render: () =>
+		renderLicenseBannerWithWarnings([
+			formatWarning(LicenseAgentRuntimeHoursSoftLimitWarningText, 90, 100, 80),
+		]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The advisory soft-limit warning renders in the muted variant,
+		// unlike the allocation-reached warning below.
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, reaching the advisory soft limit of 80 hours.",
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+export const AgentRuntimeHoursAllocationReached: Story = {
+	render: () =>
+		renderLicenseBannerWithWarnings([
+			formatWarning(
+				LicenseAgentRuntimeHoursAllocationReachedWarningText,
+				100,
+				100,
+			),
+		]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+export const AgentRuntimeUsageUnavailable: Story = {
+	render: () =>
+		renderLicenseBannerWithWarnings([
+			LicenseAgentRuntimeUsageUnavailableWarningText,
+		]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A usage-measurement diagnostic points at the coderd logs, so no
+		// sales link is rendered under it.
+		await expect(canvas.getByRole("status")).toHaveTextContent(
+			LicenseAgentRuntimeUsageUnavailableWarningText,
+		);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
 	},
 };

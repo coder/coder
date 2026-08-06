@@ -11,16 +11,28 @@ import (
 
 // TestLicenseAgentRuntimeHoursWarningTexts pins the string couplings the
 // dashboard's LicenseBanner (site/src/modules/dashboard/LicenseBanner)
-// depends on. The banner classifies warnings by prefix: a warning starting
-// with the AI Governance near-limit prefix renders in the muted variant and
-// suppresses the client-side AI Governance over-limit fallback. It also
-// dispatches links by exact template matching, which requires that no
-// template be a prefix of another.
+// depends on. The banner classifies warnings by the literal prefix before a
+// template's first placeholder: a warning starting with the AI Governance
+// near-limit prefix or the runtime hours soft-limit prefix renders in the
+// muted variant, and the AI Governance near-limit prefix additionally
+// suppresses the client-side over-limit fallback. A shared prefix would make
+// the classifier conflate two different warnings.
 func TestLicenseAgentRuntimeHoursWarningTexts(t *testing.T) {
 	t.Parallel()
 
-	aiGovNearLimitPrefix := strings.Split(codersdk.LicenseAIGovernance90PercentWarningText, "%d%%")[0]
-	aiGovOverLimitPrefix := strings.Split(codersdk.LicenseAIGovernanceOverLimitWarningText, "%d")[0]
+	// Cut rather than Split so a template losing its placeholder fails the
+	// test instead of silently turning the whole message into the "prefix".
+	cutPrefix := func(text, placeholder string) string {
+		t.Helper()
+		prefix, _, ok := strings.Cut(text, placeholder)
+		require.True(t, ok, "template %q must contain placeholder %q", text, placeholder)
+		return prefix
+	}
+
+	aiGovNearLimitPrefix := cutPrefix(codersdk.LicenseAIGovernance90PercentWarningText, "%d%%")
+	aiGovOverLimitPrefix := cutPrefix(codersdk.LicenseAIGovernanceOverLimitWarningText, "%d")
+	softLimitPrefix := cutPrefix(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, "%d")
+	allocationPrefix := cutPrefix(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, "%d")
 
 	runtimeTexts := map[string]string{
 		"SoftLimit":         codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText,
@@ -33,16 +45,13 @@ func TestLicenseAgentRuntimeHoursWarningTexts(t *testing.T) {
 			"%s warning must not share the AI Governance over-limit prefix %q", name, aiGovOverLimitPrefix)
 	}
 
-	require.False(t,
-		strings.HasPrefix(
-			codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText,
-			codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText,
-		),
-		"the runtime hours warning templates must not be prefixes of each other")
-	require.False(t,
-		strings.HasPrefix(
-			codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText,
-			codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText,
-		),
-		"the runtime hours warning templates must not be prefixes of each other")
+	// The banner tells the advisory soft-limit warning apart from the
+	// allocation-reached warning by these prefixes, so they must differ
+	// before the first placeholder.
+	require.NotEqual(t, softLimitPrefix, allocationPrefix,
+		"the runtime hours warning templates must diverge before their first placeholder")
+	require.False(t, strings.HasPrefix(softLimitPrefix, allocationPrefix),
+		"the allocation-reached prefix must not classify the soft-limit warning")
+	require.False(t, strings.HasPrefix(allocationPrefix, softLimitPrefix),
+		"the soft-limit prefix must not classify the allocation-reached warning")
 }

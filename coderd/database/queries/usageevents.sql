@@ -1,6 +1,11 @@
 -- name: InsertUsageEvent :exec
 -- Duplicate events are ignored intentionally to allow for multiple replicas to
--- publish heartbeat events.
+-- publish heartbeat events. DO NOTHING carries no arbiter on purpose: an
+-- insert must be suppressed whichever unique constraint it collides with,
+-- both a duplicate id and, for hb_agent_runtime_v1, a duplicate bucket under
+-- idx_usage_events_agent_runtime. With an (id) arbiter, two replicas racing
+-- the same bucket could surface the conflict on the non-arbiter index as an
+-- error instead.
 INSERT INTO
     usage_events (
         id,
@@ -13,7 +18,7 @@ INSERT INTO
     )
 VALUES
     (@id, @event_type, @event_data, @created_at, NULL, NULL, NULL)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- name: UsageEventExistsByID :one
 SELECT EXISTS(
@@ -125,16 +130,32 @@ WHERE
 -- Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
 -- rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
 -- one row per hourly bucket deployment-wide (see
--- enterprise/coderd/usage/generator.go), served by the partial index
+-- enterprise/coderd/usage/generator.go), served by the unique partial index
 -- idx_usage_events_agent_runtime, and created_at is always the bucket start.
--- Exact bounds keep buckets from outside the requested period, e.g. the
--- previous license term, from being counted against it.
+-- (GetTotalUsageDCManagedAgentsV1 keeps the rollup's day-granularity bounds,
+-- including counting a boundary day shared by two license terms against
+-- both.)
 --
--- SUM is only correct because the generator derives one event per bucket
--- under a deterministic ID; a second hb_agent_runtime_v1 row for a bucket
--- that already has one would double count. This also depends on usage_events
--- rows being retained; if a retention policy ever lands, this must move to
--- the usage_events_daily rollup and accept day-granularity bounds.
+-- The result is bucket-granular rather than exact. A bucket is charged to
+-- the period containing its start, so a bucket straddling a bound counts
+-- entirely against the period its start falls in. A bucket also holds the
+-- runtime of chat steps whose rows landed in that hour rather than the
+-- runtime that elapsed in it, so its contents are not bounded by the hour;
+-- no choice of bounds makes this sum exact. Reading chat_messages
+-- (GetTotalChatMessageRuntimeMsInRange) would make the bounds exact at the
+-- timestamp level, but it would tie entitlements to chat retention and
+-- diverge from the usage events the billing pipeline receives. This also
+-- sums locally recorded runtime regardless of publish outcome; rows the
+-- usage collector rejected are still counted (see
+-- enterprise/coderd/usage/generator.go).
+--
+-- SUM is only correct because there is at most one row per bucket, which
+-- the unique index enforces regardless of id: a second hb_agent_runtime_v1
+-- row for a bucket that already has one is suppressed by InsertUsageEvent's
+-- ON CONFLICT DO NOTHING instead of double counting. This also depends on
+-- usage_events rows being retained; if a retention policy ever lands, this
+-- must move to the usage_events_daily rollup and accept day-granularity
+-- bounds.
 SELECT
     -- The first cast is necessary since you can't sum strings, and the second
     -- cast is necessary to make sqlc happy.
@@ -143,5 +164,5 @@ FROM
     usage_events
 WHERE
     event_type = 'hb_agent_runtime_v1'
-    AND created_at >= @start_date::timestamptz
-    AND created_at < @end_date::timestamptz;
+    AND created_at >= @start_time::timestamptz
+    AND created_at < @end_time::timestamptz;

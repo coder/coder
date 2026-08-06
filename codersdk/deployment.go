@@ -383,23 +383,21 @@ type Feature struct {
 	Limit       *int64      `json:"limit,omitempty"`
 	// SoftLimit is the advisory warning threshold that accompanies Limit for
 	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation.
-	//
-	// Only certain features set this field:
-	// - FeatureAgentRuntimeHours
+	// the purchased allocation. Only FeatureAgentRuntimeHours sets this
+	// field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	// Actual is the usage measured against Limit, when known. For most
-	// features it is a point-in-time count sampled when entitlements were
-	// computed (e.g. active users). Features with a UsagePeriod instead
-	// accumulate usage over that period, in a feature-specific unit:
-	// - FeatureManagedAgentLimit: workspace builds using managed agents.
-	// - FeatureAgentRuntimeHours: whole hours of Coder Agent runtime,
-	//   floored from the recorded milliseconds, sharing its unit with
-	//   Limit, SoftLimit and HardLimit.
+	// Actual is the usage measured against Limit, when known. Most features
+	// report a point-in-time count sampled when entitlements were computed,
+	// such as active users. Features with a UsagePeriod accumulate usage
+	// over that period in a feature-specific unit: FeatureManagedAgentLimit
+	// counts workspace builds using managed agents, and
+	// FeatureAgentRuntimeHours counts whole hours of Coder Agent runtime,
+	// floored from the recorded milliseconds and sharing its unit with
+	// Limit, SoftLimit and HardLimit.
 	Actual *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.

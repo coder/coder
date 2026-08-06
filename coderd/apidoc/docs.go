@@ -20637,7 +20637,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
-                    "description": "Actual is the usage measured against Limit, when known. For most\nfeatures it is a point-in-time count sampled when entitlements were\ncomputed (e.g. active users). Features with a UsagePeriod instead\naccumulate usage over that period, in a feature-specific unit:\n- FeatureManagedAgentLimit: workspace builds using managed agents.\n- FeatureAgentRuntimeHours: whole hours of Coder Agent runtime,\n  floored from the recorded milliseconds, sharing its unit with\n  Limit, SoftLimit and HardLimit.",
+                    "description": "Actual is the usage measured against Limit, when known. Most features\nreport a point-in-time count sampled when entitlements were computed,\nsuch as active users. Features with a UsagePeriod accumulate usage\nover that period in a feature-specific unit: FeatureManagedAgentLimit\ncounts workspace builds using managed agents, and\nFeatureAgentRuntimeHours counts whole hours of Coder Agent runtime,\nfloored from the recorded milliseconds and sharing its unit with\nLimit, SoftLimit and HardLimit.",
                     "type": "integer"
                 },
                 "enabled": {
@@ -20654,7 +20654,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "soft_limit": {
-                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
+                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation. Only FeatureAgentRuntimeHours sets this\nfield.",
                     "type": "integer"
                 },
                 "usage_period": {

@@ -12,13 +12,47 @@ import (
 )
 
 const (
-	LicenseExpiryClaim                                   = "license_expires"
-	LicenseTelemetryRequiredErrorText                    = "License requires telemetry but telemetry is disabled"
-	LicenseManagedAgentLimitExceededWarningText          = "You have built more workspaces with managed agents than your license allows."
-	LicenseAIGovernance90PercentWarningText              = "You have used %d%% of your AI Governance add-on seats."
-	LicenseAIGovernanceOverLimitWarningText              = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
-	LicenseAgentRuntimeHoursSoftLimitWarningText         = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license, reaching the advisory soft limit of %d hours."
-	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in your license."
+	LicenseExpiryClaim                          = "license_expires"
+	LicenseTelemetryRequiredErrorText           = "License requires telemetry but telemetry is disabled"
+	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
+	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
+	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
+	// LicenseAgentRuntimeHoursSoftLimitWarningText is emitted once the
+	// deployment reaches the advisory soft limit but is still within its
+	// runtime hour allocation. All placeholders are whole hours: the runtime
+	// used so far in the license term, the allocation, then the soft limit.
+	//
+	// The two runtime hours texts must differ before their first placeholder:
+	// the dashboard's LicenseBanner classifies warnings by the literal prefix
+	// preceding the first placeholder, rendering the advisory soft-limit text
+	// in the muted variant and the allocation-reached text prominently.
+	// Neither text may begin with the prefix of
+	// LicenseAIGovernance90PercentWarningText or
+	// LicenseAIGovernanceOverLimitWarningText for the same reason. See
+	// TestLicenseAgentRuntimeHoursWarningTexts.
+	LicenseAgentRuntimeHoursSoftLimitWarningText = "Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, reaching the advisory soft limit of %d hours."
+	// LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
+	// the deployment reaches its runtime hour allocation. Both placeholders
+	// are whole hours: the runtime used so far in the license term, then the
+	// allocation.
+	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term."
+	// LicenseManagedAgentUsageUnavailableWarningText is emitted when the
+	// managed agent usage query fails while computing entitlements. The
+	// cause is logged by the query closure; this stable text is served on
+	// the unauthenticated entitlements payload instead of the raw error.
+	LicenseManagedAgentUsageUnavailableWarningText = "Unable to determine managed agent usage. The reported count may be stale or missing; workspaces are unaffected. Check the coderd logs for details."
+	// LicenseAgentRuntimeUsageUnavailableWarningText is the Coder Agent
+	// runtime hours sibling of LicenseManagedAgentUsageUnavailableWarningText.
+	LicenseAgentRuntimeUsageUnavailableWarningText = "Unable to determine Coder Agent runtime usage. Reported runtime hours may be stale or missing; workspaces are unaffected. Check the coderd logs for details."
+	// LicenseManagedAgentUsageNotConfiguredWarningText is emitted when the
+	// managed agent usage measurement function was never wired up. That is a
+	// bug in coderd rather than a runtime failure, so unlike the
+	// "unavailable" texts it does not point at the logs: nothing was logged.
+	LicenseManagedAgentUsageNotConfiguredWarningText = "Managed agent usage measurement is not configured. This is a bug in Coder; please report it. The reported count may be stale or missing; workspaces are unaffected."
+	// LicenseAgentRuntimeUsageNotConfiguredWarningText is the Coder Agent
+	// runtime hours sibling of
+	// LicenseManagedAgentUsageNotConfiguredWarningText.
+	LicenseAgentRuntimeUsageNotConfiguredWarningText = "Coder Agent runtime usage measurement is not configured. This is a bug in Coder; please report it. Reported runtime hours may be stale or missing; workspaces are unaffected."
 )
 
 type AddLicenseRequest struct {
