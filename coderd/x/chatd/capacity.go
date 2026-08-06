@@ -91,6 +91,44 @@ func (w *chatWorker) enterCapacityQueue(ctx context.Context, chatID uuid.UUID) b
 	return true
 }
 
+// reconcileCapacityQueue drops local queue entries the pass did not see and
+// that stopped being capacity-wait candidates, without paging past the
+// candidate batch the way a complete scan would.
+func (w *chatWorker) reconcileCapacityQueue(ctx context.Context, seen map[uuid.UUID]struct{}) {
+	w.capacityMu.Lock()
+	unseen := make([]uuid.UUID, 0, len(w.capacityQueue))
+	for id := range w.capacityQueue {
+		if _, ok := seen[id]; !ok {
+			unseen = append(unseen, id)
+		}
+	}
+	w.capacityMu.Unlock()
+	if len(unseen) == 0 {
+		return
+	}
+	live, err := w.opts.Store.FilterChatCapacityWaiting(ctx, database.FilterChatCapacityWaitingParams{
+		IDs:          unseen,
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+	})
+	if err != nil {
+		if ctx.Err() == nil {
+			w.opts.Logger.Warn(ctx, "chatworker reconcile capacity queue failed", slogError(err))
+		}
+		return
+	}
+	liveSet := make(map[uuid.UUID]struct{}, len(live))
+	for _, id := range live {
+		liveSet[id] = struct{}{}
+	}
+	w.capacityMu.Lock()
+	defer w.capacityMu.Unlock()
+	for _, id := range unseen {
+		if _, ok := liveSet[id]; !ok {
+			delete(w.capacityQueue, id)
+		}
+	}
+}
+
 func (w *chatWorker) dropCapacityQueue(chatID uuid.UUID) (time.Time, bool) {
 	w.capacityMu.Lock()
 	defer w.capacityMu.Unlock()

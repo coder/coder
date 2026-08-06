@@ -267,6 +267,10 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
+	// Returns the subset of ids still able to wait for capacity: running,
+	// unarchived, with no live owner heartbeat. Workers reconcile their local
+	// capacity queues against it.
+	FilterChatCapacityWaiting(ctx context.Context, arg FilterChatCapacityWaitingParams) ([]uuid.UUID, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
 	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.

@@ -2839,6 +2839,23 @@ FROM (
       AND c.archived = false
 ) pools;
 
+-- name: FilterChatCapacityWaiting :many
+-- Returns the subset of ids still able to wait for capacity: running,
+-- unarchived, with no live owner heartbeat. Workers reconcile their local
+-- capacity queues against it.
+SELECT c.id
+FROM chats c
+WHERE c.id = ANY(@ids::uuid[])
+  AND c.status = 'running'::chat_status
+  AND c.archived = false
+  AND NOT EXISTS (
+      SELECT 1
+      FROM chat_heartbeats hb
+      WHERE hb.chat_id = c.id
+        AND hb.runner_id = c.runner_id
+        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+  );
+
 -- name: GetChatQueuedForCapacity :one
 -- A chat waits for capacity only when it is running, unarchived, unowned,
 -- and its pool is full. Pool fullness distinguishes capacity waits from

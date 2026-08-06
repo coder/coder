@@ -1800,6 +1800,21 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
 }
 
+// FilterChatCapacityWaiting mocks base method.
+func (m *MockStore) FilterChatCapacityWaiting(ctx context.Context, arg database.FilterChatCapacityWaitingParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterChatCapacityWaiting", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterChatCapacityWaiting indicates an expected call of FilterChatCapacityWaiting.
+func (mr *MockStoreMockRecorder) FilterChatCapacityWaiting(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterChatCapacityWaiting", reflect.TypeOf((*MockStore)(nil).FilterChatCapacityWaiting), ctx, arg)
+}
+
 // FinalizeStaleChatDebugRows mocks base method.
 func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, arg database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	m.ctrl.T.Helper()

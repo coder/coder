@@ -250,7 +250,10 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 			return
 		}
 		// An all-skipped batch means the available pool heads were tried.
+		// Entries beyond this page reconcile with one targeted query so a
+		// full-pool backlog cannot starve the prune.
 		if !progressed {
+			w.reconcileCapacityQueue(ctx, seen)
 			return
 		}
 	}
