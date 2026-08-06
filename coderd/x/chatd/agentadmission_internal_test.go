@@ -22,6 +22,7 @@ type fakeAdmission struct {
 	refused map[uuid.UUID]bool
 
 	admitCalls int
+	admitted   []uuid.UUID
 }
 
 func newFakeAdmission() *fakeAdmission {
@@ -44,7 +45,17 @@ func (f *fakeAdmission) Admit(_ context.Context, _ database.Store, chat database
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.admitCalls++
-	return !f.refused[chat.ID], nil
+	if f.refused[chat.ID] {
+		return false, nil
+	}
+	f.admitted = append(f.admitted, chat.ID)
+	return true, nil
+}
+
+func (f *fakeAdmission) admittedOrder() []uuid.UUID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]uuid.UUID(nil), f.admitted...)
 }
 
 func (f *fakeAdmission) admitCallCount() int {
@@ -317,6 +328,47 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 		"a full pool must be skipped after one refusal, not re-refused per chat")
 }
 
+func TestWorker_AdmissionPublishesClearWithoutLocalRefusal(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = newFakeAdmission()
+	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+
+	// Another replica may have refused this chat and published the queued
+	// event, so the admitting replica must publish the clear even though
+	// its own capacityQueue never held the chat.
+	chat := f.createRunningChat(t)
+	startWorker(t, opts)
+
+	starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Eventually(t, func() bool {
+		events := capacityEvents(t, recording, chat.ID)
+		return len(events) >= 1 && !events[len(events)-1].Chat.QueuedForCapacity
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestWorker_UncappedPolicySkipsClearEvents(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.Pubsub = recording
+	opts.AgentAdmission = newFakeAdmission()
+	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: false}}
+
+	chat := f.createRunningChat(t)
+	startWorker(t, opts)
+
+	starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Empty(t, capacityEvents(t, recording, chat.ID),
+		"uncapped deployments must not publish clear events on every acquisition")
+}
+
 func TestWorker_WithoutAdmissionPublishesNoCapacityEvents(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
@@ -362,10 +414,12 @@ func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 	admission.allow(newer.ID)
 	worker.Wake()
 
-	first := starter.waitCall(t, taskKindGeneration, uuid.Nil)
-	require.Equal(t, older.ID, first.input.ChatID, "the longer-waiting chat must admit first")
-	second := starter.waitCall(t, taskKindGeneration, uuid.Nil)
-	require.Equal(t, newer.ID, second.input.ChatID)
+	// Runner goroutines race task starts, so wait for both without
+	// ordering and assert the worker's serial admission order instead.
+	starter.waitCall(t, taskKindGeneration, uuid.Nil)
+	starter.waitCall(t, taskKindGeneration, uuid.Nil)
+	require.Equal(t, []uuid.UUID{older.ID, newer.ID}, admission.admittedOrder(),
+		"the longer-waiting chat must admit first")
 }
 
 type runningRefusingAdmission struct{}
