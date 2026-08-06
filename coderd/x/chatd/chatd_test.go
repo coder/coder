@@ -2925,6 +2925,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
 		var foundPartial bool
+		var partialRuntime sql.NullInt64
 		for _, msg := range messages {
 			parts, parseErr := chatprompt.ParseContent(msg)
 			require.NoError(t, parseErr)
@@ -2939,12 +2940,16 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				for _, part := range parts {
 					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial assistant output") {
 						foundPartial = true
+						partialRuntime = msg.RuntimeMs
 					}
 				}
 			}
 		}
 		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
 		require.True(t, foundPartial)
+		// The interrupted attempt bills the model invocation window it
+		// opened, so the partial assistant row keeps a runtime.
+		require.True(t, partialRuntime.Valid)
 
 		parts := chatToolParts(ctx, t, db, chat.ID)
 		call := requireToolCallPart(t, parts, "read_file")
@@ -5909,7 +5914,12 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
 	require.True(t, last.ContextLimit.Valid)
 	require.Equal(t, int64(4096), last.ContextLimit.Int64)
-	require.GreaterOrEqual(t, last.RuntimeMs.Int64, int64(0))
+	// runtime_ms is not asserted here: this stream is served in
+	// process and routinely finishes in under a millisecond, which
+	// InsertChatMessages stores as NULL. Runtime measurement and
+	// persistence are pinned deterministically in
+	// chatloop.TestGenerateAssistant_RecordsModelInvocationRuntime and
+	// TestInterruptTask_PartialAssistantKeepsAttemptRuntime.
 	requireTextPart(t, last, "done")
 
 	server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
