@@ -52,6 +52,23 @@
 # Terminology follows poc_audit/audit_approach.md: workspace_agent is always
 # written in full and never shortened to "agent", since the bare word is
 # reserved for the principal and agent sense.
+#
+# Auditable events carry the "auditable" class. d2 classes are purely visual,
+# so the marking needs a legend to be self-explanatory. Which events are
+# marked is a design choice still being made, so absence of the class means
+# "not yet considered" rather than "decided not auditable".
+
+classes: {
+  auditable: {
+    style: {
+      stroke: "#B8860B"
+      stroke-width: 3
+      bold: true
+      font-color: "#7A5C00"
+      fill: "#FFF3C4"
+    }
+  }
+}
 
 startup: Workspace startup, proposal, dogfood/coder {
   shape: sequence_diagram
@@ -71,6 +88,27 @@ startup: Workspace startup, proposal, dogfood/coder {
     user.req -> coderd.create: {
       source-arrowhead.label: create workspace
     }
+
+    # Citation for the note below.
+    #
+    #   coderd/workspaces.go:724      ID: uuid.New()
+    #   inside the InsertWorkspaceParams passed to db.InsertWorkspace on the
+    #   preceding line, within the transaction opened at :646.
+    #
+    #   Line number valid at tree 26d5b2e2d21b8c77ab420a3dd04d78cf6a101dc9
+    #   on branch tigre. The line itself was last written by commit
+    #   118f12ac3abc7e0d607392654b6e85bcf0c8af8c, which is already reachable
+    #   from origin/main, so the content citation is durable even though the
+    #   line number is tied to this tree.
+    #
+    #   REMINDER: tigre is a prototype branch that will never merge. Before
+    #   this diagram leaves prototype status, re-point this citation at a
+    #   commit on main and re-check the line number, which will have moved.
+    #
+    # This diagram ignores the identifiers for the workspace build and the
+    # provisioner job, which are minted in the same activation.
+    coderd.create.identity: create workspace identity { class: auditable }
+
     coderd.create -> db.intent: {
       source-arrowhead.label: record build intent
     }
