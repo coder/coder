@@ -167,6 +167,24 @@ startup: Workspace startup, proposal, dogfood/coder {
       source-arrowhead.label: run coder_scripts
     }
     agent.up.note: Module payloads run here, not at plan time
+
+    # PROPOSED. Nothing below this point exists today. This is the insertion
+    # point identified earlier: sandbox and AI agent construction happens
+    # here, inside an already running workspace, after the build has already
+    # been reported complete and recorded.
+    agent.up -> agent.up.create_ai_agent: {
+      source-arrowhead.label: create AI agent
+    }
+    agent.up.create_ai_agent -> coderd.aideclare: {
+      source-arrowhead.label: declare new AI agent
+    }
+    coderd.aideclare.identity: create AI agent identity { class: auditable }
+    coderd.aideclare -> agent.up.create_ai_agent: {
+      source-arrowhead.label: AI agent authentication token
+      style.stroke-dash: 3
+      style.italic: true
+    }
+
     agent.up -> dc.up: {
       source-arrowhead.label: start devcontainer
     }
