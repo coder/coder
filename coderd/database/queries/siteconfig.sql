@@ -57,6 +57,26 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 -- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name';
 
+-- name: GetHideCodernauts :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'hide_codernauts'), false) :: boolean AS hide_codernauts;
+
+-- name: UpsertHideCodernauts :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'hide_codernauts',
+    CASE
+        WHEN @hide::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN @hide::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'hide_codernauts';
+
 -- name: GetHealthSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings

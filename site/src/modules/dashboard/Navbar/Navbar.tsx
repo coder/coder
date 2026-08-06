@@ -43,6 +43,7 @@ export const Navbar: React.FC = () => {
 			user={me}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
+			hideCodernauts={appearance.hide_codernauts}
 			onSignOut={signOut}
 			adminPermissions={{
 				canViewDeployment,

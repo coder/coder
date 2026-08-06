@@ -2161,6 +2161,14 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetHideCodernauts(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetHideCodernauts(ctx)
+	m.queryLatencies.WithLabelValues("GetHideCodernauts").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetHideCodernauts").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetHighestGroupAIBudgetByUser(ctx, userID)
@@ -6334,6 +6342,14 @@ func (m queryMetricsStore) UpsertHealthSettings(ctx context.Context, value strin
 	r0 := m.s.UpsertHealthSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertHealthSettings").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertHideCodernauts(ctx context.Context, hide bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertHideCodernauts(ctx, hide)
+	m.queryLatencies.WithLabelValues("UpsertHideCodernauts").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertHideCodernauts").Inc()
 	return r0
 }
 

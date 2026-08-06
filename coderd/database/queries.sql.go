@@ -24906,6 +24906,18 @@ func (q *sqlQuerier) GetHealthSettings(ctx context.Context) (string, error) {
 	return health_settings, err
 }
 
+const getHideCodernauts = `-- name: GetHideCodernauts :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'hide_codernauts'), false) :: boolean AS hide_codernauts
+`
+
+func (q *sqlQuerier) GetHideCodernauts(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getHideCodernauts)
+	var hide_codernauts bool
+	err := row.Scan(&hide_codernauts)
+	return hide_codernauts, err
+}
+
 const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check'
 `
@@ -25304,6 +25316,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'health_sett
 
 func (q *sqlQuerier) UpsertHealthSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertHealthSettings, value)
+	return err
+}
+
+const upsertHideCodernauts = `-- name: UpsertHideCodernauts :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'hide_codernauts',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'hide_codernauts'
+`
+
+func (q *sqlQuerier) UpsertHideCodernauts(ctx context.Context, hide bool) error {
+	_, err := q.db.ExecContext(ctx, upsertHideCodernauts, hide)
 	return err
 }
 

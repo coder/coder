@@ -4005,6 +4005,21 @@ func (mr *MockStoreMockRecorder) GetHealthSettings(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), ctx)
 }
 
+// GetHideCodernauts mocks base method.
+func (m *MockStore) GetHideCodernauts(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHideCodernauts", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHideCodernauts indicates an expected call of GetHideCodernauts.
+func (mr *MockStoreMockRecorder) GetHideCodernauts(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHideCodernauts", reflect.TypeOf((*MockStore)(nil).GetHideCodernauts), ctx)
+}
+
 // GetHighestGroupAIBudgetByUser mocks base method.
 func (m *MockStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
 	m.ctrl.T.Helper()
@@ -11858,6 +11873,20 @@ func (m *MockStore) UpsertHealthSettings(ctx context.Context, value string) erro
 func (mr *MockStoreMockRecorder) UpsertHealthSettings(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), ctx, value)
+}
+
+// UpsertHideCodernauts mocks base method.
+func (m *MockStore) UpsertHideCodernauts(ctx context.Context, hide bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertHideCodernauts", ctx, hide)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertHideCodernauts indicates an expected call of UpsertHideCodernauts.
+func (mr *MockStoreMockRecorder) UpsertHideCodernauts(ctx, hide any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHideCodernauts", reflect.TypeOf((*MockStore)(nil).UpsertHideCodernauts), ctx, hide)
 }
 
 // UpsertLastUpdateCheck mocks base method.
