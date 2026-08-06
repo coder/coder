@@ -65,7 +65,6 @@ import {
 	removeChatEntity,
 	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
-	removeHardDeletedChatFromCaches,
 	reorderPinnedChat,
 	resetUnloadedChatEntity,
 	setChatGroupRole,
@@ -3559,9 +3558,8 @@ describe("semantic cache operations: removal and patching", () => {
 });
 
 describe("chatEntitiesFamilyKey shape", () => {
-	// removeHardDeletedChatFromCaches derives detail keys from this
-	// prefix; if chatEntityKey ever stops building on it, the fallback
-	// cascade scan silently misses every cached family member.
+	// chatEntityKey builds on this prefix, so every entity detail entry
+	// shares the family root and can be addressed as a group.
 	it("prefixes every chat entity key", () => {
 		expect(chatEntityKey("chat-1")).toEqual([
 			...chatEntitiesFamilyKey,
@@ -3860,145 +3858,6 @@ describe("applyWatchedChatCreatedOrUnarchived", () => {
 				`${label} entry should be invalidated`,
 			).toBe(true);
 		}
-	});
-});
-
-describe("removeHardDeletedChatFromCaches", () => {
-	it("prefix-removes the entity family including sub-resources without tombstones", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatPromptsKey(chatId), { prompts: [] });
-
-		removeHardDeletedChatFromCaches(queryClient, { chatId });
-
-		for (const [label, key] of [
-			["detail", chatEntityKey(chatId)],
-			["messages", chatMessagesKey(chatId)],
-			["prompts", chatPromptsKey(chatId)],
-		] as const) {
-			expect(
-				queryClient.getQueryState(key),
-				`${label} entry should be removed entirely`,
-			).toBeUndefined();
-		}
-	});
-
-	it("removes list rows, parent children entries, search rows, and by-workspace mappings", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const child = makeChat(chatId, {
-			parent_chat_id: "parent-1",
-			root_chat_id: "parent-1",
-		});
-		seedInfiniteChats(queryClient, [
-			makeChat("parent-1", { children: [child] }),
-			makeChat(chatId),
-			makeChat("chat-2"),
-		]);
-		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
-			makeChat(chatId),
-			makeChat("chat-2"),
-		]);
-		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
-			"ws-1": chatId,
-			"ws-2": "chat-2",
-		});
-
-		removeHardDeletedChatFromCaches(queryClient, { chatId });
-
-		const list = readInfiniteChats(queryClient);
-		expect(list?.map((chat) => chat.id)).toEqual(["parent-1", "chat-2"]);
-		expect(list?.[0].children).toEqual([]);
-		expect(
-			queryClient
-				.getQueryData<TypesGen.Chat[]>(chatSearch({ q: "alpha" }).queryKey)
-				?.map((row) => row.id),
-		).toEqual(["chat-2"]);
-		expect(
-			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
-		).toEqual({ "ws-2": "chat-2" });
-	});
-
-	it("removes explicit cascade entity families", () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatEntityKey("root-1"), makeChat("root-1"));
-		queryClient.setQueryData(
-			chatEntityKey("child-1"),
-			makeChat("child-1", { root_chat_id: "root-1" }),
-		);
-		queryClient.setQueryData(chatMessagesKey("child-1"), []);
-
-		removeHardDeletedChatFromCaches(queryClient, {
-			chatId: "root-1",
-			cascadeIds: ["child-1"],
-		});
-
-		expect(queryClient.getQueryState(chatEntityKey("child-1"))).toBeUndefined();
-		expect(
-			queryClient.getQueryState(chatMessagesKey("child-1")),
-		).toBeUndefined();
-	});
-
-	it("discovers cached family members by lineage when cascadeIds is absent", () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatEntityKey("root-1"), makeChat("root-1"));
-		queryClient.setQueryData(
-			chatEntityKey("child-1"),
-			makeChat("child-1", { root_chat_id: "root-1" }),
-		);
-		queryClient.setQueryData(chatMessagesKey("child-1"), []);
-		queryClient.setQueryData(chatEntityKey("other-1"), makeChat("other-1"));
-
-		removeHardDeletedChatFromCaches(queryClient, { chatId: "root-1" });
-
-		expect(queryClient.getQueryState(chatEntityKey("child-1"))).toBeUndefined();
-		expect(
-			queryClient.getQueryState(chatMessagesKey("child-1")),
-		).toBeUndefined();
-		expect(queryClient.getQueryData(chatEntityKey("other-1"))).toBeDefined();
-	});
-
-	it("removes the cost tree for a deleted root", () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatCostTreeKey("root-1"), { total: 1 });
-
-		removeHardDeletedChatFromCaches(queryClient, { chatId: "root-1" });
-
-		expect(
-			queryClient.getQueryState(chatCostTreeKey("root-1")),
-		).toBeUndefined();
-	});
-
-	it("invalidates the surviving root's cost tree for a deleted descendant", () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatCostTreeKey("root-1"), { total: 1 });
-
-		removeHardDeletedChatFromCaches(queryClient, {
-			chatId: "child-1",
-			rootChatId: "root-1",
-		});
-
-		expect(queryClient.getQueryData(chatCostTreeKey("root-1"))).toBeDefined();
-		expect(
-			queryClient.getQueryState(chatCostTreeKey("root-1"))?.isInvalidated,
-		).toBe(true);
-	});
-
-	it("leaves collection and config entries outside the entities family in place", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		seedInfiniteChats(queryClient, [makeChat(chatId)]);
-		queryClient.setQueryData(chatAdvisorConfigKey, { enabled: true });
-
-		removeHardDeletedChatFromCaches(queryClient, { chatId });
-
-		expect(queryClient.getQueryData(infiniteChatsTestKey)).toBeDefined();
-		expect(queryClient.getQueryData(chatAdvisorConfigKey)).toBeDefined();
-		expect(
-			queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated,
-		).not.toBe(true);
 	});
 });
 
