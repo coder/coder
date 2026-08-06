@@ -10,6 +10,9 @@ import {
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
+	applyChatArchiveStateToCaches,
+	applyWatchedChatArchived,
+	applyWatchedChatCreatedOrUnarchived,
 	archiveChat,
 	type ChatListInput,
 	cancelChatEntity,
@@ -26,6 +29,7 @@ import {
 	chatDebugRunKey,
 	chatDebugRunsKey,
 	chatDiffContentsKey,
+	chatEntitiesFamilyKey,
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
@@ -60,6 +64,7 @@ import {
 	removeChatEntity,
 	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
+	removeHardDeletedChatFromCaches,
 	reorderPinnedChat,
 	setChatGroupRole,
 	setChatUserRole,
@@ -529,6 +534,28 @@ describe("archiveChat optimistic update", () => {
 		expect(readInfiniteChats(queryClient, { archived: false })).toEqual([]);
 	});
 
+	it("patches loaded search rows after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const unrelatedRow = makeChat("chat-2");
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat(chatId, { pin_order: 2 }),
+			unrelatedRow,
+		]);
+
+		const mutation = archiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
+			chatSearch({ q: "alpha" }).queryKey,
+		);
+		expect(rows?.find((row) => row.id === chatId)).toMatchObject({
+			archived: true,
+			pin_order: 0,
+		});
+		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
+	});
+
 	it("rolls back the chats list on error by invalidating", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -689,6 +716,25 @@ describe("unarchiveChat optimistic update", () => {
 		).toMatchObject({
 			archived: false,
 		});
+	});
+
+	it("patches loaded search rows after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const unrelatedRow = makeChat("chat-2", { archived: true });
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat(chatId, { archived: true }),
+			unrelatedRow,
+		]);
+
+		const mutation = unarchiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
+			chatSearch({ q: "alpha" }).queryKey,
+		);
+		expect(rows?.find((row) => row.id === chatId)?.archived).toBe(false);
+		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
 	});
 
 	it("rolls back both caches on error", async () => {
@@ -3457,5 +3503,401 @@ describe("semantic cache operations: removal and patching", () => {
 		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
 			before,
 		);
+	});
+});
+
+describe("chatEntitiesFamilyKey shape", () => {
+	// removeHardDeletedChatFromCaches derives detail keys from this
+	// prefix; if chatEntityKey ever stops building on it, the fallback
+	// cascade scan silently misses every cached family member.
+	it("prefixes every chat entity key", () => {
+		expect(chatEntityKey("chat-1")).toEqual([
+			...chatEntitiesFamilyKey,
+			"chat-1",
+		]);
+	});
+});
+
+describe("applyChatArchiveStateToCaches search rows", () => {
+	it("patches matching rows and preserves unrelated rows by reference", () => {
+		const queryClient = createTestQueryClient();
+		const unrelatedRow = makeChat("chat-2");
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat("chat-1", { pin_order: 2 }),
+			unrelatedRow,
+		]);
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
+			chatSearch({ q: "alpha" }).queryKey,
+		);
+		expect(rows?.find((row) => row.id === "chat-1")).toMatchObject({
+			archived: true,
+			pin_order: 0,
+		});
+		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
+	});
+
+	it("preserves the previous array reference when nothing changes", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat("chat-1", { archived: true }),
+		]);
+		const before = queryClient.getQueryData(
+			chatSearch({ q: "alpha" }).queryKey,
+		);
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(queryClient.getQueryData(chatSearch({ q: "alpha" }).queryKey)).toBe(
+			before,
+		);
+	});
+
+	it("leaves per-chat sub-resource entries untouched", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), { prompts: [] });
+		queryClient.setQueryData(chatACLKey(chatId), {});
+		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+
+		applyChatArchiveStateToCaches(queryClient, chatId, true);
+
+		for (const [label, key] of [
+			["messages", chatMessagesKey(chatId)],
+			["prompts", chatPromptsKey(chatId)],
+			["acl", chatACLKey(chatId)],
+			["diff-contents", chatDiffContentsKey(chatId)],
+		] as const) {
+			expect(
+				queryClient.getQueryData(key),
+				`${label} entry should survive`,
+			).toBeDefined();
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should NOT be invalidated`,
+			).not.toBe(true);
+		}
+	});
+});
+
+describe("applyWatchedChatArchived", () => {
+	it("patches the entity in place instead of removing it", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatEntityKey(chatId),
+			makeChat(chatId, { pin_order: 2 }),
+		);
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+		).toMatchObject({
+			archived: true,
+			pin_order: 0,
+		});
+	});
+
+	it("drops the chat from active lists and patches it in archived lists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId), makeChat("chat-2")], {
+			archived: false,
+		});
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })], {
+			archived: true,
+		});
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.map(
+				(chat) => chat.id,
+			),
+		).toEqual(["chat-2"]);
+		expect(
+			readInfiniteChats(queryClient, { archived: true })?.[0],
+		).toMatchObject({
+			id: chatId,
+			archived: true,
+			pin_order: 0,
+		});
+	});
+
+	it("patches search rows and removes the by-workspace mapping", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat(chatId),
+		]);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": chatId,
+		});
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat[]>(
+				chatSearch({ q: "alpha" }).queryKey,
+			)?.[0].archived,
+		).toBe(true);
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({});
+	});
+
+	it("invalidates the list, by-workspace, and search families but not per-chat sub-resources", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId)]);
+		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["chat search", chatSearch({ q: "alpha" }).queryKey],
+			["by-workspace", chatsByWorkspace(["ws-1"]).queryKey],
+		] as const) {
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should be invalidated`,
+			).toBe(true);
+		}
+		expect(
+			queryClient.getQueryData(chatMessagesKey(chatId)),
+			"messages entry should survive",
+		).toBeDefined();
+		expect(
+			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryData(chatEntityKey(chatId)),
+			"entity entry should survive",
+		).toBeDefined();
+	});
+});
+
+describe("applyWatchedChatCreatedOrUnarchived", () => {
+	it("flips a cached archived entity back to active and repairs list rows", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatEntityKey(chatId),
+			makeChat(chatId, { archived: true }),
+		);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })], {
+			archived: true,
+		});
+		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })], {
+			archived: false,
+		});
+
+		applyWatchedChatCreatedOrUnarchived(queryClient, makeChat(chatId));
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.archived,
+		).toBe(false);
+		expect(readInfiniteChats(queryClient, { archived: true })).toEqual([]);
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.[0].archived,
+		).toBe(false);
+	});
+
+	it("only invalidates the collection families for a truly new chat", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-new";
+		seedInfiniteChats(queryClient, [makeChat("chat-2")]);
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+
+		applyWatchedChatCreatedOrUnarchived(queryClient, makeChat(chatId));
+
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
+		expect(queryClient.getQueryState(chatEntityKey(chatId))).toBeUndefined();
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["chat search", chatSearch({ q: "alpha" }).queryKey],
+			["by-workspace", chatsByWorkspace(["ws-1"]).queryKey],
+		] as const) {
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should be invalidated`,
+			).toBe(true);
+		}
+	});
+});
+
+describe("removeHardDeletedChatFromCaches", () => {
+	it("prefix-removes the entity family including sub-resources without tombstones", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), { prompts: [] });
+
+		removeHardDeletedChatFromCaches(queryClient, { chatId });
+
+		for (const [label, key] of [
+			["detail", chatEntityKey(chatId)],
+			["messages", chatMessagesKey(chatId)],
+			["prompts", chatPromptsKey(chatId)],
+		] as const) {
+			expect(
+				queryClient.getQueryState(key),
+				`${label} entry should be removed entirely`,
+			).toBeUndefined();
+		}
+	});
+
+	it("removes list rows, parent children entries, search rows, and by-workspace mappings", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const child = makeChat(chatId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		seedInfiniteChats(queryClient, [
+			makeChat("parent-1", { children: [child] }),
+			makeChat(chatId),
+			makeChat("chat-2"),
+		]);
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
+			makeChat(chatId),
+			makeChat("chat-2"),
+		]);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": chatId,
+			"ws-2": "chat-2",
+		});
+
+		removeHardDeletedChatFromCaches(queryClient, { chatId });
+
+		const list = readInfiniteChats(queryClient);
+		expect(list?.map((chat) => chat.id)).toEqual(["parent-1", "chat-2"]);
+		expect(list?.[0].children).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.Chat[]>(chatSearch({ q: "alpha" }).queryKey)
+				?.map((row) => row.id),
+		).toEqual(["chat-2"]);
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({ "ws-2": "chat-2" });
+	});
+
+	it("removes explicit cascade entity families", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("root-1"), makeChat("root-1"));
+		queryClient.setQueryData(
+			chatEntityKey("child-1"),
+			makeChat("child-1", { root_chat_id: "root-1" }),
+		);
+		queryClient.setQueryData(chatMessagesKey("child-1"), []);
+
+		removeHardDeletedChatFromCaches(queryClient, {
+			chatId: "root-1",
+			cascadeIds: ["child-1"],
+		});
+
+		expect(queryClient.getQueryState(chatEntityKey("child-1"))).toBeUndefined();
+		expect(
+			queryClient.getQueryState(chatMessagesKey("child-1")),
+		).toBeUndefined();
+	});
+
+	it("discovers cached family members by lineage when cascadeIds is absent", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("root-1"), makeChat("root-1"));
+		queryClient.setQueryData(
+			chatEntityKey("child-1"),
+			makeChat("child-1", { root_chat_id: "root-1" }),
+		);
+		queryClient.setQueryData(chatMessagesKey("child-1"), []);
+		queryClient.setQueryData(chatEntityKey("other-1"), makeChat("other-1"));
+
+		removeHardDeletedChatFromCaches(queryClient, { chatId: "root-1" });
+
+		expect(queryClient.getQueryState(chatEntityKey("child-1"))).toBeUndefined();
+		expect(
+			queryClient.getQueryState(chatMessagesKey("child-1")),
+		).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey("other-1"))).toBeDefined();
+	});
+
+	it("removes the cost tree for a deleted root", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatCostTreeKey("root-1"), { total: 1 });
+
+		removeHardDeletedChatFromCaches(queryClient, { chatId: "root-1" });
+
+		expect(
+			queryClient.getQueryState(chatCostTreeKey("root-1")),
+		).toBeUndefined();
+	});
+
+	it("invalidates the surviving root's cost tree for a deleted descendant", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatCostTreeKey("root-1"), { total: 1 });
+
+		removeHardDeletedChatFromCaches(queryClient, {
+			chatId: "child-1",
+			rootChatId: "root-1",
+		});
+
+		expect(queryClient.getQueryData(chatCostTreeKey("root-1"))).toBeDefined();
+		expect(
+			queryClient.getQueryState(chatCostTreeKey("root-1"))?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("leaves collection and config entries outside the entities family in place", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId)]);
+		queryClient.setQueryData(chatAdvisorConfigKey, { enabled: true });
+
+		removeHardDeletedChatFromCaches(queryClient, { chatId });
+
+		expect(queryClient.getQueryData(infiniteChatsTestKey)).toBeDefined();
+		expect(queryClient.getQueryData(chatAdvisorConfigKey)).toBeDefined();
+		expect(
+			queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated,
+		).not.toBe(true);
+	});
+});
+
+describe("archive mutation entity retention", () => {
+	it.each([
+		{ name: "archiveChat", factory: archiveChat, archived: true },
+		{ name: "unarchiveChat", factory: unarchiveChat, archived: false },
+	])("$name onSuccess never removes the entity family", ({
+		factory,
+		archived,
+	}) => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatEntityKey(chatId),
+			makeChat(chatId, { archived: !archived }),
+		);
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+
+		const mutation = factory(queryClient);
+		mutation.onSuccess(undefined, chatId);
+		mutation.onSettled(undefined, undefined, chatId);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+		).toMatchObject({ archived });
+		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
 	});
 });

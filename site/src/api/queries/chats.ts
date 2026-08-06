@@ -27,8 +27,10 @@ const chatsByWorkspaceFamilyKey = [
 	"by-workspace",
 ] as const;
 
+export const chatEntitiesFamilyKey = ["chats", "entities"] as const;
+
 export const chatEntityKey = (chatId: string) =>
-	["chats", "entities", chatId] as const;
+	[...chatEntitiesFamilyKey, chatId] as const;
 
 export const chatFilesKey = ["chats", "files"] as const;
 
@@ -130,15 +132,23 @@ export const updateInfiniteChatsCache = (
  * in the cache, but only if the chat doesn't already exist in any
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
- * runs independently on each page.
+ * runs independently on each page. Lists whose archived filter
+ * conflicts with the chat's archive state are skipped, so an active
+ * chat is never inserted into an archived-only list.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	queryClient.setQueriesData<InfiniteChatsCacheData>(
-		{ queryKey: chatListFamilyKey },
-		(prev) => {
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatListFamilyKey,
+	});
+	for (const [queryKey] of queries) {
+		const archivedFilter = archivedFilterForChatListKey(queryKey);
+		if (archivedFilter !== undefined && archivedFilter !== chat.archived) {
+			continue;
+		}
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
 			if (!prev?.pages) return prev;
 			// Check across ALL pages to avoid duplicates.
 			const exists = prev.pages.some((page) =>
@@ -150,8 +160,8 @@ export const prependToInfiniteChatsCache = (
 				i === 0 ? [chat, ...page] : page,
 			);
 			return { ...prev, pages: nextPages };
-		},
-	);
+		});
+	}
 };
 
 /**
@@ -297,9 +307,10 @@ const patchChatArchiveState = (
 };
 
 /**
- * Applies an accepted archive state to loaded sidebar and detail caches.
- * Removes the chat from any filtered list whose archived filter conflicts
- * with the new state, and resets pin_order to 0 when archiving.
+ * Applies an accepted archive state to loaded sidebar, search, and
+ * detail caches. Removes the chat from any filtered list whose archived
+ * filter conflicts with the new state, and resets pin_order to 0 when
+ * archiving.
  */
 export const applyChatArchiveStateToCaches = (
 	queryClient: QueryClient,
@@ -365,6 +376,143 @@ export const applyChatArchiveStateToCaches = (
 
 			return changed ? { ...prev, pages } : prev;
 		});
+	}
+
+	queryClient.setQueriesData<TypesGen.Chat[]>(
+		{ queryKey: chatSearchFamilyKey },
+		(rows) => {
+			if (!rows) {
+				return rows;
+			}
+			let changed = false;
+			const next = rows.map((row) => {
+				if (row.id !== chatId) {
+					return row;
+				}
+				const patched = patchChatArchiveState(row, archived);
+				if (patched !== row) {
+					changed = true;
+				}
+				return patched;
+			});
+			return changed ? next : rows;
+		},
+	);
+};
+
+/**
+ * Watch-event effect for the `deleted` kind, which the server publishes
+ * once per family member when a chat family is archived. Archive is a
+ * patch, never an eviction: the entity and its sub-resources stay
+ * cached so an open route flips to the archived read-only state without
+ * a loading flash or a zombie render.
+ */
+export const applyWatchedChatArchived = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+) => {
+	void cancelChatListRefetches(queryClient);
+	void cancelLoadedChatEntityRefetch(queryClient, chat.id);
+	applyChatArchiveStateToCaches(queryClient, chat.id, true);
+	removeChatFromChatsByWorkspace(queryClient, chat.id);
+	void invalidateChatListQueries(queryClient);
+	void invalidateChatsByWorkspace(queryClient);
+	void invalidateChatSearches(queryClient);
+};
+
+/**
+ * Watch-event effect for a root `created` event, which the server
+ * publishes both for new chats and for unarchive transitions (one event
+ * per family member). A cached entity marked archived identifies the
+ * unarchive case; a truly new chat only needs the family invalidations
+ * and never gets a speculative entity entry. The caller remains
+ * responsible for list prepend and child insertion.
+ */
+export const applyWatchedChatCreatedOrUnarchived = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+) => {
+	const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
+		chatEntityKey(chat.id),
+	);
+	if (cachedChat?.archived) {
+		applyChatArchiveStateToCaches(queryClient, chat.id, false);
+	}
+	void invalidateChatListQueries(queryClient);
+	void invalidateChatsByWorkspace(queryClient);
+	void invalidateChatSearches(queryClient);
+};
+
+type RemoveHardDeletedChatOptions = Readonly<{
+	chatId: string;
+	rootChatId?: string;
+	cascadeIds?: readonly string[];
+}>;
+
+/**
+ * Cache effect for a hard delete (chat rows actually removed from the
+ * database). UNWIRED: no watch event maps to it today. The server's
+ * `deleted` watch event means archive (use applyWatchedChatArchived),
+ * and the retention purge publishes no watch event. Kept exported and
+ * tested so a future hard-delete wire event has a ready, distinct
+ * effect.
+ */
+export const removeHardDeletedChatFromCaches = (
+	queryClient: QueryClient,
+	{ chatId, rootChatId, cascadeIds }: RemoveHardDeletedChatOptions,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) =>
+		chats.filter((chat) => chat.id !== chatId),
+	);
+	removeChildFromParentInCache(queryClient, chatId);
+	queryClient.setQueriesData<TypesGen.Chat[]>(
+		{ queryKey: chatSearchFamilyKey },
+		(rows) => {
+			if (!rows) {
+				return rows;
+			}
+			const next = rows.filter((row) => row.id !== chatId);
+			return next.length === rows.length ? rows : next;
+		},
+	);
+	void invalidateChatSearches(queryClient);
+	removeChatFromChatsByWorkspace(queryClient, chatId);
+	void invalidateChatsByWorkspace(queryClient);
+	// Prefix removal evicts the detail entry plus every sub-resource
+	// (messages, prompts, ACL, diff, debug runs, queue convergence).
+	queryClient.removeQueries({ queryKey: chatEntityKey(chatId) });
+	if (cascadeIds) {
+		for (const cascadeId of cascadeIds) {
+			queryClient.removeQueries({ queryKey: chatEntityKey(cascadeId) });
+		}
+	} else {
+		// Without an explicit cascade list, scan every cached detail entry
+		// for family members. Detail keys are exactly one segment longer
+		// than the family prefix; longer keys are sub-resources whose data
+		// is not a chat and must not be shape-matched.
+		const entities = queryClient.getQueriesData<TypesGen.Chat>({
+			queryKey: chatEntitiesFamilyKey,
+		});
+		for (const [queryKey, cachedChat] of entities) {
+			if (queryKey.length !== chatEntitiesFamilyKey.length + 1) {
+				continue;
+			}
+			if (
+				cachedChat &&
+				(cachedChat.root_chat_id === chatId ||
+					cachedChat.parent_chat_id === chatId)
+			) {
+				queryClient.removeQueries({ queryKey: chatEntityKey(cachedChat.id) });
+			}
+		}
+	}
+	if (rootChatId === undefined || rootChatId === chatId) {
+		queryClient.removeQueries({
+			queryKey: chatCostTreeKey(chatId),
+			exact: true,
+		});
+	} else {
+		void invalidateChatCostTree(queryClient, rootChatId);
 	}
 };
 
