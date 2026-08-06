@@ -2,6 +2,7 @@ package chatstate
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -10,9 +11,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// LinkFiles links files without exceeding the chat attachment cap.
-// Call it in the transaction that persists their references so failures roll back.
-// Existing links do not consume additional cap slots.
+// LinkFiles links files, returning [ErrChatFileCapExceeded] for cap rejections
+// and [ErrChatFileUnavailable] for missing files. Use the caller's transaction
+// so failures roll back related writes; existing links use no additional slots.
 func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, fileIDs []uuid.UUID) error {
 	if len(fileIDs) == 0 {
 		return nil
@@ -23,7 +24,11 @@ func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, file
 		FileIds:      fileIDs,
 	})
 	if err != nil {
-		return xerrors.Errorf("link chat files: %w", err)
+		wrapped := xerrors.Errorf("link chat files: %w", err)
+		if database.IsForeignKeyViolation(err, database.ForeignKeyChatFileLinksFileID) {
+			return errors.Join(ErrChatFileUnavailable, wrapped)
+		}
+		return wrapped
 	}
 	if rejected > 0 {
 		return ErrChatFileCapExceeded

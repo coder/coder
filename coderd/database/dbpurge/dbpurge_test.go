@@ -2647,6 +2647,89 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			},
 		},
 		{
+			name: "DeleteCandidatesRecheckLinks",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				fileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+
+				var candidateIDs []uuid.UUID
+				err := db.InTx(func(tx database.Store) error {
+					var err error
+					candidateIDs, err = tx.GetOldUnlinkedChatFileIDs(ctx, database.GetOldUnlinkedChatFileIDsParams{
+						BeforeTime: now.Add(-30 * 24 * time.Hour),
+						LimitCount: 100,
+					})
+					return err
+				}, database.DefaultTXOptions())
+				require.NoError(t, err)
+				require.Equal(t, []uuid.UUID{fileID}, candidateIDs)
+
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileID},
+				})
+				require.NoError(t, err)
+
+				deleted, err := db.DeleteUnlinkedChatFilesByIDs(ctx, database.DeleteUnlinkedChatFilesByIDsParams{
+					IDs:        candidateIDs,
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+				})
+				require.NoError(t, err)
+				require.Zero(t, deleted)
+
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ConcurrentLinkRetainsFile",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				fileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+
+				linkTx := dbtestutil.StartTx(t, db, database.DefaultTXOptions())
+				linkCommitted := false
+				t.Cleanup(func() {
+					if !linkCommitted {
+						_ = linkTx.Done()
+					}
+				})
+				_, err := linkTx.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileID},
+				})
+				require.NoError(t, err)
+
+				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 100,
+				})
+				require.NoError(t, err)
+				require.Zero(t, deleted)
+
+				commitErr := linkTx.Done()
+				linkCommitted = true
+				require.NoError(t, commitErr)
+
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.NoError(t, err)
+				files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Len(t, files, 1)
+				require.Equal(t, fileID, files[0].ID)
+			},
+		},
+		{
 			name: "ArchivedChatFilesDeleted",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
@@ -2660,7 +2743,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
-				// File D becomes orphaned when the expired chat is purged first.
 				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
@@ -2674,7 +2756,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
 				require.NoError(t, err)
 
-				// File E stays linked because its recently archived chat is retained.
 				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{

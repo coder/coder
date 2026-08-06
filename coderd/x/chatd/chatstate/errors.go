@@ -53,6 +53,10 @@ var (
 	// exceed a chat's attachment cap.
 	ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
 
+	// ErrChatFileUnavailable is returned by [LinkFiles] when a referenced file
+	// does not exist.
+	ErrChatFileUnavailable = xerrors.New("chat attachment unavailable")
+
 	// ErrToolResultDuplicate is returned by [Tx.CompleteRequiresAction]
 	// when the same tool_call_id appears more than once in the
 	// submitted results.

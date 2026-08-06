@@ -27,18 +27,22 @@ JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = @chat_id::uuid
 ORDER BY cf.created_at ASC;
 
--- name: DeleteOldChatFiles :execrows
--- Deletes files older than the threshold only after all chat links are gone.
-WITH deletable AS (
-    SELECT cf.id
-    FROM chat_files cf
-    WHERE cf.created_at < @before_time::timestamptz
-      AND NOT EXISTS (
-        SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
-      )
-    ORDER BY cf.created_at ASC
-    LIMIT @limit_count
-)
-DELETE FROM chat_files
-USING deletable
-WHERE chat_files.id = deletable.id;
+-- name: GetOldUnlinkedChatFileIDs :many
+-- Locks candidate rows against foreign-key inserts for the transaction.
+SELECT cf.id
+FROM chat_files cf
+WHERE cf.created_at < @before_time::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
+  )
+ORDER BY cf.created_at ASC
+LIMIT @limit_count
+FOR UPDATE OF cf SKIP LOCKED;
+
+-- name: DeleteUnlinkedChatFilesByIDs :execrows
+DELETE FROM chat_files cf
+WHERE cf.id = ANY(@ids::uuid[])
+  AND cf.created_at < @before_time::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
+  );
