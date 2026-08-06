@@ -23,6 +23,14 @@ const embeddableApp: WorkspaceApp = {
 	command: undefined,
 };
 
+const agentBrowserApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
+};
+
 const commandApp: WorkspaceApp = {
 	...MockWorkspaceApp,
 	id: "command-app",
@@ -138,16 +146,7 @@ export const ExcludesAgentBrowserApp: Story = {
 	args: {
 		agent: {
 			...MockWorkspaceAgent,
-			apps: [
-				embeddableApp,
-				{
-					...MockWorkspaceApp,
-					id: "agent-browser-app",
-					slug: AGENT_BROWSER_APP_SLUG,
-					display_name: "agent-browser",
-					health: "healthy",
-				},
-			],
+			apps: [embeddableApp, agentBrowserApp],
 		},
 	},
 	play: async ({ canvasElement }) => {

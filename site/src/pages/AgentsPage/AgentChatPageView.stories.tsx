@@ -1723,10 +1723,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 	},
 };
 
-/**
- * "disabled" health means the template declares no healthcheck, so the tab
- * shows on template presence alone.
- */
 export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 	render: () => (
 		<StoryAgentChatPageView

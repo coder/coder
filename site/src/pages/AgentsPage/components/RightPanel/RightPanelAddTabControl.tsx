@@ -81,8 +81,7 @@ export const RightPanelAddTabControl: FC<{
 	onOpenPort,
 }) => {
 	const [open, setOpen] = useState(false);
-	// agent-browser is surfaced as the built-in Browser tab, so the add
-	// menu never offers it as a duplicate workspace app tab.
+	// agent-browser already has the built-in Browser tab.
 	const userApps =
 		agent?.apps.filter(
 			(app) => !app.hidden && app.slug !== AGENT_BROWSER_APP_SLUG,
