@@ -1516,6 +1516,37 @@ export const DownloadInIOSStandaloneSuppressesDuplicateClicks: Story = {
 	},
 };
 
+export const DownloadInIOSStandaloneOffersTabForUnshareableFile: Story = {
+	decorators: [withToaster],
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			// The one-byte probe passes; the real fetched file fails.
+			canShare: fn(({ files }: { files: File[] }) => files[0].size <= 1),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			const openButton = await screen.findByRole("button", { name: "Open" });
+			expect(share).not.toHaveBeenCalled();
+			expect(open).not.toHaveBeenCalled();
+			await userEvent.click(openButton);
+			expect(open).toHaveBeenCalledWith(
+				getChatFileURL("storybook-ios-share-report"),
+				"_blank",
+				"noopener",
+			);
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
 export const DownloadInIOSStandaloneShowsErrorToastOnFailedFetch: Story = {
 	decorators: [withToaster],
 	args: {
