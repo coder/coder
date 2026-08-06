@@ -120,23 +120,58 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
-const endsWithFileExtension = /\.[a-z0-9]{1,8}$/i;
+const endsWithFileExtension = /\.([a-z0-9]{1,8})$/i;
+
+// Alternate name suffixes that identify the same type as the canonical
+// media-type extension, so "photo.jpeg" is not renamed to "photo.jpeg.jpg".
+const extensionAliases: Record<string, readonly string[]> = {
+	jpg: ["jpeg"],
+	md: ["markdown"],
+	txt: ["text", "log"],
+};
+
+// Returns the extension implied by the media type alone, ignoring the
+// attachment name. Null means the type carries no usable extension.
+const getMediaTypeExtension = (mediaType: string): string | null => {
+	if (mediaType === "application/octet-stream") {
+		return null;
+	}
+	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
+	if (mapped) {
+		return mapped;
+	}
+	const subtype = mediaType.split("/")[1] ?? "";
+	if (subtype.endsWith("+json")) {
+		return "json";
+	}
+	const sanitized = sanitizeAttachmentExtension(subtype);
+	return sanitized === "file" ? null : sanitized;
+};
 
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
-	const extension = getAttachmentExtension(block);
-	if (name) {
-		// iOS resolves the shared or saved file's type from the filename
-		// extension, so an extensionless name like "About Page Screenshot"
-		// would land as a generic file even when the media type is known.
-		if (endsWithFileExtension.test(name) || extension === "file") {
-			return name;
-		}
-		return `${name}.${extension}`;
+	if (!name) {
+		const extension = getAttachmentExtension(block);
+		return extension === "file" ? "attachment" : `attachment.${extension}`;
 	}
-	return extension === "file" ? "attachment" : `attachment.${extension}`;
+	const mediaExtension = getMediaTypeExtension(block.media_type);
+	if (mediaExtension === null) {
+		return name;
+	}
+	// iOS resolves the shared or saved file's type from the filename
+	// extension, so a name like "About Page Screenshot" or "report.final"
+	// would land as a generic file even when the media type is known.
+	const suffix = name.match(endsWithFileExtension)?.[1]?.toLowerCase();
+	if (
+		suffix !== undefined &&
+		(suffix === mediaExtension ||
+			(extensionAliases[mediaExtension] ?? []).includes(suffix))
+	) {
+		return name;
+	}
+	return `${name}.${mediaExtension}`;
 };
 
 const getAttachmentBadgeLabel = (

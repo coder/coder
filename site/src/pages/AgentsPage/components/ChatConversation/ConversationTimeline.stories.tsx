@@ -152,6 +152,7 @@ const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 		"storybook-ios-share-report",
 		{ status: 200, body: "pdf-bytes", contentType: "application/pdf" },
 	],
+	["storybook-ios-error-report", { status: 500, body: "" }],
 ]);
 
 let attachmentFetchCounts = new Map<string, number>();
@@ -1289,7 +1290,7 @@ export const AssistantMessageWithImage: Story = {
 	},
 };
 
-export const ExtensionlessImageNameGainsDownloadExtension: Story = {
+export const DownloadNamesGainMediaTypeExtension: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1298,12 +1299,24 @@ export const ExtensionlessImageNameGainsDownloadExtension: Story = {
 				id: 1,
 				role: "assistant",
 				content: [
-					{ type: "text", text: "Here is the screenshot:" },
+					{ type: "text", text: "Here are the files:" },
 					{
 						type: "file",
 						media_type: "image/png",
 						data: TEST_PNG_B64,
 						name: "About Page Screenshot",
+					},
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-ios-share-report",
+						name: "report.final",
+					},
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-unnamed-report",
+						name: "quarterly-report.pdf",
 					},
 				],
 			},
@@ -1320,9 +1333,18 @@ export const ExtensionlessImageNameGainsDownloadExtension: Story = {
 				canvas.getByRole("link", { name: "Download About Page Screenshot" }),
 			).toBeVisible();
 		});
+		// An extensionless name gains the media-type extension.
 		expect(
 			canvas.getByRole("link", { name: "Download About Page Screenshot" }),
 		).toHaveAttribute("download", "About Page Screenshot.png");
+		// A dotted qualifier is not mistaken for a file extension.
+		expect(
+			canvas.getByRole("link", { name: "Download report.final" }),
+		).toHaveAttribute("download", "report.final.pdf");
+		// A name that already carries the right extension is unchanged.
+		expect(
+			canvas.getByRole("link", { name: "Download quarterly-report.pdf" }),
+		).toHaveAttribute("download", "quarterly-report.pdf");
 	},
 };
 
@@ -1432,6 +1454,47 @@ export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
 			const shared: { files: File[] } = share.mock.calls[1][0];
 			expect(shared.files).toHaveLength(1);
 			expect(shared.files[0].name).toBe("deployment-report.pdf");
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+export const DownloadInIOSStandaloneShowsErrorToastOnFailedFetch: Story = {
+	decorators: [withToaster],
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-ios-error-report",
+						name: "deployment-report.pdf",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await screen.findByText("Couldn't download deployment-report.pdf");
+			expect(share).not.toHaveBeenCalled();
 			expect(open).not.toHaveBeenCalled();
 		} finally {
 			restoreNavigator();
