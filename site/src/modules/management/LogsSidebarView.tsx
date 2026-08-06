@@ -21,20 +21,17 @@ const LogsSidebarView: FC<LogsSidebarViewProps> = ({
 		<Sidebar>
 			<div className="flex flex-col gap-1">
 				{canViewAuditLog && (
-					<SidebarNavItem icon={ScrollTextIcon} href="/audit">
+					<SidebarNavItem icon={ScrollTextIcon} href="/logs/audit">
 						Audit logs
 					</SidebarNavItem>
 				)}
 				{canViewConnectionLog && (
-					<SidebarNavItem icon={CableIcon} href="/connectionlog">
+					<SidebarNavItem icon={CableIcon} href="/logs/connection">
 						Connection logs
 					</SidebarNavItem>
 				)}
 				{canViewAIBridge && (
-					<SidebarNavItem
-						icon={BotMessageSquareIcon}
-						href="/ai-gateway/sessions"
-					>
+					<SidebarNavItem icon={BotMessageSquareIcon} href="/logs/ai-sessions">
 						AI session logs
 					</SidebarNavItem>
 				)}

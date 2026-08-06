@@ -29,7 +29,7 @@ interface RenderPageOptions {
 }
 
 const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
-	let route = "/audit";
+	let route = "/logs/audit";
 	const params = new URLSearchParams();
 
 	if (filter) {
@@ -46,7 +46,7 @@ const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
 
 	renderWithAuth(<AuditPage />, {
 		route,
-		path: "/audit",
+		path: "/logs/audit",
 	});
 	await waitForLoaderToBeRemoved();
 };

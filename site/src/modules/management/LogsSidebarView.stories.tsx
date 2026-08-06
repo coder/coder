@@ -12,11 +12,11 @@ const meta: Meta<typeof LogsSidebarView> = {
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
-			location: { path: "/audit" },
+			location: { path: "/logs/audit" },
 			routing: [
-				{ path: "/audit", useStoryElement: true },
-				{ path: "/connectionlog", useStoryElement: true },
-				{ path: "/ai-gateway/sessions", useStoryElement: true },
+				{ path: "/logs/audit", useStoryElement: true },
+				{ path: "/logs/connection", useStoryElement: true },
+				{ path: "/logs/ai-sessions", useStoryElement: true },
 			],
 		}),
 	},
@@ -30,8 +30,8 @@ export const AuditActive: Story = {};
 export const ConnectionActive: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
-			location: { path: "/connectionlog" },
-			routing: [{ path: "/connectionlog", useStoryElement: true }],
+			location: { path: "/logs/connection" },
+			routing: [{ path: "/logs/connection", useStoryElement: true }],
 		}),
 	},
 };
@@ -39,8 +39,8 @@ export const ConnectionActive: Story = {
 export const AISessionsActive: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
-			location: { path: "/ai-gateway/sessions" },
-			routing: [{ path: "/ai-gateway/sessions", useStoryElement: true }],
+			location: { path: "/logs/ai-sessions" },
+			routing: [{ path: "/logs/ai-sessions", useStoryElement: true }],
 		}),
 	},
 };

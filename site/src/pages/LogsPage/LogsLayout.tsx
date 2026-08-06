@@ -13,15 +13,15 @@ export const LogsIndexRedirect = () => {
 	const featureVisibility = useFeatureVisibility();
 
 	if (featureVisibility.audit_log && permissions.viewAnyAuditLog) {
-		return <Navigate to="/audit" replace />;
+		return <Navigate to="/logs/audit" replace />;
 	}
 
 	if (featureVisibility.connection_log && permissions.viewAnyConnectionLog) {
-		return <Navigate to="/connectionlog" replace />;
+		return <Navigate to="/logs/connection" replace />;
 	}
 
 	if (featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception) {
-		return <Navigate to="/ai-gateway/sessions" replace />;
+		return <Navigate to="/logs/ai-sessions" replace />;
 	}
 
 	return <Navigate to="/" replace />;
