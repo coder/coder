@@ -2848,6 +2848,13 @@ func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg databa
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
 }
 
+func (q *querier) GetAIModelPrices(ctx context.Context) ([]database.AIModelPrice, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIModelPrices(ctx)
+}
+
 func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err

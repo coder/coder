@@ -334,6 +334,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai/model-prices", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.listAIModelPrices)
+			r.Put("/", api.upsertAIModelPrices)
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
