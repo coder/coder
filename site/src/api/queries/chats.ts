@@ -597,7 +597,7 @@ export const mergeWatchedChatIntoCaches = (
 	});
 
 	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
-	queryClient.setQueryData<TypesGen.Chat | undefined>(
+	const entity = queryClient.setQueryData<TypesGen.Chat | undefined>(
 		chatEntityKey(watchedChat.id),
 		(cachedChat) => {
 			if (!cachedChat) {
@@ -606,6 +606,16 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
+
+	// Delivery reordering can make the ordering guards reject a legitimate
+	// capacity event. Invalidate mismatches so the current or next
+	// single-chat read derives the authoritative queued state.
+	if (options.eventKind === "capacity_change") {
+		const eventQueued = watchedChat.queued_for_capacity ?? false;
+		if (entity && (entity.queued_for_capacity ?? false) !== eventQueued) {
+			void invalidateChatEntity(queryClient, watchedChat.id);
+		}
+	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {

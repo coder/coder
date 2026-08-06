@@ -3055,6 +3055,87 @@ describe("mergeWatchedChatIntoCaches", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 	});
+
+	it("invalidates the entity when a rejected capacity event is not reflected", () => {
+		// A message send can advance updated_at after the queued snapshot
+		// was loaded, so the no-revision guard rejects the queued event.
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			updated_at: "2025-01-01T00:02:00.000Z",
+			queued_for_capacity: false,
+		});
+		const queuedEvent = makeChat(chatId, {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: true,
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, queuedEvent, {
+			eventKind: "capacity_change",
+		});
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.queued_for_capacity,
+		).toBe(false);
+		expect(
+			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("invalidates the entity when a rejected capacity clear is not reflected", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			updated_at: "2025-01-01T00:02:00.000Z",
+			queued_for_capacity: true,
+		});
+		const clearEvent = makeChat(chatId, {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: false,
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, clearEvent, {
+			eventKind: "capacity_change",
+			capacityRevision: "2025-01-01T00:01:30.000Z",
+		});
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.queued_for_capacity,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("does not invalidate the entity when a capacity event applies", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: false,
+		});
+		const queuedEvent = makeChat(chatId, {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: true,
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, queuedEvent, {
+			eventKind: "capacity_change",
+		});
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.queued_for_capacity,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
+		).toBe(false);
+	});
 });
 
 describe("removeChildFromParentInCache", () => {
