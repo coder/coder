@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	type QueryClient,
@@ -816,17 +817,6 @@ export const patchChatMessages = (
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatId), updater);
 
-const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
-	if (left === right) {
-		return true;
-	}
-	try {
-		return JSON.stringify(left) === JSON.stringify(right);
-	} catch {
-		return false;
-	}
-};
-
 export const chatMessagesEqualByValue = (
 	left: TypesGen.ChatMessage,
 	right: TypesGen.ChatMessage,
@@ -836,15 +826,34 @@ export const chatMessagesEqualByValue = (
 	left.model_config_id === right.model_config_id &&
 	left.created_at === right.created_at &&
 	left.role === right.role &&
-	jsonValuesEqual(left.content, right.content) &&
-	jsonValuesEqual(left.usage, right.usage);
+	isEqual(left.content, right.content) &&
+	isEqual(left.usage, right.usage);
 
-// Fans a durable message batch out to every page that already contains
-// each ID so no page keeps a stale copy. IDs found in any page are
-// replaced in place and never re-inserted into page 0; unknown IDs are
-// inserted into page 0 (the newest page) keeping descending ID order.
-// pageParams are never touched, and the previous InfiniteData reference
-// is returned when no message value changed.
+const replaceMessagesInPage = (
+	page: TypesGen.ChatMessagesResponse,
+	incomingByID: ReadonlyMap<number, TypesGen.ChatMessage>,
+	foundIDs: Set<number>,
+): TypesGen.ChatMessagesResponse => {
+	let pageChanged = false;
+
+	const nextMessages = page.messages.map((existing) => {
+		const incoming = incomingByID.get(existing.id);
+		if (!incoming) {
+			return existing;
+		}
+
+		foundIDs.add(existing.id);
+		if (chatMessagesEqualByValue(existing, incoming)) {
+			return existing;
+		}
+
+		pageChanged = true;
+		return incoming;
+	});
+
+	return pageChanged ? { ...page, messages: nextMessages } : page;
+};
+
 const upsertMessagesAcrossPages = (
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
 	messages: readonly TypesGen.ChatMessage[],
@@ -852,51 +861,39 @@ const upsertMessagesAcrossPages = (
 	if (!currentData?.pages?.length || messages.length === 0) {
 		return currentData;
 	}
+
 	const incomingByID = new Map(
 		messages.map((message) => [message.id, message]),
 	);
 	const foundIDs = new Set<number>();
-	let anyPageChanged = false;
-	const nextPages = currentData.pages.map((page) => {
-		let pageChanged = false;
-		const nextMessages = page.messages.map((existing) => {
-			const incoming = incomingByID.get(existing.id);
-			if (!incoming) {
-				return existing;
-			}
-			// Record membership even when the value is equal so an
-			// unchanged message is never re-inserted into page 0.
-			foundIDs.add(existing.id);
-			if (chatMessagesEqualByValue(existing, incoming)) {
-				return existing;
-			}
-			pageChanged = true;
-			return incoming;
-		});
-		if (!pageChanged) {
-			return page;
-		}
-		anyPageChanged = true;
-		return { ...page, messages: nextMessages };
-	});
-	const inserts = messages.filter((message) => !foundIDs.has(message.id));
-	if (inserts.length === 0) {
-		return anyPageChanged ? { ...currentData, pages: nextPages } : currentData;
+	const nextPages = currentData.pages.map((page) =>
+		replaceMessagesInPage(page, incomingByID, foundIDs),
+	);
+	const pagesChanged = nextPages.some(
+		(page, index) => page !== currentData.pages[index],
+	);
+
+	const messagesToInsert = messages.filter(
+		(message) => !foundIDs.has(message.id),
+	);
+	if (messagesToInsert.length === 0) {
+		return pagesChanged ? { ...currentData, pages: nextPages } : currentData;
 	}
+
 	const firstPage = nextPages[0];
-	const mergedMessages = [...firstPage.messages, ...inserts].sort(
+	const firstPageMessages = [...firstPage.messages, ...messagesToInsert].sort(
 		(a, b) => b.id - a.id,
 	);
+
 	return {
 		...currentData,
-		pages: [{ ...firstPage, messages: mergedMessages }, ...nextPages.slice(1)],
+		pages: [
+			{ ...firstPage, messages: firstPageMessages },
+			...nextPages.slice(1),
+		],
 	};
 };
 
-// Collapses the cache to a single authoritative page after a history
-// replacement, keeping pages.length === pageParams.length and preserving
-// queued_messages from the old page 0. Returns the previous reference
-// when the cache already holds exactly that single page by value.
 const replaceMessagesHistory = (
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
 	messages: readonly TypesGen.ChatMessage[],
@@ -904,6 +901,7 @@ const replaceMessagesHistory = (
 	if (!currentData?.pages?.length) {
 		return currentData;
 	}
+
 	const firstPage = currentData.pages[0];
 	const nextMessages = [...messages].sort((a, b) => b.id - a.id);
 	const alreadyReplaced =
@@ -913,9 +911,11 @@ const replaceMessagesHistory = (
 		firstPage.messages.every((existing, index) =>
 			chatMessagesEqualByValue(existing, nextMessages[index]),
 		);
+
 	if (alreadyReplaced) {
 		return currentData;
 	}
+
 	return {
 		...currentData,
 		pages: [{ ...firstPage, messages: nextMessages, has_more: false }],
@@ -927,19 +927,21 @@ export const upsertChatMessages = (
 	queryClient: QueryClient,
 	chatId: string,
 	messages: readonly TypesGen.ChatMessage[],
-) =>
-	patchChatMessages(queryClient, chatId, (currentData) =>
+) => {
+	return patchChatMessages(queryClient, chatId, (currentData) =>
 		upsertMessagesAcrossPages(currentData, messages),
 	);
+};
 
 export const replaceChatMessagesHistory = (
 	queryClient: QueryClient,
 	chatId: string,
 	messages: readonly TypesGen.ChatMessage[],
-) =>
-	patchChatMessages(queryClient, chatId, (currentData) =>
+) => {
+	return patchChatMessages(queryClient, chatId, (currentData) =>
 		replaceMessagesHistory(currentData, messages),
 	);
+};
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
