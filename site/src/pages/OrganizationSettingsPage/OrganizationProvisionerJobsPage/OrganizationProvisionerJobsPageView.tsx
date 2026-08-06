@@ -10,6 +10,10 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
+	PaginationContainer,
+	type PaginationResult,
+} from "#/components/PaginationWidget/PaginationContainer";
+import {
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -75,16 +79,27 @@ type JobProvisionersFilter = {
 
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: readonly ProvisionerJob[] | undefined;
+	jobsQuery: PaginationResult;
 	organization: Organization | undefined;
 	error: unknown;
 	filter: JobProvisionersFilter;
+	isNonInitialPage: boolean;
 	onRetry: () => void;
 	onFilterChange: (filter: JobProvisionersFilter) => void;
 };
 
 const OrganizationProvisionerJobsPageView: FC<
 	OrganizationProvisionerJobsPageViewProps
-> = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
+> = ({
+	jobs,
+	jobsQuery,
+	organization,
+	error,
+	filter,
+	isNonInitialPage,
+	onFilterChange,
+	onRetry,
+}) => {
 	if (!organization) {
 		return (
 			<>
@@ -94,6 +109,10 @@ const OrganizationProvisionerJobsPageView: FC<
 			</>
 		);
 	}
+
+	const isLoading =
+		(jobs === undefined || jobsQuery.totalRecords === undefined) && !error;
+	const isEmpty = !isLoading && jobs?.length === 0;
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -169,44 +188,54 @@ const OrganizationProvisionerJobsPageView: FC<
 					</Select>
 				</div>
 
-				<Table className="mt-6">
-					<TableHeader>
-						<TableRow>
-							<TableHead>Created</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Template</TableHead>
-							<TableHead>Tags</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{jobs ? (
-							jobs.length > 0 ? (
-								jobs.map((j) => (
+				<PaginationContainer
+					query={jobsQuery}
+					paginationUnitLabel="jobs"
+					className="mt-6"
+				>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Created</TableHead>
+								<TableHead>Type</TableHead>
+								<TableHead>Template</TableHead>
+								<TableHead>Tags</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead />
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{error ? (
+								<TableEmpty
+									message="Error loading the provisioner jobs"
+									cta={
+										<Button size="sm" onClick={onRetry}>
+											Retry
+										</Button>
+									}
+								/>
+							) : isLoading ? (
+								<TableLoader />
+							) : isEmpty ? (
+								<TableEmpty
+									message={
+										isNonInitialPage
+											? "No provisioner jobs available on this page"
+											: "No provisioner jobs found"
+									}
+								/>
+							) : (
+								jobs?.map((j) => (
 									<JobRow
 										defaultIsOpen={filter.ids.includes(j.id)}
 										key={j.id}
 										job={j}
 									/>
 								))
-							) : (
-								<TableEmpty message="No provisioner jobs found" />
-							)
-						) : error ? (
-							<TableEmpty
-								message="Error loading the provisioner jobs"
-								cta={
-									<Button size="sm" onClick={onRetry}>
-										Retry
-									</Button>
-								}
-							/>
-						) : (
-							<TableLoader />
-						)}
-					</TableBody>
-				</Table>
+							)}
+						</TableBody>
+					</Table>
+				</PaginationContainer>
 			</section>
 		</div>
 	);

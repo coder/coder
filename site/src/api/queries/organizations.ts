@@ -1,15 +1,12 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import {
-	API,
-	type GetProvisionerDaemonsParams,
-	type GetProvisionerJobsParams,
-} from "#/api/api";
+import { API, type GetProvisionerDaemonsParams } from "#/api/api";
 import type {
 	AuthorizationCheck,
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	Organization,
 	PaginatedMembersResponse,
+	ProvisionerJobsResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 	UpdateWorkspaceSharingSettingsRequest,
@@ -279,21 +276,37 @@ export const patchWorkspaceSharingSettings = (
 	};
 };
 
-export const provisionerJobsQueryKey = (
-	orgId: string,
-	params: GetProvisionerJobsParams = {},
-) => ["organization", orgId, "provisionerjobs", params];
+export const provisionerJobsQueryKey = (orgId: string) =>
+	["organization", orgId, "provisionerjobs"] as const;
 
-export const provisionerJobs = (
+export type ProvisionerJobsFilterPayload = {
+	status: string;
+	ids: string;
+};
+
+export const paginatedProvisionerJobs = (
 	orgId: string,
-	params: GetProvisionerJobsParams = {},
-) => {
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	ProvisionerJobsResponse,
+	ProvisionerJobsFilterPayload
+> => {
 	return {
-		queryKey: provisionerJobsQueryKey(orgId, params),
-		queryFn: async () => {
-			const res = await API.getProvisionerJobs(orgId, params);
-			return res.jobs;
-		},
+		searchParams,
+		queryPayload: () => ({
+			status: searchParams.get("status") ?? "",
+			ids: searchParams.get("ids") ?? "",
+		}),
+		queryKey: ({ payload, pageNumber }) =>
+			[...provisionerJobsQueryKey(orgId), payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.getProvisionerJobs(orgId, {
+				status: payload.status || undefined,
+				ids: payload.ids || undefined,
+				limit,
+				offset,
+			}),
+		enabled: Boolean(orgId),
 	};
 };
 

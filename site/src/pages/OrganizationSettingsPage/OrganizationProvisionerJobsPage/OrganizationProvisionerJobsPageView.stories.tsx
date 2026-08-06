@@ -2,12 +2,17 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ProvisionerJob } from "#/api/typesGenerated";
+import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockOrganization, MockProvisionerJob } from "#/testHelpers/entities";
 import { daysAgo } from "#/utils/time";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
 const MockProvisionerJobs: ProvisionerJob[] = Array.from(
-	{ length: 50 },
+	{ length: 25 },
 	(_, i) => ({
 		...MockProvisionerJob,
 		id: i.toString(),
@@ -15,14 +20,28 @@ const MockProvisionerJobs: ProvisionerJob[] = Array.from(
 	}),
 );
 
+const mockMultiPageResult = {
+	...mockSuccessResult,
+	totalPages: 4,
+	totalRecords: 100,
+	hasNextPage: true,
+	hasPreviousPage: false,
+	onPageChange: fn(),
+	goToNextPage: fn(),
+	goToPreviousPage: fn(),
+} as const satisfies PaginationResult;
+
 const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 	title: "pages/OrganizationProvisionerJobsPage",
 	component: OrganizationProvisionerJobsPageView,
 	args: {
 		organization: MockOrganization,
 		jobs: MockProvisionerJobs,
+		jobsQuery: mockMultiPageResult,
 		filter: { status: "", ids: "" },
+		isNonInitialPage: false,
 		onRetry: fn(),
+		onFilterChange: fn(),
 	},
 };
 
@@ -40,6 +59,7 @@ export const OrganizationNotFound: Story = {
 export const Loading: Story = {
 	args: {
 		jobs: undefined,
+		jobsQuery: mockInitialRenderResult,
 	},
 };
 
@@ -47,6 +67,7 @@ export const LoadingError: Story = {
 	args: {
 		jobs: undefined,
 		error: new Error("Failed to load jobs"),
+		jobsQuery: mockInitialRenderResult,
 	},
 };
 
@@ -55,6 +76,7 @@ export const RetryAfterError: Story = {
 		jobs: undefined,
 		error: new Error("Failed to load jobs"),
 		onRetry: fn(),
+		jobsQuery: mockInitialRenderResult,
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -73,6 +95,48 @@ export const RetryAfterError: Story = {
 export const Empty: Story = {
 	args: {
 		jobs: [],
+		jobsQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+			totalPages: 0,
+		},
+	},
+};
+
+export const EmptyPage: Story = {
+	args: {
+		jobs: [],
+		isNonInitialPage: true,
+		jobsQuery: {
+			...mockSuccessResult,
+			currentPage: 2,
+			currentOffsetStart: 26,
+			totalRecords: 25,
+			totalPages: 1,
+			hasPreviousPage: true,
+			hasNextPage: false,
+		},
+	},
+};
+
+export const Pagination: Story = {
+	args: {
+		jobsQuery: {
+			...mockMultiPageResult,
+			onPageChange: fn(),
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const nextPage = await canvas.findByRole("button", { name: "Next page" });
+		await userEvent.click(nextPage);
+
+		await waitFor(() => {
+			expect(args.jobsQuery.onPageChange).toHaveBeenCalledWith(2);
+		});
+	},
+	parameters: {
+		pixel: { exclude: true },
 	},
 };
 
@@ -111,6 +175,11 @@ export const OnFilter: Story = {
 export const FilterByID: Story = {
 	args: {
 		jobs: [MockProvisionerJob],
+		jobsQuery: {
+			...mockSuccessResult,
+			totalRecords: 1,
+			totalPages: 1,
+		},
 		filter: {
 			ids: MockProvisionerJob.id,
 			status: "",

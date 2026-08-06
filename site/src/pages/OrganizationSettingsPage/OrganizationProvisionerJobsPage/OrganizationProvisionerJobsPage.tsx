@@ -1,7 +1,8 @@
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
-import { provisionerJobs } from "#/api/queries/organizations";
+import { paginatedProvisionerJobs } from "#/api/queries/organizations";
+import { isNonInitialPage } from "#/components/PaginationWidget/utils";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
@@ -12,26 +13,22 @@ const OrganizationProvisionerJobsPage: FC = () => {
 		status: searchParams.get("status") ?? "",
 		ids: searchParams.get("ids") ?? "",
 	};
-	const {
-		data: jobs,
-		isLoadingError,
-		refetch,
-	} = useQuery({
-		...provisionerJobs(organization?.id ?? "", {
-			...filter,
-			limit: 100,
-		}),
-		enabled: organization !== undefined,
-	});
+	const jobsQuery = usePaginatedQuery(
+		paginatedProvisionerJobs(organization?.id ?? "", searchParams),
+	);
 
 	return (
 		<OrganizationProvisionerJobsPageView
-			jobs={jobs}
+			jobs={jobsQuery.data?.jobs}
+			jobsQuery={jobsQuery}
 			filter={filter}
 			organization={organization}
-			error={isLoadingError}
-			onRetry={refetch}
-			onFilterChange={setSearchParams}
+			error={jobsQuery.error}
+			isNonInitialPage={isNonInitialPage(searchParams)}
+			onRetry={jobsQuery.refetch}
+			onFilterChange={(nextFilter) => {
+				setSearchParams(nextFilter);
+			}}
 		/>
 	);
 };
