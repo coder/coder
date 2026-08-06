@@ -172,12 +172,19 @@ const ExternalAppMenuItem: FC<{
 		workspace,
 	});
 
+	// External apps mint their session token on click via `link.onClick`, so we
+	// render a plain anchor (not a RouterLink) and let the hook handle opening.
 	return (
 		<DropdownMenuItem asChild>
-			<RouterLink to={link.href}>
+			<a
+				href={link.href}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noreferrer"
+			>
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
-			</RouterLink>
+			</a>
 		</DropdownMenuItem>
 	);
 };

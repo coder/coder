@@ -1,7 +1,8 @@
 import type React from "react";
-import { useQuery } from "react-query";
+import { useMutation } from "react-query";
 import { toast } from "sonner";
-import { apiKey } from "#/api/queries/users";
+import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -24,7 +25,7 @@ type AppLink = {
 	href: string;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
-	hasToken: boolean;
+	isLoading: boolean;
 };
 
 export const useAppLink = (
@@ -33,20 +34,95 @@ export const useAppLink = (
 ): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
-	const { data: apiKeyResponse } = useQuery({
-		...apiKey(),
-		enabled: isExternalApp(app) && needsSessionToken(app),
+
+	// External apps that embed the session token in their URL need a freshly
+	// minted key. We defer minting until the user clicks (see `onClick`) rather
+	// than on mount, so that merely rendering a link no longer mints (and
+	// audits) a session key for an app the user may never open.
+	const requiresSessionToken = isExternalApp(app) && needsSessionToken(app);
+
+	const generateKeyMutation = useMutation({
+		mutationFn: () => API.getApiKey(),
 	});
 
-	const href = getAppHref(app, {
-		agent,
-		workspace,
-		token: apiKeyResponse?.key,
-		path: proxy.preferredPathAppURL,
-		host: proxy.preferredWildcardHostname,
-	});
+	const buildHref = (token: string): string =>
+		getAppHref(app, {
+			agent,
+			workspace,
+			token,
+			path: proxy.preferredPathAppURL,
+			host: proxy.preferredWildcardHostname,
+		});
+
+	// For apps that require a session token this href intentionally omits the
+	// token; the `onClick` handler mints one and navigates to the final URL.
+	// Callers still render it as an anchor for apps that don't need a token.
+	const href = buildHref("");
+
+	// Custom-protocol (non-HTTP) external apps can silently fail when the target
+	// application isn't installed. The browser blurs when it hands control to
+	// the protocol handler, which clears the timeout before the error fires.
+	const notifyOnOpenExternalAppFailed = () => {
+		const openAppExternallyFailedTimeout = 1500;
+		const openAppExternallyFailed = setTimeout(() => {
+			// Check if this is a JetBrains IDE app
+			// starts with "jetbrains-gateway://connect#type=coder" (from https://registry.coder.com/modules/coder/jetbrains-gateway)
+			const isJetBrainsGateway = app.url?.startsWith("jetbrains-gateway:");
+			// starts with "jetbrains://gateway/coder" (from https://registry.coder.com/modules/coder/jetbrains)
+			const isJetBrainsToolbox = app.url?.startsWith("jetbrains:");
+
+			// Check if this is a coder:// URL
+			const isCoderApp = app.url?.startsWith("coder:");
+
+			if (isJetBrainsGateway) {
+				toast.error(`Failed to open "${label}".`, {
+					description: "JetBrains Gateway must be installed.",
+				});
+			} else if (isJetBrainsToolbox) {
+				toast.error(`Failed to open "${label}".`, {
+					description: "JetBrains Toolbox must be installed.",
+				});
+			} else if (isCoderApp) {
+				toast.error(`Failed to open "${label}".`, {
+					description: "Coder Desktop must be installed.",
+				});
+			} else {
+				toast.error(`Failed to open "${label}".`, {
+					description: "The app must be installed first.",
+				});
+			}
+		}, openAppExternallyFailedTimeout);
+		window.addEventListener(
+			"blur",
+			() => {
+				clearTimeout(openAppExternallyFailed);
+			},
+			{ once: true },
+		);
+	};
 
 	const onClick = (e: React.MouseEvent) => {
+		// Apps that embed a session token mint it on click instead of on mount.
+		// These are always custom-protocol (non-HTTP) external apps, so we build
+		// the final URL with the freshly minted token and navigate to it via
+		// `location.href`, relying on the browser's protocol handler.
+		if (requiresSessionToken) {
+			e.preventDefault();
+			if (generateKeyMutation.isPending) {
+				return;
+			}
+			generateKeyMutation.mutate(undefined, {
+				onSuccess: ({ key }) => {
+					notifyOnOpenExternalAppFailed();
+					location.href = buildHref(key);
+				},
+				onError: (error) => {
+					toast.error(getErrorMessage(error, `Failed to open "${label}".`));
+				},
+			});
+			return;
+		}
+
 		if (!e.currentTarget.getAttribute("href")) {
 			return;
 		}
@@ -57,41 +133,7 @@ export const useAppLink = (
 			app.external && app.url && !app.url.startsWith("http");
 
 		if (isExternalProtocolApp) {
-			// When browser recognizes the protocol and is able to navigate to the app,
-			// it will blur away, and will stop the timer. Otherwise,
-			// an error message will be displayed.
-			const openAppExternallyFailedTimeout = 1500;
-			const openAppExternallyFailed = setTimeout(() => {
-				// Check if this is a JetBrains IDE app
-				// starts with "jetbrains-gateway://connect#type=coder" (from https://registry.coder.com/modules/coder/jetbrains-gateway)
-				const isJetBrainsGateway = app.url?.startsWith("jetbrains-gateway:");
-				// starts with "jetbrains://gateway/coder" (from https://registry.coder.com/modules/coder/jetbrains)
-				const isJetBrainsToolbox = app.url?.startsWith("jetbrains:");
-
-				// Check if this is a coder:// URL
-				const isCoderApp = app.url?.startsWith("coder:");
-
-				if (isJetBrainsGateway) {
-					toast.error(`Failed to open "${label}".`, {
-						description: "JetBrains Gateway must be installed.",
-					});
-				} else if (isJetBrainsToolbox) {
-					toast.error(`Failed to open "${label}".`, {
-						description: "JetBrains Toolbox must be installed.",
-					});
-				} else if (isCoderApp) {
-					toast.error(`Failed to open "${label}".`, {
-						description: "Coder Desktop must be installed.",
-					});
-				} else {
-					toast.error(`Failed to open "${label}".`, {
-						description: "The app must be installed first.",
-					});
-				}
-			}, openAppExternallyFailedTimeout);
-			window.addEventListener("blur", () => {
-				clearTimeout(openAppExternallyFailed);
-			});
+			notifyOnOpenExternalAppFailed();
 
 			// Custom protocol external apps don't support open_in since they
 			// rely on the browser's protocol handling.
@@ -111,6 +153,6 @@ export const useAppLink = (
 		href,
 		onClick,
 		label,
-		hasToken: Boolean(apiKeyResponse?.key),
+		isLoading: generateKeyMutation.isPending,
 	};
 };
