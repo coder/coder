@@ -1,6 +1,11 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
+import {
+	GROUP_MEMBER_AVATAR_LIMIT,
+	groupMemberAvatars,
+} from "#/api/queries/groups";
 import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -34,6 +39,9 @@ import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
+
+// Stable keys for the avatar loading skeletons (indexes would trip lint).
+const AVATAR_SKELETON_KEYS = ["a", "b", "c", "d", "e"];
 
 export type GroupWithSpend = Group & {
 	readonly spend: OrganizationGroupsAISpend["groups"][number] | undefined;
@@ -220,8 +228,23 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
 	});
-	const memberAvatars = group.members.slice(0, 5);
-	const remainingAvatars = group.members.length - memberAvatars.length;
+
+	// The list endpoint returns only total_member_count, so fetch a small
+	// avatar preview per visible row instead of a full roster.
+	const membersQuery = useQuery({
+		...groupMemberAvatars(
+			group.organization_name,
+			group.name,
+			GROUP_MEMBER_AVATAR_LIMIT,
+		),
+		enabled: group.total_member_count > 0,
+	});
+	const memberAvatars = membersQuery.data?.users ?? [];
+	const remainingAvatars = group.total_member_count - memberAvatars.length;
+	const skeletonCount = Math.min(
+		group.total_member_count,
+		GROUP_MEMBER_AVATAR_LIMIT,
+	);
 
 	return (
 		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
@@ -236,12 +259,24 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						/>
 					}
 					title={group.display_name || group.name}
-					subtitle={`${group.members.length} members`}
+					subtitle={`${group.total_member_count} members`}
 				/>
 			</TableCell>
 
 			<TableCell>
-				{group.members.length > 0 ? (
+				{group.total_member_count === 0 || membersQuery.isError ? (
+					EM_DASH
+				) : membersQuery.isLoading ? (
+					<div className="flex items-center gap-2">
+						{AVATAR_SKELETON_KEYS.slice(0, skeletonCount).map((key) => (
+							<Skeleton
+								key={key}
+								variant="circular"
+								className="size-[--avatar-default]"
+							/>
+						))}
+					</div>
+				) : (
 					<div className="flex items-center gap-2">
 						{memberAvatars.map((member) => (
 							<Avatar
@@ -256,8 +291,6 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							</Badge>
 						)}
 					</div>
-				) : (
-					EM_DASH
 				)}
 			</TableCell>
 

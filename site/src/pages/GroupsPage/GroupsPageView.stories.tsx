@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
+import {
+	GROUP_MEMBER_AVATAR_LIMIT,
+	getGroupMemberAvatarsQueryKey,
+} from "#/api/queries/groups";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
@@ -8,7 +12,12 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { MockGroup } from "#/testHelpers/entities";
+import {
+	MockGroup,
+	MockOrganization,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
 type FilterProps = ComponentProps<typeof UsersFilter>;
@@ -38,11 +47,30 @@ const mockGroupWithSpend: GroupWithSpend = {
 	spend: undefined,
 };
 
+// AI-budget and pagination stories aren't about membership, so give their
+// groups no members. Rows with a zero count skip the per-row avatar fetch.
 const aiGroup = (id: string, name: string): GroupWithSpend => ({
 	...mockGroupWithSpend,
 	id,
 	name,
 	display_name: name,
+	members: [],
+	total_member_count: 0,
+});
+
+// Seeds the per-row member avatar preview query for a group so the row renders
+// avatars deterministically without hitting the network.
+const seedAvatars = (
+	groupName: string,
+	users: ReadonlyArray<typeof MockUserOwner>,
+	totalCount: number,
+) => ({
+	key: getGroupMemberAvatarsQueryKey(
+		MockOrganization.name,
+		groupName,
+		GROUP_MEMBER_AVATAR_LIMIT,
+	),
+	data: { users, count: totalCount },
 });
 
 export const Default: Story = {};
@@ -57,6 +85,43 @@ export const NotEnabled: Story = {
 export const WithGroups: Story = {
 	args: {
 		groups: [mockGroupWithSpend],
+	},
+	parameters: {
+		queries: [seedAvatars(MockGroup.name, [MockUserOwner, MockUserMember], 2)],
+	},
+};
+
+// A group with more members than fit in the preview: the row shows the capped
+// avatars plus a "+N" badge derived from total_member_count.
+export const WithMemberAvatars: Story = {
+	args: {
+		groups: [
+			{
+				...mockGroupWithSpend,
+				id: "with-members",
+				name: "with-members",
+				display_name: "With members",
+				total_member_count: 8,
+			},
+		],
+	},
+	parameters: {
+		queries: [
+			seedAvatars(
+				"with-members",
+				Array.from({ length: GROUP_MEMBER_AVATAR_LIMIT }, (_, i) => ({
+					...MockUserOwner,
+					id: `preview-${i}`,
+					username: `member-${i}`,
+				})),
+				8,
+			),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("+3")).toBeInTheDocument();
+		await expect(canvas.getByText("8 members")).toBeInTheDocument();
 	},
 };
 
@@ -266,6 +331,9 @@ export const WithoutAIBudgetColumn: Story = {
 export const WithDisplayGroup: Story = {
 	args: {
 		groups: [{ ...mockGroupWithSpend, name: "front-end" }],
+	},
+	parameters: {
+		queries: [seedAvatars("front-end", [MockUserOwner, MockUserMember], 2)],
 	},
 };
 
