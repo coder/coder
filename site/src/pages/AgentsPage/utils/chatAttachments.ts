@@ -96,7 +96,21 @@ const errorHasName = (error: unknown, name: string): boolean =>
 	"name" in error &&
 	error.name === name;
 
-const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
+// iOS blocks top-level data: navigation, so the Open fallback is only
+// offered for hrefs a new tab can actually load.
+const openFallbackAction = (href: string) =>
+	href.startsWith("data:")
+		? undefined
+		: {
+				label: "Open",
+				onClick: () => void open(href, "_blank", "noopener"),
+			};
+
+const shareFileViaSheet = (
+	file: File,
+	fileName: string,
+	href: string,
+): Promise<void> =>
 	navigator.share({ files: [file] }).catch((error: unknown) => {
 		// A dismissed share sheet rejects with AbortError.
 		if (errorHasName(error, "AbortError")) {
@@ -109,15 +123,42 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 				description: "The file is ready to save.",
 				action: {
 					label: "Save",
-					onClick: () => void shareFileViaSheet(file, fileName),
+					onClick: () => void shareFileViaSheet(file, fileName, href),
 				},
 			});
 			return;
 		}
+		// The share itself failed permanently, but the file was fetched,
+		// so the dismissible tab remains a way to reach it.
 		toast.error(`Couldn't download ${fileName}`, {
 			description: error instanceof Error ? error.message : undefined,
+			action: openFallbackAction(href),
 		});
 	});
+
+// Production CSP limits connect-src to 'self', so inline data: hrefs
+// cannot be fetched and are decoded locally instead.
+const fileFromDataURL = (
+	href: string,
+	fileName: string,
+	fallbackMediaType: string,
+): File | null => {
+	const match = /^data:([^,]*?)(;base64)?,(.*)$/.exec(href);
+	if (!match) {
+		return null;
+	}
+	const [, type, isBase64, payload] = match;
+	try {
+		const bytes = isBase64
+			? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
+			: new TextEncoder().encode(decodeURIComponent(payload));
+		return new File([bytes], fileName, {
+			type: type || fallbackMediaType || "application/octet-stream",
+		});
+	} catch {
+		return null;
+	}
+};
 
 const shareAttachmentFile = async ({
 	href,
@@ -125,24 +166,35 @@ const shareAttachmentFile = async ({
 	mediaType,
 }: AttachmentDownloadTarget): Promise<void> => {
 	let file: File;
-	try {
-		const response = await fetch(href);
-		if (!response.ok) {
-			throw new Error(
-				response.statusText
-					? `${response.status} ${response.statusText}`
-					: `HTTP ${response.status}`,
-			);
+	if (href.startsWith("data:")) {
+		const decoded = fileFromDataURL(href, fileName, mediaType);
+		if (!decoded) {
+			toast.error(`Couldn't download ${fileName}`, {
+				description: "The attachment data could not be decoded.",
+			});
+			return;
 		}
-		const blob = await response.blob();
-		file = new File([blob], fileName, {
-			type: blob.type || mediaType || "application/octet-stream",
-		});
-	} catch (error) {
-		toast.error(`Couldn't download ${fileName}`, {
-			description: error instanceof Error ? error.message : undefined,
-		});
-		return;
+		file = decoded;
+	} else {
+		try {
+			const response = await fetch(href);
+			if (!response.ok) {
+				throw new Error(
+					response.statusText
+						? `${response.status} ${response.statusText}`
+						: `HTTP ${response.status}`,
+				);
+			}
+			const blob = await response.blob();
+			file = new File([blob], fileName, {
+				type: blob.type || mediaType || "application/octet-stream",
+			});
+		} catch (error) {
+			toast.error(`Couldn't download ${fileName}`, {
+				description: error instanceof Error ? error.message : undefined,
+			});
+			return;
+		}
 	}
 	if (!canShareFiles([file])) {
 		// The pre-fetch probe can pass while the real file fails canShare
@@ -151,14 +203,11 @@ const shareAttachmentFile = async ({
 		// a fresh gesture.
 		toast.error(`Couldn't download ${fileName}`, {
 			description: "This file cannot be shared on this device.",
-			action: {
-				label: "Open",
-				onClick: () => void open(href, "_blank", "noopener"),
-			},
+			action: openFallbackAction(href),
 		});
 		return;
 	}
-	await shareFileViaSheet(file, fileName);
+	await shareFileViaSheet(file, fileName, href);
 };
 
 /**

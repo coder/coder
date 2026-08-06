@@ -183,7 +183,7 @@ describe("handleAttachmentDownloadClick", () => {
 		);
 	});
 
-	it("reports permanent share failures without a retry action", async () => {
+	it("offers a tab fallback instead of a retry for permanent share failures", async () => {
 		enterIOSStandalonePWA();
 		overrideNavigator(
 			"share",
@@ -198,8 +198,54 @@ describe("handleAttachmentDownloadClick", () => {
 		await handleAttachmentDownloadClick(event, target);
 
 		expect(toast.error).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(toast.error).mock.calls[0][1]).not.toHaveProperty(
-			"action",
+		expect(vi.mocked(toast.error).mock.calls[0][1]).toEqual(
+			expect.objectContaining({
+				action: expect.objectContaining({ label: "Open" }),
+			}),
+		);
+	});
+
+	it("shares inline data: attachments without fetching", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const fetchSpy = vi.spyOn(globalThis, "fetch");
+		const event = { preventDefault: vi.fn() };
+		const payload = btoa("png-bytes");
+
+		await handleAttachmentDownloadClick(event, {
+			href: `data:image/png;base64,${payload}`,
+			fileName: "inline.png",
+			mediaType: "image/png",
+		});
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(share).toHaveBeenCalledTimes(1);
+		const shared: { files: File[] } = share.mock.calls[0][0];
+		expect(shared.files[0].name).toBe("inline.png");
+		expect(shared.files[0].type).toBe("image/png");
+		expect(shared.files[0].size).toBe("png-bytes".length);
+	});
+
+	it("keeps permanent share failure toasts for data: hrefs action-free", async () => {
+		enterIOSStandalonePWA();
+		overrideNavigator(
+			"share",
+			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
+		);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, {
+			href: `data:image/png;base64,${btoa("png-bytes")}`,
+			fileName: "inline.png",
+			mediaType: "image/png",
+		});
+
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(toast.error).mock.calls[0][1]).toEqual(
+			expect.objectContaining({ action: undefined }),
 		);
 	});
 

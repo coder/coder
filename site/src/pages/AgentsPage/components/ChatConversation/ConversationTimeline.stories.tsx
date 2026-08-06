@@ -1533,12 +1533,18 @@ export const DownloadInIOSStandaloneReportsPermanentShareFailure: Story = {
 				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
 			);
 			await screen.findByText("Couldn't download deployment-report.pdf");
-			// A permanent failure gets a plain toast: retrying would fail
-			// identically, so no Save action is offered.
+			// Retrying a permanently failed share would fail identically,
+			// so the toast offers the dismissible tab instead of Save.
 			expect(
 				screen.queryByRole("button", { name: "Save" }),
 			).not.toBeInTheDocument();
 			expect(open).not.toHaveBeenCalled();
+			await userEvent.click(screen.getByRole("button", { name: "Open" }));
+			expect(open).toHaveBeenCalledWith(
+				getChatFileURL("storybook-ios-share-report"),
+				"_blank",
+				"noopener",
+			);
 		} finally {
 			restoreNavigator();
 		}
@@ -1611,6 +1617,53 @@ export const DownloadInIOSStandaloneShowsErrorToastOnFailedFetch: Story = {
 			await screen.findByText("Couldn't download deployment-report.pdf");
 			expect(share).not.toHaveBeenCalled();
 			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+/** Inline data: attachments cannot be fetched under the production CSP. */
+export const DownloadInIOSStandaloneSharesInlineAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+						name: "inline-screenshot.png",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		const fetchSpy = spyOn(globalThis, "fetch");
+		try {
+			canvas
+				.getByRole("button", { name: "View inline-screenshot.png" })
+				.focus();
+			const downloadLink = await canvas.findByRole("link", {
+				name: "Download inline-screenshot.png",
+			});
+			await userEvent.click(downloadLink);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			const shared: { files: File[] } = share.mock.calls[0][0];
+			expect(shared.files[0].name).toBe("inline-screenshot.png");
+			expect(shared.files[0].type).toBe("image/png");
+			expect(fetchSpy).not.toHaveBeenCalled();
 		} finally {
 			restoreNavigator();
 		}
