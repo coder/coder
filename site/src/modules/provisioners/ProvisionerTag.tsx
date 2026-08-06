@@ -46,7 +46,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 				onClick={() => {
 					onDelete(tagName);
 				}}
-				className="size-6"
+				className="size-6 -my-1"
 			>
 				<XIcon className="size-icon-xs" />
 				<span className="sr-only">Delete {tagName}</span>
@@ -59,7 +59,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 		return <BooleanPill value={boolValue}>{content}</BooleanPill>;
 	}
 	return (
-		<Badge size="md" data-testid={`tag-${tagName}`}>
+		<Badge variant="outline" size="md" data-testid={`tag-${tagName}`}>
 			<TagIcon className="size-icon-sm" />
 			{content}
 		</Badge>

@@ -17,6 +17,8 @@ const badgeVariants = cva(
 			variant: {
 				default:
 					"border-surface-secondary bg-surface-secondary text-content-secondary shadow",
+				outline:
+					"border-border bg-transparent text-content-primary shadow-none",
 				warning:
 					"border-highlight-orange bg-surface-orange text-highlight-orange shadow",
 				destructive:
