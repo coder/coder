@@ -637,6 +637,121 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+// ProvisionerJobs parses a provisioner job search query.
+//
+// Supported query parameters:
+//
+//   - bare text: free-text search (workspace name, template name/display name, job ID)
+//   - status: provisioner job status enum (csv or repeated)
+//   - type: provisioner job type enum (csv or repeated)
+//   - template: template name or UUID (resolved within the organization)
+//   - id: job UUID(s)
+//   - initiator: username or UUID
+//   - tag: key=value (repeated; accumulates into a tagset filter)
+func ProvisionerJobs(ctx context.Context, db database.Store, organizationID uuid.UUID, query string) (
+	database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams,
+	database.CountProvisionerJobsByOrganizationAndStatusParams,
+	[]codersdk.ValidationError,
+) {
+	// nolint:exhaustruct // OffsetOpt, LimitOpt, and CountCap are set by the handler.
+	filter := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		OrganizationID: organizationID,
+	}
+	// nolint:exhaustruct // CountCap is set by the handler.
+	countFilter := database.CountProvisionerJobsByOrganizationAndStatusParams{
+		OrganizationID: organizationID,
+	}
+
+	if query == "" {
+		return filter, countFilter, nil
+	}
+
+	// Do not lowercase the entire query. Tag keys/values are case-sensitive
+	// in the provisioner tagset. Keys are lowercased by searchTerms; enum
+	// and name lookups normalize below as needed.
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, countFilter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Search = parser.String(values, "", "search")
+	filter.Status = httpapi.ParseCustomList(parser, values, []database.ProvisionerJobStatus{}, "status", func(v string) (database.ProvisionerJobStatus, error) {
+		return httpapi.ParseEnum[database.ProvisionerJobStatus](strings.ToLower(v))
+	})
+	filter.Types = httpapi.ParseCustomList(parser, values, []database.ProvisionerJobType{}, "type", func(v string) (database.ProvisionerJobType, error) {
+		return httpapi.ParseEnum[database.ProvisionerJobType](strings.ToLower(v))
+	})
+	filter.IDs = parser.UUIDs(values, nil, "id")
+	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", uuid.Nil)
+	filter.TemplateID = parseTemplateInOrganization(ctx, db, parser, values, organizationID)
+	filter.Tags = parseProvisionerTags(parser, values)
+
+	countFilter.Search = filter.Search
+	countFilter.Status = filter.Status
+	countFilter.Types = filter.Types
+	countFilter.IDs = filter.IDs
+	countFilter.InitiatorID = filter.InitiatorID
+	countFilter.TemplateID = filter.TemplateID
+	countFilter.Tags = filter.Tags
+
+	parser.ErrorExcessParams(values)
+	return filter, countFilter, parser.Errors
+}
+
+// parseTemplateInOrganization resolves a "template" filter param as either a
+// UUID or a template name within the given organization.
+func parseTemplateInOrganization(
+	ctx context.Context,
+	db database.Store,
+	parser *httpapi.QueryParamParser,
+	vals url.Values,
+	organizationID uuid.UUID,
+) uuid.UUID {
+	return httpapi.ParseCustom(parser, vals, uuid.Nil, "template", func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
+		}
+		templateID, err := uuid.Parse(v)
+		if err == nil {
+			return templateID, nil
+		}
+		template, err := db.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
+			OrganizationID: organizationID,
+			Deleted:        false,
+			Name:           strings.ToLower(v),
+		})
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("template %q either does not exist, or you are unauthorized to view it", v)
+		}
+		return template.ID, nil
+	})
+}
+
+// parseProvisionerTags parses repeated tag:key=value terms into a StringMap.
+// When no tags are provided, the returned map is nil so the SQL filter treats
+// it as unrestricted (JSON null).
+func parseProvisionerTags(parser *httpapi.QueryParamParser, vals url.Values) database.StringMap {
+	pairs := httpapi.ParseCustomList(parser, vals, [][2]string{}, "tag", func(v string) ([2]string, error) {
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) != 2 || parts[0] == "" {
+			return [2]string{}, xerrors.Errorf("tag must be in the form key=value, got %q", v)
+		}
+		return [2]string{parts[0], parts[1]}, nil
+	})
+	if len(pairs) == 0 {
+		return nil
+	}
+	tags := make(database.StringMap, len(pairs))
+	for _, pair := range pairs {
+		tags[pair[0]] = pair[1]
+	}
+	return tags
+}
+
 // validateDiffURL checks that the value is a syntactically valid HTTP(S)
 // URL. The check is intentionally forge-agnostic because the diff URL on
 // a chat may point to a pull request, merge request, branch page, etc.

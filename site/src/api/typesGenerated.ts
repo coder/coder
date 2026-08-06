@@ -6891,21 +6891,11 @@ export interface OrganizationProvisionerDaemonsOptions {
 
 // From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions extends Pagination {
-	readonly IDs: readonly string[];
-	readonly Status: readonly ProvisionerJobStatus[];
-	readonly Types: readonly ProvisionerJobType[];
-	readonly Tags: Record<string, string>;
-	readonly Initiator: string;
 	/**
-	 * Template is a template ID used to filter jobs associated with that
-	 * template (via template version import, dry-run, or workspace build).
+	 * FilterQuery is a raw filter query string (same language as the API `q`
+	 * parameter). Typed fields above are composed into `q` alongside this.
 	 */
-	readonly Template: string;
-	/**
-	 * Search is a free-text filter matched against workspace name, template
-	 * name, template display name, or job ID.
-	 */
-	readonly Search: string;
+	readonly q?: string;
 }
 
 // From codersdk/idpsync.go

@@ -5293,75 +5293,9 @@
 						"in": "query"
 					},
 					{
-						"type": "array",
-						"format": "uuid",
-						"items": {
-							"type": "string"
-						},
-						"collectionFormat": "csv",
-						"description": "Filter results by job IDs",
-						"name": "ids",
-						"in": "query"
-					},
-					{
-						"enum": [
-							"pending",
-							"running",
-							"succeeded",
-							"canceling",
-							"canceled",
-							"failed",
-							"unknown",
-							"pending",
-							"running",
-							"succeeded",
-							"canceling",
-							"canceled",
-							"failed"
-						],
 						"type": "string",
-						"description": "Filter results by status",
-						"name": "status",
-						"in": "query"
-					},
-					{
-						"enum": [
-							"template_version_import",
-							"workspace_build",
-							"template_version_dry_run",
-							"template_version_import",
-							"workspace_build",
-							"template_version_dry_run"
-						],
-						"type": "string",
-						"description": "Filter results by job type",
-						"name": "type",
-						"in": "query"
-					},
-					{
-						"type": "object",
-						"description": "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)",
-						"name": "tags",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Filter results by initiator",
-						"name": "initiator",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Filter results by template ID",
-						"name": "template",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "Free-text search against workspace name, template name, template display name, or job ID",
-						"name": "search",
+						"description": "Search query in the format `key:value`. Available keys are: status, type, template, id, initiator, tag. Bare text searches workspace name, template name, template display name, or job ID.",
+						"name": "q",
 						"in": "query"
 					}
 				],

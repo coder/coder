@@ -12,10 +12,7 @@ import type {
 	UpdateWorkspaceSharingSettingsRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
-import {
-	parseFilterQuery,
-	useFilterParamsKey,
-} from "#/components/Filter/Filter";
+import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
@@ -283,48 +280,18 @@ export const patchWorkspaceSharingSettings = (
 export const provisionerJobsQueryKey = (orgId: string) =>
 	["organization", orgId, "provisionerjobs"] as const;
 
-export type ProvisionerJobsFilterPayload = {
-	status: string;
-	type: string;
-	template: string;
-	ids: string;
-	search: string;
-};
-
 export const paginatedProvisionerJobs = (
 	orgId: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	ProvisionerJobsResponse,
-	ProvisionerJobsFilterPayload
-> => {
+): UsePaginatedQueryOptions<ProvisionerJobsResponse, string> => {
 	return {
 		searchParams,
-		queryPayload: () => {
-			const filterQuery = searchParams.get(useFilterParamsKey) ?? "";
-			const values = parseFilterQuery(filterQuery);
-			return {
-				status: values.status ?? "",
-				type: values.type ?? "",
-				template: values.template ?? "",
-				ids: values.ids ?? "",
-				// Bare text in the filter box (not key:value) maps to the
-				// API search param.
-				search: filterQuery
-					.replace(/(\w+):"[^"]+"|(\w+):\S+/g, " ")
-					.trim()
-					.replace(/\s+/g, " "),
-			};
-		},
+		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
 		queryKey: ({ payload, pageNumber }) =>
 			[...provisionerJobsQueryKey(orgId), payload, pageNumber] as const,
 		queryFn: ({ payload, limit, offset }) =>
 			API.getProvisionerJobs(orgId, {
-				status: payload.status || undefined,
-				type: payload.type || undefined,
-				template: payload.template || undefined,
-				ids: payload.ids || undefined,
-				search: payload.search || undefined,
+				q: payload || undefined,
 				limit,
 				offset,
 			}),

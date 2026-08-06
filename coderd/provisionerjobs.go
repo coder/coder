@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -41,14 +42,35 @@ import (
 // @Router /api/v2/organizations/{organization}/provisionerjobs/{job} [get]
 func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
 
 	jobID, ok := httpmw.ParseUUIDParam(rw, r, "job")
 	if !ok {
 		return
 	}
 
-	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, []uuid.UUID{jobID})
-	if !ok {
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		OrganizationID: org.ID,
+		IDs:            []uuid.UUID{jobID},
+		// Default page size is applied in SQL when LimitOpt is 0.
+		LimitOpt:  0,
+		OffsetOpt: 0,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 	if len(jobs) == 0 {
@@ -79,13 +101,7 @@ const provisionerJobsCountCap = 2000
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
-// @Param ids query []string false "Filter results by job IDs" format(uuid)
-// @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
-// @Param type query codersdk.ProvisionerJobType false "Filter results by job type" enums(template_version_import,workspace_build,template_version_dry_run)
-// @Param tags query object false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
-// @Param initiator query string false "Filter results by initiator" format(uuid)
-// @Param template query string false "Filter results by template ID" format(uuid)
-// @Param search query string false "Free-text search against workspace name, template name, template display name, or job ID"
+// @Param q query string false "Search query in the format `key:value`. Available keys are: status, type, template, id, initiator, tag. Bare text searches workspace name, template name, template display name, or job ID."
 // @Success 200 {object} codersdk.ProvisionerJobsResponse
 // @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
@@ -103,22 +119,17 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filters, ok := parseProvisionerJobFilters(rw, r, nil)
-	if !ok {
+	filter, countFilter, errs := searchquery.ProvisionerJobs(ctx, api.Database, org.ID, r.URL.Query().Get("q"))
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid provisioner job search query.",
+			Validations: errs,
+		})
 		return
 	}
 
-	count, err := api.Database.CountProvisionerJobsByOrganizationAndStatus(ctx, database.CountProvisionerJobsByOrganizationAndStatusParams{
-		OrganizationID: org.ID,
-		Status:         filters.Status,
-		Types:          filters.Types,
-		IDs:            filters.IDs,
-		Tags:           filters.Tags,
-		InitiatorID:    filters.InitiatorID,
-		TemplateID:     filters.TemplateID,
-		Search:         filters.Search,
-		CountCap:       provisionerJobsCountCap,
-	})
+	countFilter.CountCap = provisionerJobsCountCap
+	count, err := api.Database.CountProvisionerJobsByOrganizationAndStatus(ctx, countFilter)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -139,20 +150,11 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-		OrganizationID: org.ID,
-		Status:         filters.Status,
-		Types:          filters.Types,
-		IDs:            filters.IDs,
-		Tags:           filters.Tags,
-		InitiatorID:    filters.InitiatorID,
-		TemplateID:     filters.TemplateID,
-		Search:         filters.Search,
-		// #nosec G115 - Pagination offsets are small and fit in int32
-		OffsetOpt: int32(page.Offset),
-		// #nosec G115 - Pagination limits are small and fit in int32
-		LimitOpt: int32(page.Limit),
-	})
+	// #nosec G115 - Pagination offsets/limits are small and fit in int32
+	filter.OffsetOpt = int32(page.Offset)
+	// #nosec G115 - Pagination offsets/limits are small and fit in int32
+	filter.LimitOpt = int32(page.Limit)
+	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, filter)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -170,102 +172,6 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		Count:    count,
 		CountCap: provisionerJobsCountCap,
 	})
-}
-
-type provisionerJobFilters struct {
-	IDs         []uuid.UUID
-	Status      []database.ProvisionerJobStatus
-	Types       []database.ProvisionerJobType
-	Tags        database.StringMap
-	InitiatorID uuid.UUID
-	TemplateID  uuid.UUID
-	Search      string
-}
-
-// parseProvisionerJobFilters parses filter query params shared by the list and
-// single-job endpoints. Pagination params are marked parsed so they are not
-// rejected when callers also use ParsePagination.
-func parseProvisionerJobFilters(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (provisionerJobFilters, bool) {
-	ctx := r.Context()
-	qp := r.URL.Query()
-	p := httpapi.NewQueryParamParser()
-	_ = p.PositiveInt32(qp, 0, "limit")
-	_ = p.PositiveInt32(qp, 0, "offset")
-	_ = p.UUID(qp, uuid.Nil, "after_id")
-	status := p.Strings(qp, nil, "status")
-	jobTypes := p.Strings(qp, nil, "type")
-	if ids == nil {
-		ids = p.UUIDs(qp, nil, "ids")
-	}
-	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
-	initiatorID := p.UUID(qp, uuid.Nil, "initiator")
-	templateID := p.UUID(qp, uuid.Nil, "template")
-	search := p.String(qp, "", "search")
-	p.ErrorExcessParams(qp)
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query parameters.",
-			Validations: p.Errors,
-		})
-		return provisionerJobFilters{}, false
-	}
-
-	return provisionerJobFilters{
-		IDs:         ids,
-		Status:      slice.StringEnums[database.ProvisionerJobStatus](status),
-		Types:       slice.StringEnums[database.ProvisionerJobType](jobTypes),
-		Tags:        tags,
-		InitiatorID: initiatorID,
-		TemplateID:  templateID,
-		Search:      search,
-	}, true
-}
-
-// handleAuthAndFetchProvisionerJobs is used by the singular provisioner job
-// endpoint. If ok is false the caller should return immediately because the
-// response has already been written.
-func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
-	ctx := r.Context()
-	org := httpmw.OrganizationParam(r)
-
-	// For now, only owners and template admins can access provisioner jobs.
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
-		httpapi.ResourceNotFound(rw)
-		return nil, false
-	}
-
-	filters, ok := parseProvisionerJobFilters(rw, r, ids)
-	if !ok {
-		return nil, false
-	}
-
-	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-		OrganizationID: org.ID,
-		Status:         filters.Status,
-		Types:          filters.Types,
-		IDs:            filters.IDs,
-		Tags:           filters.Tags,
-		InitiatorID:    filters.InitiatorID,
-		TemplateID:     filters.TemplateID,
-		Search:         filters.Search,
-		// Default page size is applied in SQL when LimitOpt is 0.
-		LimitOpt:  0,
-		OffsetOpt: 0,
-	})
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return nil, false
-		}
-
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner jobs.",
-			Detail:  err.Error(),
-		})
-		return nil, false
-	}
-
-	return jobs, true
 }
 
 // Returns provisioner logs based on query parameters.

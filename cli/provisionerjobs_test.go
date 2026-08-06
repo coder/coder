@@ -319,7 +319,8 @@ func TestProvisionerJobs(t *testing.T) {
 			inv.Stdout = &buf
 			err := inv.Run()
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "initiator not found: nonexistent-user")
+			assert.Contains(t, err.Error(), "list provisioner jobs")
+			assert.Contains(t, err.Error(), "nonexistent-user")
 		})
 	})
 }

@@ -424,17 +424,66 @@ type OrganizationProvisionerJobsOptions struct {
 	// Pagination controls page size and offset. A Limit of 0 uses the
 	// server default (100).
 	Pagination
-	IDs       []uuid.UUID
-	Status    []ProvisionerJobStatus
-	Types     []ProvisionerJobType
-	Tags      map[string]string
-	Initiator string
-	// Template is a template ID used to filter jobs associated with that
-	// template (via template version import, dry-run, or workspace build).
-	Template string
-	// Search is a free-text filter matched against workspace name, template
-	// name, template display name, or job ID.
-	Search string
+	// IDs filters by job ID. Typescript clients should use FilterQuery instead.
+	IDs []uuid.UUID `json:"ids,omitempty" typescript:"-"`
+	// Status filters by job status. Typescript clients should use FilterQuery instead.
+	Status []ProvisionerJobStatus `json:"status,omitempty" typescript:"-"`
+	// Types filters by job type. Typescript clients should use FilterQuery instead.
+	Types []ProvisionerJobType `json:"type,omitempty" typescript:"-"`
+	// Tags filters by provisioner tags (key=value). Typescript clients should use FilterQuery instead.
+	Tags map[string]string `json:"tags,omitempty" typescript:"-"`
+	// Initiator is a username or user ID. Typescript clients should use FilterQuery instead.
+	Initiator string `json:"initiator,omitempty" typescript:"-"`
+	// Template is a template name or ID. Typescript clients should use FilterQuery instead.
+	Template string `json:"template,omitempty" typescript:"-"`
+	// Search is free-text matched against workspace name, template name,
+	// template display name, or job ID. Typescript clients should use FilterQuery instead.
+	Search string `json:"search,omitempty" typescript:"-"`
+	// FilterQuery is a raw filter query string (same language as the API `q`
+	// parameter). Typed fields above are composed into `q` alongside this.
+	FilterQuery string `json:"q,omitempty"`
+}
+
+// asRequestOption composes typed filter fields and FilterQuery into a single
+// `q` query parameter, matching WorkspaceFilter.
+func (o OrganizationProvisionerJobsOptions) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		var params []string
+		if len(o.IDs) > 0 {
+			ids := make([]string, 0, len(o.IDs))
+			for _, id := range o.IDs {
+				ids = append(ids, id.String())
+			}
+			params = append(params, fmt.Sprintf("id:%s", strings.Join(ids, ",")))
+		}
+		for _, status := range o.Status {
+			params = append(params, fmt.Sprintf("status:%s", status))
+		}
+		for _, jobType := range o.Types {
+			params = append(params, fmt.Sprintf("type:%s", jobType))
+		}
+		for key, value := range o.Tags {
+			params = append(params, fmt.Sprintf("tag:%s=%s", key, value))
+		}
+		if o.Initiator != "" {
+			params = append(params, fmt.Sprintf("initiator:%q", o.Initiator))
+		}
+		if o.Template != "" {
+			params = append(params, fmt.Sprintf("template:%q", o.Template))
+		}
+		if o.Search != "" {
+			params = append(params, o.Search)
+		}
+		if o.FilterQuery != "" {
+			params = append(params, o.FilterQuery)
+		}
+
+		q := r.URL.Query()
+		if len(params) > 0 {
+			q.Set("q", strings.Join(params, " "))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
 }
 
 // ProvisionerJobsResponse is the paginated response for listing provisioner jobs.
@@ -448,44 +497,15 @@ type ProvisionerJobsResponse struct {
 }
 
 func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) (ProvisionerJobsResponse, error) {
-	qp := url.Values{}
-	if opts != nil {
-		if opts.Limit > 0 {
-			qp.Add("limit", strconv.Itoa(opts.Limit))
-		}
-		if opts.Offset > 0 {
-			qp.Add("offset", strconv.Itoa(opts.Offset))
-		}
-		if len(opts.IDs) > 0 {
-			qp.Add("ids", joinSliceStringer(opts.IDs))
-		}
-		if len(opts.Status) > 0 {
-			qp.Add("status", joinSlice(opts.Status))
-		}
-		if len(opts.Types) > 0 {
-			qp.Add("type", joinSlice(opts.Types))
-		}
-		if len(opts.Tags) > 0 {
-			tagsRaw, err := json.Marshal(opts.Tags)
-			if err != nil {
-				return ProvisionerJobsResponse{}, xerrors.Errorf("marshal tags: %w", err)
-			}
-			qp.Add("tags", string(tagsRaw))
-		}
-		if opts.Initiator != "" {
-			qp.Add("initiator", opts.Initiator)
-		}
-		if opts.Template != "" {
-			qp.Add("template", opts.Template)
-		}
-		if opts.Search != "" {
-			qp.Add("search", opts.Search)
-		}
+	if opts == nil {
+		opts = &OrganizationProvisionerJobsOptions{}
 	}
 
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerjobs?%s", organizationID.String(), qp.Encode()),
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerjobs", organizationID.String()),
 		nil,
+		opts.Pagination.asRequestOption(),
+		opts.asRequestOption(),
 	)
 	if err != nil {
 		return ProvisionerJobsResponse{}, xerrors.Errorf("make request: %w", err)

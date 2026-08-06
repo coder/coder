@@ -69,23 +69,15 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
-			if initiator != "" {
-				user, err := client.User(ctx, initiator)
-				if err != nil {
-					return xerrors.Errorf("initiator not found: %s", initiator)
-				}
-				initiator = user.ID.String()
-			}
-
 			jobsRes, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
 				Pagination: codersdk.Pagination{
 					Limit: int(limit),
 				},
-				Status:    slice.StringEnums[codersdk.ProvisionerJobStatus](status),
-				Types:     slice.StringEnums[codersdk.ProvisionerJobType](jobTypes),
-				Initiator: initiator,
-				Template:  template,
-				Search:    search,
+				Status:      slice.StringEnums[codersdk.ProvisionerJobStatus](status),
+				Types:       slice.StringEnums[codersdk.ProvisionerJobType](jobTypes),
+				Initiator:   initiator,
+				Template:    template,
+				FilterQuery: search,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)
@@ -161,14 +153,14 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		{
 			Flag:        "template",
 			Env:         "CODER_PROVISIONER_JOB_LIST_TEMPLATE",
-			Description: "Filter by template ID.",
+			Description: "Filter by template name or ID.",
 			Value:       serpent.StringOf(&template),
 		},
 		{
 			Flag:          "search",
 			FlagShorthand: "q",
 			Env:           "CODER_PROVISIONER_JOB_LIST_SEARCH",
-			Description:   "Free-text search against workspace name, template name, template display name, or job ID.",
+			Description:   "Search query in the format key:value. Available keys are: status, type, template, id, initiator, tag. Bare text searches workspace name, template name, template display name, or job ID.",
 			Value:         serpent.StringOf(&search),
 		},
 	}...)

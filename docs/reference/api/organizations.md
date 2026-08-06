@@ -288,25 +288,12 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                              |
-|----------------|-------|--------------|----------|------------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                          |
-| `limit`        | query | integer      | false    | Page limit                                                                               |
-| `offset`       | query | integer      | false    | Page offset                                                                              |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                                |
-| `status`       | query | string       | false    | Filter results by status                                                                 |
-| `type`         | query | string       | false    | Filter results by job type                                                               |
-| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)     |
-| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                              |
-| `template`     | query | string(uuid) | false    | Filter results by template ID                                                            |
-| `search`       | query | string       | false    | Free-text search against workspace name, template name, template display name, or job ID |
-
-#### Enumerated Values
-
-| Parameter | Value(s)                                                                        |
-|-----------|---------------------------------------------------------------------------------|
-| `status`  | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
-| `type`    | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                 |
+|----------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                                                                                                                                                             |
+| `limit`        | query | integer      | false    | Page limit                                                                                                                                                                                  |
+| `offset`       | query | integer      | false    | Page offset                                                                                                                                                                                 |
+| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: status, type, template, id, initiator, tag. Bare text searches workspace name, template name, template display name, or job ID. |
 
 ### Example responses
 

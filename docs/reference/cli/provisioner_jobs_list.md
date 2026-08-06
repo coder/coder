@@ -59,7 +59,7 @@ Filter by initiator (user ID or username).
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_TEMPLATE</code> |
 
-Filter by template ID.
+Filter by template name or ID.
 
 ### -q, --search
 
@@ -68,7 +68,7 @@ Filter by template ID.
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_SEARCH</code> |
 
-Free-text search against workspace name, template name, template display name, or job ID.
+Search query in the format key:value. Available keys are: status, type, template, id, initiator, tag. Bare text searches workspace name, template name, template display name, or job ID.
 
 ### -O, --org
 

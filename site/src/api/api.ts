@@ -402,14 +402,9 @@ export class ParameterValidationError extends Error {
 }
 
 export type GetProvisionerJobsParams = {
-	status?: string;
-	type?: string;
-	template?: string;
-	search?: string;
+	q?: string;
 	limit?: number;
 	offset?: number;
-	// IDs separated by comma
-	ids?: string;
 };
 
 export type GetProvisionerDaemonsParams = {

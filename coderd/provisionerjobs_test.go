@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
 	"strconv"
 	"testing"
 
@@ -193,6 +194,42 @@ func TestProvisionerJobs(t *testing.T) {
 			for _, job := range jobsRes.Jobs {
 				require.Equal(t, template.ID, job.Metadata.TemplateID)
 			}
+		})
+
+		t.Run("TemplateByName", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Template: template.Name,
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(jobsRes.Jobs), 1)
+			for _, found := range jobsRes.Jobs {
+				require.Equal(t, template.ID, found.Metadata.TemplateID)
+			}
+		})
+
+		t.Run("FilterQuery", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobsRes, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				FilterQuery: "status:running",
+			})
+			require.NoError(t, err)
+			require.Len(t, jobsRes.Jobs, 1)
+			require.Equal(t, int64(1), jobsRes.Count)
+		})
+
+		t.Run("InvalidFilterQuery", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			_, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				FilterQuery: "nope:value",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 
 		t.Run("SearchWorkspaceName", func(t *testing.T) {

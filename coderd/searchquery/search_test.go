@@ -1742,3 +1742,165 @@ func TestSearchChats(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchProvisionerJobs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		orgID := uuid.New()
+		filter, countFilter, errs := searchquery.ProvisionerJobs(context.Background(), nil, orgID, "")
+		require.Empty(t, errs)
+		require.Equal(t, orgID, filter.OrganizationID)
+		require.Equal(t, orgID, countFilter.OrganizationID)
+		require.Empty(t, filter.Search)
+		require.Nil(t, filter.Tags)
+	})
+
+	t.Run("BareText", func(t *testing.T) {
+		t.Parallel()
+		filter, countFilter, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "my-workspace")
+		require.Empty(t, errs)
+		require.Equal(t, "my-workspace", filter.Search)
+		require.Equal(t, "my-workspace", countFilter.Search)
+	})
+
+	t.Run("Status", func(t *testing.T) {
+		t.Parallel()
+		filter, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "status:running")
+		require.Empty(t, errs)
+		require.Equal(t, []database.ProvisionerJobStatus{database.ProvisionerJobStatusRunning}, filter.Status)
+	})
+
+	t.Run("StatusCSV", func(t *testing.T) {
+		t.Parallel()
+		filter, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "status:running,pending")
+		require.Empty(t, errs)
+		require.Equal(t, []database.ProvisionerJobStatus{
+			database.ProvisionerJobStatusRunning,
+			database.ProvisionerJobStatusPending,
+		}, filter.Status)
+	})
+
+	t.Run("Type", func(t *testing.T) {
+		t.Parallel()
+		filter, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "type:workspace_build")
+		require.Empty(t, errs)
+		require.Equal(t, []database.ProvisionerJobType{database.ProvisionerJobTypeWorkspaceBuild}, filter.Types)
+	})
+
+	t.Run("ID", func(t *testing.T) {
+		t.Parallel()
+		jobID := uuid.New()
+		filter, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "id:"+jobID.String())
+		require.Empty(t, errs)
+		require.Equal(t, []uuid.UUID{jobID}, filter.IDs)
+	})
+
+	t.Run("InvalidID", func(t *testing.T) {
+		t.Parallel()
+		_, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "id:not-a-uuid")
+		require.NotEmpty(t, errs)
+		require.Equal(t, "id", errs[0].Field)
+	})
+
+	t.Run("UnknownKey", func(t *testing.T) {
+		t.Parallel()
+		_, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "nope:value")
+		require.NotEmpty(t, errs)
+		require.Equal(t, "nope", errs[0].Field)
+	})
+
+	t.Run("Tag", func(t *testing.T) {
+		t.Parallel()
+		filter, countFilter, errs := searchquery.ProvisionerJobs(
+			context.Background(), nil, uuid.New(), "tag:scope=organization tag:owner=me",
+		)
+		require.Empty(t, errs)
+		require.Equal(t, database.StringMap{
+			"scope": "organization",
+			"owner": "me",
+		}, filter.Tags)
+		require.Equal(t, filter.Tags, countFilter.Tags)
+	})
+
+	t.Run("InvalidTag", func(t *testing.T) {
+		t.Parallel()
+		_, _, errs := searchquery.ProvisionerJobs(context.Background(), nil, uuid.New(), "tag:missingequals")
+		require.NotEmpty(t, errs)
+		require.Equal(t, "tag", errs[0].Field)
+	})
+
+	t.Run("Mixed", func(t *testing.T) {
+		t.Parallel()
+		filter, _, errs := searchquery.ProvisionerJobs(
+			context.Background(), nil, uuid.New(), "status:failed type:workspace_build my-ws",
+		)
+		require.Empty(t, errs)
+		require.Equal(t, "my-ws", filter.Search)
+		require.Equal(t, []database.ProvisionerJobStatus{database.ProvisionerJobStatusFailed}, filter.Status)
+		require.Equal(t, []database.ProvisionerJobType{database.ProvisionerJobTypeWorkspaceBuild}, filter.Types)
+	})
+
+	t.Run("TemplateByName", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "docker",
+		})
+
+		filter, countFilter, errs := searchquery.ProvisionerJobs(
+			context.Background(), db, org.ID, "template:docker",
+		)
+		require.Empty(t, errs)
+		require.Equal(t, template.ID, filter.TemplateID)
+		require.Equal(t, template.ID, countFilter.TemplateID)
+	})
+
+	t.Run("TemplateByID", func(t *testing.T) {
+		t.Parallel()
+		templateID := uuid.New()
+		filter, _, errs := searchquery.ProvisionerJobs(
+			context.Background(), nil, uuid.New(), "template:"+templateID.String(),
+		)
+		require.Empty(t, errs)
+		require.Equal(t, templateID, filter.TemplateID)
+	})
+
+	t.Run("TemplateNotFound", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_, _, errs := searchquery.ProvisionerJobs(
+			context.Background(), db, org.ID, "template:missing",
+		)
+		require.NotEmpty(t, errs)
+		require.Equal(t, "template", errs[0].Field)
+	})
+
+	t.Run("InitiatorByUsername", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{Username: "alice"})
+		filter, countFilter, errs := searchquery.ProvisionerJobs(
+			context.Background(), db, uuid.New(), "initiator:alice",
+		)
+		require.Empty(t, errs)
+		require.Equal(t, user.ID, filter.InitiatorID)
+		require.Equal(t, user.ID, countFilter.InitiatorID)
+	})
+
+	t.Run("InitiatorByID", func(t *testing.T) {
+		t.Parallel()
+		userID := uuid.New()
+		filter, _, errs := searchquery.ProvisionerJobs(
+			context.Background(), nil, uuid.New(), "initiator:"+userID.String(),
+		)
+		require.Empty(t, errs)
+		require.Equal(t, userID, filter.InitiatorID)
+	})
+}

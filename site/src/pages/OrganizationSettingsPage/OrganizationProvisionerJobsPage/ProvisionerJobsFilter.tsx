@@ -59,7 +59,7 @@ const typeOptions: SelectFilterOption[] = [
 
 const templateOption = (template: Template): SelectFilterOption => ({
 	label: template.display_name || template.name,
-	value: template.id,
+	value: template.name,
 	startIcon: (
 		<Avatar
 			size="sm"
@@ -123,7 +123,7 @@ export const useProvisionerJobTemplateFilterMenu = ({
 				return null;
 			}
 			const templates = await API.getTemplatesByOrganization(organizationId);
-			const match = templates.find((template) => template.id === value);
+			const match = templates.find((template) => template.name === value);
 			return match ? templateOption(match) : null;
 		},
 		getOptions: async (query) => {

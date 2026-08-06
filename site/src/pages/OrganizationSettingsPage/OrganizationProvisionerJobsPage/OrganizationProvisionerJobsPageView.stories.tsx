@@ -45,7 +45,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		status: undefined,
 		type: undefined,
 		template: undefined,
-		ids: undefined,
+		id: undefined,
 	},
 	menus: {
 		status: MockMenu,
@@ -171,7 +171,7 @@ export const WithFilters: Story = {
 				status: "running",
 				type: "workspace_build",
 				template: undefined,
-				ids: undefined,
+				id: undefined,
 			},
 			menus: {
 				status: {
@@ -203,13 +203,13 @@ export const FilterByID: Story = {
 			totalPages: 1,
 		},
 		filterProps: getDefaultFilterProps<FilterProps>({
-			query: `ids:${MockProvisionerJob.id}`,
+			query: `id:${MockProvisionerJob.id}`,
 			used: true,
 			values: {
 				status: undefined,
 				type: undefined,
 				template: undefined,
-				ids: MockProvisionerJob.id,
+				id: MockProvisionerJob.id,
 			},
 			menus: {
 				status: MockMenu,
