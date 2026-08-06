@@ -557,7 +557,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID or name"
-// @Param q query string false "Search query"
+// @Param q query string false "Search query (see description for syntax and colon-quoting)"
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param after_id query string false "After ID" format(uuid)
@@ -567,6 +567,16 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Description organization-wide group read permission and does no per-group filtering. It is
 // @Description therefore not a drop-in replacement: callers without org-wide group read receive
 // @Description an error rather than a filtered subset.
+// @Description
+// @Description The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
+// @Description perform a free-text search over group name and display name. `search:` is the only
+// @Description accepted key and unknown keys return 400. Because group display names may contain
+// @Description colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
+// @Description unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
+// @Description
+// @Description This endpoint never returns member rosters: each group's `members` array is always
+// @Description empty and only `total_member_count` is populated. Callers that need the roster use
+// @Description the group members endpoint (GET /groups/{group}/members).
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
