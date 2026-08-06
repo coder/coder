@@ -1318,6 +1318,12 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 						file_id: "storybook-unnamed-report",
 						name: "quarterly-report.pdf",
 					},
+					{
+						type: "file",
+						media_type: "text/plain",
+						file_id: "storybook-text-1",
+						name: "main.go",
+					},
 				],
 			},
 		]),
@@ -1345,6 +1351,15 @@ export const DownloadNamesGainMediaTypeExtension: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Download quarterly-report.pdf" }),
 		).toHaveAttribute("download", "quarterly-report.pdf");
+		// text/plain covers source files, so their suffixes are preserved.
+		// The overlay link joins the accessibility tree only while its
+		// attachment group has focus.
+		canvas.getByRole("button", { name: "View main.go" }).focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download main.go" }),
+			).toHaveAttribute("download", "main.go");
+		});
 	},
 };
 

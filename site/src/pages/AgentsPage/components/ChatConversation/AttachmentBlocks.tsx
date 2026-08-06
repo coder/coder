@@ -170,10 +170,18 @@ const getAttachmentDownloadName = (
 	// extension, so a name like "About Page Screenshot" or "report.final"
 	// would land as a generic file even when the media type is known.
 	const suffix = name.match(endsWithFileExtension)?.[1]?.toLowerCase();
+	if (suffix === undefined) {
+		return `${name}.${mediaExtension}`;
+	}
+	// text/plain is the server classifier's catch-all for source files
+	// (main.go, config.yaml), whose suffixes identify them better than
+	// .txt would, so any existing suffix is kept.
+	if (block.media_type === "text/plain") {
+		return name;
+	}
 	if (
-		suffix !== undefined &&
-		(suffix === mediaExtension ||
-			(extensionAliases[mediaExtension] ?? []).includes(suffix))
+		suffix === mediaExtension ||
+		(extensionAliases[mediaExtension] ?? []).includes(suffix)
 	) {
 		return name;
 	}
