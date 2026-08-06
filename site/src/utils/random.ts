@@ -17,3 +17,16 @@ export const generateRandomString = (bytes: number): string => {
 	}
 	return btoa(strArr.join(""));
 };
+
+/**
+ * Generate a 16-byte (32-character) hexadecimal string for identifying
+ * workspace connection sessions.
+ */
+export const generateSessionId = (): string => {
+	const byteArr = crypto.getRandomValues(new Uint8Array(16));
+	const strArr: string[] = [];
+	for (const byte of byteArr) {
+		strArr.push(byte.toString(16).padStart(2, "0"));
+	}
+	return strArr.join("");
+};
