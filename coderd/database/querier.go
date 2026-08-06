@@ -624,6 +624,7 @@ type sqlcQuerier interface {
 	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
+	GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
 	// breaking ties by the earliest organization membership. Implements the

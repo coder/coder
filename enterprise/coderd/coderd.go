@@ -526,6 +526,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				})
 			})
 		})
+		r.Route("/organizations/{organization}/paginated-groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Get("/", api.paginatedGroups)
+		})
 		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
