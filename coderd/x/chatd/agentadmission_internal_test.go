@@ -382,6 +382,53 @@ func TestWorker_InterruptAcquisitionPublishesClear(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+func TestWorker_QueuedEventRevalidatesOwnedCandidate(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	opts := testOptions(t, f, newRecordingTaskStarter())
+	opts.Pubsub = recording
+	opts.AgentCapacityLimiter = newFakeAdmission()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Another replica acquires the chat between the candidate query and the
+	// queued publish; a queued event here would carry the acquisition's
+	// updated_at and outlive the owner's clear on open chat pages.
+	chat := f.createRunningChat(t)
+	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
+
+	worker, err := newChatWorker(newUnstartedServer(t, recording, f.db), opts)
+	require.NoError(t, err)
+	require.False(t, worker.enterCapacityQueue(ctx, chat.ID))
+	require.False(t, worker.capacityQueueContains(chat.ID))
+	require.Empty(t, capacityEvents(t, recording, chat.ID))
+}
+
+func TestWorker_QueuedEventPublishesForStaleOwnedCandidate(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	recording := newRecordingPubsub(f.pubsub)
+	opts := testOptions(t, f, newRecordingTaskStarter())
+	opts.Pubsub = recording
+	opts.AgentCapacityLimiter = newFakeAdmission()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A crashed owner leaves stale ownership; the chat genuinely waits for
+	// capacity, so revalidation must not swallow its queued event.
+	chat := f.createRunningChat(t)
+	runnerID := uuid.New()
+	acquireChat(t, f, chat.ID, uuid.New(), runnerID)
+	makeHeartbeatStale(t, f, chat.ID, runnerID)
+
+	worker, err := newChatWorker(newUnstartedServer(t, recording, f.db), opts)
+	require.NoError(t, err)
+	require.True(t, worker.enterCapacityQueue(ctx, chat.ID))
+	require.True(t, worker.capacityQueueContains(chat.ID))
+	events := capacityEvents(t, recording, chat.ID)
+	require.Len(t, events, 1)
+	require.True(t, events[0].Chat.QueuedForCapacity)
+}
+
 func TestWorker_UncappedAcquisitionStillPublishesClear(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

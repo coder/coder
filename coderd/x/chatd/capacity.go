@@ -51,14 +51,43 @@ func newCapacityMetrics(registerer prometheus.Registerer) *capacityMetrics {
 func (w *chatWorker) enterCapacityQueue(ctx context.Context, chatID uuid.UUID) bool {
 	w.capacityMu.Lock()
 	_, exists := w.capacityQueue[chatID]
-	if !exists {
-		w.capacityQueue[chatID] = w.opts.Clock.Now()
-	}
 	w.capacityMu.Unlock()
 	if exists {
 		return false
 	}
-	w.publishCapacityChange(ctx, chatID, true)
+	// A candidate can become owned after the batch query. Validate and
+	// publish one snapshot, so a newly owned chat never publishes and a
+	// concurrent acquisition's event carries the pre-acquisition updated_at.
+	chat, err := w.opts.Store.GetChatByID(ctx, chatID)
+	if err != nil {
+		if ctx.Err() == nil {
+			w.opts.Logger.Warn(ctx, "chatworker load chat for capacity queue failed", slogError(err))
+		}
+		return false
+	}
+	if chat.Archived || chat.Status != database.ChatStatusRunning {
+		return false
+	}
+	if chat.WorkerID.Valid && chat.RunnerID.Valid {
+		stale, err := w.opts.Store.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
+			ChatID:       chat.ID,
+			RunnerID:     chat.RunnerID.UUID,
+			StaleSeconds: w.opts.HeartbeatStaleSeconds,
+		})
+		if err != nil {
+			if ctx.Err() == nil {
+				w.opts.Logger.Warn(ctx, "chatworker check heartbeat for capacity queue failed", slogError(err))
+			}
+			return false
+		}
+		if !stale {
+			return false
+		}
+	}
+	w.capacityMu.Lock()
+	w.capacityQueue[chatID] = w.opts.Clock.Now()
+	w.capacityMu.Unlock()
+	w.server.publishChatCapacityChange(chat, true)
 	return true
 }
 
