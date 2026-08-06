@@ -112,7 +112,9 @@ describe("handleAttachmentDownloadClick", () => {
 		await handleAttachmentDownloadClick(event, target);
 
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(globalThis.fetch).toHaveBeenCalledWith(target.href);
+		expect(globalThis.fetch).toHaveBeenCalledWith(target.href, {
+			signal: undefined,
+		});
 		expect(open).not.toHaveBeenCalled();
 		expect(share).toHaveBeenCalledTimes(1);
 		const shared: { files: File[] } = share.mock.calls[0][0];
@@ -328,6 +330,54 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(toast.error).toHaveBeenCalledWith("Couldn't download inline.png", {
 			description: "The attachment data could not be decoded.",
 		});
+	});
+
+	it("stays quiet when the download is aborted mid-fetch", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			(_input, init) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () =>
+						reject(new DOMException("aborted", "AbortError")),
+					);
+				}),
+		);
+		const controller = new AbortController();
+		const event = { preventDefault: vi.fn() };
+
+		const pending = handleAttachmentDownloadClick(
+			event,
+			target,
+			controller.signal,
+		);
+		controller.abort();
+		await pending;
+
+		expect(share).not.toHaveBeenCalled();
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+
+	it("suppresses the share sheet when aborted after the fetch resolves", async () => {
+		enterIOSStandalonePWA();
+		const share = vi.fn().mockResolvedValue(undefined);
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		const controller = new AbortController();
+		vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+			controller.abort();
+			return new Response(new Blob(["png-bytes"], { type: "image/png" }), {
+				status: 200,
+			});
+		});
+		const event = { preventDefault: vi.fn() };
+
+		await handleAttachmentDownloadClick(event, target, controller.signal);
+
+		expect(share).not.toHaveBeenCalled();
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 
 	it("offers a tab fallback when the fetched file turns out unshareable", async () => {

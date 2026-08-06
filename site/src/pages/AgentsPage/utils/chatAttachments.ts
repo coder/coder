@@ -171,11 +171,10 @@ const fileFromDataURL = (
 	});
 };
 
-const shareAttachmentFile = async ({
-	href,
-	fileName,
-	mediaType,
-}: AttachmentDownloadTarget): Promise<void> => {
+const shareAttachmentFile = async (
+	{ href, fileName, mediaType }: AttachmentDownloadTarget,
+	signal?: AbortSignal,
+): Promise<void> => {
 	let file: File;
 	if (href.startsWith("data:")) {
 		const decoded = fileFromDataURL(href, fileName, mediaType);
@@ -186,7 +185,7 @@ const shareAttachmentFile = async ({
 		file = decoded;
 	} else {
 		try {
-			const response = await fetch(href);
+			const response = await fetch(href, { signal });
 			if (!response.ok) {
 				throw new Error(
 					response.statusText
@@ -199,11 +198,19 @@ const shareAttachmentFile = async ({
 				type: blob.type || mediaType || "application/octet-stream",
 			});
 		} catch (error) {
+			// An aborted fetch means the attachment unmounted; the user is
+			// elsewhere, so no follow-up UI.
+			if (errorHasName(error, "AbortError")) {
+				return;
+			}
 			toast.error(`Couldn't download ${fileName}`, {
 				description: error instanceof Error ? error.message : undefined,
 			});
 			return;
 		}
+	}
+	if (signal?.aborted) {
+		return;
 	}
 	if (!canShareFiles([file])) {
 		// The pre-fetch probe can pass while the real file fails canShare
@@ -227,6 +234,7 @@ const shareAttachmentFile = async ({
 export const handleAttachmentDownloadClick = (
 	event: { preventDefault: () => void },
 	target: AttachmentDownloadTarget,
+	signal?: AbortSignal,
 ): Promise<void> | undefined => {
 	if (!isIOS() || !isStandaloneDisplayMode()) {
 		return undefined;
@@ -252,7 +260,7 @@ export const handleAttachmentDownloadClick = (
 		}
 		return undefined;
 	}
-	return shareAttachmentFile(target);
+	return shareAttachmentFile(target, signal);
 };
 
 // Filename extensions to list in the file-picker's `accept` attribute

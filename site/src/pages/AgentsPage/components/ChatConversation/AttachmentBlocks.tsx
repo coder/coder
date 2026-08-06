@@ -233,16 +233,29 @@ const getAttachmentBadgeLabel = (
 // a misleading error toast while the first sheet is open.
 const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
 	const [isPending, setIsPending] = useState(false);
+	// Aborts on unmount so a slow fetch cannot surface the share sheet
+	// or an error toast after the user has navigated away.
+	const downloadRequest = useLatestAbortController();
 	const onClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		event.stopPropagation();
 		if (isPending) {
 			event.preventDefault();
 			return;
 		}
-		const pending = handleAttachmentDownloadClick(event, target);
+		const controller = downloadRequest.start();
+		const pending = handleAttachmentDownloadClick(
+			event,
+			target,
+			controller.signal,
+		);
 		if (pending) {
 			setIsPending(true);
-			void pending.finally(() => setIsPending(false));
+			void pending.finally(() => {
+				downloadRequest.clear(controller);
+				setIsPending(false);
+			});
+		} else {
+			downloadRequest.clear(controller);
 		}
 	};
 	return { isPending, onClick };
