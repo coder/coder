@@ -1672,6 +1672,89 @@ export const DownloadInIOSStandaloneSharesInlineAttachment: Story = {
 	},
 };
 
+/** iOS blocks data: tabs, so the toast Open action uses a blob URL. */
+export const DownloadInIOSStandaloneOpensInlineAttachmentFromToast: Story = {
+	decorators: [withToaster],
+	args: inlineAttachmentStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share: fn().mockRejectedValue(
+				new DOMException("share failed", "DataError"),
+			),
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		const fetchSpy = spyOn(globalThis, "fetch");
+		try {
+			canvas
+				.getByRole("button", { name: "View inline-screenshot.png" })
+				.focus();
+			const downloadLink = await canvas.findByRole("link", {
+				name: "Download inline-screenshot.png",
+			});
+			await userEvent.click(downloadLink);
+			await screen.findByText("Couldn't download inline-screenshot.png");
+			await userEvent.click(screen.getByRole("button", { name: "Open" }));
+			expect(open).toHaveBeenCalledTimes(1);
+			const [blobUrl, target, features] = open.mock.calls[0];
+			expect(blobUrl).toMatch(/^blob:/);
+			expect(target).toBe("_blank");
+			expect(features).toBe("noopener");
+			expect(fetchSpy).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
+export const DownloadInIOSStandaloneShowsErrorForCorruptInlineAttachment: Story =
+	{
+		decorators: [withToaster],
+		args: {
+			...defaultArgs,
+			parsedMessages: parseMessagesWithMergedTools([
+				{
+					...baseMessage,
+					id: 1,
+					role: "assistant",
+					content: [
+						{
+							type: "file",
+							media_type: "image/png",
+							data: "not-valid-base64",
+							name: "corrupt-screenshot.png",
+						},
+					],
+				},
+			]),
+		},
+		play: async ({ canvasElement }) => {
+			const canvas = within(canvasElement);
+			const share = fn().mockResolvedValue(undefined);
+			const restoreNavigator = overrideNavigatorForIOSStandalone({
+				share,
+				canShare: fn().mockReturnValue(true),
+			});
+			const open = spyOn(window, "open").mockReturnValue(null);
+			try {
+				canvas
+					.getByRole("button", { name: "View corrupt-screenshot.png" })
+					.focus();
+				const downloadLink = await canvas.findByRole("link", {
+					name: "Download corrupt-screenshot.png",
+				});
+				await userEvent.click(downloadLink);
+				await screen.findByText("Couldn't download corrupt-screenshot.png");
+				await screen.findByText("The attachment data could not be decoded.");
+				expect(share).not.toHaveBeenCalled();
+				expect(open).not.toHaveBeenCalled();
+			} finally {
+				restoreNavigator();
+			}
+		},
+	};
+
 /** iOS blocks data: tabs, so inline attachments open through a blob URL. */
 export const DownloadInIOSStandaloneOpensInlineAttachmentInTab: Story = {
 	args: inlineAttachmentStoryArgs,
