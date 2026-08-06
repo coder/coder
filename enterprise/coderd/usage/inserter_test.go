@@ -68,6 +68,35 @@ func TestInserter(t *testing.T) {
 		}
 	})
 
+	t.Run("Heartbeat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		inserter := usage.NewDBInserter()
+
+		// Heartbeat inserts must store the provided id and createdAt
+		// verbatim.
+		event := usagetypes.HBAgentRuntime{RuntimeMs: 1234}
+		eventJSON := jsoninate(t, event)
+		id := "hb_agent_runtime_v1:2025-01-02_03:00:00"
+		createdAt := time.Date(2025, 1, 2, 3, 0, 0, 0, time.UTC)
+
+		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx interface{}, params database.InsertUsageEventParams) error {
+				assert.Equal(t, id, params.ID)
+				assert.Equal(t, event.EventType(), usagetypes.UsageEventType(params.EventType))
+				assert.JSONEq(t, eventJSON, string(params.EventData))
+				assert.Equal(t, dbtime.Time(createdAt), params.CreatedAt)
+				return nil
+			},
+		).Times(1)
+
+		err := inserter.InsertHeartbeatUsageEvent(ctx, db, id, createdAt, event)
+		require.NoError(t, err)
+	})
+
 	t.Run("InvalidEvent", func(t *testing.T) {
 		t.Parallel()
 
@@ -81,5 +110,26 @@ func TestInserter(t *testing.T) {
 			Count: 0, // invalid
 		})
 		assert.ErrorContains(t, err, `invalid "dc_managed_agents_v1" event: count must be greater than 0`)
+
+		err = inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Now(), usagetypes.HBAgentRuntime{
+			RuntimeMs: -1, // invalid
+		})
+		assert.ErrorContains(t, err, `invalid "hb_agent_runtime_v1" event: runtime_ms cannot be negative`)
+	})
+
+	t.Run("ZeroCreatedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctrl := gomock.NewController(t)
+		// The mock store fails the test on any unexpected call, so no insert
+		// may reach the database.
+		db := dbmock.NewMockStore(ctrl)
+
+		inserter := usage.NewDBInserter()
+		err := inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Time{}, usagetypes.HBAgentRuntime{
+			RuntimeMs: 1,
+		})
+		assert.ErrorContains(t, err, `createdAt must be set for "hb_agent_runtime_v1" event`)
 	})
 }

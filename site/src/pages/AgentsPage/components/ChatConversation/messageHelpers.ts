@@ -68,7 +68,8 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
 		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		parsed.sources.length > 0 ||
+		parsed.hookNotices.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
@@ -209,6 +210,7 @@ const mergeReadFileMessageGroup = (
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };

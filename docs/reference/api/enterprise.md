@@ -571,7 +571,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -582,7 +584,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -1066,7 +1070,8 @@ Returns the AI spend limit and aggregate spend for the group.
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
 }
 ```
 
@@ -2080,7 +2085,8 @@ Unknown or unreadable group IDs are silently omitted.
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
@@ -3976,12 +3982,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/v2/users/{user}/ai/budget`
+`GET /api/v2/users/{user}/ai/budget/override`
 
 ### Parameters
 
@@ -4017,13 +4023,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /api/v2/users/{user}/ai/budget`
+`PUT /api/v2/users/{user}/ai/budget/override`
 
 > Body parameter
 
@@ -4069,11 +4075,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/v2/users/{user}/ai/budget`
+`DELETE /api/v2/users/{user}/ai/budget/override`
 
 ### Parameters
 
@@ -4115,11 +4121,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 ```json
 {
   "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
-  "limit_source": "user_override",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
@@ -5174,7 +5182,7 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users`
@@ -5196,7 +5204,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `POST /scim/v2/Users`
@@ -5286,7 +5294,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users/{id}`
@@ -5314,7 +5322,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PUT /scim/v2/Users/{id}`
@@ -5406,7 +5414,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PATCH /scim/v2/Users/{id}`

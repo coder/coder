@@ -78,6 +78,7 @@ type store interface {
 	// Cost-attribution queries, used to snapshot price and effective group on
 	// each token usage record.
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
+	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
@@ -344,6 +345,17 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
 			slog.F("metadata", metadata),
 		)
+	}
+
+	if err := validateTokenUsage(in); err != nil {
+		s.logger.Error(ctx, "implausible token usage, discarding record",
+			slog.F("interception_id", intcID),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
+			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.Error(err))
+		return nil, xerrors.Errorf("validate token usage for interception %q: %w", intcID, err)
 	}
 
 	out, err := json.Marshal(metadata)

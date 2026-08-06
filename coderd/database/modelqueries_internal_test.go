@@ -1,6 +1,7 @@
 package database
 
 import (
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -166,6 +167,27 @@ func TestFinalizeStaleChatDebugRows_TerminalStatusAlignment(t *testing.T) {
 				"codersdk.ChatDebugTerminalStatuses(); update both when adding "+
 				"a new terminal status")
 	}
+}
+
+// TestInsertChatMessagesOrderContract guards the input-order guarantee that
+// callers rely on when indexing the returned slice. A behavior test cannot:
+// Postgres evaluates the id default in row order anyway, so a batch still looks
+// ordered once the guarantee is removed.
+func TestInsertChatMessagesOrderContract(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, insertChatMessages, "nextval('chat_messages_id_seq')",
+		"ids must be allocated explicitly so they can be correlated to input array position")
+	require.Contains(t, insertChatMessages, "ROW_NUMBER() OVER (ORDER BY id)",
+		"the k-th smallest allocated id must be assigned to input index k")
+	require.Regexp(t, `(?s)ORDER BY id\s*\z`, strings.TrimSpace(insertChatMessages),
+		"returned rows must be explicitly ordered by id rather than relying on RETURNING order")
+
+	// Every parallel input array must be read at the allocated ordinal. A column
+	// left on UNNEST would be positioned by the executor instead.
+	subscripted := regexp.MustCompile(`\)\[allocated\.ord\]`).FindAllString(insertChatMessages, -1)
+	require.Len(t, subscripted, reflect.TypeOf(InsertChatMessagesParams{}).NumField()-1,
+		"each InsertChatMessagesParams array field, all but ChatID, must be subscripted by allocated.ord")
 }
 
 // extractWhereClause extracts the WHERE clause from a SQL query string

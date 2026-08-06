@@ -9,7 +9,7 @@ import {
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";

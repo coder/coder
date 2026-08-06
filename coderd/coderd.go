@@ -98,6 +98,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -350,7 +351,7 @@ type Options struct {
 
 // @securitydefinitions.apiKey Authorization
 // @in header
-// @name Authorizaiton
+// @name Authorization
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
@@ -383,13 +384,17 @@ func New(options *Options) *API {
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
 
-	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
-			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
-		})
+	// Only reload when an option deviates from the defaults so the zero
+	// value keeps the stock builtin roles. Constructing the full options
+	// struct here (rather than mirroring individual fields in the guard)
+	// ensures a newly added RoleOptions field cannot be silently ignored.
+	roleOptions := rbac.RoleOptions{
+		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+	}
+	if roleOptions != (rbac.RoleOptions{}) {
+		rbac.ReloadBuiltinRoles(&roleOptions)
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
@@ -879,6 +884,33 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			var hookDispatcher *dispatch.Dispatcher
+			chatConfig := options.DeploymentValues.AI.Chat
+			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
+			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
+			if hooksConfigured && !hooksExperimentEnabled {
+				options.Logger.Warn(ctx, "chat lifecycle hooks are configured but inactive; enable the agent-lifecycle-hooks experiment to activate them",
+					slog.F("experiment", codersdk.ExperimentAgentLifecycleHooks),
+				)
+			}
+			if hooksConfigured && hooksExperimentEnabled {
+				if chatConfig.HookAllowInsecure.Value() && chatConfig.HookURL.Value().Scheme == "http" {
+					options.Logger.Warn(ctx, "chat hooks use a plain HTTP URL; hook traffic is unencrypted and hook responses controlling agent execution can be forged on the network",
+						slog.F("hook_url", mcpclient.RedactURL(chatConfig.HookURL.String())),
+					)
+				}
+				hookDispatcher = dispatch.New(
+					options.Logger,
+					nil,
+					chatConfig.HookURL.String(),
+					chatConfig.HookAllowInsecure.Value(),
+					chatConfig.HookSecret.Value(),
+					chatConfig.HookTimeout.Value(),
+					api.DeploymentID,
+					buildinfo.Version(),
+					options.PrometheusRegistry,
+				)
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -898,6 +930,7 @@ func New(options *Options) *API {
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
 				WebpushDispatcher:              options.WebPushDispatcher,
+				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				OIDCTokenSource:                oidcMCPSrc,
@@ -1322,13 +1355,6 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
-			r.Route("/cost", func(r chi.Router) {
-				r.Get("/users", api.chatCostUsers)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/summary", api.chatCostSummary)
-				})
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1391,19 +1417,6 @@ func New(options *Options) *API {
 				r.Route("/{modelConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatModelConfig)
 					r.Delete("/", api.deleteChatModelConfig)
-				})
-			})
-			r.Route("/usage-limits", func(r chi.Router) {
-				r.Get("/", api.getChatUsageLimitConfig)
-				r.Put("/", api.updateChatUsageLimitConfig)
-				r.Get("/status", api.getMyChatUsageLimitStatus)
-				r.Route("/overrides/{user}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitOverride)
-					r.Delete("/", api.deleteChatUsageLimitOverride)
-				})
-				r.Route("/group-overrides/{group}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitGroupOverride)
-					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {

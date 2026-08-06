@@ -95,7 +95,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 			BaseURL:     "https://api.anthropic.com/",
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-east-1",
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
 				},
 			},
 		}
@@ -140,8 +142,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Enabled:     &disabled,
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-west-2",
-					Model:  "anthropic.claude-3-5-sonnet",
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
 				},
 			},
 		})
@@ -558,6 +561,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-fixture"),    //nolint:gosec // test fixture
 					AccessKeySecret: ptr.Ref("bedrock-fixture"), //nolint:gosec // test fixture
 				},
@@ -583,13 +588,89 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
 			},
 		})
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "Bedrock settings are only valid for type=anthropic")
+	})
+
+	t.Run("BedrockRequiresModelsForInvokeModel", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// requireMissingModels asserts a 400 naming both model fields.
+		requireMissingModels := func(t *testing.T, err error) {
+			t.Helper()
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+			fields := make([]string, 0, len(sdkErr.Validations))
+			for _, v := range sdkErr.Validations {
+				fields = append(fields, v.Field)
+			}
+			require.Contains(t, fields, "settings.model")
+			require.Contains(t, fields, "settings.small_fast_model")
+		}
+
+		// The invoke-model protocol does not work without models.
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-region-only",
+			Enabled: true,
+			BaseURL: "https://bedrock.us-east-2.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-2"},
+			},
+		}
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, req)
+		requireMissingModels(t, err)
+
+		// The same provider with both models is accepted.
+		req.Settings.Bedrock.Model = "anthropic.claude-3-5-sonnet"
+		req.Settings.Bedrock.SmallFastModel = "anthropic.claude-3-5-haiku"
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic.claude-3-5-sonnet", created.Settings.Bedrock.Model)
+		require.Equal(t, "anthropic.claude-3-5-haiku", created.Settings.Bedrock.SmallFastModel)
+
+		// A PATCH that drops the models is rejected the same way.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2"},
+			},
+		})
+		requireMissingModels(t, err)
+
+		// The same PATCH with both models is accepted, and the stored provider
+		// is untouched by the rejected one above.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-3-7-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
+		require.Equal(t, "anthropic.claude-3-7-sonnet", updated.Settings.Bedrock.Model)
+		require.Equal(t, "anthropic.claude-3-5-haiku", updated.Settings.Bedrock.SmallFastModel)
 	})
 
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
@@ -611,6 +692,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-supersecret"),
 				},
@@ -881,6 +963,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
@@ -909,6 +992,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
@@ -1381,6 +1465,7 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1391,8 +1476,9 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-west-2",
-					Model:  "anthropic.claude-3-5-haiku",
+					Region:         "us-west-2",
+					Model:          "anthropic.claude-3-5-haiku",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
 				},
 			},
 		})
@@ -1432,6 +1518,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1443,6 +1531,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref(""),
 					AccessKeySecret: ptr.Ref(""),
 				},
@@ -1477,6 +1567,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1488,6 +1580,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-new"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-new"),
 				},
@@ -1524,6 +1618,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
 					AccessKeySecret: ptr.Ref("secret-old"),
 				},
@@ -1535,6 +1631,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 			Settings: &codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					SmallFastModel:  "anthropic.claude-3-5-haiku",
 					AccessKey:       ptr.Ref(""),
 					AccessKeySecret: ptr.Ref(""),
 					RoleARN:         "arn:aws:iam::123456789012:role/target",
@@ -1572,6 +1670,14 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		externalIDReadOnlyMsg = "The Bedrock external ID is server-generated and cannot be changed."
 	)
 
+	// withModels supplies the model identifiers the invoke-model protocol
+	// requires, keeping the fixtures below focused on external ID behavior.
+	withModels := func(b codersdk.AIProviderBedrockSettings) *codersdk.AIProviderBedrockSettings {
+		b.Model = "anthropic.claude-3-5-sonnet"
+		b.SmallFastModel = "anthropic.claude-3-5-haiku"
+		return &b
+	}
+
 	createBedrock := func(t *testing.T, client *codersdk.Client, name string, b codersdk.AIProviderBedrockSettings) (codersdk.AIProvider, error) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1581,7 +1687,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 			Name:     name,
 			Enabled:  true,
 			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
-			Settings: codersdk.AIProviderSettings{Bedrock: &b},
+			Settings: codersdk.AIProviderSettings{Bedrock: withModels(b)},
 		})
 	}
 
@@ -1649,7 +1755,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN}),
 			},
 		})
 		require.NoError(t, err)
@@ -1676,7 +1782,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// Removing the role retains the external ID.
 		cleared, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-east-1"}),
 			},
 		})
 		require.NoError(t, err)
@@ -1687,7 +1793,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// regenerating it, so a trust policy referencing it keeps working.
 		readded, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleB},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleB}),
 			},
 		})
 		require.NoError(t, err)
@@ -1713,7 +1819,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// external ID. Echoing the same value is allowed.
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN, ExternalID: original},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN, ExternalID: original}),
 			},
 		})
 		require.NoError(t, err)
@@ -1736,7 +1842,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-tries-to-change-it"},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-tries-to-change-it"}),
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -1755,7 +1861,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN}),
 			},
 		})
 		require.NoError(t, err)
@@ -1775,7 +1881,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		// No value is stored yet, so any client value is a change and is rejected.
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-supplied-value"},
+				Bedrock: withModels(codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-supplied-value"}),
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)

@@ -285,6 +285,23 @@ doc-check agent.
   semicolons, or periods, or restructure the sentence. For numeric
   ranges, use a plain hyphen (e.g., `0-100`). The rule is enforced by
   `make lint/emdash`.
+- **Terminology changes update the glossary.** When a change introduces,
+  renames, or deprecates a Coder product or feature name, update the
+  [glossary](../reference/glossary.md) in the same change, the way a
+  user-facing feature lands with its docs:
+  1. New name: add an entry with a short definition and a link to the
+     page that covers the term.
+  2. Rename: update the entry and record the former name (for example,
+     "previously named ...") so a reader who searches the old term still
+     lands in the right place.
+  3. Deprecation: mark the term deprecated and name its replacement.
+
+  A term earns an entry when it is a Coder-specific product or feature
+  proper noun, or a word that collides with another Coder meaning (for
+  example, the several senses of "agent"). Generic lowercase concepts and
+  internal-only identifiers with no user-facing surface do not. This is
+  what keeps the glossary from drifting as the product's vocabulary
+  changes.
 
 ## What does not belong in the docs
 

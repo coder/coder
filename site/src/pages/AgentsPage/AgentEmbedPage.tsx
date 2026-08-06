@@ -16,13 +16,13 @@ import {
 } from "#/theme";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
+import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";

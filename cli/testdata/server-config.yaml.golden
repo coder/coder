@@ -803,6 +803,23 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
+  # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
+  # agent-lifecycle-hooks experiment.
+  # (default: <unset>, type: url)
+  hookURL:
+  # Maximum time to wait for a chat agent lifecycle hook response.
+  # (default: 1.5s, type: duration)
+  hookTimeout: 1.5s
+  # Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+  # Requires the agent-lifecycle-hooks experiment.
+  # (default: true, type: bool)
+  hookEnabled: true
+  # Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes
+  # sensitive chat data and lets an on-path attacker forge hook responses that
+  # control agent execution, so only enable this on a network you fully trust.
+  # (default: false, type: bool)
+  hookAllowInsecure: false
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
@@ -828,7 +845,7 @@ aibridge:
   bedrock_base_url: ""
   # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
   # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
-  # AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
@@ -932,7 +949,7 @@ ai_gateway:
   # option seeds provider configuration at startup only exactly once. It will not be
   # used in service runtime. The AWS Bedrock API region to use. Constructs a base
   # URL to use for the AWS Bedrock API in the form of
-  # 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this

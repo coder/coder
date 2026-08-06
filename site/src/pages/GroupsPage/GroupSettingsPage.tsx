@@ -10,7 +10,6 @@ import {
 } from "#/api/queries/groups";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
 import type { GroupPageOutletContext } from "./GroupPage";
@@ -29,12 +28,7 @@ const GroupSettingsPage: FC = () => {
 	const patchGroupMutation = useMutation(patchGroup(queryClient, organization));
 	const navigate = useNavigate();
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
-	// the cost-control feature is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const budgetQuery = useQuery({
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
