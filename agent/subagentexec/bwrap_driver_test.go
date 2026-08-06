@@ -587,6 +587,7 @@ func (f *bwrapFixture) expectedReadOnlyBinds(t require.TestingT) [][]string {
 		{filepath.Join(generated, "passwd"), "/etc/passwd"},
 		{filepath.Join(generated, "group"), "/etc/group"},
 		{filepath.Join(generated, "nsswitch.conf"), "/etc/nsswitch.conf"},
+		{filepath.Join(generated, "os-release"), "/etc/os-release"},
 		{f.coderPath, "/opt/coder/coder"},
 		{f.tokenPath, "/run/coder/token"},
 	}
@@ -865,6 +866,7 @@ func TestBwrapDriverRun(t *testing.T) {
 			"passwd":        "/etc/passwd",
 			"group":         "/etc/group",
 			"nsswitch.conf": "/etc/nsswitch.conf",
+			"os-release":    "/etc/os-release",
 		} {
 			require.Contains(t, readOnly, []string{filepath.Join(generated, name), dest})
 			content, err := os.ReadFile(filepath.Join(generated, name))
@@ -875,6 +877,12 @@ func TestBwrapDriverRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(passwd), "coder:x:1000:1000:")
 		require.Contains(t, string(passwd), ":/home/coder:/bin/sh")
+
+		osRelease, err := os.ReadFile(filepath.Join(generated, "os-release"))
+		require.NoError(t, err)
+		require.Contains(t, string(osRelease), "ID=coder-sandbox\n")
+		require.Contains(t, string(osRelease), "ID_LIKE=debian\n")
+		require.Contains(t, string(osRelease), "VERSION_ID=\"1\"\n")
 
 		// The host's optional resolver and trust files are covered by the
 		// exact read-only allowlist in HostMountsAreExactlyTheAllowlist,

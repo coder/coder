@@ -227,6 +227,7 @@ readonly generated_etc="$runtime_path/etc"
 readonly generated_passwd="$generated_etc/passwd"
 readonly generated_group="$generated_etc/group"
 readonly generated_nsswitch="$generated_etc/nsswitch.conf"
+readonly generated_os_release="$generated_etc/os-release"
 readonly child_runtime_source="$runtime_path/xdg"
 
 # write_generated_etc creates the minimal account and resolution files the
@@ -256,6 +257,18 @@ write_generated_etc() {
 		printf 'shadow: files\n'
 		printf 'hosts: files dns\n'
 	} >"$generated_nsswitch"
+
+	# The Coder agent's resource monitor identifies Linux through
+	# /etc/os-release. The empty-root sandbox has no distribution metadata, so
+	# provide a minimal synthetic identity rather than exposing the host's file.
+	{
+		printf 'NAME="Coder Sandbox"\n'
+		printf 'PRETTY_NAME="Coder Sandbox"\n'
+		printf 'ID=coder-sandbox\n'
+		printf 'ID_LIKE=debian\n'
+		printf 'VERSION="1"\n'
+		printf 'VERSION_ID="1"\n'
+	} >"$generated_os_release"
 }
 
 # find_ca_bundle prints the first CA bundle that exists on the host, or
@@ -345,7 +358,8 @@ do_run() {
 	set -- "$@" \
 		--ro-bind "$generated_passwd" /etc/passwd \
 		--ro-bind "$generated_group" /etc/group \
-		--ro-bind "$generated_nsswitch" /etc/nsswitch.conf
+		--ro-bind "$generated_nsswitch" /etc/nsswitch.conf \
+		--ro-bind "$generated_os_release" /etc/os-release
 	if [ -f /etc/resolv.conf ]; then
 		set -- "$@" --ro-bind /etc/resolv.conf /etc/resolv.conf
 	fi
@@ -417,8 +431,8 @@ do_run() {
 #
 # Cleanup is idempotent and succeeds when there is nothing left to remove.
 do_cleanup() {
-	rm -f "$generated_passwd" "$generated_group" "$generated_nsswitch"
-	# The directory only ever holds the three generated files, so a
+	rm -f "$generated_passwd" "$generated_group" "$generated_nsswitch" "$generated_os_release"
+	# The directory only ever holds the generated support files, so a
 	# non-empty rmdir failure means something else put a file there and is
 	# left alone.
 	rmdir "$generated_etc" 2>/dev/null || true
