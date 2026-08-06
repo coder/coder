@@ -3682,6 +3682,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
+	m.queryLatencies.WithLabelValues("HasTemplateVersionsUsingCachedModuleFileInOrg").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasTemplateVersionsUsingCachedModuleFileInOrg").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
