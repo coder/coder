@@ -425,7 +425,7 @@ func (g *githubProvider) decodeJSON(
 	defer resp.Body.Close()
 
 	// Nothing changed since the cached response: reuse the stored body.
-	if resp.StatusCode == http.StatusNotModified && cachedBody != nil {
+	if resp.StatusCode == http.StatusNotModified {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
 		}
