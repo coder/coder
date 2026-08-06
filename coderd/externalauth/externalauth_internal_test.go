@@ -69,13 +69,11 @@ func TestLogThrottleConcurrent(t *testing.T) {
 		logged atomic.Int64
 	)
 	for range events {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, ok := th.shouldLog(now, interval); ok {
 				logged.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	require.EqualValues(t, 1, logged.Load(), "exactly one concurrent event should log")
