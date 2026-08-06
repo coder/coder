@@ -2252,12 +2252,25 @@ export const StreamedReasoning: Story = {
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
 
-/**
- * A durable WebSocket message event revises a message that only exists in
- * an older page of the messages cache. Fan-out must replace it in place
- * inside page 1 rather than re-inserting it into page 0, so the refreshed
- * content renders exactly once and the stale copy is gone.
- */
+const fanOutNewestMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 30,
+	role: "assistant",
+	content: [{ type: "text", text: "Newest message" }],
+};
+
+const fanOutOlderRevision: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 20,
+	role: "assistant",
+	content: [{ type: "text", text: "Old revision" }],
+};
+
+const fanOutFreshRevision: TypesGen.ChatMessage = {
+	...fanOutOlderRevision,
+	content: [{ type: "text", text: "Fresh revision" }],
+};
+
 export const DurableUpdateFansOutToOlderPage: Story = {
 	parameters: {
 		queries: [
@@ -2278,28 +2291,12 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 				data: {
 					pages: [
 						{
-							messages: [
-								{
-									id: 30,
-									chat_id: CHAT_ID,
-									created_at: "2026-01-01T00:00:00.000Z",
-									role: "assistant",
-									content: [{ type: "text", text: "Newest message" }],
-								},
-							],
+							messages: [fanOutNewestMessage],
 							queued_messages: [],
 							has_more: true,
 						},
 						{
-							messages: [
-								{
-									id: 20,
-									chat_id: CHAT_ID,
-									created_at: "2026-01-01T00:00:00.000Z",
-									role: "assistant",
-									content: [{ type: "text", text: "Old revision" }],
-								},
-							],
+							messages: [fanOutOlderRevision],
 							queued_messages: [],
 							has_more: false,
 						},
@@ -2316,13 +2313,7 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 						{
 							type: "message",
 							chat_id: CHAT_ID,
-							message: {
-								id: 20,
-								chat_id: CHAT_ID,
-								created_at: "2026-01-01T00:00:00.000Z",
-								role: "assistant",
-								content: [{ type: "text", text: "Fresh revision" }],
-							},
+							message: fanOutFreshRevision,
 						},
 					] satisfies TypesGen.ChatStreamEvent[]),
 				},
