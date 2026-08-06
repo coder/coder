@@ -1,5 +1,5 @@
+import isEqual from "lodash/isEqual";
 import { useSyncExternalStore } from "react";
-import { chatMessagesEqualByValue } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
@@ -289,7 +289,7 @@ export const createChatStore = (): ChatStore => {
 		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && chatMessagesEqualByValue(existing, message)) {
+		if (existing && isEqual(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
@@ -298,7 +298,7 @@ export const createChatStore = (): ChatStore => {
 			// Re-check inside the updater: another call may have
 			// already applied this exact message.
 			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+			if (curExisting && isEqual(curExisting, message)) {
 				return current;
 			}
 
@@ -336,7 +336,7 @@ export const createChatStore = (): ChatStore => {
 			for (const message of messages) {
 				const map = nextMessagesByID ?? current.messagesByID;
 				const existing = map.get(message.id);
-				if (existing && chatMessagesEqualByValue(existing, message)) {
+				if (existing && isEqual(existing, message)) {
 					continue;
 				}
 				// Lazily copy the map on first actual change.

@@ -817,18 +817,6 @@ export const patchChatMessages = (
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatId), updater);
 
-export const chatMessagesEqualByValue = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): boolean =>
-	left.id === right.id &&
-	left.chat_id === right.chat_id &&
-	left.model_config_id === right.model_config_id &&
-	left.created_at === right.created_at &&
-	left.role === right.role &&
-	isEqual(left.content, right.content) &&
-	isEqual(left.usage, right.usage);
-
 const replaceMessagesInPage = (
 	page: TypesGen.ChatMessagesResponse,
 	incomingByID: ReadonlyMap<number, TypesGen.ChatMessage>,
@@ -843,7 +831,7 @@ const replaceMessagesInPage = (
 		}
 
 		foundIDs.add(existing.id);
-		if (chatMessagesEqualByValue(existing, incoming)) {
+		if (isEqual(existing, incoming)) {
 			return existing;
 		}
 
@@ -909,7 +897,7 @@ const replaceMessagesHistory = (
 		!firstPage.has_more &&
 		firstPage.messages.length === nextMessages.length &&
 		firstPage.messages.every((existing, index) =>
-			chatMessagesEqualByValue(existing, nextMessages[index]),
+			isEqual(existing, nextMessages[index]),
 		);
 
 	if (alreadyReplaced) {
