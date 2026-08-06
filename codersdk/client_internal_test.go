@@ -640,6 +640,24 @@ func Test_ReadBodyAsJSON(t *testing.T) {
 		require.ErrorContains(t, err, "read response body")
 		require.NotContains(t, err.Error(), "invalid API response")
 	})
+
+	//nolint:bodyclose // The response is constructed, not from a client.
+	t.Run("UseNumber", func(t *testing.T) {
+		t.Parallel()
+
+		var v map[string]any
+		res := newResponse(http.StatusOK, jsonCT, `{"exp":1750000000}`)
+		require.NoError(t, ReadBodyAsJSONUseNumber(res, &v))
+		num, ok := v["exp"].(json.Number)
+		require.True(t, ok, "expected json.Number, got %T", v["exp"])
+		require.Equal(t, "1750000000", num.String())
+
+		// ReadBodyAsJSON decodes the same body's numbers as float64.
+		res = newResponse(http.StatusOK, jsonCT, `{"exp":1750000000}`)
+		require.NoError(t, ReadBodyAsJSON(res, &v))
+		_, ok = v["exp"].(float64)
+		require.True(t, ok, "expected float64, got %T", v["exp"])
+	})
 }
 
 func assertSDKError(t *testing.T, err error) *Error {
