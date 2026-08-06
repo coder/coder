@@ -613,6 +613,40 @@ func TestWorker_QueuesChatArrivingBehindFullPoolBacklog(t *testing.T) {
 		"a chat arriving behind a full-pool backlog must enter the local capacity queue")
 }
 
+func TestWorker_ResumeDuringAbandonGapRequiresAdmission(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A finished chat whose runner has not yet abandoned ownership: the
+	// waiting row still carries worker_id/runner_id and a fresh heartbeat.
+	chat := f.createRunningChat(t)
+	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
+	finishTurn(t, f, chat.ID)
+
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage(t, "resume", f.user.ID, f.model.ID, f.apiKey.ID),
+			BusyBehavior: chatstate.BusyBehaviorQueue,
+		})
+		return err
+	}))
+	resumed, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, resumed.WorkerID.Valid,
+		"resume from waiting must clear ownership so admission applies")
+
+	worker := startWorker(t, opts)
+	require.Eventually(t, func() bool {
+		return worker.capacityQueueContains(chat.ID)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"a resumed chat must pass admission, not restart on the retained runner")
+}
+
 func TestWorker_PrunesDepartedChatsFromCapacityQueue(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

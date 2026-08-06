@@ -401,6 +401,28 @@ const compareUpdatedAtInstants = (a: string, b: string): number => {
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
 	readonly activeChatId?: string;
+	// updated_at of the newest capacity_change event seen for this chat.
+	// Captured once per event and never mutated during the cache merges,
+	// so every cache layer orders the event against the same revision.
+	readonly capacityRevision?: string;
+};
+
+/**
+ * Records a capacity_change event's updated_at as the chat's capacity
+ * revision, keeping the newest value on out-of-order delivery. Call after
+ * every cache merge for the event has completed.
+ */
+export const advanceCapacityRevision = (
+	revisions: Map<string, string>,
+	chat: TypesGen.Chat,
+) => {
+	const prior = revisions.get(chat.id);
+	if (
+		prior === undefined ||
+		compareUpdatedAtInstants(prior, chat.updated_at) <= 0
+	) {
+		revisions.set(chat.id, chat.updated_at);
+	}
 };
 
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -437,7 +459,7 @@ const diffStatusEqual = (
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
 	watchedChat: TypesGen.Chat,
-	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+	{ eventKind, activeChatId, capacityRevision }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
@@ -470,13 +492,18 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Only capacity_change carries the derived queued state. An acquisition
-	// bumps updated_at while a refusal rolls back, so the freshness guard
-	// rejects a delayed queued snapshot arriving after an acquisition's clear.
-	const nextQueuedForCapacity =
-		isCapacityEvent && isFreshEnough
-			? (watchedChat.queued_for_capacity ?? false)
-			: (cachedChat.queued_for_capacity ?? false);
+	// Capacity events order against the chat's capacity revision, not the
+	// general updated_at guard: a status event can advance the cache past a
+	// still-undelivered clear, which must still apply. With no revision yet,
+	// clears always apply while queued snapshots keep the updated_at guard.
+	const applyCapacityEvent =
+		isCapacityEvent &&
+		(capacityRevision !== undefined
+			? compareUpdatedAtInstants(capacityRevision, watchedChat.updated_at) <= 0
+			: !watchedChat.queued_for_capacity || isFreshEnough);
+	const nextQueuedForCapacity = applyCapacityEvent
+		? (watchedChat.queued_for_capacity ?? false)
+		: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;

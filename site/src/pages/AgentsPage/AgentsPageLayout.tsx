@@ -17,6 +17,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
+	advanceCapacityRevision,
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
@@ -437,6 +438,10 @@ const AgentsPageLayout: FC = () => {
 	// WebSocket handler can read it without re-subscribing
 	// on every navigation.
 	const activeChatIDRef = useRef(agentId);
+	// Per-chat capacity revision (updated_at of the newest capacity_change
+	// event seen), so capacity events order among themselves instead of
+	// against status events that advance the general updated_at.
+	const capacityRevisionsRef = useRef(new Map<string, string>());
 	const navigateAfterArchive = (archivedChatId: string) => {
 		const activeChatId = activeChatIDRef.current;
 		if (
@@ -611,6 +616,7 @@ const AgentsPageLayout: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						capacityRevisionsRef.current.delete(updatedChat.id);
 						// Drop the chat from the flat root list (root or
 						// cascade via root_chat_id) and from any parent's
 						// embedded children (individual child archive).
@@ -667,7 +673,17 @@ const AgentsPageLayout: FC = () => {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
+							capacityRevision:
+								chatEvent.kind === "capacity_change"
+									? capacityRevisionsRef.current.get(updatedChat.id)
+									: undefined,
 						});
+						if (chatEvent.kind === "capacity_change") {
+							advanceCapacityRevision(
+								capacityRevisionsRef.current,
+								updatedChat,
+							);
+						}
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
