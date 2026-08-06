@@ -9,10 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -165,5 +168,90 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "token", link.OAuthAccessToken)
+	})
+}
+
+// TestNewServer_SessionCancelRequired verifies that constructing a server for
+// a deletable provisioner key without a SessionCancel fails, while reserved
+// keys do not require one.
+func TestNewServer_SessionCancelRequired(t *testing.T) {
+	t.Parallel()
+
+	// The SessionCancel validation runs before the remaining nil-pointer
+	// checks, so the other arguments can be zero values.
+	newServer := func(keyID uuid.UUID) error {
+		_, err := NewServer(
+			context.Background(), "", nil, uuid.Nil, uuid.Nil, slog.Logger{},
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			Options{KeyID: keyID},
+			nil, nil, nil, codersdk.Experiments{},
+		)
+		return err
+	}
+
+	require.ErrorContains(t, newServer(uuid.New()), "SessionCancel is required")
+	// A reserved key passes the SessionCancel check; the error comes from the
+	// next validation instead.
+	require.ErrorContains(t, newServer(codersdk.ProvisionerKeyUUIDPSK), "quotaCommitter is nil")
+}
+
+// TestTerminateSession_Deferral verifies that session cancellation is
+// immediate when no job is active and deferred until the last active job
+// finishes otherwise.
+func TestTerminateSession_Deferral(t *testing.T) {
+	t.Parallel()
+
+	newTestServer := func(canceled chan struct{}) *server {
+		return &server{
+			lifecycleCtx:  context.Background(),
+			Logger:        testutil.Logger(t),
+			sessionCancel: func() { close(canceled) },
+			activeJobs:    map[uuid.UUID]struct{}{},
+		}
+	}
+	assertCanceled := func(t *testing.T, canceled chan struct{}, want bool) {
+		t.Helper()
+		select {
+		case <-canceled:
+			require.True(t, want, "session canceled unexpectedly")
+		default:
+			require.False(t, want, "expected session to be canceled")
+		}
+	}
+
+	t.Run("ImmediateWhenIdle", func(t *testing.T) {
+		t.Parallel()
+		canceled := make(chan struct{})
+		s := newTestServer(canceled)
+		s.TerminateSession()
+		assertCanceled(t, canceled, true)
+	})
+
+	t.Run("DeferredUntilJobsFinish", func(t *testing.T) {
+		t.Parallel()
+		canceled := make(chan struct{})
+		s := newTestServer(canceled)
+		job1, job2 := uuid.New(), uuid.New()
+		s.jobStarted(job1)
+		s.jobStarted(job2)
+
+		s.TerminateSession()
+		assertCanceled(t, canceled, false)
+
+		s.jobFinished(job1)
+		assertCanceled(t, canceled, false)
+
+		s.jobFinished(job2)
+		assertCanceled(t, canceled, true)
+	})
+
+	t.Run("NoPendingTerminationNoCancel", func(t *testing.T) {
+		t.Parallel()
+		canceled := make(chan struct{})
+		s := newTestServer(canceled)
+		jobID := uuid.New()
+		s.jobStarted(jobID)
+		s.jobFinished(jobID)
+		assertCanceled(t, canceled, false)
 	})
 }

@@ -6900,6 +6900,19 @@ func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UU
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
 }
 
+func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	// The lock query returns only the key ID, so fetch the key to authorize
+	// the read against its RBAC object.
+	key, err := q.db.GetProvisionerKeyByID(ctx, id)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, key); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockProvisionerKeyByIDForShare(ctx, id)
+}
+
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
 

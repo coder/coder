@@ -4833,6 +4833,14 @@ func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockProvisionerKeyByIDForShare(ctx, id)
+	m.queryLatencies.WithLabelValues("LockProvisionerKeyByIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockProvisionerKeyByIDForShare").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	start := time.Now()
 	r0 := m.s.MarkAllInboxNotificationsAsRead(ctx, arg)
