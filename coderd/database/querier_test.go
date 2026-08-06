@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2611,6 +2612,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
 			ProvisionerTags: json.RawMessage(`{}`),
 		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
