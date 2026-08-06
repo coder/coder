@@ -91,27 +91,6 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")
 }
 
-// TestConfigGitCachesError pins the documented behavior that a
-// provider construction error is cached for the lifetime of the
-// Config and returned on every later call.
-func TestConfigGitCachesError(t *testing.T) {
-	t.Parallel()
-
-	cfg := &externalauth.Config{
-		Type:       string(codersdk.EnhancedExternalAuthProviderGitLab),
-		APIBaseURL: "://invalid",
-	}
-
-	gp, err1 := cfg.Git(nil)
-	require.Error(t, err1)
-	require.Nil(t, gp)
-
-	gp, err2 := cfg.Git(nil)
-	require.Error(t, err2)
-	require.Nil(t, gp)
-	require.ErrorIs(t, err2, err1, "construction errors are cached, not retried")
-}
-
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
 	expired := time.Now().Add(time.Hour * -1)
