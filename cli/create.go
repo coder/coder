@@ -489,6 +489,7 @@ type prepWorkspaceBuildArgs struct {
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
 
 	UseParameterDefaults bool
+	NonInteractive       bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -597,7 +598,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
 		WithRichParametersDefaults(args.RichParameterDefaults).
-		WithUseParameterDefaults(args.UseParameterDefaults)
+		WithUseParameterDefaults(args.UseParameterDefaults).
+		WithNonInteractive(args.NonInteractive)
 
 	var templateVersionParameters []codersdk.TemplateVersionParameter
 	if !dynamicParameters {

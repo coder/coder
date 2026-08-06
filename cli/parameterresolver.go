@@ -36,6 +36,7 @@ type ParameterResolver struct {
 	promptRichParameters      bool
 	promptEphemeralParameters bool
 	useParameterDefaults      bool
+	nonInteractive            bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -90,6 +91,11 @@ func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParame
 
 func (pr *ParameterResolver) WithUseParameterDefaults(useParameterDefaults bool) *ParameterResolver {
 	pr.useParameterDefaults = useParameterDefaults
+	return pr
+}
+
+func (pr *ParameterResolver) WithNonInteractive(nonInteractive bool) *ParameterResolver {
+	pr.nonInteractive = nonInteractive
 	return pr
 }
 
@@ -341,9 +347,14 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			// a default was set in Terraform, even if it is
 			// an empty string).
 			hasDefault := cliDefaultProvided || !tvp.Required
-			if pr.useParameterDefaults && hasDefault {
+			switch {
+			case pr.useParameterDefaults && hasDefault:
 				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
-			} else {
+			case pr.nonInteractive && hasDefault:
+				return nil, xerrors.Errorf("parameter %q is unresolved and input is not interactive; pass --use-parameter-defaults to accept its default or set it with --parameter %s=<value>", tvp.Name, tvp.Name)
+			case pr.nonInteractive:
+				return nil, xerrors.Errorf("parameter %q is unresolved and input is not interactive; set it with --parameter %s=<value>", tvp.Name, tvp.Name)
+			default:
 				var err error
 				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)
 				if err != nil {

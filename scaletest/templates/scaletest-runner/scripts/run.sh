@@ -21,6 +21,7 @@ if [[ ${SCALETEST_PARAM_SKIP_CREATE_WORKSPACES} == 0 ]]; then
 		--retry 5 \
 		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
 		--template "${SCALETEST_PARAM_TEMPLATE}" \
+		--use-parameter-defaults \
 		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
 		--timeout 5h \
 		--job-timeout 5h \
@@ -48,6 +49,7 @@ else
 	coder exp scaletest create-workspaces \
 		--count 1 \
 		--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+		--use-parameter-defaults \
 		--concurrency 1 \
 		--timeout 5h \
 		--job-timeout 5h \
