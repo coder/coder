@@ -54,7 +54,6 @@ const aiGroup = (id: string, name: string): GroupWithSpend => ({
 	id,
 	name,
 	display_name: name,
-	members: [],
 	total_member_count: 0,
 });
 

@@ -6,7 +6,10 @@ import {
 	GROUP_MEMBER_AVATAR_LIMIT,
 	groupMemberAvatars,
 } from "#/api/queries/groups";
-import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
+import type {
+	OrganizationGroupsAISpend,
+	PaginatedGroup,
+} from "#/api/typesGenerated";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -43,13 +46,13 @@ const EM_DASH = "\u2014";
 // Stable keys for the avatar loading skeletons (indexes would trip lint).
 const AVATAR_SKELETON_KEYS = ["a", "b", "c", "d", "e"];
 
-export type GroupWithSpend = Group & {
+export type GroupWithSpend = PaginatedGroup & {
 	readonly spend: OrganizationGroupsAISpend["groups"][number] | undefined;
 };
 
 /** Attach each group's spend, when present, so rows get a single object. */
 export const joinGroupsSpend = (
-	groups: readonly Group[] | undefined,
+	groups: readonly PaginatedGroup[] | undefined,
 	groupsSpend: OrganizationGroupsAISpend | undefined,
 ): GroupWithSpend[] | undefined => {
 	if (groups === undefined) {
