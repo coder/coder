@@ -1041,14 +1041,6 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) FilterChatCapacityWaiting(ctx context.Context, arg database.FilterChatCapacityWaitingParams) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.FilterChatCapacityWaiting(ctx, arg)
-	m.queryLatencies.WithLabelValues("FilterChatCapacityWaiting").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FilterChatCapacityWaiting").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FinalizeStaleChatDebugRows(ctx, updatedBefore)
@@ -4774,6 +4766,14 @@ func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg 
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListBoundaryLogsBySessionID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListBoundaryLogsBySessionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]database.ListChatCapacityWaitingRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatCapacityWaiting(ctx, staleSeconds)
+	m.queryLatencies.WithLabelValues("ListChatCapacityWaiting").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatCapacityWaiting").Inc()
 	return r0, r1
 }
 

@@ -2839,14 +2839,15 @@ FROM (
       AND c.archived = false
 ) pools;
 
--- name: FilterChatCapacityWaiting :many
--- Returns the subset of ids still able to wait for capacity: running,
--- unarchived, with no live owner heartbeat. Workers reconcile their local
--- capacity queues against it.
-SELECT c.id
+-- name: ListChatCapacityWaiting :many
+-- Returns every chat able to wait for capacity: running, unarchived, with
+-- no live owner heartbeat. Workers reconcile their local capacity queues
+-- against it without paging all acquisition candidates.
+SELECT
+    c.id,
+    (c.parent_chat_id IS NOT NULL)::boolean AS subagent
 FROM chats c
-WHERE c.id = ANY(@ids::uuid[])
-  AND c.status = 'running'::chat_status
+WHERE c.status = 'running'::chat_status
   AND c.archived = false
   AND NOT EXISTS (
       SELECT 1

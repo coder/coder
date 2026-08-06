@@ -7241,52 +7241,6 @@ func (q *sqlQuerier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds
 	return result.RowsAffected()
 }
 
-const filterChatCapacityWaiting = `-- name: FilterChatCapacityWaiting :many
-SELECT c.id
-FROM chats c
-WHERE c.id = ANY($1::uuid[])
-  AND c.status = 'running'::chat_status
-  AND c.archived = false
-  AND NOT EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = c.id
-        AND hb.runner_id = c.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
-  )
-`
-
-type FilterChatCapacityWaitingParams struct {
-	IDs          []uuid.UUID `db:"ids" json:"ids"`
-	StaleSeconds int32       `db:"stale_seconds" json:"stale_seconds"`
-}
-
-// Returns the subset of ids still able to wait for capacity: running,
-// unarchived, with no live owner heartbeat. Workers reconcile their local
-// capacity queues against it.
-func (q *sqlQuerier) FilterChatCapacityWaiting(ctx context.Context, arg FilterChatCapacityWaitingParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, filterChatCapacityWaiting, pq.Array(arg.IDs), arg.StaleSeconds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
@@ -10703,6 +10657,53 @@ func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFil
 	var rejected_new_files int32
 	err := row.Scan(&rejected_new_files)
 	return rejected_new_files, err
+}
+
+const listChatCapacityWaiting = `-- name: ListChatCapacityWaiting :many
+SELECT
+    c.id,
+    (c.parent_chat_id IS NOT NULL)::boolean AS subagent
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND NOT EXISTS (
+      SELECT 1
+      FROM chat_heartbeats hb
+      WHERE hb.chat_id = c.id
+        AND hb.runner_id = c.runner_id
+        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+  )
+`
+
+type ListChatCapacityWaitingRow struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Subagent bool      `db:"subagent" json:"subagent"`
+}
+
+// Returns every chat able to wait for capacity: running, unarchived, with
+// no live owner heartbeat. Workers reconcile their local capacity queues
+// against it without paging all acquisition candidates.
+func (q *sqlQuerier) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]ListChatCapacityWaitingRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatCapacityWaiting, staleSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatCapacityWaitingRow
+	for rows.Next() {
+		var i ListChatCapacityWaitingRow
+		if err := rows.Scan(&i.ID, &i.Subagent); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many

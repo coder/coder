@@ -608,10 +608,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatWorkerAcquisitionCandidates(gomock.Any(), arg).Return([]database.GetChatWorkerAcquisitionCandidatesRow{row}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.GetChatWorkerAcquisitionCandidatesRow{row})
 	}))
-	s.Run("FilterChatCapacityWaiting", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.FilterChatCapacityWaitingParams{IDs: []uuid.UUID{uuid.New()}, StaleSeconds: 30}
-		dbm.EXPECT().FilterChatCapacityWaiting(gomock.Any(), arg).Return(arg.IDs, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(arg.IDs)
+	s.Run("ListChatCapacityWaiting", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		rows := []database.ListChatCapacityWaitingRow{{ID: uuid.New(), Subagent: true}}
+		dbm.EXPECT().ListChatCapacityWaiting(gomock.Any(), int32(30)).Return(rows, nil).AnyTimes()
+		check.Args(int32(30)).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("CountChatCapacityByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.CountChatCapacityByPoolParams{StaleSeconds: 30}
