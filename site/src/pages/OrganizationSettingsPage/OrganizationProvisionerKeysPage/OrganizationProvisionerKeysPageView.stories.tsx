@@ -93,6 +93,13 @@ export const Paywalled: Story = {
 	},
 };
 
+export const Loading: Story = {
+	...Default,
+	args: {
+		provisionerKeyDaemons: undefined,
+	},
+};
+
 export const Empty: Story = {
 	...Default,
 	args: {

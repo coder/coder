@@ -274,7 +274,7 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	}
 
 	var logRes AuditLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
+	err = ReadBodyAsJSON(res, &logRes)
 	if err != nil {
 		return AuditLogResponse{}, err
 	}

@@ -21,7 +21,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";

@@ -60,7 +60,7 @@ func (m *MCPProxyFactory) Build(ctx context.Context, req Request, tracer trace.T
 }
 
 func (m *MCPProxyFactory) retrieveMCPServerConfigs(ctx context.Context, req Request) (map[string]mcp.ServerProxier, error) {
-	client, err := m.clientFn()
+	client, err := m.clientFn(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire client: %w", err)
 	}

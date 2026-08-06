@@ -66,7 +66,6 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						<SidebarNavItem href="/ai/settings/templates">
 							Templates
 						</SidebarNavItem>
-						<SidebarNavItem href="/ai/settings/spend">Spend</SidebarNavItem>
 						<SidebarNavItem href="/ai/settings/instructions">
 							Instructions
 						</SidebarNavItem>

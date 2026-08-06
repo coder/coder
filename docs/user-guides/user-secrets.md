@@ -55,6 +55,10 @@ injected until the agent manifest is refetched, which happens on workspace
 restart. Disabling does not remove a file that was already written; the same
 "Coder never deletes secret files" rule below applies.
 
+Coder controls where a secret is delivered, not whether it is still valid.
+Changing or deleting a secret in Coder does not revoke a credential that a workspace has already received.
+If a credential is exposed, rotate or revoke it in the system that issued it.
+
 ### Environment variable secrets
 
 Coder injects environment variable secrets into every new shell, terminal,
@@ -95,9 +99,10 @@ the existing permissions alone.
 > a terminal in your workspace and run `rm <path>`. Rebuilding the workspace
 > may clear stale files when your template recreates the filesystem.
 
-If you set two file secrets that resolve to the same absolute path (for
-example `~/config` and `/home/coder/config`), only one of them ends up on
-disk; the workspace agent logs a warning to help spot this. Use
+Coder rejects a second secret that uses a file path you already use. Two
+different paths can still resolve to the same absolute path (for example
+`~/config` and `/home/coder/config`). Coder accepts both, but only one of them
+ends up on disk; the workspace agent logs a warning to help spot this. Use
 distinct paths to avoid the collision.
 
 ## Limits
@@ -262,6 +267,12 @@ coder secret update api-key --env NEW_API_KEY
 # request that clears the last target of an enabled secret is rejected.
 coder secret update api-key --file ""
 ```
+
+Environment variable names and file paths are unique among your own secrets.
+Coder rejects an update that uses an environment variable name or file path that another of your secrets already uses.
+
+Clearing a target frees it for your other secrets to use.
+If another secret takes it, setting the original target back is rejected until you free it again.
 
 ### Enable and disable a secret
 

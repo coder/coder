@@ -111,7 +111,7 @@ For Claude Code, update the module version in your template:
 ```tf
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
-  version  = ">= 4.8.0" # Minimum version with pause/resume support
+  version  = ">= 4.8.0, < 5.0.0" # Pause/resume support (Tasks/AgentAPI). Removed in v5.
   agent_id = coder_agent.main.id
   # ...
 }

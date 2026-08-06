@@ -63,5 +63,5 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

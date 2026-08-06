@@ -20,12 +20,12 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
-	chatCostKey,
+	chatCostTreeKey,
 	chatDiffContentsKey,
-	chatKey,
+	chatEntityKey,
 	chatModelConfigs,
 	chatModels,
-	chatsByWorkspaceKeyPrefix,
+	chatsByWorkspaceFamilyKey,
 	infiniteChats,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
@@ -48,8 +48,8 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
@@ -59,6 +59,11 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
+import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
@@ -84,10 +89,6 @@ import {
 } from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -126,32 +127,25 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// Chat IDs whose cost queries must refetch after a watch event, or an
-// empty array when the event cannot change any cost. Cost accrues while
-// a chat generates, so refetch when a status change lands in a
-// non-active status. The cost endpoint sums the requested chat's
-// subtree (GetChatModelUsageCostByChatID walks parent_chat_id), so a
-// subagent going idle must also refresh its ancestors' rolled-up
-// totals. The watch payload only carries the immediate parent and the
-// root, which covers every ancestor for nesting up to two levels deep;
-// deeper intermediate ancestors are refreshed by the query staleTime.
-export const chatCostIdsToInvalidate = (
+// Summary and title generation can bill after the turn reports a non-active
+// status, so invalidate the root-keyed cost query when those events arrive.
+const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"summary_change",
+	"title_change",
+]);
+
+export const chatCostIdToInvalidate = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
-): readonly string[] => {
+): string | undefined => {
+	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
+		return getChatCostTreeID(chat);
+	}
 	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
-		return [];
+		return undefined;
 	}
-	// root_chat_id is self-referential on root chats and parent_chat_id
-	// equals root_chat_id at depth one; the set dedupes both cases.
-	const ids = new Set([chat.id]);
-	if (chat.parent_chat_id) {
-		ids.add(chat.parent_chat_id);
-	}
-	if (chat.root_chat_id) {
-		ids.add(chat.root_chat_id);
-	}
-	return [...ids];
+	return getChatCostTreeID(chat);
 };
 
 const AgentsPageLayout: FC = () => {
@@ -310,11 +304,11 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
 			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
+				queryKey: chatEntityKey(chatId),
 				exact: true,
 			});
 			void queryClient.invalidateQueries({
-				queryKey: chatsByWorkspaceKeyPrefix,
+				queryKey: chatsByWorkspaceFamilyKey,
 			});
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
@@ -416,7 +410,7 @@ const AgentsPageLayout: FC = () => {
 			return;
 		}
 		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
 		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
@@ -451,7 +445,7 @@ const AgentsPageLayout: FC = () => {
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+					? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
 							?.root_chat_id
 					: undefined,
 			)
@@ -623,7 +617,7 @@ const AgentsPageLayout: FC = () => {
 						);
 						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatEntityKey(updatedChat.id),
 							exact: true,
 						});
 						return;
@@ -654,9 +648,9 @@ const AgentsPageLayout: FC = () => {
 					// reverts the query to pending/idle with no data
 					// and no retry, which AgentChatPage shows as
 					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+					if (queryClient.getQueryData(chatEntityKey(updatedChat.id))) {
 						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
+							queryKey: chatEntityKey(updatedChat.id),
 							exact: true,
 						});
 					}
@@ -683,12 +677,13 @@ const AgentsPageLayout: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
-						for (const costChatId of chatCostIdsToInvalidate(
+						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
 							chatEvent.kind,
-						)) {
+						);
+						if (costChatId) {
 							void queryClient.invalidateQueries({
-								queryKey: chatCostKey(costChatId),
+								queryKey: chatCostTreeKey(costChatId),
 								exact: true,
 							});
 						}
@@ -700,7 +695,7 @@ const AgentsPageLayout: FC = () => {
 							// active chat has an observer, so other chats are
 							// merely marked stale.
 							void queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
+								queryKey: chatEntityKey(updatedChat.id),
 								exact: true,
 							});
 						}
@@ -739,7 +734,6 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isAnalytics = sidebarView.panel === "analytics";
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -789,7 +783,7 @@ const AgentsPageLayout: FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail || isAnalytics
+							: isSettingsDetail
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",

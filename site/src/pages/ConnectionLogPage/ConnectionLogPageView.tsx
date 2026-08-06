@@ -1,6 +1,5 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -11,12 +10,8 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { docs } from "#/utils/docs";
@@ -112,11 +107,7 @@ const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
 	// An error renders as an empty table.
 	if (error) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message="An error occurred while loading connection logs" />
-				</TableCell>
-			</TableRow>
+			<TableEmpty message="An error occurred while loading connection logs" />
 		);
 	}
 	if (isLoading) {
@@ -126,13 +117,7 @@ const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No connection logs available on this page"
 			: "No connection logs available";
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message={emptyMessage} />
-				</TableCell>
-			</TableRow>
-		);
+		return <TableEmpty message={emptyMessage} />;
 	}
 	if (!connectionLogs) {
 		return null;

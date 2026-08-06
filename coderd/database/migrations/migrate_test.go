@@ -2413,3 +2413,91 @@ func TestMigration000556UserSecretsEnabled(t *testing.T) {
 		"secret with both targets empty should be flipped to disabled "+
 			"to preserve the previous implicit-skip behavior")
 }
+
+// TestMigration000562OAuth2PublicClientTokensBackfill seeds a pre-migration
+// oauth2_provider_app_tokens row (the only shape that could exist before this
+// migration, since app_secret_id was NOT NULL) and asserts that the new app_id
+// column is backfilled from the existing app_secret_id -> app_id join, and
+// that app_secret_id becomes nullable afterward.
+func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 561
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	userID := uuid.New()
+	appID := uuid.New()
+	secretID := uuid.New()
+	tokenID := uuid.New()
+	const apiKeyID = "test562apikeyid"
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'test-user-562', 'test-562@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
+	`, userID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list)
+		VALUES ($1, ''::bytea, $2, $3, $3, $3, $3, 'oauth2_provider_app', '{}', '{*}')
+	`, apiKeyID, userID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url)
+		VALUES ($1, $2, $2, 'test-app-562', '', 'http://localhost/callback')
+	`, appID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_app_secrets (id, created_at, hashed_secret, display_secret, app_id, secret_prefix)
+		VALUES ($1, $2, ''::bytea, '****1234', $3, 'prefix562'::bytea)
+	`, secretID, now, appID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, user_id)
+		VALUES ($1, $2, $3, 'prefix562'::bytea, ''::bytea, $4, $5, $6)
+	`, tokenID, now, now.Add(time.Hour), secretID, apiKeyID, userID)
+	require.NoError(t, err)
+
+	require.NoError(t, tx.Commit())
+
+	migrationSQL, err := os.ReadFile("000562_oauth2_public_client_tokens.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	var backfilledAppID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT app_id FROM oauth2_provider_app_tokens WHERE id = $1`, tokenID,
+	).Scan(&backfilledAppID)
+	require.NoError(t, err)
+	require.Equal(t, appID, backfilledAppID, "app_id should be backfilled from app_secret_id's existing join")
+
+	var isNullable string
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT is_nullable FROM information_schema.columns
+		WHERE table_name = 'oauth2_provider_app_tokens' AND column_name = 'app_secret_id'
+	`).Scan(&isNullable)
+	require.NoError(t, err)
+	require.Equal(t, "YES", isNullable, "app_secret_id should be nullable after the migration")
+}

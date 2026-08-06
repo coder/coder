@@ -34,11 +34,8 @@ func terminalMessage(classified ClassifiedError) string {
 		))
 
 	case codersdk.ChatErrorKindUsageLimit:
-		return stringutil.Capitalize(fmt.Sprintf(
-			"The usage quota for %s has been exceeded."+
-				" Check the billing and quota settings for the provider account.",
-			subject,
-		))
+		return "The AI usage limit has been exceeded." +
+			" Contact an administrator or check the applicable budget and quota settings."
 
 	case codersdk.ChatErrorKindAuth:
 		return fmt.Sprintf(

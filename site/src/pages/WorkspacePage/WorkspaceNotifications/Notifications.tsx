@@ -1,7 +1,7 @@
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { Pill } from "#/components/Pill/Pill";
 import {
 	Popover,
 	PopoverContent,
@@ -118,15 +118,15 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	isOpen,
 }) => {
 	return (
-		<Pill
-			icon={icon}
+		<Badge
 			className={cn(
 				severityStyles[severity].svgColor,
 				isOpen && severityStyles[severity].border,
 			)}
 		>
+			{icon}
 			{items.length}
-		</Pill>
+		</Badge>
 	);
 };
 

@@ -85,7 +85,7 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	}
 
 	var gitSSHKey GitSSHKey
-	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
+	return gitSSHKey, codersdk.ReadBodyAsJSON(res, &gitSSHKey)
 }
 
 type Metadata struct {
@@ -716,7 +716,7 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 		return codersdk.WorkspaceAgentLogSource{}, codersdk.ReadBodyAsError(res)
 	}
 	var logSource codersdk.WorkspaceAgentLogSource
-	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
+	return logSource, codersdk.ReadBodyAsJSON(res, &logSource)
 }
 
 type ExternalAuthResponse struct {
@@ -787,7 +787,7 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 
 	var authResp ExternalAuthResponse
-	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
+	return authResp, codersdk.ReadBodyAsJSON(res, &authResp)
 }
 
 // LogsNotifyChannel returns the channel name responsible for notifying
@@ -1016,5 +1016,5 @@ func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResp
 	}
 
 	var resp RefreshChatContextResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }
