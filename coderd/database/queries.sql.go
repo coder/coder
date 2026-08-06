@@ -19232,7 +19232,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
@@ -19541,7 +19541,7 @@ type UpdateOAuth2ProviderAppByClientIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
@@ -19647,7 +19647,7 @@ type UpdateOAuth2ProviderAppByIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
