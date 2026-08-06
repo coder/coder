@@ -311,6 +311,11 @@ const patchChatArchiveState = (
  * detail caches. Removes the chat from any filtered list whose archived
  * filter conflicts with the new state, and resets pin_order to 0 when
  * archiving.
+ *
+ * Search rows are removed rather than patched: a cached row matched its
+ * query's archived filter before the change, so after the change it
+ * belongs to a different result set. Search invalidations issued by the
+ * callers repopulate any result set that still matches.
  */
 export const applyChatArchiveStateToCaches = (
 	queryClient: QueryClient,
@@ -378,26 +383,18 @@ export const applyChatArchiveStateToCaches = (
 		});
 	}
 
-	queryClient.setQueriesData<TypesGen.Chat[]>(
-		{ queryKey: chatSearchFamilyKey },
-		(rows) => {
-			if (!rows) {
-				return rows;
+	const searchQueries = queryClient.getQueriesData<TypesGen.Chat[]>({
+		queryKey: chatSearchFamilyKey,
+	});
+	for (const [queryKey] of searchQueries) {
+		queryClient.setQueryData<TypesGen.Chat[]>(queryKey, (prev) => {
+			if (!prev) {
+				return prev;
 			}
-			let changed = false;
-			const next = rows.map((row) => {
-				if (row.id !== chatId) {
-					return row;
-				}
-				const patched = patchChatArchiveState(row, archived);
-				if (patched !== row) {
-					changed = true;
-				}
-				return patched;
-			});
-			return changed ? next : rows;
-		},
-	);
+			const next = prev.filter((row) => row.id !== chatId);
+			return next.length === prev.length ? prev : next;
+		});
+	}
 };
 
 /**

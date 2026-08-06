@@ -563,7 +563,7 @@ describe("archiveChat optimistic update", () => {
 		expect(readInfiniteChats(queryClient, { archived: false })).toEqual([]);
 	});
 
-	it("patches loaded search rows after success", () => {
+	it("removes loaded search rows after success", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const unrelatedRow = makeChat("chat-2");
@@ -578,11 +578,8 @@ describe("archiveChat optimistic update", () => {
 		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
 			chatSearch({ q: "alpha" }).queryKey,
 		);
-		expect(rows?.find((row) => row.id === chatId)).toMatchObject({
-			archived: true,
-			pin_order: 0,
-		});
-		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
+		expect(rows?.find((row) => row.id === chatId)).toBeUndefined();
+		expect(rows?.find((row) => row.id === "chat-2")).toEqual(unrelatedRow);
 	});
 
 	it("rolls back the chats list on error by invalidating", async () => {
@@ -747,7 +744,7 @@ describe("unarchiveChat optimistic update", () => {
 		});
 	});
 
-	it("patches loaded search rows after success", () => {
+	it("removes loaded search rows after success", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const unrelatedRow = makeChat("chat-2", { archived: true });
@@ -762,8 +759,8 @@ describe("unarchiveChat optimistic update", () => {
 		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
 			chatSearch({ q: "alpha" }).queryKey,
 		);
-		expect(rows?.find((row) => row.id === chatId)?.archived).toBe(false);
-		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
+		expect(rows?.find((row) => row.id === chatId)).toBeUndefined();
+		expect(rows?.find((row) => row.id === "chat-2")).toEqual(unrelatedRow);
 	});
 
 	it("rolls back both caches on error", async () => {
@@ -3569,30 +3566,40 @@ describe("chatEntitiesFamilyKey shape", () => {
 });
 
 describe("applyChatArchiveStateToCaches search rows", () => {
-	it("patches matching rows and preserves unrelated rows by reference", () => {
+	it("removes matching rows from every cached search and preserves unrelated rows by reference", () => {
 		const queryClient = createTestQueryClient();
 		const unrelatedRow = makeChat("chat-2");
 		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
 			makeChat("chat-1", { pin_order: 2 }),
 			unrelatedRow,
 		]);
+		queryClient.setQueryData(chatSearch({ q: "archived:true" }).queryKey, [
+			makeChat("chat-1", { archived: true }),
+		]);
 
 		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
 
-		const rows = queryClient.getQueryData<TypesGen.Chat[]>(
-			chatSearch({ q: "alpha" }).queryKey,
-		);
-		expect(rows?.find((row) => row.id === "chat-1")).toMatchObject({
-			archived: true,
-			pin_order: 0,
-		});
-		expect(rows?.find((row) => row.id === "chat-2")).toBe(unrelatedRow);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.Chat[]>(chatSearch({ q: "alpha" }).queryKey)
+				?.find((row) => row.id === "chat-1"),
+		).toBeUndefined();
+		expect(
+			queryClient.getQueryData<TypesGen.Chat[]>(
+				chatSearch({ q: "archived:true" }).queryKey,
+			),
+		).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.Chat[]>(chatSearch({ q: "alpha" }).queryKey)
+				?.find((row) => row.id === "chat-2"),
+		).toEqual(unrelatedRow);
 	});
 
-	it("preserves the previous array reference when nothing changes", () => {
+	it("preserves the previous array reference when the row is not cached", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
-			makeChat("chat-1", { archived: true }),
+			makeChat("chat-2"),
 		]);
 		const before = queryClient.getQueryData(
 			chatSearch({ q: "alpha" }).queryKey,
@@ -3709,7 +3716,7 @@ describe("applyWatchedChatArchived", () => {
 		});
 	});
 
-	it("patches search rows and removes the by-workspace mapping", () => {
+	it("removes search rows and removes the by-workspace mapping", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, [
@@ -3724,8 +3731,8 @@ describe("applyWatchedChatArchived", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat[]>(
 				chatSearch({ q: "alpha" }).queryKey,
-			)?.[0].archived,
-		).toBe(true);
+			),
+		).toEqual([]);
 		expect(
 			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
 		).toEqual({});
