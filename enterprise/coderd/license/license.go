@@ -1123,7 +1123,7 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // the allocation. A zero allocation has no hour budget for the thresholds to
 // measure against, so both limit claims are ignored alongside it.
 //
-// Ignoring a claim must not be silent, or a incorrectly issued license (say, a soft
+// Ignoring a claim must not be silent, or an incorrectly issued license (say, a soft
 // limit minted above the allocation) would produce a deployment that looks
 // healthy and never fires the warning the customer was sold. claimsIgnored
 // reports that at least one present claim was dropped so the caller can emit

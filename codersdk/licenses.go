@@ -52,10 +52,10 @@ const (
 	// license carries Coder Agent runtime hour claims that do not fit
 	// together (for example a soft limit at or above the allocation, or a
 	// threshold without an allocation). The unusable claims are ignored
-	// rather than invalidating the signed license, so without this warning a
-	// incorrectly issued license would be undetectable from the deployment. The
-	// dashboard recognizes the exact text and renders it as a muted
-	// diagnostic without a sales link.
+	// rather than invalidating the signed license, so without this warning
+	// an incorrectly issued license would be undetectable from the
+	// deployment. The dashboard recognizes the exact text and renders it as
+	// a muted diagnostic without a sales link.
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText = "The current license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of the license is unaffected. Contact support to have the license re-issued."
 )
 

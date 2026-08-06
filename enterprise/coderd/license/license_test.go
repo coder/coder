@@ -3134,7 +3134,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 		expectFeature *codersdk.Feature
 		// expectClaimsIgnored is true when at least one present claim is
 		// dropped, which must surface the claims-ignored warning: tolerating
-		// a claim and signaling nothing would make a incorrectly issued license
+		// a claim and signaling nothing would make an incorrectly issued license
 		// undetectable from the deployment.
 		expectClaimsIgnored bool
 	}{
