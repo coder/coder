@@ -4,8 +4,43 @@
 # notes work, and that the VS Code preview is usable. The participants and
 # messages are illustrative placeholders. Nothing here is a design position.
 #
+# It also tries out marking auditable events with a d2 class, which is the
+# closest thing d2 has to a UML stereotype. The same class is applied to
+# both messages and notes so the two can be compared:
+#
+#   - marked messages: the arrow and its label pick up the class
+#   - marked notes:    the box picks up the class
+#   - plain notes:     left unmarked for contrast
+#
+# d2 classes are purely visual. There is no way to have the class contribute
+# a fixed prefix such as "audit:" to the label, because d2's style vocabulary
+# has no content injection. A visible token has to be typed into the label.
+#
+# d2 has no UML leader line. A note is drawn inline on the lifeline at the
+# sequence position where it is declared, so position is the attachment.
+# Drawing an explicit connection from a note produces a message to a box,
+# which reads worse, so it is not done here.
+#
+# WHICH events are marked below is illustrative only. Potentially auditable
+# events are persistent state changes: database writes, creation of
+# entities, assignment of identifiers to entities, and sending messages
+# outside the system. Which subset is actually audited is a design choice
+# not yet made.
+#
 # Preview: right-click this file and choose the d2 preview, or Ctrl+Shift+D.
 # Render:  d2 poc_audit/diagram_tooling_test.d2 out.svg
+
+classes: {
+  auditable: {
+    style: {
+      stroke: "#B8860B"
+      stroke-width: 3
+      bold: true
+      font-color: "#7A5C00"
+      fill: "#FFF3C4"
+    }
+  }
+}
 
 seq: Sandbox creation (tooling smoke test) {
   shape: sequence_diagram
@@ -20,29 +55,54 @@ seq: Sandbox creation (tooling smoke test) {
   journal: Audit journal
 
   user -> coderd: request sandbox
-  coderd.note: Authority of the principal is checked here
-  coderd -> journal: entry, intent recorded
-  coderd -> prov: provision
 
+  # plain note, for contrast
+  coderd.note: Authority of the principal is checked here
+
+  # assignment of an identifier, occurs within the activation
+  coderd.n2: sandbox identifier assigned { class: auditable }
+
+  # database write
+  coderd -> journal: entry, intent recorded { class: auditable }
+
+  coderd -> prov: provision
   prov -> wsagent: create sandbox
-  wsagent -> host: start container
+
+  # creation of an entity
+  wsagent -> host: start container { class: auditable }
+
+  # creation of an entity, occurs within the activation
+  host.n1: container entity created { class: auditable }
+
   host -> host: allocate resources
 
   outcome: {
     started: {
-      host -> sandbox: boot
-      sandbox -> aiagent: launch
-      aiagent -> coderd: register, present identity
-      coderd -> journal: entry, effect confirmed
+      host -> sandbox: boot { class: auditable }
+
+      # assignment of an identifier, occurs within the activation
+      sandbox.n1: AI agent identity issued { class: auditable }
+
+      sandbox -> aiagent: launch { class: auditable }
+      aiagent -> coderd: register, present identity { class: auditable }
+
+      # database write
+      coderd -> journal: entry, effect confirmed { class: auditable }
+
+      # database write, occurs within the activation
+      journal.n1: entry committed and ordered { class: auditable }
     }
 
     failed: {
       host -> wsagent: error
       wsagent -> coderd: report failure
-      coderd -> journal: entry, intent abandoned
+      coderd -> journal: entry, intent abandoned { class: auditable }
+
+      # plain note, for contrast
       journal.note: An orphan would be invisible here
     }
   }
 
-  coderd -> user: result
+  # sending a message outside the system
+  coderd -> user: result { class: auditable }
 }
