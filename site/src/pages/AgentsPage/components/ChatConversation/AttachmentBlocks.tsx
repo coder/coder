@@ -4,7 +4,12 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import {
+	type FC,
+	type MouseEvent as ReactMouseEvent,
+	type ReactNode,
+	useState,
+} from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -14,6 +19,7 @@ import {
 import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
+	type AttachmentDownloadTarget,
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getChatFileURL,
@@ -181,29 +187,54 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
+// Suppresses repeated clicks while an intercepted iOS download is still
+// fetching, so a second tap cannot open a second share sheet or surface
+// a misleading error toast while the first sheet is open.
+const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
+	const [isPending, setIsPending] = useState(false);
+	const onClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+		event.stopPropagation();
+		if (isPending) {
+			event.preventDefault();
+			return;
+		}
+		const pending = handleAttachmentDownloadClick(event, target);
+		if (pending) {
+			setIsPending(true);
+			void pending.finally(() => setIsPending(false));
+		}
+	};
+	return { isPending, onClick };
+};
+
 const DownloadOverlay: FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
 	mediaType: string;
-}> = ({ href, displayName, downloadName, mediaType }) => (
-	<a
-		href={href}
-		download={downloadName}
-		onClick={(event) => {
-			event.stopPropagation();
-			void handleAttachmentDownloadClick(event, {
-				href,
-				fileName: downloadName,
-				mediaType,
-			});
-		}}
-		aria-label={`Download ${displayName}`}
-		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<DownloadIcon aria-hidden="true" className="size-3.5" />
-	</a>
-);
+}> = ({ href, displayName, downloadName, mediaType }) => {
+	const { isPending, onClick } = useAttachmentDownloadClick({
+		href,
+		fileName: downloadName,
+		mediaType,
+	});
+	return (
+		<a
+			href={href}
+			download={downloadName}
+			onClick={onClick}
+			aria-label={`Download ${displayName}`}
+			aria-disabled={isPending}
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+		>
+			{isPending ? (
+				<Spinner size="sm" loading className="size-3.5" />
+			) : (
+				<DownloadIcon aria-hidden="true" className="size-3.5" />
+			)}
+		</a>
+	);
+};
 
 const AttachmentPreviewFrame: FC<{
 	href: string | null;
@@ -580,20 +611,19 @@ const FileCard: FC<{
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
+	const { isPending, onClick } = useAttachmentDownloadClick({
+		href,
+		fileName: downloadName,
+		mediaType: block.media_type,
+	});
 
 	return (
 		<a
 			href={href}
 			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType: block.media_type,
-				});
-			}}
+			onClick={onClick}
 			aria-label={`Download ${displayName}`}
+			aria-disabled={isPending}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
@@ -614,10 +644,18 @@ const FileCard: FC<{
 				</div>
 				<div className="text-xs text-content-secondary">Download file</div>
 			</div>
-			<DownloadIcon
-				aria-hidden="true"
-				className="size-4 shrink-0 text-content-secondary"
-			/>
+			{isPending ? (
+				<Spinner
+					size="sm"
+					loading
+					className="size-4 shrink-0 text-content-secondary"
+				/>
+			) : (
+				<DownloadIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 text-content-secondary"
+				/>
+			)}
 		</a>
 	);
 };

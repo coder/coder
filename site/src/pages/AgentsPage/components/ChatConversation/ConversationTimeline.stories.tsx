@@ -1461,6 +1461,46 @@ export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
 	},
 };
 
+export const DownloadInIOSStandaloneSuppressesDuplicateClicks: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		let releaseFetch = () => {};
+		const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+			() =>
+				new Promise<Response>((resolve) => {
+					releaseFetch = () =>
+						resolve(
+							new Response("pdf-bytes", {
+								headers: { "Content-Type": "application/pdf" },
+							}),
+						);
+				}),
+		);
+		try {
+			const downloadLink = canvas.getByRole("link", {
+				name: "Download deployment-report.pdf",
+			});
+			await userEvent.click(downloadLink);
+			expect(downloadLink).toHaveAttribute("aria-disabled", "true");
+			await userEvent.click(downloadLink);
+			expect(fetchSpy).toHaveBeenCalledTimes(1);
+			releaseFetch();
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(downloadLink).toHaveAttribute("aria-disabled", "false"),
+			);
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
 export const DownloadInIOSStandaloneShowsErrorToastOnFailedFetch: Story = {
 	decorators: [withToaster],
 	args: {

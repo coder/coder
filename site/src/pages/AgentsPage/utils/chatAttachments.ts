@@ -82,7 +82,7 @@ const canShareFiles = (files: File[]): boolean =>
 	typeof navigator.canShare === "function" &&
 	navigator.canShare({ files });
 
-type AttachmentDownloadTarget = {
+export type AttachmentDownloadTarget = {
 	href: string;
 	fileName: string;
 	mediaType: string;
