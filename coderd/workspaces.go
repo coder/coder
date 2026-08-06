@@ -2775,9 +2775,13 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) error {
 	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
 	for _, row := range rows {
-		metadata, err := row.ParseAgentMetadata()
+		if len(row.AgentMetadata) == 0 {
+			continue
+		}
+		var metadata database.AgentMetadataAggregate
+		err := metadata.Scan(row.AgentMetadata)
 		if err != nil {
-			return err
+			return xerrors.Errorf("scan agent metadata for workspace %q: %w", row.ID, err)
 		}
 		for _, datum := range metadata {
 			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)

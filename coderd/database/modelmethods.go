@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -768,32 +767,6 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	}
 
 	return users
-}
-
-// AgentMetadataAggregate is the agent_metadata jsonb array the
-// GetWorkspaces query aggregates for the include_agent_metadata
-// expansion. Elements have WorkspaceAgentMetadatum's JSON shape; each
-// carries its workspace_agent_id so multi-agent workspaces can map
-// values onto the right agent.
-//
-// A sqlc column override would be cleaner, but overrides require a
-// '[catalog.][schema.]tablename.colname' against a real relation and
-// agent_metadata is a query expression, so the row keeps
-// json.RawMessage and ParseAgentMetadata does the decoding here.
-type AgentMetadataAggregate []WorkspaceAgentMetadatum
-
-// ParseAgentMetadata decodes the row's agent_metadata aggregate. It is
-// empty unless the query opted in with include_agent_metadata.
-func (r GetWorkspacesRow) ParseAgentMetadata() (AgentMetadataAggregate, error) {
-	if len(r.AgentMetadata) == 0 {
-		return nil, nil
-	}
-	var metadata AgentMetadataAggregate
-	err := json.Unmarshal(r.AgentMetadata, &metadata)
-	if err != nil {
-		return nil, xerrors.Errorf("unmarshal agent metadata for workspace %q: %w", r.ID, err)
-	}
-	return metadata, nil
 }
 
 func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
