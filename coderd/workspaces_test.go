@@ -2885,7 +2885,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		//nolint:gocritic // This is a test; only the agent API writes metadata.
 		ctx := dbauthz.AsSystemRestricted(context.Background())
 		collectedAt := dbtime.Now()
-		for i, key := range []string{"byoc_status", "cpu", "unrequested"} {
+		for i, key := range []string{"task_status", "cpu", "unrequested"} {
 			err := db.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
 				WorkspaceAgentID: agentID,
 				DisplayName:      key,
@@ -2926,7 +2926,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// Opting in returns exactly the requested keys, ordered by
 		// display_order, with their collected values.
 		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
-			IncludeAgentMetadata: []string{"byoc_status", "cpu"},
+			IncludeAgentMetadata: []string{"task_status", "cpu"},
 		})
 		require.NoError(t, err)
 		metadata := findAgent(res).Metadata
@@ -2936,8 +2936,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// The collection script is deliberately not exposed on the list
 		// endpoint; it can be long.
 		require.Empty(t, metadata[0].Description.Script)
-		require.Equal(t, "byoc_status", metadata[1].Description.Key)
-		require.Equal(t, "value-byoc_status", metadata[1].Result.Value)
+		require.Equal(t, "task_status", metadata[1].Description.Key)
+		require.Equal(t, "value-task_status", metadata[1].Result.Value)
 		require.WithinDuration(t, collectedAt, metadata[1].Result.CollectedAt, time.Second)
 
 		// Unknown keys are not an error; the metadata is just absent.

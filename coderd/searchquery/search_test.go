@@ -343,9 +343,9 @@ func TestSearchWorkspace(t *testing.T) {
 		},
 		{
 			Name:  "IncludeAgentMetadata",
-			Query: `include_agent_metadata:"byoc_status" include_agent_metadata:"cpu"`,
+			Query: `include_agent_metadata:"task_status" include_agent_metadata:"cpu"`,
 			Expected: database.GetWorkspacesParams{
-				IncludeAgentMetadata: []string{"byoc_status", "cpu"},
+				IncludeAgentMetadata: []string{"task_status", "cpu"},
 			},
 		},
 		{
