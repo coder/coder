@@ -574,9 +574,9 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Description colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
 // @Description unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
 // @Description
-// @Description This endpoint never returns member rosters: each group's `members` array is always
-// @Description empty and only `total_member_count` is populated. Callers that need the roster use
-// @Description the group members endpoint (GET /groups/{group}/members).
+// @Description This endpoint returns group summaries without the member roster: each group
+// @Description carries only `total_member_count` and no `members` field. Callers that need the
+// @Description roster use the group members endpoint (GET /groups/{group}/members).
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -613,14 +613,14 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 
 	if len(groups) == 0 {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedGroupsResponse{
-			Groups: []codersdk.Group{},
+			Groups: []codersdk.PaginatedGroup{},
 			Count:  0,
 		})
 		return
 	}
 
 	resp := codersdk.PaginatedGroupsResponse{
-		Groups: make([]codersdk.Group, 0, len(groups)),
+		Groups: make([]codersdk.PaginatedGroup, 0, len(groups)),
 		Count:  int(groups[0].Count),
 	}
 
@@ -651,11 +651,11 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, group := range groups {
-		resp.Groups = append(resp.Groups, db2sdk.Group(database.GetGroupsRow{
+		resp.Groups = append(resp.Groups, db2sdk.PaginatedGroup(database.GetGroupsRow{
 			Group:                   group.Group,
 			OrganizationName:        group.OrganizationName,
 			OrganizationDisplayName: group.OrganizationDisplayName,
-		}, nil, int(countByGroup[group.Group.ID])))
+		}, int(countByGroup[group.Group.ID])))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
