@@ -12,6 +12,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
+	advanceCapacityRevision,
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
@@ -2518,6 +2519,90 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "capacity_change",
 			}).queued_for_capacity,
 		).toBe(false);
+	});
+
+	it("applies a capacity clear delayed past a newer status event", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:03:00.000Z",
+			queued_for_capacity: true,
+		});
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:02:00.000Z",
+			queued_for_capacity: false,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+				capacityRevision: "2025-01-01T00:01:00.000Z",
+			}).queued_for_capacity,
+		).toBe(false);
+	});
+
+	it("applies a capacity clear with no prior revision despite a newer cache", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:03:00.000Z",
+			queued_for_capacity: true,
+		});
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:02:00.000Z",
+			queued_for_capacity: false,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+			}).queued_for_capacity,
+		).toBe(false);
+	});
+
+	it("rejects a queued capacity event older than the capacity revision", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity: false,
+		});
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:30.000Z",
+			queued_for_capacity: true,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+				capacityRevision: "2025-01-01T00:01:00.000Z",
+			}).queued_for_capacity,
+		).toBe(false);
+	});
+
+	it("applies a queued capacity event at or above the capacity revision", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:02:00.000Z",
+			queued_for_capacity: false,
+		});
+		const watchedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:01:00.000Z",
+			queued_for_capacity: true,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "capacity_change",
+				capacityRevision: "2025-01-01T00:01:00.000Z",
+			}).queued_for_capacity,
+		).toBe(true);
+	});
+
+	it("keeps the capacity revision monotonic on out-of-order events", () => {
+		const revisions = new Map<string, string>();
+		advanceCapacityRevision(
+			revisions,
+			makeChat("chat-1", { updated_at: "2025-01-01T00:02:00.000Z" }),
+		);
+		advanceCapacityRevision(
+			revisions,
+			makeChat("chat-1", { updated_at: "2025-01-01T00:01:00.000Z" }),
+		);
+		expect(revisions.get("chat-1")).toBe("2025-01-01T00:02:00.000Z");
 	});
 
 	it("ignores queued_for_capacity carried by non-capacity events", () => {
