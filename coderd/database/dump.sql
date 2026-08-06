@@ -4826,7 +4826,7 @@ CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id 
 
 CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
 
-CREATE INDEX idx_chats_capacity_active ON chats USING btree (parent_chat_id) WHERE ((archived = false) AND (status = ANY (ARRAY['running'::chat_status, 'interrupting'::chat_status])) AND (worker_id IS NOT NULL) AND (runner_id IS NOT NULL));
+CREATE INDEX idx_chats_capacity_active ON chats USING btree (parent_chat_id) WHERE ((archived = false) AND (status = ANY (ARRAY['running'::chat_status, 'interrupting'::chat_status])));
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 

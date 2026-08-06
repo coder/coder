@@ -99,35 +99,28 @@ func (w *chatWorker) capacityMetricsLoop(ctx context.Context) {
 }
 
 func (w *chatWorker) refreshCapacityMetrics(ctx context.Context) {
-	active, err := w.opts.Store.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{
+	counts, err := w.opts.Store.CountChatCapacityByPool(ctx, database.CountChatCapacityByPoolParams{
 		ExcludeChatID: uuid.Nil,
 		StaleSeconds:  w.opts.HeartbeatStaleSeconds,
 	})
 	if err != nil {
 		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "chatworker count active capacity chats failed", slogError(err))
-		}
-		return
-	}
-	unowned, err := w.opts.Store.CountChatCapacityUnownedByPool(ctx, w.opts.HeartbeatStaleSeconds)
-	if err != nil {
-		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "chatworker count unowned capacity chats failed", slogError(err))
+			w.opts.Logger.Warn(ctx, "chatworker count capacity chats failed", slogError(err))
 		}
 		return
 	}
 	metrics := w.opts.CapacityMetrics
-	metrics.active.WithLabelValues("root").Set(float64(active.RootCount))
-	metrics.active.WithLabelValues("subagent").Set(float64(active.SubagentCount))
+	metrics.active.WithLabelValues("root").Set(float64(counts.ActiveRootCount))
+	metrics.active.WithLabelValues("subagent").Set(float64(counts.ActiveSubagentCount))
 	// Unowned running chats count as queued only when their pool is full;
 	// otherwise they are ordinary pickups the next acquisition pass owns.
-	limits := w.opts.AgentCapacityPolicy.CurrentLimits()
+	limits, capped := w.opts.AgentCapacityLimiter.Limits()
 	var queuedRoot, queuedSubagent int64
-	if limits.Capped && active.RootCount >= limits.Root {
-		queuedRoot = unowned.RootCount
+	if capped && counts.ActiveRootCount >= limits.Root {
+		queuedRoot = counts.UnownedRootCount
 	}
-	if limits.Capped && active.SubagentCount >= limits.Subagent {
-		queuedSubagent = unowned.SubagentCount
+	if capped && counts.ActiveSubagentCount >= limits.Subagent {
+		queuedSubagent = counts.UnownedSubagentCount
 	}
 	metrics.queued.WithLabelValues("root").Set(float64(queuedRoot))
 	metrics.queued.WithLabelValues("subagent").Set(float64(queuedSubagent))

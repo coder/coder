@@ -608,16 +608,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatWorkerAcquisitionCandidates(gomock.Any(), arg).Return([]database.GetChatWorkerAcquisitionCandidatesRow{row}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.GetChatWorkerAcquisitionCandidatesRow{row})
 	}))
-	s.Run("CountChatCapacityActiveByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.CountChatCapacityActiveByPoolParams{StaleSeconds: 30}
-		row := database.CountChatCapacityActiveByPoolRow{RootCount: 1, SubagentCount: 2}
-		dbm.EXPECT().CountChatCapacityActiveByPool(gomock.Any(), arg).Return(row, nil).AnyTimes()
+	s.Run("CountChatCapacityByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.CountChatCapacityByPoolParams{StaleSeconds: 30}
+		row := database.CountChatCapacityByPoolRow{ActiveRootCount: 1, ActiveSubagentCount: 2, UnownedRootCount: 3, UnownedSubagentCount: 4}
+		dbm.EXPECT().CountChatCapacityByPool(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
-	}))
-	s.Run("CountChatCapacityUnownedByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		row := database.CountChatCapacityUnownedByPoolRow{RootCount: 1, SubagentCount: 2}
-		dbm.EXPECT().CountChatCapacityUnownedByPool(gomock.Any(), int32(30)).Return(row, nil).AnyTimes()
-		check.Args(int32(30)).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
 	}))
 	s.Run("GetChatQueuedForCapacity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.GetChatQueuedForCapacityParams{ChatID: uuid.New(), StaleSeconds: 30, RootCapacity: 5, SubagentCapacity: 10}

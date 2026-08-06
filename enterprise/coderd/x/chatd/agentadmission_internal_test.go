@@ -310,19 +310,19 @@ func TestAdmission_LicensedBypass(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.admit, admitted)
 
-			limits := a.CurrentLimits()
-			require.Equal(t, !tc.admit, limits.Capped,
-				"CurrentLimits must agree with Admit on whether the caps apply")
+			_, capped := a.Limits()
+			require.Equal(t, !tc.admit, capped,
+				"Limits must agree with Admit on whether the caps apply")
 		})
 	}
 }
 
-func TestAdmission_CurrentLimitsReportsCaps(t *testing.T) {
+func TestAdmission_LimitsReportsCaps(t *testing.T) {
 	t.Parallel()
 	a := newAdmission(nil, 30)
 
-	limits := a.CurrentLimits()
-	require.True(t, limits.Capped)
+	limits, capped := a.Limits()
+	require.True(t, capped)
 	require.EqualValues(t, maxConcurrentRootAgents, limits.Root)
 	require.EqualValues(t, maxConcurrentSubagents, limits.Subagent)
 }

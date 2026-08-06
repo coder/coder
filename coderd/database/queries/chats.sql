@@ -2812,44 +2812,32 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
 
--- name: CountChatCapacityActiveByPool :one
--- Counts root and subagent slots held by unarchived running or interrupting
--- chats with a fresh owner heartbeat. @exclude_chat_id makes stale-owner
+-- name: CountChatCapacityByPool :one
+-- Counts fresh-owner active slots and unowned running chats by pool.
+-- @exclude_chat_id excludes active counts only, keeping stale-owner
 -- takeovers capacity-neutral.
 SELECT
-    COUNT(*) FILTER (WHERE parent_chat_id IS NULL)::bigint AS root_count,
-    COUNT(*) FILTER (WHERE parent_chat_id IS NOT NULL)::bigint AS subagent_count
-FROM chats
-WHERE status IN ('running'::chat_status, 'interrupting'::chat_status)
-  AND archived = false
-  AND id != @exclude_chat_id::uuid
-  AND worker_id IS NOT NULL
-  AND runner_id IS NOT NULL
-  AND EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = chats.id
-        AND hb.runner_id = chats.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-  );
-
--- name: CountChatCapacityUnownedByPool :one
--- Counts unarchived running chats with no live owner heartbeat per pool.
--- Callers compare pool activity against the caps to tell capacity waits
--- from the ordinary sub-second wait for a worker pickup.
-SELECT
-    COUNT(*) FILTER (WHERE parent_chat_id IS NULL)::bigint AS root_count,
-    COUNT(*) FILTER (WHERE parent_chat_id IS NOT NULL)::bigint AS subagent_count
-FROM chats c
-WHERE c.status = 'running'::chat_status
-  AND c.archived = false
-  AND NOT EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = c.id
-        AND hb.runner_id = c.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-  );
+    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND is_root)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND NOT is_root)::bigint AS active_subagent_count,
+    COUNT(*) FILTER (WHERE NOT fresh AND running AND is_root)::bigint AS unowned_root_count,
+    COUNT(*) FILTER (WHERE NOT fresh AND running AND NOT is_root)::bigint AS unowned_subagent_count
+FROM (
+    SELECT
+        c.parent_chat_id IS NULL AS is_root,
+        c.status = 'running'::chat_status AS running,
+        c.worker_id IS NOT NULL AND c.runner_id IS NOT NULL AS owned,
+        c.id != @exclude_chat_id::uuid AS counted,
+        EXISTS (
+            SELECT 1
+            FROM chat_heartbeats hb
+            WHERE hb.chat_id = c.id
+              AND hb.runner_id = c.runner_id
+              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        ) AS fresh
+    FROM chats c
+    WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status)
+      AND c.archived = false
+) pools;
 
 -- name: GetChatQueuedForCapacity :one
 -- A chat waits for capacity only when it is running, unarchived, unowned,

@@ -193,9 +193,8 @@ type chatWorkerOptions struct {
 	Auditor               *atomic.Pointer[audit.Auditor]
 	AutoArchiveRecords    prometheus.Counter
 
-	AgentAdmission      AgentAdmission
-	AgentCapacityPolicy AgentCapacityPolicy
-	CapacityMetrics     *capacityMetrics
+	AgentCapacityLimiter AgentCapacityLimiter
+	CapacityMetrics      *capacityMetrics
 
 	AcquisitionInterval        time.Duration
 	CapacityMetricsInterval    time.Duration
@@ -228,6 +227,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.Clock == nil {
 		o.Clock = quartz.NewReal()
+	}
+	if o.AgentCapacityLimiter == nil {
+		o.AgentCapacityLimiter = noopAgentCapacityLimiter{}
 	}
 	if o.AcquisitionInterval <= 0 {
 		o.AcquisitionInterval = defaultAcquisitionInterval

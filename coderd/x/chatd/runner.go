@@ -168,7 +168,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 	if r.hasAcceptedState && r.activeTaskSet {
 		r.cancelActiveTask()
 	}
-	if r.opts.AgentAdmission != nil && occupiesCapacitySlot(r.latestState) && !occupiesCapacitySlot(state) {
+	_, capped := r.opts.AgentCapacityLimiter.Limits()
+	if capped && occupiesCapacitySlot(r.latestState) && !occupiesCapacitySlot(state) {
 		// Wake all workers when a slot opens rather than waiting for the
 		// acquisition ticker.
 		r.publishCapacityRelease(state)

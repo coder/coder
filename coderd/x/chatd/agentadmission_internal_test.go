@@ -23,10 +23,19 @@ type fakeAdmission struct {
 
 	admitCalls int
 	admitted   []uuid.UUID
+	limits     AgentCapacityLimits
+	uncapped   bool
 }
 
 func newFakeAdmission() *fakeAdmission {
-	return &fakeAdmission{refused: make(map[uuid.UUID]bool)}
+	return &fakeAdmission{
+		refused: make(map[uuid.UUID]bool),
+		limits:  AgentCapacityLimits{Root: 1, Subagent: 1},
+	}
+}
+
+func (f *fakeAdmission) Limits() (AgentCapacityLimits, bool) {
+	return f.limits, !f.uncapped
 }
 
 func (f *fakeAdmission) refuse(chatID uuid.UUID) {
@@ -64,12 +73,12 @@ func (f *fakeAdmission) admitCallCount() int {
 	return f.admitCalls
 }
 
-type fakeCapacityPolicy struct {
-	limits AgentCapacityLimits
-}
+// cappedLimits marks single-purpose admission fakes as capped so clear events
+// and release nudges stay enabled.
+type cappedLimits struct{}
 
-func (p fakeCapacityPolicy) CurrentLimits() AgentCapacityLimits {
-	return p.limits
+func (cappedLimits) Limits() (AgentCapacityLimits, bool) {
+	return AgentCapacityLimits{Root: 1, Subagent: 1}, true
 }
 
 func (w *chatWorker) capacityQueueContains(chatID uuid.UUID) bool {
@@ -115,7 +124,7 @@ func TestWorker_AdmissionRefusalQueuesChat(t *testing.T) {
 	admission := newFakeAdmission()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 
 	chat := f.createRunningChat(t)
 	admission.refuse(chat.ID)
@@ -143,7 +152,7 @@ func TestWorker_RefusalPublishesQueuedEventOnce(t *testing.T) {
 	admission := newFakeAdmission()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 
 	chat := f.createRunningChat(t)
 	admission.refuse(chat.ID)
@@ -172,7 +181,7 @@ func TestWorker_AdmissionAdmitPublishesClear(t *testing.T) {
 	metrics := newCapacityMetrics(prometheus.NewRegistry())
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 	opts.CapacityMetrics = metrics
 
 	chat := f.createRunningChat(t)
@@ -244,6 +253,7 @@ func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
 }
 
 type rootRefusingAdmission struct {
+	cappedLimits
 	mu    sync.Mutex
 	calls int
 }
@@ -269,7 +279,7 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = &rootRefusingAdmission{}
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
 
 	// The root backlog is deep enough to hide the later subagent without
 	// pool-interleaved ordering.
@@ -290,7 +300,7 @@ func TestWorker_BatchSizeOneCannotHideAPool(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = &rootRefusingAdmission{}
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
 	opts.AcquisitionBatchSize = 1
 
 	roots := []database.Chat{f.createRunningChat(t), f.createRunningChat(t)}
@@ -308,7 +318,7 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	admission := &rootRefusingAdmission{}
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 
 	chats := make([]database.Chat, 5)
 	for i := range chats {
@@ -335,8 +345,7 @@ func TestWorker_AdmissionPublishesClearWithoutLocalRefusal(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = newFakeAdmission()
-	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+	opts.AgentCapacityLimiter = newFakeAdmission()
 
 	// Another replica may have refused this chat and published the queued
 	// event, so the admitting replica must publish the clear even though
@@ -358,8 +367,9 @@ func TestWorker_UncappedPolicySkipsClearEvents(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = newFakeAdmission()
-	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: false}}
+	admission := newFakeAdmission()
+	admission.uncapped = true
+	opts.AgentCapacityLimiter = admission
 
 	chat := f.createRunningChat(t)
 	startWorker(t, opts)
@@ -376,7 +386,7 @@ func TestWorker_WithoutAdmissionPublishesNoCapacityEvents(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	require.Nil(t, opts.AgentAdmission)
+	require.Nil(t, opts.AgentCapacityLimiter, "the noop limiter applies at construction")
 
 	chat := f.createRunningChat(t)
 	startWorker(t, opts)
@@ -392,7 +402,7 @@ func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	admission := newFakeAdmission()
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 
 	older := f.createRunningChat(t)
 	newer := f.createRunningChat(t)
@@ -422,7 +432,7 @@ func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 		"the longer-waiting chat must admit first")
 }
 
-type runningRefusingAdmission struct{}
+type runningRefusingAdmission struct{ cappedLimits }
 
 func (runningRefusingAdmission) Admit(_ context.Context, _ database.Store, chat database.Chat) (bool, error) {
 	return chat.Status != database.ChatStatusRunning, nil
@@ -433,7 +443,7 @@ func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = runningRefusingAdmission{}
+	opts.AgentCapacityLimiter = runningRefusingAdmission{}
 
 	chat := f.createRunningChat(t)
 	worker := startWorker(t, opts)
@@ -454,7 +464,7 @@ func TestWorker_AdmissionPassReachesChatsBeyondRefusedBatch(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = &rootRefusingAdmission{}
+	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
 	opts.AcquisitionBatchSize = 2
 
 	chats := make([]database.Chat, 5)
@@ -479,7 +489,7 @@ func TestWorker_PrunesDepartedChatsFromCapacityQueue(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	admission := newFakeAdmission()
 	opts := testOptions(t, f, starter)
-	opts.AgentAdmission = admission
+	opts.AgentCapacityLimiter = admission
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chat := f.createRunningChat(t)
@@ -507,7 +517,7 @@ func TestWorker_RunnerPublishesCapacityReleaseNudge(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = recording
-	opts.AgentAdmission = newFakeAdmission()
+	opts.AgentCapacityLimiter = newFakeAdmission()
 
 	chat := f.createRunningChat(t)
 	startWorker(t, opts)
@@ -535,7 +545,7 @@ func TestWorker_CapacityMetricsCountQueuedOnlyWhenPoolFull(t *testing.T) {
 	metrics := newCapacityMetrics(prometheus.NewRegistry())
 	opts := testOptions(t, f, newRecordingTaskStarter())
 	opts.CapacityMetrics = metrics
-	opts.AgentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+	opts.AgentCapacityLimiter = newFakeAdmission()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	occupied := f.createRunningChat(t)
@@ -628,14 +638,16 @@ func TestServer_ChatQueuedForCapacity(t *testing.T) {
 
 	queued, err := server.ChatQueuedForCapacity(ctx, waiting)
 	require.NoError(t, err)
-	require.False(t, queued, "no capacity policy must mean never queued")
+	require.False(t, queued, "the noop limiter must mean never queued")
 
-	server.agentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: false}}
+	uncapped := newFakeAdmission()
+	uncapped.uncapped = true
+	server.agentCapacityLimiter = uncapped
 	queued, err = server.ChatQueuedForCapacity(ctx, waiting)
 	require.NoError(t, err)
 	require.False(t, queued, "uncapped deployments must never report queued")
 
-	server.agentCapacityPolicy = fakeCapacityPolicy{limits: AgentCapacityLimits{Capped: true, Root: 1, Subagent: 1}}
+	server.agentCapacityLimiter = newFakeAdmission()
 	queued, err = server.ChatQueuedForCapacity(ctx, waiting)
 	require.NoError(t, err)
 	require.True(t, queued)
@@ -645,7 +657,7 @@ func TestServer_ChatQueuedForCapacity(t *testing.T) {
 	require.False(t, queued, "owned chats are active, not queued")
 }
 
-func TestCountChatCapacityUnownedByPool(t *testing.T) {
+func TestCountChatCapacityByPool(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -655,8 +667,18 @@ func TestCountChatCapacityUnownedByPool(t *testing.T) {
 	f.createRunningChat(t)
 	f.createRunningSubagentChat(t, owned.ID)
 
-	counts, err := f.db.CountChatCapacityUnownedByPool(ctx, 30)
+	counts, err := f.db.CountChatCapacityByPool(ctx, database.CountChatCapacityByPoolParams{StaleSeconds: 30})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, counts.RootCount)
-	require.EqualValues(t, 1, counts.SubagentCount)
+	require.EqualValues(t, 1, counts.ActiveRootCount)
+	require.EqualValues(t, 0, counts.ActiveSubagentCount)
+	require.EqualValues(t, 1, counts.UnownedRootCount)
+	require.EqualValues(t, 1, counts.UnownedSubagentCount)
+
+	counts, err = f.db.CountChatCapacityByPool(ctx, database.CountChatCapacityByPoolParams{
+		ExcludeChatID: owned.ID,
+		StaleSeconds:  30,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, counts.ActiveRootCount, "the excluded chat must not count as active")
+	require.EqualValues(t, 1, counts.UnownedRootCount, "exclusion must not affect unowned counts")
 }

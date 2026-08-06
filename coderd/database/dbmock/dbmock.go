@@ -483,34 +483,19 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
-// CountChatCapacityActiveByPool mocks base method.
-func (m *MockStore) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+// CountChatCapacityByPool mocks base method.
+func (m *MockStore) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountChatCapacityActiveByPool", ctx, arg)
-	ret0, _ := ret[0].(database.CountChatCapacityActiveByPoolRow)
+	ret := m.ctrl.Call(m, "CountChatCapacityByPool", ctx, arg)
+	ret0, _ := ret[0].(database.CountChatCapacityByPoolRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CountChatCapacityActiveByPool indicates an expected call of CountChatCapacityActiveByPool.
-func (mr *MockStoreMockRecorder) CountChatCapacityActiveByPool(ctx, arg any) *gomock.Call {
+// CountChatCapacityByPool indicates an expected call of CountChatCapacityByPool.
+func (mr *MockStoreMockRecorder) CountChatCapacityByPool(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityActiveByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityActiveByPool), ctx, arg)
-}
-
-// CountChatCapacityUnownedByPool mocks base method.
-func (m *MockStore) CountChatCapacityUnownedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityUnownedByPoolRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountChatCapacityUnownedByPool", ctx, staleSeconds)
-	ret0, _ := ret[0].(database.CountChatCapacityUnownedByPoolRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountChatCapacityUnownedByPool indicates an expected call of CountChatCapacityUnownedByPool.
-func (mr *MockStoreMockRecorder) CountChatCapacityUnownedByPool(ctx, staleSeconds any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityUnownedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityUnownedByPool), ctx, staleSeconds)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityByPool), ctx, arg)
 }
 
 // CountChatQueuedMessages mocks base method.

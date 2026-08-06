@@ -107,7 +107,7 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
-	if w.opts.CapacityMetrics != nil && w.opts.AgentCapacityPolicy != nil {
+	if w.opts.CapacityMetrics != nil {
 		w.wg.Go(func() {
 			w.capacityMetricsLoop(workerCtx)
 		})
@@ -313,16 +313,14 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
-		if w.opts.AgentAdmission != nil {
-			admitted, err := w.opts.AgentAdmission.Admit(ctx, store, chat)
-			if err != nil {
-				return xerrors.Errorf("agent admission: %w", err)
-			}
-			if !admitted {
-				// Roll back to suppress the ownership hint, which would wake every
-				// worker into an immediate retry of this unowned chat.
-				return errCapacityRefused
-			}
+		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
+		if err != nil {
+			return xerrors.Errorf("agent admission: %w", err)
+		}
+		if !admitted {
+			// Roll back to suppress the ownership hint, which would wake every
+			// worker into an immediate retry of this unowned chat.
+			return errCapacityRefused
 		}
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
@@ -345,8 +343,8 @@ func (w *chatWorker) acquireCandidate(
 	}
 	// Another replica may have published this chat's queued event, so the
 	// clear cannot be gated on local refusal history alone.
-	if wasQueued || (w.opts.AgentAdmission != nil && runningAtAcquire &&
-		w.opts.AgentCapacityPolicy != nil && w.opts.AgentCapacityPolicy.CurrentLimits().Capped) {
+	_, capped := w.opts.AgentCapacityLimiter.Limits()
+	if wasQueued || (runningAtAcquire && capped) {
 		w.publishCapacityChange(ctx, chatID, false)
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
