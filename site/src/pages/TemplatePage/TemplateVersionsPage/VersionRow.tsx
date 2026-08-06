@@ -14,8 +14,8 @@ interface VersionRowProps {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
-	onPromoteClick?: (templateVersionId: string) => void;
-	onArchiveClick?: (templateVersionId: string) => void;
+	onPromoteClick?: (version: TemplateVersion) => void;
+	onArchiveClick?: (version: TemplateVersion) => void;
 }
 
 export const VersionRow: FC<VersionRowProps> = ({
@@ -91,7 +91,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onArchiveClick?.(version.id);
+									onArchiveClick?.(version);
 								}}
 							>
 								Archive&hellip;
@@ -105,7 +105,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onPromoteClick?.(version.id);
+									onPromoteClick?.(version);
 								}}
 							>
 								Promote&hellip;
