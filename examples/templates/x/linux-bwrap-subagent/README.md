@@ -23,9 +23,9 @@ agent:
   `/home/coder/project`, mounted inside the sandbox at
   `/workspace/project`;
 - a child-side workload, `scripts/probe.sh`, that probes the sandbox
-  boundary, writes its report into the shared directory, and then serves that
-  report with BusyBox `httpd` behind the owner-shared `Sandbox probe report`
-  app.
+  boundary, writes its report into the shared directory, starts BusyBox
+  `httpd` in daemon mode, and then exits so the child agent can reach ready and
+  expose the owner-shared `Sandbox probe report` app.
 
 Everything else the child sees is created by the driver: an empty private
 root, a minimal BusyBox `/bin`, generated account files, a private home,

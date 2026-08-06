@@ -147,9 +147,8 @@ resource "coder_script" "sandbox_project_web" {
   display_name = "Sandbox probes and project web server"
   icon         = "/icon/widgets.svg"
   run_on_start = true
-  # The probe script ends by serving its own report in the foreground, so the
-  # sandbox has a long-lived workload to observe. It deliberately does not
-  # block login: the child web terminal stays usable while the script runs.
+  # The probe script starts BusyBox httpd in daemon mode, then exits so the
+  # child agent can complete its startup lifecycle and expose the app.
   start_blocks_login = false
   # The body is the checked-in probe script, prefixed with the shared path
   # this template declares, so the script and the template cannot disagree

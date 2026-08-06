@@ -203,4 +203,7 @@ if [ "$probe_serve" = 0 ]; then
 	exit 0
 fi
 
-exec busybox httpd -f -p 3000 -h "$shared_dir"
+# BusyBox httpd daemonizes by default. Letting the startup script return is
+# required for the child agent to transition from STARTING to READY; the
+# bubblewrap PID namespace still tears the server down with the child agent.
+busybox httpd -p 3000 -h "$shared_dir"
