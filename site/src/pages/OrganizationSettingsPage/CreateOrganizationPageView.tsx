@@ -43,10 +43,6 @@ const validationSchema = Yup.object({
 	),
 });
 
-const organizationsDocs = docs("/admin/users/organizations");
-const organizationsPaywallDescription =
-	"Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure.";
-
 interface CreateOrganizationPageViewProps {
 	isEntitled: boolean;
 }
@@ -96,7 +92,7 @@ export const CreateOrganizationPageView: FC<
 
 	return (
 		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
-			<div className={cn("flex flex-col gap-4 w-full mx-auto max-w-4xl")}>
+			<div className="flex flex-col gap-4 w-full mx-auto max-w-4xl">
 				<Button variant="subtle" asChild>
 					<Link to="/organizations" className="-ml-3 self-start">
 						<ArrowLeftIcon />
@@ -124,8 +120,8 @@ export const CreateOrganizationPageView: FC<
 					{!isEntitled ? (
 						<PaywallPremium
 							message="Organizations"
-							description={organizationsPaywallDescription}
-							documentationLink={organizationsDocs}
+							description="Isolate members, templates, and provisioners for a team or project within a single Coder deployment."
+							documentationLink={docs("/admin/users/organizations")}
 						/>
 					) : (
 						<div className="border border-solid p-6 rounded-lg">
