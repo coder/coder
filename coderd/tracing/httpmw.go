@@ -51,8 +51,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 
 			// Read the session_id from baggage and add it to the log context.
 			// This is done even when tracing is disabled so that logs can
-			// always be correlated by session_id. The field name is written as
-			// a literal because slog field names must be snake_case literals.
+			// always be correlated by session_id.
 			sessionID := sessionIDFromHeaders(r.Header)
 			if sessionID != "" {
 				r = r.WithContext(slog.With(r.Context(), slog.F("session_id", sessionID)))
