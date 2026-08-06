@@ -180,7 +180,7 @@ func Classify(err error) ClassifiedError {
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
 	// combinedText merges the transport wrapper text with the structured
 	// provider response body so signal patterns in either are detected.
-	// AIBridge writes some failures as plain-text bodies that never reach
+	// AI Bridge writes some failures as plain-text bodies that never reach
 	// the transport wrapper, so the body can be the only signal regardless
 	// of the class's nominal status code.
 	combinedText := lower + "\n" + strings.ToLower(structured.detail)
