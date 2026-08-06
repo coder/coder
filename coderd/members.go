@@ -269,7 +269,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param q query string false "Member search query"
 // @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit, if 0 returns all members"
+// @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
 // @Router /api/v2/organizations/{organization}/paginated-members [get]

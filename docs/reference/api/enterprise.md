@@ -455,7 +455,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
+curl -X GET http://coder-server:8080/api/v2/connectionlog \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -467,7 +467,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 | Name     | In    | Type    | Required | Description  |
 |----------|-------|---------|----------|--------------|
 | `q`      | query | string  | false    | Search query |
-| `limit`  | query | integer | true     | Page limit   |
+| `limit`  | query | integer | false    | Page limit   |
 | `offset` | query | integer | false    | Page offset  |
 
 ### Example responses
