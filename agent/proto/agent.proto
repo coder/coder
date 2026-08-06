@@ -93,6 +93,11 @@ message Manifest {
 	bool disable_direct_connections = 7;
 	bool derp_force_websockets = 8;
 	optional bytes parent_id = 18;
+	// execution_isolation reports that this agent runs inside an
+	// execution boundary and therefore outside the workspace owner's
+	// trust boundary. The agent uses it to withhold credentials it
+	// holds for its own API calls from the commands it spawns.
+	bool execution_isolation = 21;
 
 	coder.tailnet.v2.DERPMap derp_map = 9;
 	repeated WorkspaceAgentScript scripts = 10;

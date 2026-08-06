@@ -136,6 +136,11 @@ type Manifest struct {
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
 	SubagentExecutions       []SubagentExecution                          `json:"subagent_executions"`
+	// ExecutionIsolation reports that this agent runs inside an
+	// execution boundary, so it runs outside the workspace owner's
+	// trust boundary. The agent withholds credentials it holds for its
+	// own API calls from the commands it spawns when this is set.
+	ExecutionIsolation bool `json:"execution_isolation"`
 }
 
 // SubagentExecution is a declared nested execution the parent agent

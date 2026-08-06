@@ -456,6 +456,9 @@ func TestGetManifest(t *testing.T) {
 		// t.Log("expected:\n" + spew.Sdump(expected))
 
 		require.Equal(t, expected, got)
+		// An ordinary agent is not execution isolated, so it keeps receiving its
+		// token in the environment of the commands it spawns.
+		require.False(t, got.ExecutionIsolation)
 	})
 
 	// A child agent has no declarations of its own, and the mock store fails the
@@ -575,6 +578,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           0, // no human Git auth for an isolated agent
 			EnvironmentVariables:     nil,
+			ExecutionIsolation:       true,
 			Directory:                isolatedChildAgent.Directory,
 			VsCodePortProxyUri:       fmt.Sprintf("https://{{port}}--%s--%s--%s--apps.example.com", isolatedChildAgent.Name, workspace.Name, owner.Username),
 			MotdPath:                 isolatedChildAgent.MOTDFile,
@@ -643,6 +647,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           0, // no human Git auth for an isolated agent
 			EnvironmentVariables:     expectedEnvVars,
+			ExecutionIsolation:       true,
 			Directory:                isolatedAgent.Directory,
 			VsCodePortProxyUri:       fmt.Sprintf("https://{{port}}--%s--%s--%s--apps.example.com", isolatedAgent.Name, workspace.Name, owner.Username),
 			MotdPath:                 isolatedAgent.MOTDFile,

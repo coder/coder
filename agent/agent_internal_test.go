@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
+	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	agentsdk "github.com/coder/coder/v2/codersdk/agentsdk"
@@ -141,4 +143,162 @@ func TestClassifyCoordinatorRPCExit(t *testing.T) {
 			require.Equal(t, tc.initiator, initiator)
 		})
 	}
+}
+
+// sessionTokenClient is a Client that answers nothing but the session token.
+// The embedded interface is nil because updateCommandEnv touches no other
+// method, so any accidental new dependency panics loudly instead of passing
+// silently.
+type sessionTokenClient struct {
+	Client
+	token string
+}
+
+func (c sessionTokenClient) GetSessionToken() string { return c.token }
+
+// TestUpdateCommandEnvExecutionIsolation covers the credential boundary of the
+// environment handed to spawned commands. An execution-isolated agent runs
+// outside the workspace owner's trust boundary, so no command it spawns may
+// receive the token the agent itself authenticates with, while an ordinary
+// agent keeps exposing it for the Coder subcommands that need it.
+func TestUpdateCommandEnvExecutionIsolation(t *testing.T) {
+	t.Parallel()
+
+	const sessionToken = "test-session-token"
+
+	newAgent := func(t *testing.T, manifest agentsdk.Manifest) *agent {
+		t.Helper()
+		uut := &agent{
+			client:               sessionTokenClient{token: sessionToken},
+			environmentVariables: map[string]string{"GIT_ASKPASS": "/usr/bin/coder"},
+			scriptRunner: agentscripts.New(agentscripts.Options{
+				DataDirBase: t.TempDir(),
+			}),
+		}
+		uut.manifest.Store(&manifest)
+		return uut
+	}
+
+	envMap := func(t *testing.T, env []string) map[string]string {
+		t.Helper()
+		out := make(map[string]string, len(env))
+		for _, e := range env {
+			parts := strings.SplitN(e, "=", 2)
+			require.Len(t, parts, 2, "malformed env entry %q", e)
+			out[parts[0]] = parts[1]
+		}
+		return out
+	}
+
+	t.Run("Ordinary/ExposesToken", func(t *testing.T) {
+		t.Parallel()
+
+		uut := newAgent(t, agentsdk.Manifest{
+			WorkspaceName:        "ws",
+			AgentName:            "main",
+			OwnerName:            "owner",
+			EnvironmentVariables: map[string]string{"MY_TEMPLATE_VAR": "template-value"},
+		})
+
+		got, err := uut.updateCommandEnv(nil)
+		require.NoError(t, err)
+
+		envs := envMap(t, got)
+		require.Equal(t, sessionToken, envs["CODER_AGENT_TOKEN"])
+		require.Equal(t, "template-value", envs["MY_TEMPLATE_VAR"])
+	})
+
+	t.Run("Isolated/OmitsToken", func(t *testing.T) {
+		t.Parallel()
+
+		uut := newAgent(t, agentsdk.Manifest{
+			WorkspaceName:        "ws",
+			AgentName:            "sandbox",
+			OwnerName:            "owner",
+			ExecutionIsolation:   true,
+			EnvironmentVariables: map[string]string{"MY_TEMPLATE_VAR": "template-value"},
+		})
+
+		got, err := uut.updateCommandEnv(nil)
+		require.NoError(t, err)
+
+		envs := envMap(t, got)
+		require.NotContains(t, envs, "CODER_AGENT_TOKEN")
+		// Everything else the agent and the template declare is untouched,
+		// including the generic GIT_SSH_COMMAND, which now fails closed.
+		require.Equal(t, "template-value", envs["MY_TEMPLATE_VAR"])
+		require.Equal(t, "sandbox", envs["CODER_WORKSPACE_AGENT_NAME"])
+		require.Equal(t, "/usr/bin/coder", envs["GIT_ASKPASS"])
+		require.Contains(t, envs, "GIT_SSH_COMMAND")
+	})
+
+	// The agent's own process environment must not leak the credential back in
+	// through the current-environment passthrough. An isolated top-level agent
+	// can be bootstrapped with CODER_AGENT_TOKEN in its environment.
+	t.Run("Isolated/OmitsTokenFromCurrentEnv", func(t *testing.T) {
+		t.Parallel()
+
+		uut := newAgent(t, agentsdk.Manifest{
+			WorkspaceName:      "ws",
+			AgentName:          "sandbox",
+			OwnerName:          "owner",
+			ExecutionIsolation: true,
+		})
+
+		got, err := uut.updateCommandEnv([]string{
+			"CODER_AGENT_TOKEN=" + sessionToken,
+			"UNRELATED=kept",
+		})
+		require.NoError(t, err)
+
+		envs := envMap(t, got)
+		require.NotContains(t, envs, "CODER_AGENT_TOKEN")
+		require.Equal(t, "kept", envs["UNRELATED"])
+	})
+
+	// Suppression wins over an explicit template-declared value so that the
+	// boundary does not depend on how the template was authored. This
+	// deliberately overrides `coder_env` for isolated agents only.
+	t.Run("Isolated/OmitsExplicitManifestToken", func(t *testing.T) {
+		t.Parallel()
+
+		uut := newAgent(t, agentsdk.Manifest{
+			WorkspaceName:      "ws",
+			AgentName:          "sandbox",
+			OwnerName:          "owner",
+			ExecutionIsolation: true,
+			EnvironmentVariables: map[string]string{
+				"CODER_AGENT_TOKEN": "admin-declared-token",
+				"MY_TEMPLATE_VAR":   "template-value",
+			},
+		})
+
+		got, err := uut.updateCommandEnv(nil)
+		require.NoError(t, err)
+
+		envs := envMap(t, got)
+		require.NotContains(t, envs, "CODER_AGENT_TOKEN")
+		require.Equal(t, "template-value", envs["MY_TEMPLATE_VAR"])
+	})
+
+	// An ordinary agent keeps the established template semantics: an explicit
+	// manifest value overrides the agent's default.
+	t.Run("Ordinary/HonorsExplicitManifestToken", func(t *testing.T) {
+		t.Parallel()
+
+		uut := newAgent(t, agentsdk.Manifest{
+			WorkspaceName: "ws",
+			AgentName:     "main",
+			OwnerName:     "owner",
+			EnvironmentVariables: map[string]string{
+				"CODER_AGENT_TOKEN": "admin-declared-token",
+			},
+		})
+
+		got, err := uut.updateCommandEnv(nil)
+		require.NoError(t, err)
+
+		envs := envMap(t, got)
+		require.Equal(t, "admin-declared-token", envs["CODER_AGENT_TOKEN"])
+	})
 }

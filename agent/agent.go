@@ -1818,6 +1818,10 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 // - Environment variables passed via the agent manifest (overriding predefined and current)
 // - User secret variables passed via the agent manifest (overriding predefined, current, and manifest env vars)
 // - Agent-level environment variables (overriding all)
+//
+// For an execution-isolated agent, CODER_AGENT_TOKEN is removed from the
+// result after all of the above are merged, so no spawned command receives the
+// agent's credential.
 func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
 	manifest := a.manifest.Load()
 	if manifest == nil {
@@ -1840,14 +1844,19 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
 		"CODER_WORKSPACE_ID":         manifest.WorkspaceID.String(),
 
-		// Specific Coder subcommands require the agent token exposed!
-		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
-
 		// Git on Windows resolves with UNIX-style paths.
 		// If using backslashes, it's unable to find the executable.
 		"GIT_SSH_COMMAND": fmt.Sprintf("%s gitssh --", unixExecutablePath),
 		// Hide Coder message on code-server's "Getting Started" page
 		"CS_DISABLE_GETTING_STARTED_OVERRIDE": "true",
+	}
+
+	// Specific Coder subcommands require the agent token exposed. An
+	// execution-isolated agent runs outside the workspace owner's trust
+	// boundary, so it keeps the token it authenticates with to itself instead
+	// of handing it to every command it spawns.
+	if !manifest.ExecutionIsolation {
+		envs["CODER_AGENT_TOKEN"] = a.client.GetSessionToken()
 	}
 
 	// This adds the ports dialog to code-server that enables
@@ -1896,6 +1905,26 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and GIT_ASKPASS.
 	for k, v := range a.environmentVariables {
 		envs[k] = v
+	}
+
+	// An execution-isolated agent must not hand its own credential to the
+	// commands it spawns, so the name is removed here after every merge layer,
+	// whatever its source: the agent's own process environment, an
+	// agent-level bootstrap variable, or an explicit template `coder_env`
+	// value. Removing it unconditionally makes the boundary independent of how
+	// the template was authored, at the cost of overriding an admin who
+	// deliberately declares CODER_AGENT_TOKEN for an isolated agent. Every
+	// other declared variable is left untouched. The agent process itself is
+	// unaffected: it keeps authenticating with the token it loaded from its
+	// private token file at startup.
+	//
+	// GIT_SSH_COMMAND is deliberately left in place. Without a token, the
+	// `coder gitssh` it invokes fails closed with an authentication error
+	// rather than silently authenticating as the agent, and an isolated
+	// manifest carries GitAuthConfigs=0 so no owner-backed Git credential
+	// helper is configured in the first place.
+	if manifest.ExecutionIsolation {
+		delete(envs, "CODER_AGENT_TOKEN")
 	}
 
 	// Prepend the agent script bin directory to the PATH

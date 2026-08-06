@@ -397,3 +397,27 @@ func TestSubagentExecutionOmitsCredentials(t *testing.T) {
 		"RestartPolicy",
 	}, fields)
 }
+
+// TestManifestExecutionIsolationRoundTrip asserts that the marker telling an
+// agent it runs inside an execution boundary survives both conversion
+// directions. The agent withholds its own credential from spawned commands
+// based on it, so losing it silently restores the leak.
+func TestManifestExecutionIsolationRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, isolated := range []bool{true, false} {
+		manifest := agentsdk.Manifest{
+			AgentID:            uuid.New(),
+			WorkspaceID:        uuid.New(),
+			ExecutionIsolation: isolated,
+		}
+
+		p, err := agentsdk.ProtoFromManifest(manifest)
+		require.NoError(t, err)
+		require.Equal(t, isolated, p.ExecutionIsolation)
+
+		back, err := agentsdk.ManifestFromProto(p)
+		require.NoError(t, err)
+		require.Equal(t, isolated, back.ExecutionIsolation)
+	}
+}

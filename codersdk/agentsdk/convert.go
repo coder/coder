@@ -72,6 +72,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
 		SubagentExecutions:       subagentExecutions,
+		ExecutionIsolation:       manifest.ExecutionIsolation,
 	}, nil
 }
 
@@ -104,6 +105,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
 		SubagentExecutions:       ProtoFromSubagentExecutions(manifest.SubagentExecutions),
+		ExecutionIsolation:       manifest.ExecutionIsolation,
 	}, nil
 }
 

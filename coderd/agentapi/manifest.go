@@ -180,6 +180,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 		ParentId:                 parentID,
+		// The agent needs to know it is execution isolated so it can withhold
+		// its own credentials from the commands it spawns. This holds for a
+		// standalone isolated top-level agent as well as an execution-owned
+		// child.
+		ExecutionIsolation: workspaceAgent.ExecutionIsolation,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:       dbAgentScriptsToProto(scripts),
