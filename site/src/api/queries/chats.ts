@@ -643,10 +643,7 @@ export const invalidateChatListQueries = (queryClient: QueryClient) =>
 		queryKey: chatListFamilyKey,
 	});
 
-// Watch events that can reorder which chat is the newest for a
-// workspace. The created and deleted kinds are handled by their own
-// watch branches; title, summary, diff, and context events do not move
-// updated_at ordering.
+// Event kinds that can change which chat is newest for a workspace.
 const BY_WORKSPACE_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>(
 	["status_change", "action_required"],
 );

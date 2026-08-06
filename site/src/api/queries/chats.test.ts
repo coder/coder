@@ -3183,11 +3183,8 @@ describe("semantic cache operations: prefix invalidations", () => {
 	});
 
 	describe(shouldInvalidateChatsByWorkspace.name, () => {
-		// Only events that can reorder which chat is the newest for a
-		// workspace invalidate the by-workspace mapping. The created and
-		// deleted kinds are handled by their own watch branches before the
-		// merge path runs; title, summary, diff, and context events do not
-		// move updated_at ordering.
+		// created/deleted have their own watch branches; title, summary,
+		// diff, and context events do not move updated_at ordering.
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
 			chat_summary_change: false,
