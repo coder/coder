@@ -1937,6 +1937,40 @@ export const DownloadInIOSStandaloneOpensInlineAttachmentInTab: Story = {
 	},
 };
 
+export const DownloadInIOSStandaloneStaysQuietOnDismissedShare: Story = {
+	decorators: [withToaster],
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockRejectedValue(
+			new DOMException("dismissed", "AbortError"),
+		);
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		const open = spyOn(window, "open").mockReturnValue(null);
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			// The spinner clearing marks the flow as settled.
+			await waitFor(() => {
+				expect(
+					canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+				).toHaveAttribute("aria-disabled", "false");
+			});
+			expect(
+				screen.queryByText("Couldn't download deployment-report.pdf"),
+			).not.toBeInTheDocument();
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
 export const DownloadInIOSStandaloneWithoutShareOpensTab: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
