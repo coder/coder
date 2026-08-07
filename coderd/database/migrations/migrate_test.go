@@ -2772,6 +2772,8 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		"confidentialBasic": uuid.New(), // already consistent  -> must be left alone
 		"confidentialPost":  uuid.New(), // already consistent, and post must not be flattened to basic
 		"publicNone":        uuid.New(), // already consistent  -> must be left alone
+		"confidentialEmpty": uuid.New(), // confidential + ''        -> repaired only by the widened predicate
+		"confidentialJunk":  uuid.New(), // confidential + unknown   -> repaired only by the widened predicate
 	}
 
 	seed := func(id uuid.UUID, name, clientType string, authMethod *string) {
@@ -2791,6 +2793,12 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 	seed(ids["confidentialBasic"], "test-565-basic", "confidential", strPtr("client_secret_basic"))
 	seed(ids["confidentialPost"], "test-565-post", "confidential", strPtr("client_secret_post"))
 	seed(ids["publicNone"], "test-565-public", "public", strPtr("none"))
+	// Neither of these is producible by today's write path: ApplyDefaults maps
+	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
+	// in for history the squashed log cannot rule out, and both would satisfy
+	// the eventual cross-column constraint while remaining unusable.
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", strPtr(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", strPtr("client_secret_jwt"))
 
 	return sqlDB, ctx, ids
 }
@@ -2929,6 +2937,16 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 			key:        "publicNone",
 			wantMethod: "none",
 			reason:     "already consistent, must be left alone",
+		},
+		{
+			key:        "confidentialEmpty",
+			wantMethod: "client_secret_basic",
+			reason:     "an empty declaration is not a valid confidential method and must be repaired, not just the known 'none' case",
+		},
+		{
+			key:        "confidentialJunk",
+			wantMethod: "client_secret_basic",
+			reason:     "an unrecognized declaration must be repaired too, so the migration is idempotent against history it cannot inspect",
 		},
 	}
 

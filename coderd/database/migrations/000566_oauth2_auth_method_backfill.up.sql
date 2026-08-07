@@ -17,10 +17,21 @@
 -- enforcement from the declaration would reclassify every such client as public
 -- and stop requiring the secret it holds, which is a silent authentication
 -- downgrade.
+-- Both branches name the values that are valid for their client type and repair
+-- everything else, rather than enumerating the bad values known today. A
+-- confidential row holding '' or an unrecognized method would otherwise survive
+-- untouched, and it would also satisfy the cross-column constraint this is
+-- heading towards, since ('' = 'none') and (client_type = 'public') are both
+-- false. Nothing would ever look at it again while RFC 7592 GET kept handing
+-- the client a declaration it cannot use.
+--
+-- The IS NULL arm is not redundant: NULL NOT IN (...) evaluates to NULL, and
+-- WHERE admits only true, so without it NULL rows would stop being repaired.
 UPDATE oauth2_provider_apps
 SET token_endpoint_auth_method = 'client_secret_basic' -- the RFC 7591 section 2 default for a client with a secret
 WHERE client_type = 'confidential'
-  AND (token_endpoint_auth_method IS NULL OR token_endpoint_auth_method = 'none');
+  AND (token_endpoint_auth_method IS NULL
+       OR token_endpoint_auth_method NOT IN ('client_secret_basic', 'client_secret_post'));
 
 -- The mirror case is not reachable through any current code path, since a public
 -- client is only ever created by requesting 'none'. Included so the invariant
