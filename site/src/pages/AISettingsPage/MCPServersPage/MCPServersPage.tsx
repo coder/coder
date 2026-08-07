@@ -3,7 +3,7 @@ import { useQuery } from "react-query";
 import { mcpServerConfigs } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
-	getDefaultOrganizationName,
+	getDefaultOrganizationId,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -13,7 +13,7 @@ import MCPServersPageView from "./MCPServersPageView";
 const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organization = getDefaultOrganizationName(organizations);
+	const organization = getDefaultOrganizationId(organizations);
 	const serversQuery = useQuery({
 		...mcpServerConfigs(organization),
 		enabled: Boolean(organization),

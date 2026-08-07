@@ -91,9 +91,11 @@ export const getDefaultMCPSelection = (
 	return ids;
 };
 
+const legacyMCPSelectionStorageKey = "agents.selected-mcp-server-ids";
+
 /** localStorage key for persisting the user's MCP server selection. */
 export const mcpSelectionStorageKey = (organizationId: string) =>
-	`agents.selected-mcp-server-ids.${organizationId}`;
+	`${legacyMCPSelectionStorageKey}.${organizationId}`;
 
 /**
  * Read the persisted MCP selection from localStorage, filtered to only
@@ -102,8 +104,12 @@ export const mcpSelectionStorageKey = (organizationId: string) =>
  */ export const getSavedMCPSelection = (
 	organizationId: string,
 	servers: readonly TypesGen.MCPServerConfig[],
+	readLegacy = false,
 ): string[] | null => {
-	const raw = localStorage.getItem(mcpSelectionStorageKey(organizationId));
+	let raw = localStorage.getItem(mcpSelectionStorageKey(organizationId));
+	if (raw === null && readLegacy) {
+		raw = localStorage.getItem(legacyMCPSelectionStorageKey);
+	}
 	if (raw === null) {
 		return null;
 	}
@@ -143,9 +149,7 @@ export const mcpSelectionStorageKey = (organizationId: string) =>
 	}
 };
 
-/**
- * Persist the current MCP selection to localStorage.
- */ export const saveMCPSelection = (
+export const saveMCPSelection = (
 	organizationId: string,
 	ids: readonly string[],
 ): void => {
@@ -153,6 +157,25 @@ export const mcpSelectionStorageKey = (organizationId: string) =>
 		mcpSelectionStorageKey(organizationId),
 		JSON.stringify(ids),
 	);
+};
+
+export const migrateLegacyMCPSelection = (
+	organizationId: string,
+	servers: readonly TypesGen.MCPServerConfig[],
+): void => {
+	const storageKey = mcpSelectionStorageKey(organizationId);
+	if (
+		localStorage.getItem(storageKey) !== null ||
+		localStorage.getItem(legacyMCPSelectionStorageKey) === null
+	) {
+		return;
+	}
+	const selection = getSavedMCPSelection(organizationId, servers, true);
+	if (selection === null) {
+		return;
+	}
+	saveMCPSelection(organizationId, selection);
+	localStorage.removeItem(legacyMCPSelectionStorageKey);
 };
 
 // ── Overlapping icon stack for the trigger ─────────────────────

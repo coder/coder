@@ -110,6 +110,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	component: AgentCreateForm,
 	decorators: [withDashboardProvider],
 	args: {
+		onOrganizationChange: fn(),
 		onCreateChat: fn(),
 		sendShortcut: "enter",
 		isCreating: false,
@@ -118,6 +119,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
+		mcpServersOrganizationId: MockDefaultOrganization.id,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
 		workspaceCount: 0,
@@ -911,19 +913,25 @@ export const WithOrganizationPicker: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const organizationPicker = canvas.getByRole("button", {
-			name: "Organization: My Organization",
+		const body = within(canvasElement.ownerDocument.body);
+		const organizationSelector = await canvas.findByRole("button", {
+			name: `Organization: ${MockDefaultOrganization.display_name}`,
 		});
-		await expect(organizationPicker).toBeVisible();
-
+		await userEvent.click(organizationSelector);
+		await userEvent.click(
+			await body.findByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await expect(args.onOrganizationChange).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
 		await expect(
 			canvas.getByRole("button", {
-				name: "Organization: My Organization",
+				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeVisible();
 	},

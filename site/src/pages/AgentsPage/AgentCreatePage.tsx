@@ -18,7 +18,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -44,11 +47,7 @@ const AgentCreatePage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [organizationId, setOrganizationId] = useState(
-		() =>
-			(
-				organizations.find((organization) => organization.is_default) ??
-				organizations[0]
-			)?.id ?? "",
+		() => getDefaultOrganizationId(organizations) || organizations[0]?.id || "",
 	);
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 
@@ -192,6 +191,7 @@ const AgentCreatePage: FC = () => {
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
+				mcpServersOrganizationId={organizationId}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 				workspaceCount={workspacesQuery.data?.count}

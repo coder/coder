@@ -34,6 +34,7 @@ import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
+	migrateLegacyMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
@@ -123,7 +124,7 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	onOrganizationChange?: (organizationId: string) => void;
+	onOrganizationChange: (organizationId: string) => void;
 	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
@@ -140,6 +141,7 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
+	mcpServersOrganizationId: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
@@ -150,7 +152,7 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
-	onOrganizationChange = () => {},
+	onOrganizationChange,
 	sendShortcut,
 	isCreating,
 	createError,
@@ -167,6 +169,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
+	mcpServersOrganizationId,
 	mcpServers,
 	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
@@ -337,6 +340,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
+	const scopedMCPServers =
+		mcpServersOrganizationId === organizationId ? (mcpServers ?? []) : [];
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
@@ -410,12 +415,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(organizationId, mcpServers ?? []);
+		const saved = getSavedMCPSelection(
+			organizationId,
+			scopedMCPServers,
+			effectiveOrg?.is_default,
+		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(mcpServers ?? []);
+		return getDefaultMCPSelection(scopedMCPServers);
 	})();
+	useEffect(() => {
+		if (
+			effectiveOrg?.is_default &&
+			mcpServersOrganizationId === organizationId
+		) {
+			migrateLegacyMCPSelection(organizationId, mcpServers ?? []);
+		}
+	}, [
+		organizationId,
+		mcpServers,
+		mcpServersOrganizationId,
+		effectiveOrg?.is_default,
+	]);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -639,7 +661,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}
-						mcpServers={mcpServers}
+						mcpServers={scopedMCPServers}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);

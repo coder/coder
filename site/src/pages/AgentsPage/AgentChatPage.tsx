@@ -107,6 +107,7 @@ import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
+	migrateLegacyMCPSelection,
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
@@ -927,6 +928,15 @@ const AgentChatPage: FC = () => {
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 	});
+	const isDefaultChatOrganization = organizations.some(
+		(organization) =>
+			organization.id === chatOrganizationId && organization.is_default,
+	);
+	useEffect(() => {
+		if (isDefaultChatOrganization && mcpServersQuery.data) {
+			migrateLegacyMCPSelection(chatOrganizationId, mcpServersQuery.data);
+		}
+	}, [chatOrganizationId, isDefaultChatOrganization, mcpServersQuery.data]);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -1103,7 +1113,11 @@ const AgentChatPage: FC = () => {
 		}
 		// Check for a previously saved selection in localStorage.
 		const saved = chatOrganizationId
-			? getSavedMCPSelection(chatOrganizationId, mcpServers)
+			? getSavedMCPSelection(
+					chatOrganizationId,
+					mcpServers,
+					isDefaultChatOrganization,
+				)
 			: null;
 		if (saved !== null) {
 			return saved;
