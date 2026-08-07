@@ -76,7 +76,7 @@ const testButton = async (
 ) => {
 	await renderWorkspacePage(workspace);
 	const workspaceActions = screen.getByTestId("workspace-actions");
-	const button = within(workspaceActions).getByRole("button", { name });
+	const button = await within(workspaceActions).findByRole("button", { name });
 
 	const user = userEvent.setup();
 	await user.click(button);

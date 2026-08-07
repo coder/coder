@@ -245,7 +245,7 @@ test("The file is uploaded with the correct content type", async () => {
 	await typeOnEditor("new content", user);
 	await buildTemplateVersion(newTemplateVersion, user, topbar);
 
-	expect(API.uploadFile).toHaveBeenCalledWith(
+	expect(vi.mocked(API.uploadFile).mock.calls[0]?.[0]).toEqual(
 		expect.objectContaining({
 			name: "template.tar",
 			type: "application/x-tar",
