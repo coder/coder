@@ -206,8 +206,9 @@ const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
 		}
 		setIsPending(true);
 		void pending.finally(() => {
-			downloadRequest.clear(controller);
-			setIsPending(false);
+			if (downloadRequest.clear(controller)) {
+				setIsPending(false);
+			}
 		});
 	};
 	return { isPending, onClick };

@@ -311,14 +311,29 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("suppresses sharing when unmounted after the fetch resolves", async () => {
+	it.each([
+		["the fetch resolves", false, 200],
+		["an HTTP error resolves", false, 503],
+		["the response body resolves", true, 200],
+	])("suppresses UI after unmount when %s", async (_label, abortInBlob, status) => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
 		mockFileSharing(share);
 		const controller = new AbortController();
 		vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-			controller.abort();
-			return new Response(new Blob(["png-bytes"], { type: "image/png" }));
+			const response = new Response(
+				new Blob(["png-bytes"], { type: "image/png" }),
+				{ status },
+			);
+			if (abortInBlob) {
+				vi.spyOn(response, "blob").mockImplementation(async () => {
+					controller.abort();
+					return new Blob(["png-bytes"], { type: "image/png" });
+				});
+			} else {
+				controller.abort();
+			}
+			return response;
 		});
 
 		await click(target, controller.signal).pending;

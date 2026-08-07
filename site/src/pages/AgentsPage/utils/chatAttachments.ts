@@ -124,8 +124,8 @@ const openFallbackAction = (target: AttachmentDownloadTarget, file: File) => ({
 	onClick: () => openAttachmentInTab(target.href, file),
 });
 
-// Production CSP limits connect-src to 'self', so inline data: hrefs
-// cannot be fetched and are decoded locally instead.
+// Production CSP excludes data: from connect-src, so inline hrefs are
+// decoded locally instead.
 const fileFromDataURL = ({
 	href,
 	fileName,
@@ -181,6 +181,9 @@ const shareAttachmentFile = async (
 	} else {
 		try {
 			const response = await fetch(target.href, { signal });
+			if (signal?.aborted) {
+				return;
+			}
 			if (!response.ok) {
 				throw new Error(
 					response.statusText
@@ -233,7 +236,7 @@ export const handleAttachmentDownloadClick = (
 	if (canShareFile(probe)) {
 		return shareAttachmentFile(target, signal);
 	}
-	// Opening before an await preserves the user activation required by popup blockers.
+	// Open the fallback tab during the click gesture to satisfy popup blockers.
 	const file = target.href.startsWith("data:")
 		? fileFromDataURL(target)
 		: probe;
