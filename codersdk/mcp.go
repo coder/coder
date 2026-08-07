@@ -102,6 +102,33 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
+type MCPServerConfigRole = ChatRole
+
+const (
+	MCPServerConfigRoleRead    = ChatRoleRead
+	MCPServerConfigRoleDeleted = ChatRoleDeleted
+)
+
+type MCPServerConfigACL struct {
+	Users  []MCPServerConfigUser  `json:"users"`
+	Groups []MCPServerConfigGroup `json:"groups"`
+}
+
+type MCPServerConfigUser struct {
+	MinimalUser
+	Role MCPServerConfigRole `json:"role" enums:"read"`
+}
+
+type MCPServerConfigGroup struct {
+	Group
+	Role MCPServerConfigRole `json:"role" enums:"read"`
+}
+
+type UpdateMCPServerConfigACLRequest struct {
+	UserRoles  map[string]MCPServerConfigRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]MCPServerConfigRole `json:"group_roles,omitempty"`
+}
+
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
 type CreateMCPServerConfigRequest struct {
 	DisplayName string `json:"display_name" validate:"required"`
@@ -198,6 +225,31 @@ func (c *Client) MCPServerConfigByID(ctx context.Context, organizationID, id uui
 	}
 	var config MCPServerConfig
 	return config, ReadBodyAsJSON(res, &config)
+}
+
+func (c *Client) MCPServerConfigACL(ctx context.Context, id uuid.UUID) (MCPServerConfigACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), nil)
+	if err != nil {
+		return MCPServerConfigACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerConfigACL{}, ReadBodyAsError(res)
+	}
+	var acl MCPServerConfigACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 func (c *Client) CreateMCPServerConfig(ctx context.Context, organizationID uuid.UUID, req CreateMCPServerConfigRequest) (MCPServerConfig, error) {
