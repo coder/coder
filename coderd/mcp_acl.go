@@ -44,7 +44,10 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerConfigACL{Users: users, Groups: groups})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerConfigACL{
+		Users:  users,
+		Groups: groups,
+	})
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -93,13 +96,7 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	}
 
 	userACL := maps.Clone(config.UserACL)
-	if userACL == nil {
-		userACL = database.ChatACL{}
-	}
 	groupACL := maps.Clone(config.GroupACL)
-	if groupACL == nil {
-		groupACL = database.ChatACL{}
-	}
 	for id, role := range req.UserRoles {
 		if role == codersdk.MCPServerConfigRoleDeleted {
 			delete(userACL, id)
@@ -116,7 +113,9 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	}
 
 	if err := api.Database.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
-		ID: config.ID, UserACL: userACL, GroupACL: groupACL,
+		ID:       config.ID,
+		UserACL:  userACL,
+		GroupACL: groupACL,
 	}); err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
@@ -144,7 +143,10 @@ func (api *API) mcpServerConfigACLUsers(ctx context.Context, rw http.ResponseWri
 	}
 	result := make([]codersdk.MCPServerConfigUser, 0, len(users))
 	for _, user := range users {
-		result = append(result, codersdk.MCPServerConfigUser{MinimalUser: db2sdk.MinimalUser(user), Role: codersdk.MCPServerConfigRoleRead})
+		result = append(result, codersdk.MCPServerConfigUser{
+			MinimalUser: db2sdk.MinimalUser(user),
+			Role:        codersdk.MCPServerConfigRoleRead,
+		})
 	}
 	return result, true
 }
@@ -163,7 +165,10 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 	}
 	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, codersdk.MCPServerConfigGroup{Group: db2sdk.Group(group, nil, 0), Role: codersdk.MCPServerConfigRoleRead})
+		result = append(result, codersdk.MCPServerConfigGroup{
+			Group: db2sdk.Group(group, nil, 0),
+			Role:  codersdk.MCPServerConfigRoleRead,
+		})
 	}
 	return result, true
 }
@@ -193,7 +198,10 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 		}
 		for _, id := range userIDs {
 			if !slices.Contains(byUser[id], organizationID) {
-				validations = append(validations, codersdk.ValidationError{Field: "user_roles", Detail: "user " + id.String() + " does not belong to organization " + organizationID.String()})
+				validations = append(validations, codersdk.ValidationError{
+					Field:  "user_roles",
+					Detail: "user " + id.String() + " does not belong to organization " + organizationID.String(),
+				})
 			}
 		}
 	}
@@ -207,7 +215,10 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 		}
 		for _, group := range groups {
 			if group.Group.OrganizationID != organizationID {
-				validations = append(validations, codersdk.ValidationError{Field: "group_roles", Detail: "group " + group.Group.ID.String() + " does not belong to organization " + organizationID.String()})
+				validations = append(validations, codersdk.ValidationError{
+					Field:  "group_roles",
+					Detail: "group " + group.Group.ID.String() + " does not belong to organization " + organizationID.String(),
+				})
 			}
 		}
 	}
