@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -160,7 +161,13 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
 	} else {
-		configs, err = api.Database.GetEnabledMCPServerConfigsByOrganization(ctx, organization.ID)
+		prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+		if prepareErr != nil {
+			httpapi.InternalServerError(rw, prepareErr)
+			return
+		}
+		configs, err = api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
+		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool { return !config.Enabled })
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
