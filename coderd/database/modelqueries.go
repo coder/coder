@@ -1196,17 +1196,12 @@ func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID
 	return err
 }
 
-type GetAuthorizedMCPServerConfigsParams struct {
-	OrganizationID uuid.UUID
-	Prepared       rbac.PreparedAuthorized
-}
-
 type mcpServerConfigQuerier interface {
-	GetAuthorizedMCPServerConfigs(ctx context.Context, arg GetAuthorizedMCPServerConfigsParams) ([]MCPServerConfig, error)
+	GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
 }
 
-func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, arg GetAuthorizedMCPServerConfigsParams) ([]MCPServerConfig, error) {
-	authorizedFilter, err := arg.Prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.MCPServerConfigNoACLConverter(),
 	})
 	if err != nil {
@@ -1220,7 +1215,7 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, arg GetA
 
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedMCPServerConfigs :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
 	if err != nil {
 		return nil, err
 	}

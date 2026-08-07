@@ -1644,18 +1644,15 @@ func (s *MethodTestSuite) TestChats() {
 		orgID := uuid.New()
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
 		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
-		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
 		check.Args(orgID).Asserts().Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetAuthorizedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.GetAuthorizedMCPServerConfigsParams{
-			OrganizationID: uuid.New(),
-			Prepared:       emptyPreparedAuthorized{},
-		}
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: arg.OrganizationID})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: arg.OrganizationID})
-		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), arg).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args(arg).Asserts().Returns([]database.MCPServerConfig{configA, configB})
+		orgID := uuid.New()
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(orgID, emptyPreparedAuthorized{}).Asserts().Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetMCPServerConfigsByOrganizationAndIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.GetMCPServerConfigsByOrganizationAndIDsParams{

@@ -6713,9 +6713,9 @@ func (m queryMetricsStore) GetAuthorizedChatsByChatFileID(ctx context.Context, f
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, arg database.GetAuthorizedMCPServerConfigsParams) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, arg)
+	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
 	return r0, r1

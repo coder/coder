@@ -1086,18 +1086,20 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	parentConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Parent MCP",
-		Slug:        "runtime-parent-mcp",
-		Url:         parentTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Runtime Parent MCP",
+		Slug:           "runtime-parent-mcp",
+		Url:            parentTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	injectedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Injected MCP",
-		Slug:        "runtime-injected-mcp",
-		Url:         injectedTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Runtime Injected MCP",
+		Slug:           "runtime-injected-mcp",
+		Url:            injectedTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)

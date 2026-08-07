@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // testValue is the value that is stored in dbcrypt_keys.test.
@@ -763,8 +764,8 @@ func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganization(ctx context.Context,
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetAuthorizedMCPServerConfigs(ctx context.Context, arg database.GetAuthorizedMCPServerConfigsParams) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetAuthorizedMCPServerConfigs(ctx, arg)
+func (db *dbCrypt) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 	if err != nil {
 		return nil, err
 	}
