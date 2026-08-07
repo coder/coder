@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { TemplateVersion } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
@@ -8,9 +8,9 @@ import { VersionRow } from "./VersionRow";
 
 interface VersionsTableProps {
 	activeVersionId: string;
-	versions?: TypesGen.TemplateVersion[];
-	onPromoteClick?: (templateVersionId: string) => void;
-	onArchiveClick?: (templateVersionId: string) => void;
+	versions?: TemplateVersion[];
+	onPromoteClick?: (version: TemplateVersion) => void;
+	onArchiveClick?: (version: TemplateVersion) => void;
 }
 
 export const VersionsTable: FC<VersionsTableProps> = ({
@@ -19,7 +19,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 	onArchiveClick,
 	onPromoteClick,
 }) => {
-	const latestVersionId = versions?.reduce(
+	const latestVersionId = versions?.reduce<TemplateVersion | undefined>(
 		(latestSoFar, against) => {
 			if (against.job.status !== "succeeded") {
 				return latestSoFar;
@@ -34,7 +34,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				? against
 				: latestSoFar;
 		},
-		undefined as TypesGen.TemplateVersion | undefined,
+		undefined,
 	)?.id;
 
 	return (

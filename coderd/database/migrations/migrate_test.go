@@ -1865,6 +1865,244 @@ func TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T)
 	require.NoError(t, err)
 }
 
+//nolint:tparallel,paralleltest // Subtests share one database and exercise sequential migration state.
+func TestMigration000563TemplateAgentsAllowedBackfill(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, ctx, orgID, userID, templateIDs := setupMigration000563Templates(t)
+	upSQL, err := os.ReadFile("000563_template_agents_allowed.up.sql")
+	require.NoError(t, err)
+	downSQL, err := os.ReadFile("000563_template_agents_allowed.down.sql")
+	require.NoError(t, err)
+
+	staleID := uuid.New()
+	tests := []struct {
+		name                      string
+		value                     string
+		present                   bool
+		checkPostMigrationDefault bool
+		want                      map[uuid.UUID]bool
+	}{
+		{
+			name:                      "valid nonempty list",
+			value:                     fmt.Sprintf(`[%q]`, templateIDs[0]),
+			present:                   true,
+			checkPostMigrationDefault: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "stale template ID",
+			value:   fmt.Sprintf(`[%q,%q]`, templateIDs[0], staleID),
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name: "missing",
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "empty string",
+			value:   "",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "JSON null",
+			value:   "null",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "invalid JSON",
+			value:   "{",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "JSON object",
+			value:   `{}`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "JSON scalar",
+			value:   `"value"`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "invalid UUID element",
+			value:   `["not-a-uuid"]`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "null element",
+			value:   `[null]`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "mixed valid and invalid elements",
+			value:   fmt.Sprintf(`[%q,"not-a-uuid"]`, templateIDs[0]),
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "empty array",
+			value:   "[]",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := sqlDB.ExecContext(ctx, `DELETE FROM site_configs WHERE key = 'agents_template_allowlist'`)
+			require.NoError(t, err)
+			if tt.present {
+				_, err = sqlDB.ExecContext(ctx, `INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', $1)`, tt.value)
+				require.NoError(t, err)
+			}
+
+			_, err = sqlDB.ExecContext(ctx, string(upSQL))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := sqlDB.ExecContext(ctx, string(downSQL))
+				require.NoError(t, err)
+			})
+
+			rows, err := sqlDB.QueryContext(ctx, `SELECT id, agents_allowed FROM templates`)
+			require.NoError(t, err)
+			got := make(map[uuid.UUID]bool, len(templateIDs))
+			for rows.Next() {
+				var id uuid.UUID
+				var agentsAllowed bool
+				require.NoError(t, rows.Scan(&id, &agentsAllowed))
+				got[id] = agentsAllowed
+			}
+			require.NoError(t, rows.Close())
+			require.NoError(t, rows.Err())
+			require.Equal(t, tt.want, got)
+
+			var stored string
+			err = sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'`).Scan(&stored)
+			if tt.present {
+				require.NoError(t, err)
+				require.Equal(t, tt.value, stored)
+			} else {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			}
+
+			if tt.checkPostMigrationDefault {
+				newTemplateID := uuid.New()
+				_, err = sqlDB.ExecContext(ctx, `
+					INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+					VALUES ($1, $2, $3, NOW(), NOW(), 'terraform', $4, $5)
+				`, newTemplateID, orgID, "post-migration-template", uuid.New(), userID)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_, err := sqlDB.ExecContext(ctx, `DELETE FROM templates WHERE id = $1`, newTemplateID)
+					require.NoError(t, err)
+				})
+
+				var agentsAllowed bool
+				err = sqlDB.QueryRowContext(ctx, `SELECT agents_allowed FROM template_with_names WHERE id = $1`, newTemplateID).Scan(&agentsAllowed)
+				require.NoError(t, err)
+				require.True(t, agentsAllowed)
+			}
+		})
+	}
+}
+
+func setupMigration000563Templates(t *testing.T) (
+	sqlDB *sql.DB,
+	ctx context.Context,
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	templateIDs []uuid.UUID,
+) {
+	t.Helper()
+
+	const migrationVersion = 562
+
+	sqlDB = testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx = testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID = uuid.New()
+	userID = uuid.New()
+	templateIDs = []uuid.UUID{uuid.New(), uuid.New()}
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+		VALUES ($1, $2, $3, $4, $5, $5, '{}')
+	`, orgID, "agents-allowed-org", "Agents Allowed Org", "Migration test", now)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $5, 'active', '{}', 'password')
+	`, userID, "agents-allowed-user", "agents-allowed@example.com", []byte{}, now)
+	require.NoError(t, err)
+	for i, templateID := range templateIDs {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+			VALUES ($1, $2, $3, $4, $4, 'terraform', $5, $6)
+		`, templateID, orgID, fmt.Sprintf("agents-allowed-template-%d", i), now, uuid.New(), userID)
+		require.NoError(t, err)
+	}
+
+	return sqlDB, ctx, orgID, userID, templateIDs
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

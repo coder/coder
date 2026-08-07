@@ -1273,7 +1273,7 @@ func fetchWithPostFilter[
 		}
 
 		// Authorize the action
-		return rbac.Filter(ctx, authorizer, act, action, objects)
+		return rbac.Filter(ctx, authorizer, act, action, objects, rbac.DefaultFilterThreshold)
 	}
 }
 
@@ -3553,17 +3553,6 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
 	}
 	return q.db.GetChatSystemPromptConfig(ctx)
-}
-
-// GetChatTemplateAllowlist requires deployment-config read permission,
-// unlike the peer getters (GetChatDesktopEnabled, etc.) which only
-// check actor presence. The allowlist is admin-configuration that
-// should not be readable by non-admin users via the HTTP API.
-func (q *querier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatTemplateAllowlist(ctx)
 }
 
 func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
@@ -8912,13 +8901,6 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
-}
-
-func (q *querier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
 }
 
 func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {

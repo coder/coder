@@ -54,9 +54,20 @@ export const ExternalAuthSettingsPageView: FC<
 			/>
 
 			<div className="mt-6 mb-6">
-				<Alert severity="info" actions={<PremiumBadge key="enterprise" />}>
-					Integrating with multiple External authentication providers is an
-					Premium feature.
+				<Alert severity="info" actions={<PremiumBadge />}>
+					Integrating with multiple external authentication providers is a
+					Premium feature.{" "}
+					<a
+						href={docs(
+							"/admin/external-auth#multiple-external-providers-premium",
+						)}
+						target="_blank"
+						rel="noreferrer"
+						className="text-content-link font-medium"
+					>
+						Read the External Authentication documentation
+					</a>
+					.
 				</Alert>
 			</div>
 

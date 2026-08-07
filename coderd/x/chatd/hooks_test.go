@@ -121,6 +121,7 @@ func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
+		false,
 		"test-hook-secret-32-bytes-minimum!!",
 		time.Second,
 		"test-deployment",

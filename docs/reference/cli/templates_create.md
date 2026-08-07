@@ -11,6 +11,15 @@ coder templates create [flags] [name]
 
 ## Options
 
+### --agents-allowed
+
+|         |                   |
+|---------|-------------------|
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Allow Coder Agents to create workspaces using this template.
+
 ### --private
 
 |      |                   |

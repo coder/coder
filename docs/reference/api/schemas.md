@@ -1082,6 +1082,7 @@
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
+    "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
     "hook_timeout": 0,
@@ -2455,6 +2456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
+  "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
   "hook_timeout": 0,
@@ -2480,6 +2482,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|----------------------------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer                    | false    |              |             |
 | `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_allow_insecure`   | boolean                    | false    |              |             |
 | `hook_enabled`          | boolean                    | false    |              |             |
 | `hook_secret`           | string                     | false    |              |             |
 | `hook_timeout`          | integer                    | false    |              |             |
@@ -5055,6 +5058,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -5092,6 +5096,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
 |---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                    | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
+| `agents_allowed`                      | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. Defaults to true.                                                                                                                                                                                                           |
 | `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
 | `allow_user_autostop`                 | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
 | `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
@@ -5921,6 +5926,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
+        "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
         "hook_timeout": 0,
@@ -6547,6 +6553,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
+      "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
       "hook_timeout": 0,
@@ -12314,6 +12321,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -12375,6 +12383,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `active_user_count`                | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                    |
 | `active_version_id`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `activity_bump_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `agents_allowed`                   | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                         |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
@@ -12778,6 +12787,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -13972,6 +13982,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -14012,6 +14023,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
 |------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                                                                                            |
+| `agents_allowed`                   | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. If omitted, the current value is preserved.                                                                                                                                                                                                                                                |
 | `allow_user_autostart`             | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |

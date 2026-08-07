@@ -13,7 +13,9 @@ import {
 import { watchChat } from "#/api/api";
 import {
 	chatMessagesKey,
-	chatPromptsKey,
+	invalidateChatPrompts,
+	invalidateChatSearches,
+	patchChatMessages,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -40,9 +42,7 @@ const writeQueuedMessagesToCache = (
 		return;
 	}
 	const nextQueuedMessages = queuedMessages ?? [];
-	queryClient.setQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatID), (currentData) => {
+	patchChatMessages(queryClient, chatID, (currentData) => {
 		if (!currentData?.pages?.length) {
 			return currentData;
 		}
@@ -197,9 +197,7 @@ export const useChatStore = (
 			if (!chatID || messages.length === 0) {
 				return;
 			}
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
+			patchChatMessages(queryClient, chatID, (currentData) => {
 				if (!currentData?.pages?.length) {
 					return currentData;
 				}
@@ -235,11 +233,9 @@ export const useChatStore = (
 			// Refresh the dedicated prompt-history cache when a user message arrives.
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
-				void queryClient.invalidateQueries({
-					queryKey: chatPromptsKey(chatID),
-					exact: true,
-				});
+				void invalidateChatPrompts(queryClient, chatID);
 			}
+			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
 	);
@@ -249,9 +245,7 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
+			patchChatMessages(queryClient, chatID, (currentData) => {
 				if (!currentData?.pages?.length) {
 					return currentData;
 				}
@@ -263,6 +257,7 @@ export const useChatStore = (
 					pageParams: currentData.pageParams.slice(0, 1),
 				};
 			});
+			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
 	);

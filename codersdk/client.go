@@ -424,6 +424,49 @@ func ReadBodyAsError(res *http.Response) error {
 	}
 	defer res.Body.Close()
 
+	resp, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		if len(resp) > 2048 {
+			resp = append(resp[:2048], []byte("...")...)
+		}
+		if len(resp) == 0 {
+			resp = []byte("no response body")
+		}
+		return newResponseError(res, Response{
+			Message: mimeErr.Error(),
+			Detail:  string(resp),
+		})
+	}
+
+	var m Response
+	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return newResponseError(res, Response{
+				Message: "empty response body",
+			})
+		}
+		return xerrors.Errorf("decode body: %w", err)
+	}
+	if m.Message == "" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
+		m.Detail = string(resp)
+	}
+
+	return newResponseError(res, m)
+}
+
+// newResponseError wraps an API response in an *Error annotated with
+// the status code, request method, and request URL from res. For 401
+// responses it also sets a helper message suggesting 'coder login'.
+func newResponseError(res *http.Response, response Response) *Error {
 	var requestMethod, requestURL string
 	if res.Request != nil {
 		requestMethod = res.Request.Method
@@ -439,54 +482,8 @@ func ReadBodyAsError(res *http.Response) error {
 		helpMessage = "Try logging in using 'coder login'."
 	}
 
-	resp, err := io.ReadAll(res.Body)
-	if err != nil {
-		return xerrors.Errorf("read body: %w", err)
-	}
-
-	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
-		if len(resp) > 2048 {
-			resp = append(resp[:2048], []byte("...")...)
-		}
-		if len(resp) == 0 {
-			resp = []byte("no response body")
-		}
-		return &Error{
-			statusCode: res.StatusCode,
-			method:     requestMethod,
-			url:        requestURL,
-			Response: Response{
-				Message: mimeErr.Error(),
-				Detail:  string(resp),
-			},
-			Helper: helpMessage,
-		}
-	}
-
-	var m Response
-	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return &Error{
-				statusCode: res.StatusCode,
-				Response: Response{
-					Message: "empty response body",
-				},
-				Helper: helpMessage,
-			}
-		}
-		return xerrors.Errorf("decode body: %w", err)
-	}
-	if m.Message == "" {
-		if len(resp) > 1024 {
-			resp = append(resp[:1024], []byte("...")...)
-		}
-		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
-		m.Detail = string(resp)
-	}
-
 	return &Error{
-		Response:   m,
+		Response:   response,
 		statusCode: res.StatusCode,
 		method:     requestMethod,
 		url:        requestURL,
@@ -522,6 +519,23 @@ const htmlResponseHelper = "Ensure the Coder URL is correct and that any reverse
 // API endpoints never serve HTML. The caller remains responsible for
 // closing the response body.
 func ReadBodyAsJSON(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, nil)
+}
+
+// ReadBodyAsJSONUseNumber behaves like ReadBodyAsJSON but decodes JSON
+// numbers into json.Number instead of float64, preserving integer
+// precision for callers that re-serialize or type-assert numeric
+// claims, such as license JWT claims.
+func ReadBodyAsJSONUseNumber(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, func(dec *json.Decoder) {
+		dec.UseNumber()
+	})
+}
+
+// decodeBodyAsJSON decodes the response body as JSON into v. When
+// configure is non-nil it is called with the decoder before decoding,
+// allowing callers to set options such as UseNumber.
+func decodeBodyAsJSON(res *http.Response, v any, configure func(*json.Decoder)) error {
 	if res == nil || res.Body == nil {
 		return xerrors.New("no response body to decode")
 	}
@@ -533,7 +547,11 @@ func ReadBodyAsJSON(res *http.Response, v any) error {
 
 	body := &responseBodyReader{Reader: res.Body}
 	prefix := &bodyPrefixWriter{}
-	err := json.NewDecoder(io.TeeReader(body, prefix)).Decode(v)
+	dec := json.NewDecoder(io.TeeReader(body, prefix))
+	if configure != nil {
+		configure(dec)
+	}
+	err := dec.Decode(v)
 	switch {
 	case err == nil:
 		return nil

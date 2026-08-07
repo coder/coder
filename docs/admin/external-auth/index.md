@@ -356,6 +356,11 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
 ## Multiple External Providers (Premium)
 
+> [!NOTE]
+> Configuring more than one external authentication provider requires a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
+
 Below is an example configuration with multiple providers:
 
 > [!IMPORTANT]

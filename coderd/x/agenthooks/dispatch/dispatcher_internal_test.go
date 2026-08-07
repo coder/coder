@@ -78,18 +78,25 @@ func TestDispatcherRejectsCleartextURL(t *testing.T) {
 	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitShort), event)
 	require.ErrorContains(t, err, "must use HTTPS")
 
-	require.NoError(t, validateHookURL(""))
-	require.NoError(t, validateHookURL("https://hooks.example.com/coder"))
-	require.NoError(t, validateHookURL("http://localhost:8080/hooks"))
-	require.NoError(t, validateHookURL("http://127.0.0.1:8080/hooks"))
-	require.NoError(t, validateHookURL("http://[::1]:8080/hooks"))
-	require.Error(t, validateHookURL("http://10.0.0.5/hooks"))
-	require.Error(t, validateHookURL("ftp://hooks.example.com/coder"))
-	require.ErrorContains(t, validateHookURL("https:///coder"), "must include a host")
-	require.ErrorContains(t, validateHookURL("https:hooks.example.com"), "must include a host")
-	require.ErrorContains(t, validateHookURL("http:///hooks"), "must include a host")
-	require.ErrorContains(t, validateHookURL("https://hooks.example.com/coder#frag"), "must not contain a fragment")
-	require.ErrorContains(t, validateHookURL("https://user:pass@hooks.example.com/coder"), "must not contain userinfo")
+	require.NoError(t, validateHookURL("", false))
+	require.NoError(t, validateHookURL("https://hooks.example.com/coder", false))
+	require.NoError(t, validateHookURL("http://localhost:8080/hooks", false))
+	require.NoError(t, validateHookURL("http://127.0.0.1:8080/hooks", false))
+	require.NoError(t, validateHookURL("http://[::1]:8080/hooks", false))
+	require.Error(t, validateHookURL("http://10.0.0.5/hooks", false))
+	require.Error(t, validateHookURL("ftp://hooks.example.com/coder", false))
+	require.ErrorContains(t, validateHookURL("https:///coder", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("https:hooks.example.com", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("http:///hooks", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("https://hooks.example.com/coder#frag", false), "must not contain a fragment")
+	require.ErrorContains(t, validateHookURL("https://user:pass@hooks.example.com/coder", false), "must not contain userinfo")
+
+	require.NoError(t, validateHookURL("http://10.0.0.5/hooks", true))
+	require.NoError(t, validateHookURL("http://hooks.example.com/coder", true))
+	require.Error(t, validateHookURL("ftp://hooks.example.com/coder", true))
+	require.ErrorContains(t, validateHookURL("http:///hooks", true), "must include a host")
+	require.ErrorContains(t, validateHookURL("http://hooks.example.com/coder#frag", true), "must not contain a fragment")
+	require.ErrorContains(t, validateHookURL("http://user:pass@hooks.example.com/coder", true), "must not contain userinfo")
 }
 
 func TestDispatcherDeny(t *testing.T) {
@@ -566,7 +573,7 @@ func TestDispatcherRejectedResponseIsNotObserved(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 	dispatcher := New(
-		testutil.Logger(t), server.Client(), server.URL, testSecret, time.Second,
+		testutil.Logger(t), server.Client(), server.URL, false, testSecret, time.Second,
 		testDeploymentID, testVersion, registry,
 	)
 	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
@@ -655,6 +662,7 @@ func newTestDispatcher(
 		testutil.Logger(t),
 		client,
 		hookURL,
+		false,
 		testSecret,
 		timeout,
 		testDeploymentID,
@@ -738,7 +746,7 @@ func TestDispatcherAdmissionReserve(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		dispatcher := New(
-			testutil.Logger(t), server.Client(), server.URL, testSecret, testutil.WaitShort,
+			testutil.Logger(t), server.Client(), server.URL, false, testSecret, testutil.WaitShort,
 			testDeploymentID, testVersion, prometheus.NewRegistry(),
 		)
 		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
@@ -797,7 +805,7 @@ func TestDispatcherAdmissionReserve(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		dispatcher := New(
-			testutil.Logger(t), server.Client(), server.URL, testSecret, testutil.WaitShort,
+			testutil.Logger(t), server.Client(), server.URL, false, testSecret, testutil.WaitShort,
 			testDeploymentID, testVersion, prometheus.NewRegistry(),
 		)
 		fill(t, dispatcher.admission, maxAdmissionDispatches)

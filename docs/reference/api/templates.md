@@ -33,6 +33,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -104,6 +105,7 @@ Status Code **200**
 | `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                               |
 | `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                            |
 | `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                            |
+| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                            |
 | `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.    |
 | `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                            |
 | `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                            |
@@ -174,6 +176,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -222,6 +225,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -375,6 +379,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -798,6 +803,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -869,6 +875,7 @@ Status Code **200**
 | `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                               |
 | `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                            |
 | `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                            |
+| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                            |
 | `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.    |
 | `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                            |
 | `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                            |
@@ -1004,6 +1011,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -1129,6 +1137,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -1180,6 +1189,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,

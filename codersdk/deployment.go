@@ -4334,7 +4334,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook URL",
-			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
 			Hidden:      true,
 			Env:         "CODER_CHAT_HOOK_URL",
@@ -4376,6 +4376,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "true",
 			Group:       &deploymentGroupChat,
 			YAML:        "hookEnabled",
+		},
+		{
+			Name:        "Chat: Hook Allow Insecure",
+			Description: "Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes sensitive chat data and lets an on-path attacker forge hook responses that control agent execution, so only enable this on a network you fully trust.",
+			Flag:        "chat-hook-allow-insecure",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ALLOW_INSECURE",
+			Value:       &c.AI.Chat.HookAllowInsecure,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookAllowInsecure",
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
@@ -5065,6 +5076,7 @@ type ChatConfig struct {
 	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
 	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5119,17 +5131,24 @@ func (c *DeploymentValues) Validate() error {
 	if c.AI.Chat.HookEnabled.Value() {
 		if c.AI.Chat.HookURL.String() != "" {
 			hookURL := c.AI.Chat.HookURL.Value()
-			if hookURL.Scheme != "https" {
-				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+			allowInsecure := c.AI.Chat.HookAllowInsecure.Value()
+			switch {
+			case hookURL.Scheme == "https":
+			case hookURL.Scheme == "http" && allowInsecure:
+			default:
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL, or set --chat-hook-allow-insecure to allow plain HTTP")
 			}
-			if hookURL.Host == "" {
-				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete HTTPS URL")
+			// Hostname() instead of Host: a URL like http://:8080/hooks has a
+			// non-empty Host (":8080") but no hostname, and the dispatcher
+			// rejects it on every dispatch.
+			if hookURL.Hostname() == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete URL")
 			}
 			// The configured string is signed verbatim as the JWT audience,
 			// and neither component is ever transmitted, so a consumer
 			// configured with the URL it actually serves would never match.
 			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
-				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a plain HTTPS URL")
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a URL without a fragment or userinfo")
 			}
 			if c.AI.Chat.HookSecret.Value() == "" {
 				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")

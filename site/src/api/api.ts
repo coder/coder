@@ -1166,19 +1166,18 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	archiveTemplateVersion = async (templateVersionId: string): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/archive`,
 		);
-
-		return response.data;
 	};
 
-	unarchiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	unarchiveTemplateVersion = async (
+		templateVersionId: string,
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
-		return response.data;
 	};
 
 	/**
@@ -3695,14 +3694,6 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 
-	getChatTemplateAllowlist =
-		async (): Promise<TypesGen.ChatTemplateAllowlist> => {
-			const response = await this.axios.get<TypesGen.ChatTemplateAllowlist>(
-				"/api/experimental/chats/config/template-allowlist",
-			);
-			return response.data;
-		};
-
 	updateChatWorkspaceTTL = async (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 	): Promise<void> => {
@@ -3755,15 +3746,6 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/auto-archive-days",
-			req,
-		);
-	};
-
-	updateChatTemplateAllowlist = async (
-		req: TypesGen.ChatTemplateAllowlist,
-	): Promise<void> => {
-		await this.axios.put(
-			"/api/experimental/chats/config/template-allowlist",
 			req,
 		);
 	};

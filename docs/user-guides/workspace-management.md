@@ -110,8 +110,8 @@ operation.
 The start and stop operations can be applied even when the selected workspaces
 are not all in the same state. Bulk start will only apply to selected workspaces
 that are currently stopped, and bulk stop will only apply to selected workspaces
-that are currently running. For update and delete, the user will be prompted for
-confirmation before any action is taken.
+that are currently running. For update, delete, and stop, the user is prompted
+for confirmation before any action is taken.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 

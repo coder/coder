@@ -49,7 +49,7 @@ of the template will be used.
 
 ### Example responses
 
-> 200 Response
+> 201 Response
 
 ```json
 {
@@ -328,9 +328,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+| Status | Meaning                                                      | Description | Schema                                             |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -748,7 +748,7 @@ of the template will be used.
 
 ### Example responses
 
-> 200 Response
+> 201 Response
 
 ```json
 {
@@ -1027,9 +1027,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+| Status | Meaning                                                      | Description | Schema                                             |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

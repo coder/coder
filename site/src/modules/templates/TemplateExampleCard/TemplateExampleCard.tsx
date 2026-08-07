@@ -1,10 +1,10 @@
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Link } from "#/components/Link/Link";
-import { Pill } from "#/components/Pill/Pill";
 import { cn } from "#/utils/cn";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
@@ -37,12 +37,12 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div className="flex flex-wrap justify-end gap-2">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill
-								type={activeTag === tag ? "active" : undefined}
+							<Badge
+								variant={activeTag === tag ? "info" : "default"}
 								className="cursor-pointer no-underline hover:border-content-primary"
 							>
 								{tag}
-							</Pill>
+							</Badge>
 						</RouterLink>
 					))}
 				</div>

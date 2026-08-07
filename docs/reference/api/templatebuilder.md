@@ -160,6 +160,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,

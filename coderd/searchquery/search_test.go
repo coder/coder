@@ -983,6 +983,20 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
+			Name:  "AgentsAllowedTrue",
+			Query: "agents-allowed:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "AgentsAllowedFalse",
+			Query: "agents-allowed:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
 			Name:  "MyTemplates",
 			Query: "author:me",
 			Expected: database.GetTemplatesWithFilterParams{
