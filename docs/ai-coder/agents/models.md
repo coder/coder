@@ -297,9 +297,9 @@ subagents always run on the administrator-configured computer-use model and
 reject explicit model selection.
 
 > [!NOTE]
-> Both override layers are experimental and may change between releases.
-> The same values are available through the experimental chat
-> configuration API under `/api/experimental/chats/config/`.
+> Both override layers may change between releases.
+> The same values are available through the chat
+> configuration API under `/api/v2/chats/config/`.
 
 ## User API keys (BYOK)
 

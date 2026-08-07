@@ -191,7 +191,7 @@ deployment. Use this to encode organizational conventions:
 - Any guardrails specific to your environment.
 
 Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
-or via the API at `PUT /api/experimental/chats/config/system-prompt`.
+or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
 ### Understand the security model
@@ -251,7 +251,7 @@ This is useful for building automations such as:
 **Quick example — create a Coder Agent via the API:**
 
 ```sh
-curl -X POST https://coder.example.com/api/experimental/chats \
+curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -264,7 +264,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 Stream updates in real time by connecting to the WebSocket endpoint:
 
 ```txt
-GET /api/experimental/chats/{chat}/stream
+GET /api/v2/chats/{chat}/stream
 ```
 
 For service-to-service automation, use

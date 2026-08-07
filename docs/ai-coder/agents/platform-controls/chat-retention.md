@@ -28,11 +28,11 @@ Navigate to the **Agents** page, open **Settings**, and select the **Behavior**
 tab to configure the conversation retention period. The default is 30 days. Use the toggle to
 disable retention entirely.
 
-Use the experimental admin API to read or update the value:
+Use the admin API to read or update the value:
 
 ```txt
-GET  /api/experimental/chats/config/retention-days
-PUT  /api/experimental/chats/config/retention-days
+GET  /api/v2/chats/config/retention-days
+PUT  /api/v2/chats/config/retention-days
 ```
 
 ## What gets deleted

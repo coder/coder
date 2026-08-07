@@ -44,5 +44,5 @@ Failed advisor invocations refund the per-turn budget.
 
 The same configuration is available at:
 
-- `GET /api/experimental/chats/config/advisor`
-- `PUT /api/experimental/chats/config/advisor`
+- `GET /api/v2/chats/config/advisor`
+- `PUT /api/v2/chats/config/advisor`
