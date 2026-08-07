@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"maps"
 	"net/http"
 	"slices"
@@ -101,6 +100,7 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		if err != nil {
 			return xerrors.Errorf("get MCP server config for update: %w", err)
 		}
+		aReq.Old = current
 		userACL := maps.Clone(current.UserACL)
 		groupACL := maps.Clone(current.GroupACL)
 		for id, role := range req.UserRoles {
@@ -124,8 +124,10 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		}); err != nil {
 			return xerrors.Errorf("update MCP server config ACL: %w", err)
 		}
-		updated, err = tx.GetMCPServerConfigByID(ctx, config.ID)
-		return err
+		updated = current
+		updated.UserACL = userACL
+		updated.GroupACL = groupACL
+		return nil
 	}, nil)
 	if err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
@@ -143,7 +145,7 @@ func (api *API) mcpServerConfigACLUsers(ctx context.Context, rw http.ResponseWri
 	ids := parseMCPServerConfigACLIDs(entries)
 	//nolint:gocritic // ACL readers may resolve principals after the config read gate passes.
 	users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return nil, false
 	}
@@ -164,23 +166,29 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 		var err error
 		//nolint:gocritic // ACL readers may resolve principals after the config read gate passes.
 		groups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return nil, false
 		}
 	}
-	//nolint:gocritic // ACL readers may resolve group sizes after the config read gate passes.
-	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
-		GroupIds:      ids,
-		IncludeSystem: false,
-	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return nil, false
-	}
-	countByGroup := make(map[uuid.UUID]int64, len(countRows))
-	for _, row := range countRows {
-		countByGroup[row.GroupID] = row.MemberCount
+	countByGroup := make(map[uuid.UUID]int64, len(groups))
+	if len(groups) > 0 {
+		groupIDs := make([]uuid.UUID, 0, len(groups))
+		for _, group := range groups {
+			groupIDs = append(groupIDs, group.Group.ID)
+		}
+		//nolint:gocritic // ACL readers may resolve group sizes after the config read gate passes.
+		countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+			GroupIds:      groupIDs,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return nil, false
+		}
+		for _, row := range countRows {
+			countByGroup[row.GroupID] = row.MemberCount
+		}
 	}
 	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
 	for _, group := range groups {
@@ -208,7 +216,7 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 	if len(userIDs) > 0 {
 		//nolint:gocritic // Principal validation requires organization membership visibility.
 		memberships, err := api.Database.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			return append(validations, codersdk.ValidationError{Field: "user_roles", Detail: err.Error()})
 		}
 		byUser := make(map[uuid.UUID][]uuid.UUID, len(memberships))
@@ -229,7 +237,7 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 	if len(groupIDs) > 0 {
 		//nolint:gocritic // Principal validation requires group organization visibility.
 		groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			return append(validations, codersdk.ValidationError{Field: "group_roles", Detail: err.Error()})
 		}
 		for _, group := range groups {

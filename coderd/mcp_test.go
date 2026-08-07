@@ -698,6 +698,7 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, aclResponse.Groups, 1)
 	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Equal(t, 1, aclResponse.Groups[0].TotalMemberCount)
 
 	configs, err := groupMemberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
