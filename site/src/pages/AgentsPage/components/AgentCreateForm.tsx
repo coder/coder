@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { mcpServerConfigs } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -124,7 +125,6 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	onOrganizationChange: (organizationId: string) => void;
 	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
@@ -141,9 +141,6 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
-	mcpServersOrganizationId: string;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -152,7 +149,6 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
-	onOrganizationChange,
 	sendShortcut,
 	isCreating,
 	createError,
@@ -169,9 +165,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
-	mcpServersOrganizationId,
-	mcpServers,
-	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -340,8 +333,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
-	const scopedMCPServers =
-		mcpServersOrganizationId === organizationId ? (mcpServers ?? []) : [];
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
@@ -367,11 +363,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			setUserMCPServerIds(null);
 		}
 	}
-	useEffect(() => {
-		if (organizationId) {
-			onOrganizationChange(organizationId);
-		}
-	}, [organizationId, onOrganizationChange]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
@@ -417,27 +408,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		const saved = getSavedMCPSelection(
 			organizationId,
-			scopedMCPServers,
+			mcpServers,
 			effectiveOrg?.is_default,
 		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(scopedMCPServers);
+		return getDefaultMCPSelection(mcpServers);
 	})();
 	useEffect(() => {
-		if (
-			effectiveOrg?.is_default &&
-			mcpServersOrganizationId === organizationId
-		) {
-			migrateLegacyMCPSelection(organizationId, mcpServers ?? []);
+		if (effectiveOrg?.is_default) {
+			migrateLegacyMCPSelection(organizationId, mcpServers);
 		}
-	}, [
-		organizationId,
-		mcpServers,
-		mcpServersOrganizationId,
-		effectiveOrg?.is_default,
-	]);
+	}, [organizationId, mcpServers, effectiveOrg?.is_default]);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -451,7 +434,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const selectOrganization = (organization: TypesGen.Organization) => {
 		setUserMCPServerIds(null);
 		setSelectedOrg(organization);
-		onOrganizationChange(organization.id);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -661,13 +643,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}
-						mcpServers={scopedMCPServers}
+						mcpServers={mcpServers}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
 							saveMCPSelection(organizationId, ids);
 						}}
-						onMCPAuthComplete={onMCPAuthComplete}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.

@@ -476,9 +476,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Allow auditors to read MCP server configs (redacted through
-			// the HTTP convert layer), matching their deployment config read.
-			ResourceMCPServerConfig.Type: {policy.ActionRead},
+			ResourceMCPServerConfig.Type:  {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
@@ -614,9 +612,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        {policy.ActionRead},
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
-							// Organization auditors can read their organization's MCP
-							// server configs (redacted through the HTTP convert layer).
-							ResourceMCPServerConfig.Type: {policy.ActionRead},
+							ResourceMCPServerConfig.Type:    {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},
@@ -1163,9 +1159,8 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// TODO(mafredri): remove after CODAGT-711 B4 (org-scoping cutover).
-		// Members read MCP server configs so chats can attach them; B4
-		// replaces this grant with the everyone-ACL on each config.
+		// TODO(mafredri): Remove once CODAGT-712 replaces this grant with
+		// per-config ACL evaluation.
 		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
@@ -1244,10 +1239,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// TODO(mafredri): remove after CODAGT-711 B4 (org-scoping cutover).
-		// Service accounts read MCP server configs so chats can attach
-		// them; B4 replaces this grant with the everyone-ACL on each
-		// config.
+		// TODO(mafredri): Remove once CODAGT-712 replaces this grant with
+		// per-config ACL evaluation.
 		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 

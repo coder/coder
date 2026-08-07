@@ -7583,13 +7583,6 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
-		// Organization read (needed for the MCP server config
-		// chat-org-then-default-org fallback).
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
-		require.NoError(t, err, "organization read should be allowed")
-		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceOrganization)
-		require.Error(t, err, "organization update should not be allowed")
-
 		// User read_personal (needed for GetUserChatCustomPrompt).
 		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
 		require.NoError(t, err, "user read_personal should be allowed")
@@ -7613,6 +7606,11 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
+
+		// Cannot access organizations; MCP server config resolution is
+		// strictly org-scoped and needs no organization reads.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
+		require.Error(t, err, "organization read should be denied")
 	})
 }
 

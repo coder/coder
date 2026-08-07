@@ -636,7 +636,7 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		return org, cfg
 	}
 
-	t.Run("ChatOrgAndDefaultOrgFallback", func(t *testing.T) {
+	t.Run("DefaultOrgConfigExcluded", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -644,10 +644,8 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 
-		// The chat lives in a non-default organization. Both of its MCP
-		// server configs live elsewhere: one in its own organization and
-		// one in the default organization. During the fallback window both
-		// must resolve.
+		// Configs resolve strictly against the chat's organization; the
+		// default organization gets no special treatment.
 		chatOrg, chatOrgCfg := newOrgWithConfig(t, db, true)
 		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: defaultOrg.ID,
@@ -656,13 +654,8 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 
 		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{chatOrgCfg.ID, defaultOrgCfg.ID})
 		require.NoError(t, err)
-		require.Len(t, configs, 2)
-		gotIDs := map[uuid.UUID]struct{}{}
-		for _, cfg := range configs {
-			gotIDs[cfg.ID] = struct{}{}
-		}
-		require.Contains(t, gotIDs, chatOrgCfg.ID)
-		require.Contains(t, gotIDs, defaultOrgCfg.ID)
+		require.Len(t, configs, 1)
+		require.Equal(t, chatOrgCfg.ID, configs[0].ID)
 	})
 
 	t.Run("ThirdOrgConfigExcluded", func(t *testing.T) {
@@ -673,8 +666,6 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg, chatOrgCfg := newOrgWithConfig(t, db, true)
 		_, foreignCfg := newOrgWithConfig(t, db, true)
 
-		// A config belonging to a third organization is not usable by the
-		// chat, while its own organization's config still resolves.
 		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{chatOrgCfg.ID, foreignCfg.ID})
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
@@ -716,36 +707,31 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		defaultOrg, err := db.GetDefaultOrganization(ctx)
-		require.NoError(t, err)
-
-		// A legacy/hostile chats.mcp_server_ids array can contain the
-		// same ID twice (the column has no uniqueness constraint).
-		// Pre-org-scoping the SQL returned one row per unique ID, in
-		// display_name order; the generation helper must preserve that shape.
-		chatOrg, chatOrgCfg := newOrgWithConfig(t, db, true)
-		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			OrganizationID: defaultOrg.ID,
+		// The array has no uniqueness constraint. Preserve the legacy SQL shape:
+		// one row per unique ID, ordered by display_name.
+		chatOrg, cfgA := newOrgWithConfig(t, db, true)
+		cfgB := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: chatOrg.ID,
 			Enabled:        true,
 		})
 
 		// The requested order is the reverse of display_name order to
 		// prove the output ordering comes from the SQL, not the request.
-		requested := []uuid.UUID{defaultOrgCfg.ID, chatOrgCfg.ID, defaultOrgCfg.ID, chatOrgCfg.ID}
+		requested := []uuid.UUID{cfgB.ID, cfgA.ID, cfgB.ID, cfgA.ID}
 
 		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, requested)
 		require.NoError(t, err)
 		require.Len(t, configs, 2)
 		gotIDs := []uuid.UUID{configs[0].ID, configs[1].ID}
-		require.ElementsMatch(t, []uuid.UUID{chatOrgCfg.ID, defaultOrgCfg.ID}, gotIDs)
-		wantOrder := []uuid.UUID{chatOrgCfg.ID, defaultOrgCfg.ID}
-		if chatOrgCfg.DisplayName > defaultOrgCfg.DisplayName {
-			wantOrder = []uuid.UUID{defaultOrgCfg.ID, chatOrgCfg.ID}
+		require.ElementsMatch(t, []uuid.UUID{cfgA.ID, cfgB.ID}, gotIDs)
+		wantOrder := []uuid.UUID{cfgA.ID, cfgB.ID}
+		if cfgA.DisplayName > cfgB.DisplayName {
+			wantOrder = []uuid.UUID{cfgB.ID, cfgA.ID}
 		}
 		require.Equal(t, wantOrder, gotIDs, "output must follow display_name order, not request order")
 	})
 
-	t.Run("ChatOrgWithNoConfigsFallsBackToDefaultOrg", func(t *testing.T) {
+	t.Run("ChatOrgWithNoConfigs", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -753,8 +739,8 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 
-		// The chat's organization has no MCP configs at all, so the
-		// default organization's enabled configs serve it directly.
+		// A chat whose organization has no configs resolves nothing,
+		// even when the requested ID exists in the default organization.
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: defaultOrg.ID,
@@ -762,40 +748,6 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		})
 
 		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{defaultOrgCfg.ID})
-		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		require.Equal(t, defaultOrgCfg.ID, configs[0].ID)
-	})
-
-	t.Run("ChatOrgConfigsDoNotHideDefaultOrgConfigs", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		defaultOrg, err := db.GetDefaultOrganization(ctx)
-		require.NoError(t, err)
-
-		// Even when the chat's organization has its own configs, a config
-		// living in the default organization still resolves (the fallback
-		// is an OR, not a preference).
-		chatOrg, _ := newOrgWithConfig(t, db, true)
-		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			OrganizationID: defaultOrg.ID,
-			Enabled:        true,
-		})
-
-		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{defaultOrgCfg.ID})
-		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		require.Equal(t, defaultOrgCfg.ID, configs[0].ID)
-	})
-
-	t.Run("EmptyIDs", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, uuid.New(), nil)
 		require.NoError(t, err)
 		require.Empty(t, configs)
 	})

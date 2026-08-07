@@ -21,10 +21,9 @@ func MCPServerConfigParam(r *http.Request) database.MCPServerConfig {
 	return config
 }
 
-// ExtractMCPServerConfigParam grabs an MCP server config from the
-// "mcpserverconfig" URL parameter. dbauthz conceals unauthorized reads
-// as not-found, so read-denied callers receive the same 404 as a
-// missing row.
+// ExtractMCPServerConfigParam reads the "mcpserverconfig" URL parameter.
+// Unauthorized reads are concealed as not found, so denied and missing rows
+// both return 404.
 func ExtractMCPServerConfigParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
