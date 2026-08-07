@@ -107,6 +107,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	component: AgentCreateForm,
 	decorators: [withDashboardProvider],
 	args: {
+		onOrganizationChange: fn(),
 		onCreateChat: fn(),
 		sendShortcut: "enter",
 		isCreating: false,
@@ -115,6 +116,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
+		mcpServersOrganizationId: MockDefaultOrganization.id,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
 		workspaceCount: 0,
@@ -900,20 +902,27 @@ export const WithOrganizationPicker: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		// Verify the org picker rendered (component didn't crash).
-		await waitFor(() => {
-			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		const body = within(canvasElement.ownerDocument.body);
+		const organizationSelector = await canvas.findByRole("button", {
+			name: `Organization: ${MockDefaultOrganization.display_name}`,
 		});
-		// Type into the chat input to trigger re-renders. If the
-		// permittedOrgs fallback is referentially unstable, this
-		// causes a render cascade that hits React's update limit.
+		await userEvent.click(organizationSelector);
+		await userEvent.click(
+			await body.findByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await expect(args.onOrganizationChange).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
 		const input = canvas.getByTestId("chat-message-input");
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };
 

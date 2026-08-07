@@ -5,6 +5,7 @@ import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
+	migrateLegacyMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
 
@@ -39,6 +40,19 @@ describe("MCP selection persistence", () => {
 				"[]",
 			);
 		});
+
+		it("keeps selections separate by organization", () => {
+			const otherOrganizationId = "organization-2";
+			saveMCPSelection(organizationId, ["a"]);
+			saveMCPSelection(otherOrganizationId, ["b"]);
+
+			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
+				JSON.stringify(["a"]),
+			);
+			expect(
+				localStorage.getItem(mcpSelectionStorageKey(otherOrganizationId)),
+			).toBe(JSON.stringify(["b"]));
+		});
 	});
 
 	describe("getSavedMCPSelection", () => {
@@ -68,6 +82,42 @@ describe("MCP selection persistence", () => {
 				'"a string"',
 			);
 			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
+		});
+
+		it("migrates a legacy selection for the default organization", () => {
+			localStorage.setItem(
+				"agents.selected-mcp-server-ids",
+				JSON.stringify(["s3"]),
+			);
+
+			expect(getSavedMCPSelection(organizationId, servers, true)).toEqual([
+				"s3",
+				"s1",
+			]);
+			expect(
+				localStorage.getItem(mcpSelectionStorageKey(organizationId)),
+			).toBeNull();
+
+			migrateLegacyMCPSelection(organizationId, servers);
+
+			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
+				JSON.stringify(["s3", "s1"]),
+			);
+			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBeNull();
+		});
+
+		it("migrates an empty legacy selection without enabling default-on servers", () => {
+			localStorage.setItem("agents.selected-mcp-server-ids", "[]");
+
+			expect(getSavedMCPSelection(organizationId, servers, true)).toEqual([
+				"s1",
+			]);
+
+			migrateLegacyMCPSelection(organizationId, servers);
+
+			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
+				JSON.stringify(["s1"]),
+			);
 		});
 
 		it("restores saved IDs that still exist as enabled servers", () => {
@@ -104,7 +154,7 @@ describe("MCP selection persistence", () => {
 
 		it("does not duplicate force_on servers already in saved list", () => {
 			saveMCPSelection(organizationId, ["s1", "s3"]);
-			const result = getSavedMCPSelection(organizationId, servers)!;
+			const result = getSavedMCPSelection(organizationId, servers) ?? [];
 			const s1Count = result.filter((id) => id === "s1").length;
 			expect(s1Count).toBe(1);
 		});

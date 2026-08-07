@@ -6,7 +6,7 @@ import { getErrorMessage } from "#/api/errors";
 import { createMCPServerConfig } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
-	getDefaultOrganizationName,
+	getDefaultOrganizationId,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -15,7 +15,7 @@ import AddMCPServerPageView from "./AddMCPServerPageView";
 const AddMCPServerPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organization = getDefaultOrganizationName(organizations);
+	const organization = getDefaultOrganizationId(organizations);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(

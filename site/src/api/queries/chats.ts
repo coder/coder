@@ -2090,7 +2090,7 @@ export const updateChatModelOverride = (
 
 // ── MCP Server Configs ───────────────────────────────────────
 
-export const mcpServersKey = ["mcp", "servers"] as const;
+const mcpServersKey = ["mcp", "servers"] as const;
 const mcpServerConfigsKey = (organization: string) =>
 	[...mcpServersKey, organization] as const;
 

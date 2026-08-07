@@ -773,6 +773,20 @@ export const WithMCPNeedingAuth: Story = {
 		mcpServers: [sentryMCP, githubMCP],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
 	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(body.getByRole("button", { name: "Auth" }));
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/experimental/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
+	},
 };
 
 /** No MCP servers active — shows only "MCP" label with chevron. */
