@@ -54,7 +54,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	forced, err := server.db.GetForcedMCPServerConfigsByOrganization(ctx, chat.OrganizationID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.

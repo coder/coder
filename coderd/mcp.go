@@ -324,7 +324,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			// Now build the callback URL with the actual ID.
-			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
+			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(inserted.ID)
 			// Discovery targets are attacker-influenced (the MCP
 			// server URL and any endpoints or redirects it
 			// advertises), so all discovery traffic goes through an
@@ -514,30 +514,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	config := httpmw.MCPServerConfigParam(r)
 
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	//nolint:gocritic // The item must be loaded to derive its organization before authorization.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if !api.Authorize(r, policy.ActionRead, config) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 	isAdmin := api.Authorize(r, policy.ActionUpdate, config)
 	if !isAdmin && !config.Enabled {
 		httpapi.ResourceNotFound(rw)
@@ -573,24 +551,14 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
+// getMCPServerConfigForMutation returns the config resolved by the
+// param middleware after checking the write action. The middleware
+// already concealed read-denied as 404, so a write denial here is an
+// explicit 403.
 func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Request, action policy.Action) (database.MCPServerConfig, bool) {
-	ctx := r.Context()
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return database.MCPServerConfig{}, false
-	}
-	//nolint:gocritic // The item must be loaded to derive its organization before authorization.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return database.MCPServerConfig{}, false
-		}
-		httpapi.InternalServerError(rw, err)
-		return database.MCPServerConfig{}, false
-	}
+	config := httpmw.MCPServerConfigParam(r)
 	if !api.Authorize(r, action, config) {
-		httpapi.ResourceNotFound(rw)
+		httpapi.Forbidden(rw)
 		return database.MCPServerConfig{}, false
 	}
 	return config, true
@@ -934,11 +902,7 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionRead)
-	if !ok {
-		return
-	}
+	config := httpmw.MCPServerConfigParam(r)
 
 	if !config.Enabled {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -965,7 +929,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
@@ -1016,8 +980,17 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionRead)
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
 	if !ok {
+		return
+	}
+	config, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 
@@ -1070,7 +1043,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
@@ -1180,11 +1153,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-
-	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionRead)
-	if !ok {
-		return
-	}
+	config := httpmw.MCPServerConfigParam(r)
 
 	//nolint:gocritic // Users manage their own tokens.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
@@ -1379,8 +1348,18 @@ func (api *API) markMCPTokenRefreshFailure(
 	return false
 }
 
+// mcpServerOAuth2CallbackPath returns the OAuth2 callback path for a
+// config. This path is frozen: it is the redirect URI registered with
+// external authorization servers, so it must not change when other MCP
+// routes move. The route registration in coderd.go and the OAuth cookie
+// Path values must stay aligned with it.
+func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
+}
+
 // parseMCPServerConfigID extracts the MCP server config UUID from the
-// "mcpServer" path parameter.
+// "mcpServer" path parameter, which is part of the frozen callback
+// route shape.
 func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	mcpServerID, err := uuid.Parse(chi.URLParam(r, "mcpServer"))
 	if err != nil {

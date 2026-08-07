@@ -1204,14 +1204,14 @@ type PromoteQueuedResult struct {
 }
 
 // enforceForcedMCPServerIDs appends the ID of every enabled Force On
-// MCP server config missing from ids. Force On availability is a
-// server-side policy: callers must not be able to exclude such
-// servers by stripping IDs from a request (Cure53 CDM-02-010). The
-// forced set is read with daemon scope because regular users cannot
-// read MCP server configs directly.
-func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, ids []uuid.UUID) ([]uuid.UUID, error) {
+// MCP server config in the chat's organization missing from ids. Force
+// On availability is a server-side policy: callers must not be able to
+// exclude such servers by stripping IDs from a request (Cure53
+// CDM-02-010). The forced set is read with daemon scope because
+// regular users cannot read MCP server configs directly.
+func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	forced, err := store.GetForcedMCPServerConfigs(dbauthz.AsChatd(ctx))
+	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.AsChatd(ctx), organizationID)
 	if err != nil {
 		// Fail closed: proceeding without the forced set would
 		// silently bypass a security policy.
@@ -1258,7 +1258,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Force On MCP servers are enforced server-side so a caller
 	// cannot exclude them by stripping IDs from the request
 	// (Cure53 CDM-02-010).
-	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.MCPServerIDs)
+	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.MCPServerIDs)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -1516,7 +1516,7 @@ func (p *Server) SendMessage(
 				// Force On MCP servers are enforced server-side so a
 				// caller cannot remove them by tampering with the
 				// update (Cure53 CDM-02-010).
-				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, *requestedMCPServerIDs)
+				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, *requestedMCPServerIDs)
 				if enforceErr != nil {
 					return enforceErr
 				}

@@ -1244,19 +1244,6 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 	return status, resp
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// @Summary Create chat
-// @ID create-chat
-// @Security CoderSessionToken
-// @Tags Chats
-// @Accept json
-// @Produce json
-// @Param request body codersdk.CreateChatRequest true "Create chat request"
-// @Success 201 {object} codersdk.Chat
-// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
-// @Router /api/experimental/chats [post]
-// @Description Experimental: this endpoint is subject to change.
 func validateChatMCPServerIDs(
 	ctx context.Context,
 	db database.Store,
@@ -1299,6 +1286,19 @@ func validateChatMCPServerIDs(
 	return unique, invalid, nil
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Create chat
+// @ID create-chat
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CreateChatRequest true "Create chat request"
+// @Success 201 {object} codersdk.Chat
+// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
+// @Router /api/experimental/chats [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
