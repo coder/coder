@@ -1,11 +1,9 @@
--- Two columns describe how an OAuth2 client authenticates, and they can
--- currently contradict each other.
---
 -- token_endpoint_auth_method is the client's own declaration, registered client
 -- metadata under RFC 7591 section 2, where "none" is defined to mean the client
 -- is public and has no secret. client_type is Coder's derived copy of that same
 -- fact, and it is what the token endpoint actually enforces on. RFC 7591 defines
--- no client_type metadata field; the column exists only as a denormalization.
+-- no client_type metadata field, so the column is a denormalization that can
+-- contradict its source.
 --
 -- Registration used to persist the declaration verbatim while hardcoding
 -- client_type to 'confidential', so rows exist saying "auth method: none" on a

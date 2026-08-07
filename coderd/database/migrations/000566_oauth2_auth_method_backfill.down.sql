@@ -1,11 +1,7 @@
--- Deliberately empty.
+-- Deliberately a no-op.
 --
--- The up migration repairs rows whose token_endpoint_auth_method contradicted
--- the client_type the token endpoint enforces on. It does not record which rows
--- it touched, so the previous values cannot be restored, and restoring them
--- would only reinstate metadata that tells a client to authenticate in a way the
--- server rejects.
---
--- The schema is unchanged either way, so rolling back past this migration needs
--- no structural work.
-SELECT 1;
+-- The up migration does not record which rows it touched, so the previous
+-- values cannot be restored, and restoring them would only reinstate metadata
+-- that tells a client to authenticate in a way the server rejects. The schema
+-- is unchanged either way, so rolling back past this migration needs no
+-- structural work.

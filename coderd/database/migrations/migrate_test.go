@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1669,7 +1670,10 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
 			break
 		}
 	}
@@ -2741,8 +2745,10 @@ func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
 }
 
 // setupMigration000565Apps steps to the migration just before 000565 and seeds
-// oauth2_provider_apps rows covering every combination the two migrations care
-// about. Returns the app IDs keyed by the shape they were seeded with.
+// one oauth2_provider_apps row per token_endpoint_auth_method shape that 000566
+// repairs or preserves. 000565's NULL client_type case is seeded in its own
+// test, since it is about the column this helper always populates. Returns the
+// app IDs keyed by the shape they were seeded with.
 func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[string]uuid.UUID) {
 	t.Helper()
 
@@ -2754,7 +2760,10 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
 			break
 		}
 	}
@@ -2762,9 +2771,9 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	// The shapes that matter. "legacy" is the row the known bug produced: the
-	// client asked for "none", which RFC 7591 §2 defines as public, but
-	// client_type was hardcoded confidential and a secret was issued anyway.
+	// "legacy" is the row the known bug produced: the client asked for "none",
+	// which RFC 7591 section 2 defines as public, but client_type was hardcoded
+	// confidential and a secret was issued anyway.
 	ids := map[string]uuid.UUID{
 		"legacy":            uuid.New(), // confidential + none  -> auth method must be repaired
 		"nullMethod":        uuid.New(), // confidential + NULL  -> auth method must be repaired
@@ -2786,20 +2795,18 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		`, id, now, name, clientType, authMethod)
 		require.NoError(t, err)
 	}
-	strPtr := func(s string) *string { return &s }
-
-	seed(ids["legacy"], "test-565-legacy", "confidential", strPtr("none"))
+	seed(ids["legacy"], "test-565-legacy", "confidential", ptr.Ref("none"))
 	seed(ids["nullMethod"], "test-565-null", "confidential", nil)
-	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", strPtr("client_secret_basic"))
-	seed(ids["confidentialBasic"], "test-565-basic", "confidential", strPtr("client_secret_basic"))
-	seed(ids["confidentialPost"], "test-565-post", "confidential", strPtr("client_secret_post"))
-	seed(ids["publicNone"], "test-565-public", "public", strPtr("none"))
+	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", ptr.Ref("client_secret_basic"))
+	seed(ids["confidentialBasic"], "test-565-basic", "confidential", ptr.Ref("client_secret_basic"))
+	seed(ids["confidentialPost"], "test-565-post", "confidential", ptr.Ref("client_secret_post"))
+	seed(ids["publicNone"], "test-565-public", "public", ptr.Ref("none"))
 	// Neither of these is producible by today's write path: ApplyDefaults maps
 	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
 	// in for history the squashed log cannot rule out, and both would satisfy
 	// the eventual cross-column constraint while remaining unusable.
-	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", strPtr(""))
-	seed(ids["confidentialJunk"], "test-565-junk", "confidential", strPtr("client_secret_jwt"))
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", ptr.Ref(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", ptr.Ref("client_secret_jwt"))
 	seed(ids["publicNull"], "test-565-public-null", "public", nil)
 
 	return sqlDB, ctx, ids
@@ -2807,9 +2814,7 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 
 // TestMigration000565OAuth2ClientTypeConstraint covers the constraint migration:
 // a NULL client_type is backfilled, the column becomes NOT NULL, and the CHECK
-// rejects any value other than the two canonical ones. client_type is what the
-// token endpoint reads to decide whether a client secret is validated at all, so
-// the point of the constraint is that a value outside that set cannot exist.
+// rejects any value other than the two canonical ones.
 func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 	t.Parallel()
 
@@ -2847,8 +2852,7 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "NO", isNullable, "client_type should be NOT NULL after the migration")
 
-	// The CHECK is the point of the migration: prove it rejects rather than
-	// trusting that it exists.
+	// Prove the CHECK rejects rather than trusting that it exists.
 	for _, badValue := range []string{"Public", "PUBLIC", "public ", "bogus", ""} {
 		_, err = sqlDB.ExecContext(ctx, `
 			INSERT INTO oauth2_provider_apps
@@ -2856,17 +2860,16 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 			VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)
 		`, uuid.New(), now, "test-565-bad-"+badValue, badValue)
 		require.Error(t, err, "client_type %q must be rejected by the CHECK constraint", badValue)
-		require.ErrorContains(t, err, "oauth2_provider_apps_client_type_check")
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppsClientTypeCheck),
+			"client_type %q must fail the check constraint specifically", badValue)
 	}
 
-	// A NULL is now rejected too, so a reader that treats an unset column as
-	// confidential can never encounter one.
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO oauth2_provider_apps
 			(id, created_at, updated_at, name, icon, callback_url, client_type)
 		VALUES ($1, $2, $2, 'test-565-null-after', '', 'http://localhost/callback', NULL)
 	`, uuid.New(), now)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "not-null")
 
 	// Both canonical values must still be insertable.
 	for _, goodValue := range []string{"confidential", "public"} {
@@ -2981,12 +2984,9 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 
 	// The invariant the migration establishes, stated directly: no row may
 	// declare "none" while being enforced as confidential, or vice versa.
-	// IS DISTINCT FROM, not <>. With <> a NULL declaration makes the whole
-	// comparison NULL, WHERE drops the row, and an unrepaired NULL is counted as
-	// consistent. That matters beyond this assertion: this predicate is the
-	// obvious candidate for the permanent cross-column CHECK after #27873, and a
-	// CHECK is more forgiving still, since NULL reads as not-violated. Carrying
-	// the <> form forward would carry the blind spot into a migration gate.
+	// IS DISTINCT FROM, not <>: with <> a NULL declaration makes the comparison
+	// NULL and WHERE drops the row, so an unrepaired NULL would count as
+	// consistent. The same trap awaits the permanent cross-column CHECK.
 	var contradictions int
 	err := sqlDB.QueryRowContext(ctx, `
 		SELECT count(*) FROM oauth2_provider_apps
@@ -2996,7 +2996,6 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 	require.Zero(t, contradictions,
 		"after the backfill no row may declare an auth method that contradicts its enforced client type")
 
-	// client_type is the enforced column and the backfill must not touch it.
 	var stillConfidential string
 	err = sqlDB.QueryRowContext(ctx,
 		`SELECT client_type FROM oauth2_provider_apps WHERE id = $1`, ids["legacy"],
