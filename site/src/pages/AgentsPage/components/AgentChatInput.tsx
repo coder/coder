@@ -554,7 +554,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
 		setMcpConnectingId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = `/api/experimental/mcp-servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		mcpPopupRef.current = window.open(
 			connectUrl,
 			"_blank",

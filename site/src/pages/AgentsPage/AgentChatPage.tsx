@@ -895,6 +895,7 @@ const AgentChatPage: FC = () => {
 		},
 		refetchIntervalInBackground: false,
 	});
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -922,7 +923,10 @@ const AgentChatPage: FC = () => {
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+	});
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -941,7 +945,9 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -1096,7 +1102,9 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = chatOrganizationId
+			? getSavedMCPSelection(chatOrganizationId, mcpServers)
+			: null;
 		if (saved !== null) {
 			return saved;
 		}

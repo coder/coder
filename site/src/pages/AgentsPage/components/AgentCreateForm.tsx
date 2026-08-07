@@ -123,6 +123,7 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	onOrganizationChange?: (organizationId: string) => void;
 	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
@@ -149,6 +150,7 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	onOrganizationChange = () => {},
 	sendShortcut,
 	isCreating,
 	createError,
@@ -283,6 +285,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
+	);
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
 			// agents-access grants chat:create only at member scope. "me" is
@@ -354,8 +359,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setLastSettledOrgId(organizationId);
 		if (lastSettledOrgId !== null) {
 			setSelectedWorkspaceId(null);
+			setUserMCPServerIds(null);
 		}
 	}
+	useEffect(() => {
+		if (organizationId) {
+			onOrganizationChange(organizationId);
+		}
+	}, [organizationId, onOrganizationChange]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
@@ -395,14 +406,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
-		null,
-	);
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(mcpServers ?? []);
+		const saved = getSavedMCPSelection(organizationId, mcpServers ?? []);
 		if (saved !== null) {
 			return saved;
 		}
@@ -416,6 +424,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		setSelectedWorkspaceId(value);
 		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+	};
+
+	const selectOrganization = (organization: TypesGen.Organization) => {
+		setUserMCPServerIds(null);
+		setSelectedOrg(organization);
+		onOrganizationChange(organization.id);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -581,6 +595,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									}
 									if (orgChanged) {
 										handleWorkspaceChange(null);
+										selectOrganization(newOrg);
+										return;
 									}
 									setSelectedOrg(newOrg);
 								}}
@@ -627,7 +643,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(ids);
+							saveMCPSelection(organizationId, ids);
 						}}
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
@@ -671,7 +687,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					}
 					resetAttachments();
 					handleWorkspaceChange(null);
-					setSelectedOrg(pendingOrgChange);
+					selectOrganization(pendingOrgChange);
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>

@@ -2327,20 +2327,25 @@ export const updateChatModelOverride = (
 // ── MCP Server Configs ───────────────────────────────────────
 
 export const mcpServersKey = ["mcp", "servers"] as const;
+const mcpServerConfigsKey = (organization: string) =>
+	[...mcpServersKey, organization] as const;
 
-export const mcpServerConfigs = () => ({
-	queryKey: mcpServersKey,
+export const mcpServerConfigs = (organization: string) => ({
+	queryKey: mcpServerConfigsKey(organization),
 	queryFn: (): Promise<TypesGen.MCPServerConfig[]> =>
-		API.experimental.getMCPServerConfigs(),
+		API.experimental.getMCPServerConfigs(organization),
 });
 
 const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };
 
-export const createMCPServerConfig = (queryClient: QueryClient) => ({
+export const createMCPServerConfig = (
+	queryClient: QueryClient,
+	organization: string,
+) => ({
 	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
-		API.experimental.createMCPServerConfig(req),
+		API.experimental.createMCPServerConfig(organization, req),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

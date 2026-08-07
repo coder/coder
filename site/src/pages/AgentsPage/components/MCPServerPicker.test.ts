@@ -18,6 +18,8 @@ const buildServer = (
 	...overrides,
 });
 
+const organizationId = "organization-1";
+
 describe("MCP selection persistence", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -25,15 +27,17 @@ describe("MCP selection persistence", () => {
 
 	describe("saveMCPSelection", () => {
 		it("writes a JSON array to localStorage", () => {
-			saveMCPSelection(["a", "b"]);
-			expect(localStorage.getItem(mcpSelectionStorageKey)).toBe(
+			saveMCPSelection(organizationId, ["a", "b"]);
+			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
 				JSON.stringify(["a", "b"]),
 			);
 		});
 
 		it("writes an empty array when no servers are selected", () => {
-			saveMCPSelection([]);
-			expect(localStorage.getItem(mcpSelectionStorageKey)).toBe("[]");
+			saveMCPSelection(organizationId, []);
+			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
+				"[]",
+			);
 		});
 	});
 
@@ -45,34 +49,37 @@ describe("MCP selection persistence", () => {
 		];
 
 		it("returns null when nothing is stored", () => {
-			expect(getSavedMCPSelection(servers)).toBeNull();
+			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
 		});
 
 		it("returns null when the server list is empty", () => {
-			saveMCPSelection(["s1", "s2"]);
-			expect(getSavedMCPSelection([])).toBeNull();
+			saveMCPSelection(organizationId, ["s1", "s2"]);
+			expect(getSavedMCPSelection(organizationId, [])).toBeNull();
 		});
 
 		it("returns null for invalid JSON", () => {
-			localStorage.setItem(mcpSelectionStorageKey, "not-json");
-			expect(getSavedMCPSelection(servers)).toBeNull();
+			localStorage.setItem(mcpSelectionStorageKey(organizationId), "not-json");
+			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
 		});
 
 		it("returns null when stored value is not an array", () => {
-			localStorage.setItem(mcpSelectionStorageKey, '"a string"');
-			expect(getSavedMCPSelection(servers)).toBeNull();
+			localStorage.setItem(
+				mcpSelectionStorageKey(organizationId),
+				'"a string"',
+			);
+			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
 		});
 
 		it("restores saved IDs that still exist as enabled servers", () => {
-			saveMCPSelection(["s2", "s3"]);
-			const result = getSavedMCPSelection(servers);
+			saveMCPSelection(organizationId, ["s2", "s3"]);
+			const result = getSavedMCPSelection(organizationId, servers);
 			expect(result).toContain("s2");
 			expect(result).toContain("s3");
 		});
 
 		it("filters out IDs for servers that no longer exist", () => {
-			saveMCPSelection(["s2", "deleted-server"]);
-			const result = getSavedMCPSelection(servers);
+			saveMCPSelection(organizationId, ["s2", "deleted-server"]);
+			const result = getSavedMCPSelection(organizationId, servers);
 			expect(result).toContain("s2");
 			expect(result).not.toContain("deleted-server");
 		});
@@ -82,29 +89,29 @@ describe("MCP selection persistence", () => {
 				...servers,
 				buildServer({ id: "s4", enabled: false }),
 			];
-			saveMCPSelection(["s2", "s4"]);
-			const result = getSavedMCPSelection(withDisabled);
+			saveMCPSelection(organizationId, ["s2", "s4"]);
+			const result = getSavedMCPSelection(organizationId, withDisabled);
 			expect(result).toContain("s2");
 			expect(result).not.toContain("s4");
 		});
 
 		it("always includes force_on servers even if not in saved list", () => {
-			saveMCPSelection(["s3"]);
-			const result = getSavedMCPSelection(servers);
+			saveMCPSelection(organizationId, ["s3"]);
+			const result = getSavedMCPSelection(organizationId, servers);
 			expect(result).toContain("s1");
 			expect(result).toContain("s3");
 		});
 
 		it("does not duplicate force_on servers already in saved list", () => {
-			saveMCPSelection(["s1", "s3"]);
-			const result = getSavedMCPSelection(servers)!;
+			saveMCPSelection(organizationId, ["s1", "s3"]);
+			const result = getSavedMCPSelection(organizationId, servers)!;
 			const s1Count = result.filter((id) => id === "s1").length;
 			expect(s1Count).toBe(1);
 		});
 
 		it("returns an empty selection (plus force_on) when user opted out", () => {
-			saveMCPSelection([]);
-			const result = getSavedMCPSelection(servers);
+			saveMCPSelection(organizationId, []);
+			const result = getSavedMCPSelection(organizationId, servers);
 			// Only force_on should be present.
 			expect(result).toEqual(["s1"]);
 		});
