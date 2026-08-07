@@ -412,7 +412,10 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+			AgentBrowserSession: chat.ID.String(),
+		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),

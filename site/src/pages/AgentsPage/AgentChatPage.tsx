@@ -425,6 +425,50 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 	return nextWorkspaceOptions;
 };
 
+// Keep this list in sync with app fields consumed by the chat UI, or live
+// updates to those fields can retain stale query data.
+const watchedAgentAppFields: readonly (keyof TypesGen.WorkspaceApp)[] = [
+	"id",
+	"slug",
+	"health",
+	"hidden",
+	"external",
+	"command",
+	"subdomain",
+	"subdomain_name",
+	"display_name",
+];
+
+/** @internal Exported for testing. */
+export const isWatchedWorkspaceViewUnchanged = (
+	prev: TypesGen.Workspace,
+	next: TypesGen.Workspace,
+	chatAgentId: string | undefined,
+): boolean => {
+	const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+	const nextAgent = getWorkspaceAgent(next, chatAgentId);
+	const prevApps = prevAgent?.apps ?? [];
+	const nextApps = nextAgent?.apps ?? [];
+	return (
+		prev.latest_build.status === next.latest_build.status &&
+		prev.health.healthy === next.health.healthy &&
+		prev.name === next.name &&
+		prev.owner_name === next.owner_name &&
+		prevAgent?.id === nextAgent?.id &&
+		prevAgent?.status === nextAgent?.status &&
+		prevAgent?.name === nextAgent?.name &&
+		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
+		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
+		prevApps.length === nextApps.length &&
+		prevApps.every((prevApp, index) => {
+			const nextApp = nextApps[index];
+			return watchedAgentAppFields.every(
+				(field) => prevApp[field] === nextApp[field],
+			);
+		})
+	);
+};
+
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -968,19 +1012,9 @@ const AgentChatPage: FC = () => {
 					// reads has changed. This prevents react-query
 					// from notifying subscribers and avoids a full
 					// AgentChatPage re-render on every heartbeat.
-					const prevAgent = getWorkspaceAgent(prev, chatAgentId);
-					const nextAgent = getWorkspaceAgent(next, chatAgentId);
 					if (
 						prev &&
-						prev.latest_build.status === next.latest_build.status &&
-						prev.health.healthy === next.health.healthy &&
-						prev.name === next.name &&
-						prev.owner_name === next.owner_name &&
-						prevAgent?.id === nextAgent?.id &&
-						prevAgent?.status === nextAgent?.status &&
-						prevAgent?.name === nextAgent?.name &&
-						prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
-						prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
+						isWatchedWorkspaceViewUnchanged(prev, next, chatAgentId)
 					) {
 						return prev;
 					}
