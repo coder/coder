@@ -5449,6 +5449,14 @@ func (m queryMetricsStore) UpdateMCPServerConfig(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateMCPServerConfigACLByID(ctx context.Context, arg database.UpdateMCPServerConfigACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateMCPServerConfigACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMCPServerConfigACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerConfigACLByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateMCPServerUserTokenFromRefresh(ctx, arg)

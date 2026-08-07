@@ -5474,6 +5474,8 @@ type MCPServerConfig struct {
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
+	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 }
 
 type MCPServerUserToken struct {
