@@ -1387,6 +1387,36 @@ export const DownloadInIOSStandaloneSharesFile: Story = {
 	},
 };
 
+export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
+	decorators: [withToaster],
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn()
+			.mockRejectedValueOnce(
+				new DOMException("activation expired", "NotAllowedError"),
+			)
+			.mockResolvedValue(undefined);
+		const { open, restoreNavigator } = setupIOSStandaloneDownload({
+			share,
+			canShare: fn().mockReturnValue(true),
+		});
+		try {
+			await userEvent.click(getIOSDownloadLink(canvas));
+			// The toast renders in a portal outside the story canvas.
+			const saveButton = await screen.findByRole("button", { name: "Save" });
+			await userEvent.click(saveButton);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+			const shared: { files: File[] } = share.mock.calls[1][0];
+			expect(shared.files).toHaveLength(1);
+			expect(shared.files[0].name).toBe("deployment-report.pdf");
+			expect(open).not.toHaveBeenCalled();
+		} finally {
+			restoreNavigator();
+		}
+	},
+};
+
 export const DownloadInIOSStandaloneSuppressesDuplicateClicks: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
