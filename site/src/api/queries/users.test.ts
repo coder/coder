@@ -1,9 +1,11 @@
-import { QueryClient } from "react-query";
+import { MutationObserver, QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
+import { API } from "#/api/api";
 import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { myAppearanceKey, updateAppearanceSettings } from "./users";
 
 const appearanceSettings = (
@@ -28,6 +30,24 @@ const updateRequest = (
 	...overrides,
 });
 
+const startAppearanceUpdate = (
+	queryClient: QueryClient,
+	request: UpdateUserAppearanceSettingsRequest,
+) => {
+	const response = createDeferred<UserAppearanceSettings>();
+	vi.spyOn(API, "updateAppearanceSettings").mockReturnValue(response.promise);
+	const observer = new MutationObserver(
+		queryClient,
+		updateAppearanceSettings(queryClient),
+	);
+
+	return { response, result: observer.mutate(request) };
+};
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe("updateAppearanceSettings", () => {
 	it("rolls back optimistic appearance updates when the mutation fails", async () => {
 		const queryClient = new QueryClient();
@@ -42,13 +62,19 @@ describe("updateAppearanceSettings", () => {
 			previousSettings,
 		);
 
-		const mutation = updateAppearanceSettings(queryClient);
-		const context = await mutation.onMutate?.(optimisticSettings);
-		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+		const { response, result } = startAppearanceUpdate(
+			queryClient,
 			optimisticSettings,
 		);
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+				optimisticSettings,
+			),
+		);
 
-		mutation.onError?.(new Error("failed"), optimisticSettings, context);
+		const rejection = expect(result).rejects.toThrow("failed");
+		response.reject(new Error("failed"));
+		await rejection;
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(previousSettings);
 	});
@@ -56,14 +82,20 @@ describe("updateAppearanceSettings", () => {
 	it("removes optimistic appearance data when rollback has no prior cache", async () => {
 		const queryClient = new QueryClient();
 		const optimisticSettings = updateRequest();
-		const mutation = updateAppearanceSettings(queryClient);
-
-		const context = await mutation.onMutate?.(optimisticSettings);
-		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+		const { response, result } = startAppearanceUpdate(
+			queryClient,
 			optimisticSettings,
 		);
 
-		mutation.onError?.(new Error("failed"), optimisticSettings, context);
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+				optimisticSettings,
+			),
+		);
+
+		const rejection = expect(result).rejects.toThrow("failed");
+		response.reject(new Error("failed"));
+		await rejection;
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toBeUndefined();
 	});
@@ -76,17 +108,19 @@ describe("updateAppearanceSettings", () => {
 			theme_light: "light-protan-deuter",
 			theme_dark: "dark-protan-deuter",
 		});
-		const mutation = updateAppearanceSettings(queryClient);
-
-		const context = await mutation.onMutate?.(optimisticSettings);
-		if (!context) {
-			throw new Error("expected mutation context");
-		}
-		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+		const { response, result } = startAppearanceUpdate(
+			queryClient,
 			optimisticSettings,
 		);
 
-		mutation.onSuccess?.(serverSettings, optimisticSettings, context);
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+				optimisticSettings,
+			),
+		);
+
+		response.resolve(serverSettings);
+		await result;
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(serverSettings);
 	});
@@ -102,18 +136,19 @@ describe("updateAppearanceSettings", () => {
 			theme_preference: "dark-tritan",
 			terminal_font: "jetbrains-mono",
 		} satisfies Partial<UserAppearanceSettings>;
-		const mutation = updateAppearanceSettings(queryClient);
-
-		const context = await mutation.onMutate?.(optimisticSettings);
-		if (!context) {
-			throw new Error("expected mutation context");
-		}
-
-		mutation.onSuccess?.(
-			serverSettings as UserAppearanceSettings,
+		const { response, result } = startAppearanceUpdate(
+			queryClient,
 			optimisticSettings,
-			context,
 		);
+
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
+				optimisticSettings,
+			),
+		);
+
+		response.resolve(serverSettings as UserAppearanceSettings);
+		await result;
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toEqual({
 			...optimisticSettings,
