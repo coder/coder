@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -916,6 +918,16 @@ func requireMCPServerConfigRawEncrypted(
 	requireEncryptedEquals(t, ciphers[0], raw.CustomHeaders, wantHeaders)
 }
 
+type allowAllPreparedAuthorized struct{}
+
+func (allowAllPreparedAuthorized) Authorize(context.Context, rbac.Object) error {
+	return nil
+}
+
+func (allowAllPreparedAuthorized) CompileToSQL(context.Context, regosql.ConvertConfig) (string, error) {
+	return "TRUE", nil
+}
+
 func TestMCPServerConfigs(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -991,6 +1003,22 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+	})
+
+	t.Run("GetAuthorizedMCPServerConfigs", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetAuthorizedMCPServerConfigs(ctx, database.GetAuthorizedMCPServerConfigsParams{
+			OrganizationID: cfg.OrganizationID,
+			Prepared:       allowAllPreparedAuthorized{},
+		})
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		require.Equal(t, cfg.ID, cfgs[0].ID)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
