@@ -64,10 +64,8 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"application/xml": "xml",
 	"image/jpeg": "jpg",
 	"text/csv": "csv",
-	"text/html": "html",
 	"text/markdown": "md",
 	"text/plain": "txt",
-	"text/xml": "xml",
 };
 
 const sanitizeAttachmentExtension = (value: string): string =>
