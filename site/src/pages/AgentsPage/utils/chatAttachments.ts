@@ -89,8 +89,6 @@ export type AttachmentDownloadTarget = {
 	mediaType: string;
 };
 
-// Web Share failures are DOMExceptions, which are not Error subclasses
-// in jsdom, so match names structurally instead of via instanceof.
 const errorHasName = (error: unknown, name: string): boolean =>
 	typeof error === "object" &&
 	error !== null &&

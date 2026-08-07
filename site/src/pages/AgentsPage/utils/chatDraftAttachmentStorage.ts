@@ -282,8 +282,7 @@ const fileFromDataURL = (
 	metadata: { fileName: string; fileType: string; lastModified: number },
 ): File | null => {
 	const decoded = decodeDataURL(payload);
-	// Stored records are always base64 (fileToDataURL uses FileReader),
-	// so anything else is corruption.
+	// FileReader stores drafts as base64, so other encodings indicate corruption.
 	if (!decoded?.isBase64) {
 		return null;
 	}

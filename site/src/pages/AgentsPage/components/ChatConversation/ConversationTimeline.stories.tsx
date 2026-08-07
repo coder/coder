@@ -1439,8 +1439,6 @@ export const DownloadInIOSStandaloneReportsPermanentShareFailure: Story = {
 		try {
 			await userEvent.click(getIOSDownloadLink(canvas));
 			await screen.findByText("Couldn't download deployment-report.pdf");
-			// Retrying a permanently failed share would fail identically,
-			// so the toast offers the dismissible tab instead of Save.
 			expect(
 				screen.queryByRole("button", { name: "Save" }),
 			).not.toBeInTheDocument();
@@ -1492,7 +1490,6 @@ export const DownloadInIOSStandaloneShowsErrorForCorruptInlineAttachment: Story 
 		},
 	};
 
-/** iOS blocks data: tabs, so inline attachments open through a blob URL. */
 export const DownloadInIOSStandaloneOpensInlineAttachmentInTab: Story = {
 	args: inlineAttachmentStoryArgs,
 	play: async ({ canvasElement }) => {
@@ -1535,7 +1532,6 @@ export const DownloadInIOSStandaloneStaysQuietOnDismissedShare: Story = {
 		try {
 			await userEvent.click(getIOSDownloadLink(canvas));
 			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-			// The spinner clearing marks the flow as settled.
 			await waitFor(() => {
 				expect(
 					canvas.getByRole("link", { name: "Download deployment-report.pdf" }),

@@ -90,7 +90,7 @@ const getMediaTypeExtension = (mediaType: string): string | null => {
 		const base = subtype.slice(0, -"+xml".length);
 		return /^[a-z0-9]{1,8}$/i.test(base) ? base.toLowerCase() : "xml";
 	}
-	// Only image subtypes reliably double as filename extensions.
+	// Unmapped non-image subtypes are not assumed to be filename extensions.
 	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
 		? subtype.toLowerCase()
 		: null;
@@ -180,13 +180,9 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
-// Suppresses repeated clicks while an intercepted iOS download is still
-// fetching, so a second tap cannot open a second share sheet or surface
-// a misleading error toast while the first sheet is open.
 const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
 	const [isPending, setIsPending] = useState(false);
-	// Aborts on unmount so a slow fetch cannot surface the share sheet
-	// or an error toast after the user has navigated away.
+	// Prevents share sheets and error toasts from appearing after unmount.
 	const downloadRequest = useLatestAbortController();
 	const onClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
 		event.stopPropagation();
