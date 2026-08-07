@@ -1,8 +1,6 @@
--- Exercises the 000561 org column: an MCP server config (with a user token
--- and a chat referencing it) carries the new organization_id, keeping later
--- migrations and the final down sweep honest about the FK. The row is
--- inserted at 000561 with organization_id already set because fixtures run
--- after the migration of the same version.
+-- Keeps an MCP config, token, and chat to exercise organization_id and its
+-- foreign keys through later migrations and the down sweep. Fixtures run
+-- after their matching migration, so this row already has organization_id.
 
 INSERT INTO organizations (
     id,

@@ -810,22 +810,14 @@ func latestAssistantText(messages []database.ChatMessage) string {
 	return ""
 }
 
-// enabledMCPServerConfigsForChatOrg returns the requested MCP server
-// configs that a chat in the given organization may use at generation time:
-// those that belong to the chat's organization OR to the default
-// organization and are enabled. The enabled filter is applied here in Go,
-// mirroring the MCP client's connect-time skip of disabled configs
-// (mcpclient.go), so the fetch shape matches pre-org-scoping behavior.
+// Returns enabled requested configs visible to the chat organization. Filtering
+// here preserves the pre-org-scoping behavior of skipping disabled configs.
 func enabledMCPServerConfigsForChatOrg(
 	ctx context.Context,
 	db database.Store,
 	organizationID uuid.UUID,
 	ids []uuid.UUID,
 ) ([]database.MCPServerConfig, error) {
-	if len(ids) == 0 {
-		return []database.MCPServerConfig{}, nil
-	}
-
 	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
 		OrganizationID: organizationID,
 		IDs:            ids,

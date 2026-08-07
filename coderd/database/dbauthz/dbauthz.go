@@ -796,11 +796,6 @@ var (
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
-					// TODO(mafredri): remove after CODAGT-711 B3
-					// (org-scoping cutover). The chat-org-then-default-org
-					// fallback for MCP server configs resolves the default
-					// organization under the chatd subject.
-					rbac.ResourceOrganization.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

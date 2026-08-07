@@ -546,10 +546,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
-// getMCPServerConfigForMutation returns the config resolved by the
-// param middleware after checking the write action. The middleware
-// already concealed read-denied as 404, so a write denial here is an
-// explicit 403.
+// Preserve the param middleware's 404 concealment. Write denial is a 403.
 func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Request, action policy.Action) (database.MCPServerConfig, bool) {
 	config := httpmw.MCPServerConfigParam(r)
 	if !api.Authorize(r, action, config) {

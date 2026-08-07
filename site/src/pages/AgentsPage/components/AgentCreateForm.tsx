@@ -2,6 +2,7 @@ import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { mcpServerConfigs } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -124,7 +125,6 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	onOrganizationChange: (organizationId: string) => void;
 	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
@@ -141,9 +141,6 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
-	mcpServersOrganizationId: string;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -152,7 +149,6 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
-	onOrganizationChange,
 	sendShortcut,
 	isCreating,
 	createError,
@@ -169,9 +165,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
-	mcpServersOrganizationId,
-	mcpServers,
-	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -312,8 +305,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? "";
-	const scopedMCPServers =
-		mcpServersOrganizationId === organizationId ? (mcpServers ?? []) : [];
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -357,27 +353,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		const saved = getSavedMCPSelection(
 			organizationId,
-			scopedMCPServers,
+			mcpServers,
 			selectedOrg?.is_default,
 		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(scopedMCPServers);
+		return getDefaultMCPSelection(mcpServers);
 	})();
 	useEffect(() => {
-		if (
-			selectedOrg?.is_default &&
-			mcpServersOrganizationId === organizationId
-		) {
-			migrateLegacyMCPSelection(organizationId, mcpServers ?? []);
+		if (selectedOrg?.is_default) {
+			migrateLegacyMCPSelection(organizationId, mcpServers);
 		}
-	}, [
-		organizationId,
-		mcpServers,
-		mcpServersOrganizationId,
-		selectedOrg?.is_default,
-	]);
+	}, [organizationId, mcpServers, selectedOrg?.is_default]);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -391,7 +379,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const selectOrganization = (organization: TypesGen.Organization) => {
 		setUserMCPServerIds(null);
 		setSelectedOrg(organization);
-		onOrganizationChange(organization.id);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -518,18 +505,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}
 
-	const onOrgAdjusted = useEffectEvent((organizationId: string) => {
+	const onOrgAdjusted = useEffectEvent(() => {
 		handleWorkspaceChange(null);
 		resetAttachments();
 		setUserMCPServerIds(null);
-		onOrganizationChange(organizationId);
 	});
 	useEffect(() => {
-		if (orgWasAdjusted && selectedOrg) {
+		if (orgWasAdjusted) {
 			setOrgWasAdjusted(false);
-			onOrgAdjusted(selectedOrg.id);
+			onOrgAdjusted();
 		}
-	}, [orgWasAdjusted, selectedOrg]);
+	}, [orgWasAdjusted]);
 
 	return (
 		<>
@@ -618,13 +604,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}
-						mcpServers={scopedMCPServers}
+						mcpServers={mcpServers}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
 							saveMCPSelection(organizationId, ids);
 						}}
-						onMCPAuthComplete={onMCPAuthComplete}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}

@@ -1270,6 +1270,17 @@ func validateChatMCPServerIDs(
 	return unique, invalid, nil
 }
 
+func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
+	invalid := make([]string, 0, len(ids))
+	for _, id := range ids {
+		invalid = append(invalid, id.String())
+	}
+	return codersdk.Response{
+		Message: "One or more MCP server IDs are invalid or disabled.",
+		Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(invalid, ", ")),
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Create chat
@@ -1383,14 +1394,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
 	if len(invalidMCPServerIDs) > 0 {
-		invalid := make([]string, 0, len(invalidMCPServerIDs))
-		for _, id := range invalidMCPServerIDs {
-			invalid = append(invalid, id.String())
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "One or more MCP server IDs are invalid or disabled.",
-			Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(invalid, ", ")),
-		})
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalidMCPServerIDs))
 		return
 	}
 
@@ -2784,14 +2788,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 		req.MCPServerIDs = &normalizedMCPServerIDs
 		if len(invalidMCPServerIDs) > 0 {
-			invalid := make([]string, 0, len(invalidMCPServerIDs))
-			for _, id := range invalidMCPServerIDs {
-				invalid = append(invalid, id.String())
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "One or more MCP server IDs are invalid or disabled.",
-				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(invalid, ", ")),
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalidMCPServerIDs))
 			return
 		}
 	}

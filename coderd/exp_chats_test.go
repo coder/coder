@@ -360,8 +360,6 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		// The chat lives in a second organization; an enabled config in
-		// the default organization is out of scope for it.
 		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
@@ -402,7 +400,6 @@ func TestPostChats(t *testing.T) {
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		// Duplicate valid IDs are deduplicated, not rejected.
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: secondOrg.ID,
 			Content: []codersdk.ChatInputPart{
@@ -440,8 +437,6 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		// A disabled config in the chat's own organization is not
-		// selectable at create or update time.
 		enabledCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
@@ -468,7 +463,6 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
 		require.Equal(t, "Invalid IDs: "+disabledCfg.ID.String(), sdkErr.Detail)
 
-		// The message-update validation path rejects it too.
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
@@ -502,9 +496,6 @@ func TestPostChats(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		// The enabled config belongs to a third organization: neither the
-		// chat's organization nor the default organization, so the create
-		// must reject it.
 		thirdOrg := dbgen.Organization(t, db, database.Organization{})
 		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: thirdOrg.ID,
