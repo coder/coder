@@ -718,6 +718,7 @@ export type APIKeyScope =
 	| "mcp_server_config:create"
 	| "mcp_server_config:delete"
 	| "mcp_server_config:read"
+	| "mcp_server_config:share"
 	| "mcp_server_config:update"
 	| "notification_message:*"
 	| "notification_message:create"
@@ -963,6 +964,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"mcp_server_config:create",
 	"mcp_server_config:delete",
 	"mcp_server_config:read",
+	"mcp_server_config:share",
 	"mcp_server_config:update",
 	"notification_message:*",
 	"notification_message:create",

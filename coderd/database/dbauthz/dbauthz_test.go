@@ -1694,6 +1694,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertMCPServerConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceMCPServerConfig.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(config)
 	}))
+	s.Run("UpdateMCPServerConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.UpdateMCPServerConfigACLByIDParams{ID: config.ID}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().UpdateMCPServerConfigACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionShare)
+	}))
 	s.Run("UpdateChatMCPServerIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatMCPServerIDsParams{

@@ -1202,7 +1202,7 @@ type mcpServerConfigQuerier interface {
 
 func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
-		VariableConverter: regosql.MCPServerConfigNoACLConverter(),
+		VariableConverter: regosql.MCPServerConfigConverter(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
@@ -1256,6 +1256,8 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
 			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
