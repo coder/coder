@@ -25,6 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
@@ -40,6 +41,7 @@ interface OrganizationProvisionersPageViewProps {
 	buildVersion: string | undefined;
 	error: unknown;
 	filter: ProvisionersFilter;
+	permissions: Permissions;
 	onRetry: () => void;
 	onFilterChange: (filter: ProvisionersFilter) => void;
 }
@@ -52,6 +54,7 @@ export const OrganizationProvisionersPageView: FC<
 	provisioners,
 	buildVersion,
 	filter,
+	permissions,
 	onFilterChange,
 	onRetry,
 }) => {
@@ -98,6 +101,7 @@ export const OrganizationProvisionersPageView: FC<
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
 					documentationLink={docs("/admin/provisioners")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<>

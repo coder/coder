@@ -1,11 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { MockGroup } from "#/testHelpers/entities";
+import { MockGroup, MockPermissions } from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
 	component: GroupsPageView,
+	args: {
+		permissions: MockPermissions,
+	},
 };
 
 export default meta;
@@ -28,6 +31,29 @@ export const NotEnabled: Story = {
 		groups: [{ ...mockGroupWithSpend }],
 		canCreateGroup: true,
 		groupsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEnabledWithoutLicenseAccess: Story = {
+	args: {
+		...NotEnabled.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
 	},
 };
 
