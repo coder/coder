@@ -153,7 +153,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	// Organization admins can see disabled configs and management fields.
-	// Other members see enabled configs with management fields redacted.
+	// Other members see enabled configs granted by their ACL, with management fields redacted.
 	isAdmin := api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))
 
 	var configs []database.MCPServerConfig
