@@ -162,10 +162,10 @@ credential scoping, and pre-installing dependencies.
 
 ### Plan for change between releases
 
-Coder Agents is under active development. APIs, behavior, and
-configuration may change between releases without notice. Pin a
-specific release before broad rollout and review the release notes
-before upgrading so changes do not surprise developers in production.
+Coder Agents is generally available. However, APIs, behavior, and
+configuration may change between releases. As always, we recommend
+reviewing release notes before upgrading so changes do not affect
+production.
 
 ### Use HTTPS for push notifications
 
@@ -271,10 +271,6 @@ For service-to-service automation, use
 [API keys](../../admin/users/sessions-tokens.md)
 rather than developer session tokens. Keep automation credentials
 narrowly scoped.
-
-> [!NOTE]
-> The Chats API may change without notice.
-> See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
 
