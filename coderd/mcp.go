@@ -165,7 +165,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// Full view: disabled configs included, management fields unredacted.
 	// Auditors get it to inspect audit-logged resources; their MCP config
 	// read grant cannot select it because members hold the same read.
-	// Other members see enabled configs with management fields redacted.
+	// Other members see enabled configs granted by their ACL, redacted.
 	// The update leg also requires config read so a custom role granting
 	// update without read cannot lift the read filtering below.
 	hasFullView := (api.Authorize(r, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) &&
