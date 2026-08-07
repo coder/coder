@@ -2774,6 +2774,7 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		"publicNone":        uuid.New(), // already consistent  -> must be left alone
 		"confidentialEmpty": uuid.New(), // confidential + ''        -> repaired only by the widened predicate
 		"confidentialJunk":  uuid.New(), // confidential + unknown   -> repaired only by the widened predicate
+		"publicNull":        uuid.New(), // public + NULL            -> the second UPDATE's IS NULL arm
 	}
 
 	seed := func(id uuid.UUID, name, clientType string, authMethod *string) {
@@ -2799,6 +2800,7 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 	// the eventual cross-column constraint while remaining unusable.
 	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", strPtr(""))
 	seed(ids["confidentialJunk"], "test-565-junk", "confidential", strPtr("client_secret_jwt"))
+	seed(ids["publicNull"], "test-565-public-null", "public", nil)
 
 	return sqlDB, ctx, ids
 }
@@ -2948,11 +2950,24 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 			wantMethod: "client_secret_basic",
 			reason:     "an unrecognized declaration must be repaired too, so the migration is idempotent against history it cannot inspect",
 		},
+		{
+			key:        "publicNull",
+			wantMethod: "none",
+			reason:     "exercises the second UPDATE's IS NULL arm, which no other seeded row reaches",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			t.Parallel()
+
+			// A parallel subtest's own context, not the parent's. The parent's
+			// deadline starts when it is created, but a parallel subtest does
+			// not run until a -parallel slot frees, so it can spend most of the
+			// budget queued behind other tests in the package and then fail with
+			// "context deadline exceeded" on a sub-20ms read. That failure names
+			// no code and gets worse as the package grows.
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			var gotMethod, gotClientType string
 			err := sqlDB.QueryRowContext(ctx, `
@@ -2966,10 +2981,16 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 
 	// The invariant the migration establishes, stated directly: no row may
 	// declare "none" while being enforced as confidential, or vice versa.
+	// IS DISTINCT FROM, not <>. With <> a NULL declaration makes the whole
+	// comparison NULL, WHERE drops the row, and an unrepaired NULL is counted as
+	// consistent. That matters beyond this assertion: this predicate is the
+	// obvious candidate for the permanent cross-column CHECK after #27873, and a
+	// CHECK is more forgiving still, since NULL reads as not-violated. Carrying
+	// the <> form forward would carry the blind spot into a migration gate.
 	var contradictions int
 	err := sqlDB.QueryRowContext(ctx, `
 		SELECT count(*) FROM oauth2_provider_apps
-		WHERE (token_endpoint_auth_method = 'none') <> (client_type = 'public')
+		WHERE (token_endpoint_auth_method = 'none') IS DISTINCT FROM (client_type = 'public')
 	`).Scan(&contradictions)
 	require.NoError(t, err)
 	require.Zero(t, contradictions,
