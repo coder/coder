@@ -2849,8 +2849,8 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 		require.ErrorContains(t, err, "oauth2_provider_apps_client_type_check")
 	}
 
-	// A NULL is now rejected too, which is what makes IsPublic's fail-closed
-	// reading of an unset column unreachable rather than merely unused.
+	// A NULL is now rejected too, so a reader that treats an unset column as
+	// confidential can never encounter one.
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO oauth2_provider_apps
 			(id, created_at, updated_at, name, icon, callback_url, client_type)
