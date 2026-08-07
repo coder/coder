@@ -102,11 +102,11 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
-type MCPServerConfigRole = ChatRole
+type MCPServerConfigRole string
 
 const (
-	MCPServerConfigRoleRead    = ChatRoleRead
-	MCPServerConfigRoleDeleted = ChatRoleDeleted
+	MCPServerConfigRoleRead    MCPServerConfigRole = "read"
+	MCPServerConfigRoleDeleted MCPServerConfigRole = ""
 )
 
 type MCPServerConfigACL struct {

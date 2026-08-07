@@ -19036,13 +19036,9 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "read",
-                "",
-                "read",
                 ""
             ],
             "x-enum-varnames": [
-                "MCPServerConfigRoleRead",
-                "MCPServerConfigRoleDeleted",
                 "ChatRoleRead",
                 "ChatRoleDeleted"
             ]
@@ -22395,15 +22391,11 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "read",
-                "",
-                "read",
                 ""
             ],
             "x-enum-varnames": [
                 "MCPServerConfigRoleRead",
-                "MCPServerConfigRoleDeleted",
-                "ChatRoleRead",
-                "ChatRoleDeleted"
+                "MCPServerConfigRoleDeleted"
             ]
         },
         "codersdk.MCPServerConfigUser": {

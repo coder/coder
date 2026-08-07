@@ -95,37 +95,43 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userACL := maps.Clone(config.UserACL)
-	groupACL := maps.Clone(config.GroupACL)
-	for id, role := range req.UserRoles {
-		if role == codersdk.MCPServerConfigRoleDeleted {
-			delete(userACL, id)
-			continue
+	var updated database.MCPServerConfig
+	err := api.Database.InTx(func(tx database.Store) error {
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		if err != nil {
+			return xerrors.Errorf("get MCP server config for update: %w", err)
 		}
-		userACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
-	}
-	for id, role := range req.GroupRoles {
-		if role == codersdk.MCPServerConfigRoleDeleted {
-			delete(groupACL, id)
-			continue
+		userACL := maps.Clone(current.UserACL)
+		groupACL := maps.Clone(current.GroupACL)
+		for id, role := range req.UserRoles {
+			if role == codersdk.MCPServerConfigRoleDeleted {
+				delete(userACL, id)
+				continue
+			}
+			userACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
 		}
-		groupACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
-	}
-
-	if err := api.Database.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
-		ID:       config.ID,
-		UserACL:  userACL,
-		GroupACL: groupACL,
-	}); err != nil {
+		for id, role := range req.GroupRoles {
+			if role == codersdk.MCPServerConfigRoleDeleted {
+				delete(groupACL, id)
+				continue
+			}
+			groupACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+		}
+		if err := tx.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
+			ID:       config.ID,
+			UserACL:  userACL,
+			GroupACL: groupACL,
+		}); err != nil {
+			return xerrors.Errorf("update MCP server config ACL: %w", err)
+		}
+		updated, err = tx.GetMCPServerConfigByID(ctx, config.ID)
+		return err
+	}, nil)
+	if err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
 		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	updated, err := api.Database.GetMCPServerConfigByID(ctx, config.ID)
-	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -163,10 +169,23 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 			return nil, false
 		}
 	}
+	//nolint:gocritic // ACL readers may resolve group sizes after the config read gate passes.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      ids,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return nil, false
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
 	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
 	for _, group := range groups {
 		result = append(result, codersdk.MCPServerConfigGroup{
-			Group: db2sdk.Group(group, nil, 0),
+			Group: db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])),
 			Role:  codersdk.MCPServerConfigRoleRead,
 		})
 	}
