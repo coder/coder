@@ -17,6 +17,9 @@ END $$;
 UPDATE mcp_server_configs
 SET organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1);
 
+ALTER TABLE mcp_server_configs
+    DROP CONSTRAINT mcp_server_configs_slug_key;
+
 CREATE TEMP TABLE mcp_server_config_org_map (
     old_id UUID NOT NULL,
     organization_id UUID NOT NULL,
@@ -103,7 +106,6 @@ WHERE remapped.id = chat.id;
 
 ALTER TABLE mcp_server_configs
     ALTER COLUMN organization_id SET NOT NULL,
-    DROP CONSTRAINT mcp_server_configs_slug_key,
     ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
 
 CREATE INDEX idx_mcp_server_configs_organization_id
