@@ -41,8 +41,8 @@ Before mapping individual endpoints, understand the structural changes:
 
 The table below maps each Tasks API endpoint to its Chats API equivalent.
 
-| Operation         | Tasks API                                 | Chats API                                                           |
-|-------------------|-------------------------------------------|---------------------------------------------------------------------|
+| Operation         | Tasks API                                 | Chats API                                                 |
+|-------------------|-------------------------------------------|-----------------------------------------------------------|
 | List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                       |
 | Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                      |
 | Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                |
