@@ -70,17 +70,21 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"text/xml": "xml",
 };
 
-const sanitizeAttachmentExtension = (value: string): string => {
-	const sanitized = value
+const sanitizeAttachmentExtension = (value: string): string =>
+	value
 		.replace(/[^a-z0-9]/gi, "")
 		.slice(0, 4)
-		.toLowerCase();
-	return sanitized || "file";
-};
+		.toLowerCase() || "file";
 
-// Structured MIME suffixes (RFC 6839) carry the real format before the
-// plus sign, so image/svg+xml maps to svg rather than a mangled subtype.
-const structuredSubtypeExtension = (subtype: string): string | null => {
+const getMediaTypeExtension = (mediaType: string): string | null => {
+	if (mediaType === "application/octet-stream") {
+		return null;
+	}
+	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
+	if (mapped) {
+		return mapped;
+	}
+	const [type, subtype = ""] = mediaType.split("/");
 	if (subtype.endsWith("+json")) {
 		return "json";
 	}
@@ -88,7 +92,10 @@ const structuredSubtypeExtension = (subtype: string): string | null => {
 		const base = subtype.slice(0, -"+xml".length);
 		return /^[a-z0-9]{1,8}$/i.test(base) ? base.toLowerCase() : "xml";
 	}
-	return null;
+	// Only image subtypes reliably double as filename extensions.
+	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
+		? subtype.toLowerCase()
+		: null;
 };
 
 const getAttachmentExtension = (
@@ -98,28 +105,20 @@ const getAttachmentExtension = (
 	if (mapped) {
 		return mapped;
 	}
-	const trimmedName = block.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		// Keep dotfiles like `.env` out of the extension path, while still
-		// allowing ordinary `name.ext` filenames to contribute a fallback.
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
+	const name = block.name?.trim();
+	const lastDot = name?.lastIndexOf(".") ?? -1;
+	if (name && lastDot > 0 && lastDot < name.length - 1) {
+		return sanitizeAttachmentExtension(name.slice(lastDot + 1));
 	}
-	const subtype = block.media_type.split("/")[1] ?? "";
 	return (
-		structuredSubtypeExtension(subtype) ?? sanitizeAttachmentExtension(subtype)
+		getMediaTypeExtension(block.media_type) ??
+		sanitizeAttachmentExtension(block.media_type.split("/")[1] ?? "")
 	);
 };
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-// Text-like types whose payloads the server classifies by content while
-// preserving the name. Structured +json/+xml types (application/ld+json)
-// belong here too: their registered extensions (.jsonld) differ from the
-// base format's, so an existing suffix always wins.
 const isSuffixPreservingMediaType = (mediaType: string): boolean =>
 	mediaType.startsWith("text/") ||
 	mediaType === "application/json" ||
@@ -152,38 +151,14 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
-const endsWithFileExtension = /\.([a-z0-9]{1,8})$/i;
-
-// Alternate name suffixes that identify the same type as the canonical
-// media-type extension, so "photo.jpeg" is not renamed to "photo.jpeg.jpg".
-const extensionAliases: Record<string, readonly string[]> = {
-	jpg: ["jpeg", "jfif", "jpe", "pjpeg", "pjp"],
-	tiff: ["tif"],
-};
-
-// Returns the extension implied by the media type alone, ignoring the
-// attachment name. Null means the type carries no usable extension.
-const getMediaTypeExtension = (mediaType: string): string | null => {
-	if (mediaType === "application/octet-stream") {
-		return null;
-	}
-	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
-	if (mapped) {
-		return mapped;
-	}
-	const [type, subtype = ""] = mediaType.split("/");
-	const structured = structuredSubtypeExtension(subtype);
-	if (structured) {
-		return structured;
-	}
-	// Only image subtypes reliably double as filename extensions (png,
-	// gif, webp). Other subtypes are MIME names, not extensions
-	// (application/msword, audio/mpeg), so without an explicit mapping
-	// the attachment keeps its own name.
-	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
-		? subtype.toLowerCase()
-		: null;
-};
+const extensionAliases = new Set([
+	"jpg:jpeg",
+	"jpg:jfif",
+	"jpg:jpe",
+	"jpg:pjpeg",
+	"jpg:pjp",
+	"tiff:tif",
+]);
 
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
@@ -194,36 +169,20 @@ const getAttachmentDownloadName = (
 		return extension === "file" ? "attachment" : `attachment.${extension}`;
 	}
 	const mediaExtension = getMediaTypeExtension(block.media_type);
-	if (mediaExtension === null) {
+	if (!mediaExtension || name.startsWith(".")) {
 		return name;
-	}
-	// Leading-dot names are dotfiles (.eslintrc, .gitignore) whose whole
-	// name carries the meaning; appending an extension would rename them.
-	if (name.startsWith(".")) {
-		return name;
-	}
-	// The server classifies text-like uploads (text/*, JSON, XML) by
-	// content while preserving their names, so an existing suffix
-	// (main.go, map.geojson, schema.xsd) identifies the file better
-	// than the canonical extension would. Keep any dotted suffix and
-	// only append the extension to extensionless names.
-	if (isSuffixPreservingMediaType(block.media_type)) {
-		return /\.[^.\s]+$/.test(name) ? name : `${name}.${mediaExtension}`;
-	}
-	// iOS resolves the shared or saved file's type from the filename
-	// extension, so a name like "About Page Screenshot" or "report.final"
-	// would land as a generic file even when the media type is known.
-	const suffix = name.match(endsWithFileExtension)?.[1]?.toLowerCase();
-	if (suffix === undefined) {
-		return `${name}.${mediaExtension}`;
 	}
 	if (
-		suffix === mediaExtension ||
-		(extensionAliases[mediaExtension] ?? []).includes(suffix)
+		isSuffixPreservingMediaType(block.media_type) &&
+		/\.[^.\s]+$/.test(name)
 	) {
 		return name;
 	}
-	return `${name}.${mediaExtension}`;
+	const suffix = name.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
+	return suffix === mediaExtension ||
+		extensionAliases.has(`${mediaExtension}:${suffix}`)
+		? name
+		: `${name}.${mediaExtension}`;
 };
 
 const getAttachmentBadgeLabel = (
@@ -253,15 +212,15 @@ const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
 			target,
 			controller.signal,
 		);
-		if (pending) {
-			setIsPending(true);
-			void pending.finally(() => {
-				downloadRequest.clear(controller);
-				setIsPending(false);
-			});
-		} else {
+		if (!pending) {
 			downloadRequest.clear(controller);
+			return;
 		}
+		setIsPending(true);
+		void pending.finally(() => {
+			downloadRequest.clear(controller);
+			setIsPending(false);
+		});
 	};
 	return { isPending, onClick };
 };
