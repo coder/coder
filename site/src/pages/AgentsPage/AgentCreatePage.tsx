@@ -18,6 +18,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -41,6 +42,14 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const [organizationId, setOrganizationId] = useState(
+		() =>
+			(
+				organizations.find((organization) => organization.is_default) ??
+				organizations[0]
+			)?.id ?? "",
+	);
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 
 	const chatModelsQuery = useQuery(chatModels());
@@ -54,7 +63,10 @@ const AgentCreatePage: FC = () => {
 		userChatPersonalModelOverrides(),
 	);
 	const preferencesQuery = useQuery(preferenceSettings());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
@@ -160,6 +172,7 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
+				onOrganizationChange={setOrganizationId}
 				sendShortcut={getAgentChatSendShortcut(
 					preferencesQuery.data?.agent_chat_send_shortcut,
 					preferencesQuery.isLoading,

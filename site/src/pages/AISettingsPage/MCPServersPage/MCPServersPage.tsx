@@ -2,13 +2,22 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { mcpServerConfigs } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import MCPServersPageView from "./MCPServersPageView";
 
 const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const serversQuery = useQuery(mcpServerConfigs());
+	const { organizations } = useDashboard();
+	const organization = getDefaultOrganizationName(organizations);
+	const serversQuery = useQuery({
+		...mcpServerConfigs(organization),
+		enabled: Boolean(organization),
+	});
 	const servers = (serversQuery.data ?? []).toSorted((a, b) =>
 		a.display_name.localeCompare(b.display_name),
 	);
