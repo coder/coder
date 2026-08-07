@@ -3,11 +3,6 @@
 This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
-> [!NOTE]
-> APIs, behavior, and configuration may change between releases without
-> notice; pin a release before broad rollout.
-> Use **Coder version 2.33.1 or greater**.
-
 ## Prerequisites
 
 Before you begin, confirm the following:
