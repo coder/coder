@@ -108,7 +108,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceIdpsyncSettings:               {ActionRead, ActionUpdate},
 	ResourceInboxNotification:             {ActionCreate, ActionRead, ActionUpdate},
 	ResourceLicense:                       {ActionCreate, ActionDelete, ActionRead},
-	ResourceMCPServerConfig:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceMCPServerConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceNotificationMessage:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},

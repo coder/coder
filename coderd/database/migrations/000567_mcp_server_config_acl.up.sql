@@ -1,3 +1,5 @@
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:share';
+
 ALTER TABLE mcp_server_configs
     ADD COLUMN group_acl JSONB NOT NULL DEFAULT '{}'::JSONB,
     ADD COLUMN user_acl JSONB NOT NULL DEFAULT '{}'::JSONB,

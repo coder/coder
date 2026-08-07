@@ -108,6 +108,7 @@ const (
 	APIKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
 	APIKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	APIKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	APIKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
 	APIKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	APIKeyScopeNotificationMessageAll              APIKeyScope = "notification_message:*"
 	APIKeyScopeNotificationMessageCreate           APIKeyScope = "notification_message:create"

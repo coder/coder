@@ -74,18 +74,15 @@ func ChatNoACLConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
-// MCPServerConfigNoACLConverter converts MCP server config permissions to SQL.
-// Until sharing adds ACL columns, ACL matchers stay false and only organization
-// ownership filters rows.
-func MCPServerConfigNoACLConverter() *sqltypes.VariableConverter {
+func MCPServerConfigConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		organizationOwnerMatcher(),
+		sqltypes.StringVarMatcher("mcp_server_configs.organization_id :: text", []string{"input", "object", "org_owner"}),
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
 	matcher.RegisterMatcher(
-		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
-		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+		ACLMappingMatcher(matcher, "mcp_server_configs.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "mcp_server_configs.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
 	)
 	return matcher
 }

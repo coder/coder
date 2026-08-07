@@ -76,6 +76,7 @@ const (
 	ScopeMcpServerConfigCreate               ScopeName = "mcp_server_config:create"
 	ScopeMcpServerConfigDelete               ScopeName = "mcp_server_config:delete"
 	ScopeMcpServerConfigRead                 ScopeName = "mcp_server_config:read"
+	ScopeMcpServerConfigShare                ScopeName = "mcp_server_config:share"
 	ScopeMcpServerConfigUpdate               ScopeName = "mcp_server_config:update"
 	ScopeNotificationMessageCreate           ScopeName = "notification_message:create"
 	ScopeNotificationMessageDelete           ScopeName = "notification_message:delete"
@@ -268,6 +269,7 @@ func (e ScopeName) Valid() bool {
 		ScopeMcpServerConfigCreate,
 		ScopeMcpServerConfigDelete,
 		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
 		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
@@ -461,6 +463,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeMcpServerConfigCreate,
 		ScopeMcpServerConfigDelete,
 		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
 		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
