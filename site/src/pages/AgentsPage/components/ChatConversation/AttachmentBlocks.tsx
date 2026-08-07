@@ -151,14 +151,7 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
-const extensionAliases = new Set([
-	"jpg:jpeg",
-	"jpg:jfif",
-	"jpg:jpe",
-	"jpg:pjpeg",
-	"jpg:pjp",
-	"tiff:tif",
-]);
+const extensionAliases = new Set(["jpg:jpeg", "tiff:tif"]);
 
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
