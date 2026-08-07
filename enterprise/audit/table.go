@@ -511,7 +511,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_header":              ActionTrack,
 		"api_key_value":               ActionSecret, // Credential; show change, never contents.
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
-		"custom_headers":              ActionSecret, // Header values are credentials; show change, never contents.
+		"custom_headers":              ActionSecret, // May contain credentials; show change, never contents.
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"tool_allow_list":             ActionTrack,
 		"tool_deny_list":              ActionTrack,
@@ -525,7 +525,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"allow_in_plan_mode":          ActionTrack,
 		"forward_coder_headers":       ActionTrack,
 		"oauth2_revocation_url":       ActionTrack,
-		"organization_id":             ActionIgnore, // Never changes; carried by the audit log's organization ID.
+		"organization_id":             ActionIgnore, // Never changes after creation; carried by the audit log's organization ID.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

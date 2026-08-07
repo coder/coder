@@ -293,8 +293,6 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
-	// A read-allowed but write-denied caller reaches the handler, so the
-	// denied mutation is audited with a 403 status.
 	t.Run("WriteDeniedAudited", func(t *testing.T) {
 		t.Parallel()
 

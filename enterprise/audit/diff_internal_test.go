@@ -540,8 +540,6 @@ func Test_diff(t *testing.T) {
 			},
 		},
 		{
-			// Rotating credentials renders a redacted change marker and
-			// the dbcrypt key-id bookkeeping stays out of the diff.
 			name: "SecretRotationRedacted",
 			left: database.MCPServerConfig{
 				ID:                 uuid.UUID{1},
@@ -570,9 +568,6 @@ func Test_diff(t *testing.T) {
 	})
 }
 
-// Test_mcpServerConfigSecretsNeverSerialized proves the serialized audit
-// diff for an MCP server config never carries secret material, mirroring
-// how coderd/audit.InitRequest marshals the diff into the audit log row.
 func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 	t.Parallel()
 
