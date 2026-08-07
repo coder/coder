@@ -321,8 +321,3 @@ Coder Agents is a new approach that differs from
 | Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
 | Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
 | Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |
-
-## Product status
-
-Coder Agents is in Beta. The feature is under active development and
-available for evaluation.

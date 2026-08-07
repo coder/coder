@@ -4,8 +4,8 @@ This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
-> Coder Agents is in Beta. APIs, behavior, and configuration may change
-> between releases without notice; pin a release before broad rollout.
+> APIs, behavior, and configuration may change between releases without
+> notice; pin a release before broad rollout.
 > Use **Coder version 2.33.1 or greater**.
 
 ## Prerequisites
@@ -278,7 +278,7 @@ rather than developer session tokens. Keep automation credentials
 narrowly scoped.
 
 > [!NOTE]
-> The Chats API is in beta and may change without notice.
+> The Chats API may change without notice.
 > See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
@@ -319,7 +319,7 @@ Good feedback includes:
 - **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
-Your input directly influences product direction during Beta.
+Your input directly influences product direction.
 
 ## Next steps
 
