@@ -225,6 +225,23 @@ of the template will be used.
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -591,6 +608,23 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -924,6 +958,23 @@ of the template will be used.
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -1218,6 +1269,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "logs_length": 0,
                 "logs_overflowed": true,
+                "metadata": [
+                  {
+                    "description": {},
+                    "result": {}
+                  }
+                ],
                 "name": "string",
                 "operating_system": "string",
                 "parent_id": {
@@ -1527,6 +1584,23 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -2146,6 +2220,23 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {

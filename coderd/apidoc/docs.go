@@ -27254,6 +27254,13 @@ const docTemplate = `{
                 "logs_overflowed": {
                     "type": "boolean"
                 },
+                "metadata": {
+                    "description": "Metadata is only populated on the workspaces list endpoint when the\nrequest opts in with the include_agent_metadata search key, and it\nonly carries the requested keys. The description's script is always\nempty here: it can be long, and list consumers want values.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -27635,6 +27642,56 @@ const docTemplate = `{
                 "workspace_agent_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadata": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
+                },
+                "result": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataResult"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadataDescription": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "script": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadataResult": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

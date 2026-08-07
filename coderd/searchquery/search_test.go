@@ -342,6 +342,13 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "IncludeAgentMetadata",
+			Query: `include_agent_metadata:"task_status" include_agent_metadata:"cpu"`,
+			Expected: database.GetWorkspacesParams{
+				IncludeAgentMetadata: []string{"task_status", "cpu"},
+			},
+		},
+		{
 			Name:  "SharedWithMe",
 			Query: `shared_with_user:me`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -540,6 +547,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
+				}
+				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")

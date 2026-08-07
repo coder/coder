@@ -248,6 +248,17 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(filter.IncludeAgentMetadata) > 0 {
+		err = attachAgentMetadata(wss, workspaceRows)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting agent metadata.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 		Workspaces: wss,
 		Count:      int(workspaceRows[0].Count),
@@ -2756,6 +2767,38 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		builds:       apiBuilds,
 		allowRenames: api.Options.AllowWorkspaceRenames,
 	}, nil
+}
+
+// attachAgentMetadata maps the agent metadata the workspaces query
+// aggregated per workspace onto the agents in the converted response.
+// Each aggregated datum carries its workspace_agent_id.
+func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) error {
+	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
+	for _, row := range rows {
+		if len(row.AgentMetadata) == 0 {
+			continue
+		}
+		var metadata database.AgentMetadataAggregate
+		err := metadata.Scan(row.AgentMetadata)
+		if err != nil {
+			return xerrors.Errorf("scan agent metadata for workspace %q: %w", row.ID, err)
+		}
+		for _, datum := range metadata {
+			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)
+		}
+	}
+	for wi := range workspaces {
+		resources := workspaces[wi].LatestBuild.Resources
+		for ri := range resources {
+			for ai := range resources[ri].Agents {
+				agent := &resources[ri].Agents[ai]
+				if metadata, ok := byAgent[agent.ID]; ok {
+					agent.Metadata = convertWorkspaceAgentMetadata(metadata)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func convertWorkspaces(
