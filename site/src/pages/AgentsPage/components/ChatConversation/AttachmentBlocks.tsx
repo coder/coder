@@ -120,10 +120,7 @@ const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
 const isSuffixPreservingMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("text/") ||
-	mediaType === "application/json" ||
-	mediaType === "application/xml" ||
-	/\+(json|xml)$/i.test(mediaType);
+	mediaType.startsWith("text/");
 
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
