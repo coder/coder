@@ -1,4 +1,5 @@
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
+import { createDeferred } from "#/testHelpers/deferred";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
 	type PaginatedData,
@@ -132,7 +133,7 @@ describe(usePaginatedQuery.name, () => {
 					expect(mockQueryFn).toHaveBeenCalledWith(pageMatcher),
 				);
 			} else {
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				await waitFor(() => expect(result.current.isSuccess).toBe(true));
 				expect(mockQueryFn).not.toHaveBeenCalledWith(pageMatcher);
 			}
 		};
@@ -152,6 +153,34 @@ describe(usePaginatedQuery.name, () => {
 
 		it("Avoids prefetch for next page if it doesn't exist", async () => {
 			await testPrefetch(3, 4, false);
+		});
+
+		it("Prefetches adjacent pages after the query key changes", async () => {
+			const queryFn = vi.fn(mockQueryFnImplementation);
+			const { rerender } = await render({
+				queryKey: ({ pageNumber }) => ["query", "first", pageNumber],
+				queryFn,
+			});
+
+			await waitFor(() =>
+				expect(queryFn).toHaveBeenCalledWith(
+					expect.objectContaining({ pageNumber: 2 }),
+				),
+			);
+			queryFn.mockClear();
+
+			await rerender({
+				options: {
+					queryKey: ({ pageNumber }) => ["query", "second", pageNumber],
+					queryFn,
+				},
+			});
+
+			await waitFor(() =>
+				expect(queryFn).toHaveBeenCalledWith(
+					expect.objectContaining({ pageNumber: 2 }),
+				),
+			);
 		});
 
 		it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
@@ -217,6 +246,112 @@ describe(usePaginatedQuery.name, () => {
 			);
 
 			await waitFor(() => expect(result.current.currentPage).toBe(4));
+		});
+
+		it("No custom callback: fetches the first page to resolve an unknown page count", async () => {
+			const queryFn = vi.fn(({ pageNumber, limit }) => {
+				if (pageNumber === 1) {
+					return Promise.resolve({
+						data: new Array(limit).fill(pageNumber),
+						count: 100,
+					});
+				}
+
+				return Promise.resolve({ data: [], count: 0 });
+			});
+			const { result } = await render(
+				{
+					queryKey: ({ pageNumber }) => ["mock", pageNumber],
+					queryFn,
+				},
+				"/?page=35",
+			);
+
+			await waitFor(() => expect(result.current.currentPage).toBe(4));
+			expect(queryFn).toHaveBeenCalledWith(
+				expect.objectContaining({ pageNumber: 1 }),
+			);
+		});
+
+		it("With custom callback: rechecks unknown page counts after the query key changes", async () => {
+			const onInvalidPageChange = vi.fn();
+			const queryFn = vi.fn(({ pageNumber, limit }) => {
+				if (pageNumber === 1) {
+					return Promise.resolve({
+						data: new Array(limit).fill(pageNumber),
+						count: 100,
+					});
+				}
+
+				return Promise.resolve({ data: [], count: 0 });
+			});
+			const { queryClient, rerender } = await render(
+				{
+					onInvalidPageChange,
+					queryKey: ({ pageNumber }) => ["mock", "first", pageNumber],
+					queryFn,
+				},
+				"/?page=35",
+			);
+
+			await waitFor(() =>
+				expect(onInvalidPageChange).toHaveBeenCalledWith(
+					expect.objectContaining({ totalPages: 4 }),
+				),
+			);
+
+			queryClient.setQueryData(["mock", "second", 35], {
+				data: [],
+				count: 0,
+			});
+			queryClient.setQueryData(["mock", "second", 1], {
+				data: new Array(25).fill(1),
+				count: 50,
+			});
+			onInvalidPageChange.mockClear();
+
+			await rerender({
+				options: {
+					onInvalidPageChange,
+					queryKey: ({ pageNumber }) => ["mock", "second", pageNumber],
+					queryFn,
+				},
+			});
+
+			await waitFor(() =>
+				expect(onInvalidPageChange).toHaveBeenCalledWith(
+					expect.objectContaining({ totalPages: 2 }),
+				),
+			);
+		});
+
+		it("No custom callback: does not overwrite navigation while resolving an unknown page count", async () => {
+			const firstPage = createDeferred<{ data: number[]; count: number }>();
+			const queryFn = vi.fn(({ pageNumber }) => {
+				if (pageNumber === 1) {
+					return firstPage.promise;
+				}
+				return Promise.resolve({ data: [], count: 0 });
+			});
+			const { result } = await render(
+				{
+					queryKey: ({ pageNumber }) => ["mock", pageNumber],
+					queryFn,
+				},
+				"/?page=35",
+			);
+
+			await waitFor(() =>
+				expect(queryFn).toHaveBeenCalledWith(
+					expect.objectContaining({ pageNumber: 1 }),
+				),
+			);
+			act(() => result.current.goToFirstPage());
+			await waitFor(() => expect(result.current.currentPage).toBe(1));
+
+			firstPage.resolve({ data: [1], count: 100 });
+			await waitFor(() => expect(result.current.isFetching).toBe(false));
+			expect(result.current.currentPage).toBe(1);
 		});
 
 		it("No custom callback: auto-redirects user to first page if requested page goes below 1", async () => {
@@ -364,7 +499,7 @@ describe(usePaginatedQuery.name, () => {
 				queryFn: mockQueryFn,
 			});
 
-			result.current.goToFirstPage();
+			act(() => result.current.goToFirstPage());
 			expect(searchParams.get("page")).toBe("1");
 		});
 	});
@@ -391,7 +526,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 				);
 
 				expect(result.current.currentPage).toBe(5);
-				result.current.goToFirstPage();
+				act(() => result.current.goToFirstPage());
 				await waitFor(() => expect(result.current.currentPage).toBe(1));
 				unmount();
 			}
@@ -411,16 +546,16 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 			expect(result.current.hasNextPage).toBe(true);
 
 			// Can go to next page when hasNextPage is true
-			result.current.goToNextPage();
+			act(() => result.current.goToNextPage());
 			await waitFor(() => expect(result.current.currentPage).toBe(2));
 
 			// Navigate to last page (page 4, since we have 100 items with 25 per page)
-			result.current.onPageChange(4);
+			act(() => result.current.onPageChange(4));
 			await waitFor(() => expect(result.current.currentPage).toBe(4));
 
 			// Now hasNextPage should be false and goToNextPage should not change the page
 			expect(result.current.hasNextPage).toBe(false);
-			result.current.goToNextPage();
+			act(() => result.current.goToNextPage());
 			expect(result.current.currentPage).toBe(4);
 		});
 
@@ -438,16 +573,16 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 			expect(result.current.hasPreviousPage).toBe(true);
 
 			// Can go to previous page when hasPreviousPage is true
-			result.current.goToPreviousPage();
+			act(() => result.current.goToPreviousPage());
 			await waitFor(() => expect(result.current.currentPage).toBe(2));
 
 			// Navigate to first page
-			result.current.goToFirstPage();
+			act(() => result.current.goToFirstPage());
 			await waitFor(() => expect(result.current.currentPage).toBe(1));
 
 			// Now hasPreviousPage should be false and goToPreviousPage should not change the page
 			expect(result.current.hasPreviousPage).toBe(false);
-			result.current.goToPreviousPage();
+			act(() => result.current.goToPreviousPage());
 			expect(result.current.currentPage).toBe(1);
 		});
 
@@ -459,27 +594,35 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 
 			// Wait for the initial query to complete
 			await waitFor(() => expect(result.current.isSuccess).toBe(true));
-			result.current.onPageChange(2.5);
+			act(() => result.current.onPageChange(2.5));
 
 			await waitFor(() => expect(result.current.currentPage).toBe(2));
 		});
 
-		test("onPageChange rejects impossible numeric values and does nothing", async () => {
+		test("onPageChange ignores NaN", async () => {
 			const { result } = await render({
 				queryKey: mockQueryKey,
 				queryFn: mockQueryFn,
 			});
 
-			// Wait for the initial query to complete
 			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			act(() => result.current.onPageChange(Number.NaN));
 
-			result.current.onPageChange(Number.NaN);
-			result.current.onPageChange(Number.POSITIVE_INFINITY);
-			result.current.onPageChange(Number.NEGATIVE_INFINITY);
-
-			// Give it a moment to ensure no navigation happens
-			await new Promise((resolve) => setTimeout(resolve, 10));
 			expect(result.current.currentPage).toBe(1);
+		});
+
+		test("onPageChange clamps infinite values to the page range", async () => {
+			const { result } = await render({
+				queryKey: mockQueryKey,
+				queryFn: mockQueryFn,
+			});
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			act(() => result.current.onPageChange(Number.POSITIVE_INFINITY));
+			await waitFor(() => expect(result.current.currentPage).toBe(4));
+
+			act(() => result.current.onPageChange(Number.NEGATIVE_INFINITY));
+			await waitFor(() => expect(result.current.currentPage).toBe(1));
 		});
 	});
 });

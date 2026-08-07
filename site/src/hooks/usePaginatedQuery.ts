@@ -1,6 +1,7 @@
 import clamp from "lodash/clamp";
 import { useEffect, useEffectEvent } from "react";
 import {
+	hashKey,
 	keepPreviousData,
 	type QueryFunctionContext,
 	type QueryKey,
@@ -149,9 +150,11 @@ export function usePaginatedQuery<
 	// Not using infinite query right now because that requires a fair bit of list
 	// virtualization as the lists get bigger (especially for the audit logs).
 	// Keeping initial implementation simple.
+	const currentPageOptions = getQueryOptionsFromPage(currentPage);
+	const currentQueryHash = hashKey(currentPageOptions.queryKey);
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
-		...getQueryOptionsFromPage(currentPage),
+		...currentPageOptions,
 		placeholderData: keepPreviousData,
 	});
 
@@ -195,50 +198,60 @@ export function usePaginatedQuery<
 			currentPageOffset - limit < totalRecords);
 
 	const queryClient = useQueryClient();
-	const prefetchPage = useEffectEvent((newPage: number) => {
-		if (!prefetch) {
+	const prefetchPage = useEffectEvent(
+		(newPage: number, expectedQueryHash: string) => {
+			const latestQueryHash = hashKey(
+				getQueryOptionsFromPage(currentPage).queryKey,
+			);
+			if (latestQueryHash !== expectedQueryHash) {
+				return;
+			}
+
+			const options = getQueryOptionsFromPage(newPage);
+			return queryClient.prefetchQuery(options);
+		},
+	);
+
+	useEffect(() => {
+		if (!prefetch || query.isPlaceholderData) {
 			return;
 		}
-
-		const options = getQueryOptionsFromPage(newPage);
-		return queryClient.prefetchQuery(options);
-	});
-
-	// Have to split hairs and sync on both the current page and the hasXPage
-	// variables, because the page can change immediately client-side, but the
-	// hasXPage values are derived from the server and won't always be immediately
-	// ready on the initial render
-	useEffect(() => {
 		if (hasNextPage) {
-			void prefetchPage(currentPage + 1);
+			void prefetchPage(currentPage + 1, currentQueryHash);
 		}
-	}, [currentPage, hasNextPage]);
-
-	useEffect(() => {
 		if (hasPreviousPage) {
-			void prefetchPage(currentPage - 1);
+			void prefetchPage(currentPage - 1, currentQueryHash);
 		}
-	}, [currentPage, hasPreviousPage]);
+	}, [
+		currentPage,
+		currentQueryHash,
+		hasNextPage,
+		hasPreviousPage,
+		prefetch,
+		query.isPlaceholderData,
+	]);
 
-	// Mainly here to catch user if they navigate to a page directly via URL;
-	// totalPages parameterized to insulate function from fetch status changes
-	const updatePageIfInvalid = useEffectEvent(async (totalPages: number) => {
-		// If totalPages is 0, that's a sign that the currentPage overshot, and the
-		// API returned a count of 0 because it didn't know how to process the query
-		let fixedTotalPages: number;
-		if (totalPages !== 0) {
-			fixedTotalPages = totalPages;
-		} else {
+	const getTotalPagesFromFirstPage = useEffectEvent(
+		async (expectedQueryHash: string) => {
+			const latestQueryHash = hashKey(
+				getQueryOptionsFromPage(currentPage).queryKey,
+			);
+			if (latestQueryHash !== expectedQueryHash) {
+				return;
+			}
+
 			const firstPageOptions = getQueryOptionsFromPage(1);
 			try {
 				const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-				const rounded = Math.ceil(firstPageResult?.count ?? 0 / limit);
-				fixedTotalPages = Math.max(rounded, 1);
+				const rounded = Math.ceil((firstPageResult?.count ?? 0) / limit);
+				return Math.max(rounded, 1);
 			} catch {
-				fixedTotalPages = 1;
+				return 1;
 			}
-		}
+		},
+	);
 
+	const updatePageIfInvalid = useEffectEvent((fixedTotalPages: number) => {
 		const clamped = clamp(currentPage, 1, fixedTotalPages);
 		if (currentPage === clamped) {
 			return;
@@ -265,13 +278,36 @@ export function usePaginatedQuery<
 
 	useEffect(() => {
 		if (
-			!query.isFetching &&
-			totalPages !== undefined &&
-			currentPage > totalPages
+			query.isFetching ||
+			query.isPlaceholderData ||
+			totalPages === undefined ||
+			currentPage <= totalPages
 		) {
-			void updatePageIfInvalid(totalPages);
+			return;
 		}
-	}, [query.isFetching, totalPages, currentPage]);
+		if (totalPages !== 0) {
+			updatePageIfInvalid(totalPages);
+			return;
+		}
+
+		let ignore = false;
+		void getTotalPagesFromFirstPage(currentQueryHash).then(
+			(fixedTotalPages) => {
+				if (!ignore && fixedTotalPages !== undefined) {
+					updatePageIfInvalid(fixedTotalPages);
+				}
+			},
+		);
+		return () => {
+			ignore = true;
+		};
+	}, [
+		query.isFetching,
+		query.isPlaceholderData,
+		totalPages,
+		currentPage,
+		currentQueryHash,
+	]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing
