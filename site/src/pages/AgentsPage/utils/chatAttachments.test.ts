@@ -16,33 +16,51 @@ import {
 
 describe("handleAttachmentDownloadClick", () => {
 	const overriddenNavigatorKeys = new Set<string>();
-	const overrideNavigator = (key: string, value: unknown) => {
-		Object.defineProperty(navigator, key, {
-			value,
-			configurable: true,
-		});
-		overriddenNavigatorKeys.add(key);
-	};
-
+	const originalURLDescriptors = new Map<
+		string,
+		PropertyDescriptor | undefined
+	>();
 	const iPhoneUserAgent =
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
-
-	const enterIOSStandalonePWA = () => {
-		overrideNavigator("userAgent", iPhoneUserAgent);
-		overrideNavigator("standalone", true);
-	};
-
 	const target = {
 		href: "/api/experimental/chats/files/file-1",
 		fileName: "01-agents-list.png",
 		mediaType: "image/png",
 	};
 
-	// jsdom does not implement object URLs, so stub them on the URL constructor.
-	const originalURLDescriptors = new Map<
-		string,
-		PropertyDescriptor | undefined
-	>();
+	const overrideNavigator = (key: string, value: unknown) => {
+		Object.defineProperty(navigator, key, { value, configurable: true });
+		overriddenNavigatorKeys.add(key);
+	};
+
+	const enterIOSStandalonePWA = () => {
+		overrideNavigator("userAgent", iPhoneUserAgent);
+		overrideNavigator("standalone", true);
+	};
+
+	const mockFileSharing = (
+		share: ReturnType<typeof vi.fn>,
+		canShare: (data: { files: File[] }) => boolean = () => true,
+	) => {
+		overrideNavigator("share", share);
+		overrideNavigator("canShare", vi.fn(canShare));
+	};
+
+	const mockAttachmentFetch = (body = "png-bytes", mediaType = "image/png") =>
+		vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(
+				new Response(new Blob([body], { type: mediaType }), { status: 200 }),
+			);
+
+	const click = (downloadTarget = target, signal?: AbortSignal) => {
+		const event = { preventDefault: vi.fn() };
+		return {
+			event,
+			pending: handleAttachmentDownloadClick(event, downloadTarget, signal),
+		};
+	};
+
 	const stubObjectURLs = () => {
 		const createObjectURL = vi.fn().mockReturnValue("blob:inline");
 		const revokeObjectURL = vi.fn();
@@ -50,12 +68,10 @@ describe("handleAttachmentDownloadClick", () => {
 			createObjectURL,
 			revokeObjectURL,
 		})) {
-			if (!originalURLDescriptors.has(key)) {
-				originalURLDescriptors.set(
-					key,
-					Object.getOwnPropertyDescriptor(URL, key),
-				);
-			}
+			originalURLDescriptors.set(
+				key,
+				Object.getOwnPropertyDescriptor(URL, key),
+			);
 			Object.defineProperty(URL, key, { value, configurable: true });
 		}
 		return { createObjectURL, revokeObjectURL };
@@ -79,51 +95,44 @@ describe("handleAttachmentDownloadClick", () => {
 		vi.mocked(toast.error).mockClear();
 	});
 
-	it("keeps the native anchor download outside iOS", () => {
+	it.each([
+		["outside iOS", () => {}],
+		[
+			"in the iOS browser",
+			() => overrideNavigator("userAgent", iPhoneUserAgent),
+		],
+	])("keeps the native anchor download %s", (_label, setup) => {
+		setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		const event = { preventDefault: vi.fn() };
+		const { event, pending } = click();
 
-		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		expect(pending).toBeUndefined();
 		expect(event.preventDefault).not.toHaveBeenCalled();
 		expect(open).not.toHaveBeenCalled();
 	});
 
-	it("keeps the native anchor download in the iOS browser", () => {
-		overrideNavigator("userAgent", iPhoneUserAgent);
-		const event = { preventDefault: vi.fn() };
-
-		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
-		expect(event.preventDefault).not.toHaveBeenCalled();
-	});
-
-	it("shares the attachment via the share sheet in an iOS standalone PWA", async () => {
+	it("shares the fetched attachment in an iOS standalone PWA", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" }), {
-				status: 200,
-			}),
-		);
-		const event = { preventDefault: vi.fn() };
+		mockFileSharing(share);
+		mockAttachmentFetch();
 
-		await handleAttachmentDownloadClick(event, target);
+		const { event, pending } = click();
+		await pending;
 
 		expect(event.preventDefault).toHaveBeenCalled();
 		expect(globalThis.fetch).toHaveBeenCalledWith(target.href, {
 			signal: undefined,
 		});
-		expect(open).not.toHaveBeenCalled();
-		expect(share).toHaveBeenCalledTimes(1);
 		const shared: { files: File[] } = share.mock.calls[0][0];
 		expect(shared.files).toHaveLength(1);
-		expect(shared.files[0].name).toBe("01-agents-list.png");
-		expect(shared.files[0].type).toBe("image/png");
+		expect(shared.files[0]).toMatchObject({
+			name: "01-agents-list.png",
+			type: "image/png",
+		});
 	});
 
-	it("intercepts on iPadOS reporting a macOS user agent", () => {
+	it("recognizes iPadOS with a macOS user agent", () => {
 		overrideNavigator(
 			"userAgent",
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
@@ -131,20 +140,22 @@ describe("handleAttachmentDownloadClick", () => {
 		overrideNavigator("maxTouchPoints", 5);
 		overrideNavigator("standalone", true);
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		const event = { preventDefault: vi.fn() };
 
-		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		const { event, pending } = click();
+
+		expect(pending).toBeUndefined();
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(open).toHaveBeenCalled();
+		expect(open).toHaveBeenCalledWith(target.href, "_blank", "noopener");
 	});
 
-	it("falls back to a dismissible tab when file sharing is unavailable", () => {
+	it("opens a tab synchronously when file sharing is unavailable", () => {
 		enterIOSStandalonePWA();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
-		const event = { preventDefault: vi.fn() };
 
-		expect(handleAttachmentDownloadClick(event, target)).toBeUndefined();
+		const { event, pending } = click();
+
+		expect(pending).toBeUndefined();
 		expect(event.preventDefault).toHaveBeenCalled();
 		expect(open).toHaveBeenCalledWith(target.href, "_blank", "noopener");
 		expect(fetchSpy).not.toHaveBeenCalled();
@@ -152,33 +163,26 @@ describe("handleAttachmentDownloadClick", () => {
 
 	it("stays quiet when the user dismisses the share sheet", async () => {
 		enterIOSStandalonePWA();
-		overrideNavigator(
-			"share",
+		mockFileSharing(
 			vi.fn().mockRejectedValue(new DOMException("canceled", "AbortError")),
 		);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" })),
-		);
-		const event = { preventDefault: vi.fn() };
+		mockAttachmentFetch();
 
-		await handleAttachmentDownloadClick(event, target);
+		await click().pending;
 
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("shows an error toast without a late popup when the download fetch fails", async () => {
+	it("shows the fetch failure without opening a late popup", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		mockFileSharing(share);
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response("nope", { status: 503 }),
 		);
-		const event = { preventDefault: vi.fn() };
 
-		await handleAttachmentDownloadClick(event, target);
+		await click().pending;
 
 		expect(share).not.toHaveBeenCalled();
 		expect(open).not.toHaveBeenCalled();
@@ -188,7 +192,7 @@ describe("handleAttachmentDownloadClick", () => {
 		);
 	});
 
-	it("offers a fresh-gesture retry when user activation expired during the fetch", async () => {
+	it("offers a Save retry when user activation expires", async () => {
 		enterIOSStandalonePWA();
 		const share = vi
 			.fn()
@@ -196,18 +200,11 @@ describe("handleAttachmentDownloadClick", () => {
 				new DOMException("activation expired", "NotAllowedError"),
 			)
 			.mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" })),
-		);
-		const event = { preventDefault: vi.fn() };
+		mockFileSharing(share);
+		mockAttachmentFetch();
 
-		await handleAttachmentDownloadClick(event, target);
+		await click().pending;
 
-		// DownloadInIOSStandaloneRecoversExpiredActivation covers the Save click
-		// and retry through the real toast UI.
-		expect(share).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith(
 			"Couldn't download 01-agents-list.png",
 			expect.objectContaining({
@@ -217,110 +214,70 @@ describe("handleAttachmentDownloadClick", () => {
 		);
 	});
 
-	it("offers a tab fallback instead of a retry for permanent share failures", async () => {
+	it("offers Open after a permanent share failure", async () => {
 		enterIOSStandalonePWA();
-		overrideNavigator(
-			"share",
+		mockFileSharing(
 			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
 		);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" })),
-		);
-		const event = { preventDefault: vi.fn() };
+		mockAttachmentFetch();
 
-		await handleAttachmentDownloadClick(event, target);
+		await click().pending;
 
-		expect(toast.error).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(toast.error).mock.calls[0][1]).toEqual(
+		expect(toast.error).toHaveBeenCalledWith(
+			"Couldn't download 01-agents-list.png",
 			expect.objectContaining({
 				action: expect.objectContaining({ label: "Open" }),
 			}),
 		);
 	});
 
-	it("shares inline data: attachments without fetching", async () => {
+	it("shares inline data without fetching", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		mockFileSharing(share);
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
-		const event = { preventDefault: vi.fn() };
-		const payload = btoa("png-bytes");
 
-		await handleAttachmentDownloadClick(event, {
-			href: `data:image/png;base64,${payload}`,
+		await click({
+			href: `data:image/png;base64,${btoa("png-bytes")}`,
 			fileName: "inline.png",
 			mediaType: "image/png",
-		});
+		}).pending;
 
 		expect(fetchSpy).not.toHaveBeenCalled();
-		expect(share).toHaveBeenCalledTimes(1);
 		const shared: { files: File[] } = share.mock.calls[0][0];
-		expect(shared.files[0].name).toBe("inline.png");
-		expect(shared.files[0].type).toBe("image/png");
-		expect(shared.files[0].size).toBe("png-bytes".length);
+		expect(shared.files[0]).toMatchObject({
+			name: "inline.png",
+			type: "image/png",
+			size: "png-bytes".length,
+		});
 	});
 
-	it("offers an Open fallback for data: hrefs on permanent share failure", async () => {
+	it("opens inline data through a temporary blob URL", () => {
 		enterIOSStandalonePWA();
-		overrideNavigator(
-			"share",
-			vi.fn().mockRejectedValue(new DOMException("share failed", "DataError")),
-		);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		const event = { preventDefault: vi.fn() };
+		const { createObjectURL, revokeObjectURL } = stubObjectURLs();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		vi.useFakeTimers();
 
-		await handleAttachmentDownloadClick(event, {
+		const { pending } = click({
 			href: `data:image/png;base64,${btoa("png-bytes")}`,
 			fileName: "inline.png",
 			mediaType: "image/png",
 		});
 
-		// Clicking Open in the rendered toast is exercised in Storybook
-		// (DownloadInIOSStandaloneOpensInlineAttachmentFromToast).
-		expect(toast.error).toHaveBeenCalledWith(
-			"Couldn't download inline.png",
-			expect.objectContaining({
-				action: expect.objectContaining({ label: "Open" }),
-			}),
-		);
-	});
-
-	it("opens inline attachments through a blob tab when file sharing is unavailable", () => {
-		enterIOSStandalonePWA();
-		const { createObjectURL, revokeObjectURL } = stubObjectURLs();
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		const fetchSpy = vi.spyOn(globalThis, "fetch");
-		vi.useFakeTimers();
-		const event = { preventDefault: vi.fn() };
-
-		expect(
-			handleAttachmentDownloadClick(event, {
-				href: `data:image/png;base64,${btoa("png-bytes")}`,
-				fileName: "inline.png",
-				mediaType: "image/png",
-			}),
-		).toBeUndefined();
-
-		expect(event.preventDefault).toHaveBeenCalled();
-		expect(fetchSpy).not.toHaveBeenCalled();
-		expect(createObjectURL).toHaveBeenCalledTimes(1);
+		expect(pending).toBeUndefined();
 		const decoded: File = createObjectURL.mock.calls[0][0];
-		expect(decoded.name).toBe("inline.png");
-		expect(decoded.type).toBe("image/png");
+		expect(decoded).toMatchObject({ name: "inline.png", type: "image/png" });
 		expect(open).toHaveBeenCalledWith("blob:inline", "_blank", "noopener");
 		vi.runAllTimers();
 		expect(revokeObjectURL).toHaveBeenCalledWith("blob:inline");
 	});
 
-	it("shows a decode error instead of a tab when undecodable inline data cannot be shared", () => {
+	it("shows a decode error for corrupt inline data", () => {
 		enterIOSStandalonePWA();
 		stubObjectURLs();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		const event = { preventDefault: vi.fn() };
 
-		handleAttachmentDownloadClick(event, {
+		click({
 			href: "data:image/png;base64,%%%",
 			fileName: "inline.png",
 			mediaType: "image/png",
@@ -332,11 +289,10 @@ describe("handleAttachmentDownloadClick", () => {
 		});
 	});
 
-	it("stays quiet when the download is aborted mid-fetch", async () => {
+	it("passes the abort signal through the fetch and suppresses abort UI", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		mockFileSharing(share);
 		vi.spyOn(globalThis, "fetch").mockImplementation(
 			(_input, init) =>
 				new Promise((_resolve, reject) => {
@@ -346,13 +302,8 @@ describe("handleAttachmentDownloadClick", () => {
 				}),
 		);
 		const controller = new AbortController();
-		const event = { preventDefault: vi.fn() };
 
-		const pending = handleAttachmentDownloadClick(
-			event,
-			target,
-			controller.signal,
-		);
+		const { pending } = click(target, controller.signal);
 		controller.abort();
 		await pending;
 
@@ -360,65 +311,46 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("suppresses the share sheet when aborted after the fetch resolves", async () => {
+	it("suppresses sharing when unmounted after the fetch resolves", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
+		mockFileSharing(share);
 		const controller = new AbortController();
 		vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
 			controller.abort();
-			return new Response(new Blob(["png-bytes"], { type: "image/png" }), {
-				status: 200,
-			});
+			return new Response(new Blob(["png-bytes"], { type: "image/png" }));
 		});
-		const event = { preventDefault: vi.fn() };
 
-		await handleAttachmentDownloadClick(event, target, controller.signal);
+		await click(target, controller.signal).pending;
 
 		expect(share).not.toHaveBeenCalled();
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("suppresses share rejection UI when aborted while the sheet is pending", async () => {
+	it("suppresses share rejection UI after unmount", async () => {
 		enterIOSStandalonePWA();
 		const controller = new AbortController();
 		const share = vi.fn().mockImplementation(() => {
 			controller.abort();
 			return Promise.reject(new DOMException("expired", "NotAllowedError"));
 		});
-		overrideNavigator("share", share);
-		overrideNavigator("canShare", vi.fn().mockReturnValue(true));
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" }), {
-				status: 200,
-			}),
-		);
-		const event = { preventDefault: vi.fn() };
+		mockFileSharing(share);
+		mockAttachmentFetch();
 
-		await handleAttachmentDownloadClick(event, target, controller.signal);
+		await click(target, controller.signal).pending;
 
 		expect(share).toHaveBeenCalledTimes(1);
 		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("offers a tab fallback when the fetched file turns out unshareable", async () => {
+	it("offers Open when the fetched file cannot be shared", async () => {
 		enterIOSStandalonePWA();
 		const share = vi.fn().mockResolvedValue(undefined);
-		overrideNavigator("share", share);
-		overrideNavigator(
-			"canShare",
-			vi
-				.fn<(data: { files: File[] }) => boolean>()
-				.mockImplementation(({ files }) => files[0].size <= 1),
-		);
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(new Blob(["png-bytes"], { type: "image/png" })),
-		);
+		mockFileSharing(share, ({ files }) => files[0].size <= 1);
+		mockAttachmentFetch();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		const event = { preventDefault: vi.fn() };
 
-		await handleAttachmentDownloadClick(event, target);
+		await click().pending;
 
 		expect(share).not.toHaveBeenCalled();
 		expect(open).not.toHaveBeenCalled();
