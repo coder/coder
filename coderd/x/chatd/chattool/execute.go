@@ -91,6 +91,10 @@ type ExecuteResult struct {
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
+	// AgentBrowserSession, when non-empty, is exported as
+	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
+	// browser session scoped to this chat instead of a shared default.
+	AgentBrowserSession string
 }
 
 // ProcessToolOptions configures a process management tool
@@ -126,7 +130,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
+			return executeTool(ctx, conn, args, options), nil
 		},
 	)
 }
@@ -135,15 +139,18 @@ func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	optTimeout time.Duration,
+	options ExecuteOptions,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
 	// Build the environment map for the process request.
-	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
+	env := make(map[string]string, len(nonInteractiveEnvVars)+2)
 	env["CODER_CHAT_AGENT"] = "true"
+	if options.AgentBrowserSession != "" {
+		env["AGENT_BROWSER_SESSION"] = options.AgentBrowserSession
+	}
 	for k, v := range nonInteractiveEnvVars {
 		env[k] = v
 	}
@@ -168,7 +175,7 @@ func executeTool(
 	if background {
 		return executeBackground(ctx, conn, args.Command, workDir, env)
 	}
-	return executeForeground(ctx, conn, args, optTimeout, workDir, env)
+	return executeForeground(ctx, conn, args, options.DefaultTimeout, workDir, env)
 }
 
 // executeBackground starts a process in the background and
