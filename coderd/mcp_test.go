@@ -1383,7 +1383,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		// Sanity-check the full path structure.
 		require.Contains(t, redirectURI,
-			"/api/experimental/mcp-servers/"+created.ID.String()+"/oauth2/callback",
+			"/api/experimental/mcp/servers/"+created.ID.String()+"/oauth2/callback",
 			"redirect URI should have the expected callback path")
 
 		// Double-check that the ID segment is a valid UUID (not some
@@ -1627,7 +1627,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		verifier := "test-verifier-value-that-is-at-least-43-chars-long-for-pkce-spec"
 
 		callbackURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp-servers/" + created.ID.String() + "/oauth2/callback",
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
 		)
 		require.NoError(t, err)
 		q := callbackURL.Query()
@@ -1723,7 +1723,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		// backwards compatibility with providers that don't use PKCE.
 		state := "test-state-no-pkce"
 		callbackURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp-servers/" + created.ID.String() + "/oauth2/callback",
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
 		)
 		require.NoError(t, err)
 		q := callbackURL.Query()
