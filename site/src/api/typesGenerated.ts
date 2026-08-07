@@ -3276,9 +3276,9 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatRole = "" | "read";
+export type ChatRole = "" | "read" | "" | "read";
 
-export const ChatRoles: ChatRole[] = ["", "read"];
+export const ChatRoles: ChatRole[] = ["", "read", "", "read"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {
@@ -5904,6 +5904,25 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+export interface MCPServerConfigACL {
+	readonly users: readonly MCPServerConfigUser[];
+	readonly groups: readonly MCPServerConfigGroup[];
+}
+
+// From codersdk/mcp.go
+export interface MCPServerConfigGroup extends Group {
+	readonly role: ChatRole;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigRole = string;
+
+// From codersdk/mcp.go
+export interface MCPServerConfigUser extends MinimalUser {
+	readonly role: ChatRole;
 }
 
 // From codersdk/mcp.go
@@ -9617,6 +9636,12 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+export interface UpdateMCPServerConfigACLRequest {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/mcp.go
